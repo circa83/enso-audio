@@ -1,23 +1,15 @@
-import logo from './logo.svg';
+import React from 'react';
 import './App.css';
+// Import both player versions
+// import SimplePlayerEarthTones from './SimplePlayerEarthTones';
+import SimplePlayerDark from './SimplePlayerDark';
 
 function App() {
+  // You can toggle between versions by commenting/uncommenting
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+      {/* <SimplePlayerEarthTones /> */}
+      <SimplePlayerDark />
     </div>
   );
 }
