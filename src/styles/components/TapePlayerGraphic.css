@@ -1,0 +1,12 @@
+/*Tape player png */
+.tape-player-graphic {
+    display: flex;
+    justify-content: center;
+    margin: 0 auto 1px;
+  }
+  
+  .tape-reel-image {
+    max-width: 100px;
+    height: auto;
+    display: block;
+  }

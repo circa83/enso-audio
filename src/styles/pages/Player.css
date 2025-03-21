@@ -1,0 +1,196 @@
+/* Import Google Fonts - Space Mono for numeric elements and Archivo for ultra-thin modern text */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@100;200;300&family=Space+Mono&display=swap');
+
+/* Base styling */
+.simple-player {
+  max-width: 900px;
+  margin: 50px auto;
+  padding: 40px;
+  background-color: #181818;
+  border-radius: 2px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+/* Minimal typography */
+h1 {
+  font-family: 'Archivo', sans-serif;
+  font-weight: 100;
+  font-size: 2.5rem;
+  text-align: center;
+  color: #ffffff;
+  margin-bottom: 40px;
+  letter-spacing: 8px;
+  text-transform: uppercase;
+}
+
+h2 {
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 1rem;
+  color: #aaaaaa;
+  margin-bottom: 20px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.session-description {
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 0.9rem;
+  color: #aaaaaa;
+  text-align: center;
+  margin-bottom: 30px;
+  letter-spacing: 1px;
+}
+
+/* Player controls section with tape deck aesthetic */
+.player-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 60px;
+  margin: 30px 0;
+  padding: 30px;
+  background-color: #1c1c1c;
+  border: 1px solid #333;
+  position: relative;
+}
+
+/* Minimal play button */
+.play-button {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background-color: transparent;
+  border: 1px solid #ffffff;
+  color: #ffffff;
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 0.8rem;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+}
+
+.play-button:hover {
+  background-color: #ffffff;
+  color: #111111;
+}
+
+.play-button.playing {
+  background-color: #ffffff;
+  color: #111111;
+}
+
+/* VU meter-style visualization */
+.vu-meter {
+  width: 100%;
+  height: 10px;
+  background-color: #111;
+  margin: 30px 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.vu-meter-level {
+  height: 100%;
+  width: 50%;
+  background-color: #ffffff;
+  transition: width 0.2s ease;
+}
+
+/* Layer controls with minimal styling */
+.layer-controls {
+  margin: 40px 0;
+  padding: 40px;
+  background-color: #1c1c1c;
+  border: 1px solid #333;
+}
+
+.geometric-line {
+  width: 100%;
+  height: 1px;
+  background-color: #333;
+  margin: 50px 0;
+}
+
+/*journey phases section */
+.journey-guide {
+  margin: 40px 0 20px;
+  padding: 25px;
+  background-color: #1c1c1c;
+  border: 1px solid #333;
+}
+
+.journey-guide h3 {
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 1rem;
+  color: #aaaaaa;
+  margin-bottom: 15px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.journey-phases {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.journey-phase {
+  flex: 1;
+  min-width: 120px;
+  padding: 12px;
+  background-color: #191919;
+  border-left: 2px solid #333;
+  transition: background-color 0.2s ease;
+}
+
+.journey-phase:hover {
+  background-color: #222222;
+}
+
+.journey-phase h4 {
+  font-family: 'Archivo', sans-serif;
+  font-weight: 300;
+  font-size: 0.85rem;
+  color: #ffffff;
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+
+.journey-phase p {
+  font-size: 0.75rem;
+  color: #aaaaaa;
+  line-height: 1.4;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .simple-player {
+    padding: 20px;
+    margin: 10px;
+  }
+  
+  h1 {
+    font-size: 1.8rem;
+    letter-spacing: 5px;
+  }
+  
+  .player-controls {
+    flex-direction: column;
+    gap: 30px;
+    padding: 30px 20px;
+  }
+  
+  .journey-phases {
+    flex-direction: column;
+  }
+}
