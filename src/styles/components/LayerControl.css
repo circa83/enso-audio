@@ -80,10 +80,21 @@
     }
     
     .layer-slider input {
-      flex-grow: 1;
-      margin: 0 8px;
-    }
+        flex-grow: 1;
+        margin: 0 8px;
+        height: 20px; /* Increase height for touch */
+      }
+
+    .layer-slider input::-webkit-slider-thumb {
+        width: 24px; /* Larger thumb */
+        height: 24px; /* Larger thumb */
+      }
     
+      .layer-slider input::-moz-range-thumb {
+        width: 24px; /* Larger thumb */
+        height: 24px; /* Larger thumb */
+      }
+      
     .layer-slider span {
       width: 40px;
       min-width: 40px;
