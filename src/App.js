@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { AudioProvider } from './contexts/AudioContext';
+import { AudioProvider, useAudio } from './contexts/AudioContext';
 import Player from './pages/Player';
 import Library from './pages/Library';
 import Header from './components/layout/Header';
+import LoadingScreen from './components/LoadingScreen'; // Import the new component
 import './styles/globals.css';
 import './App.css';
 
-function App() {
+// This component will have access to the AudioContext
+const AppContent = () => {
   const [currentPage, setCurrentPage] = useState('player');
+  const { isAudioLoaded, isAudioActivated, activateAudio,loadingProgress } = useAudio();
   
   const handleNavigate = (page) => {
     setCurrentPage(page);
@@ -26,14 +29,27 @@ function App() {
   
   return (
     <div className="App">
-      <AudioProvider>
-        <Header 
-          currentPage={currentPage} 
-          onNavigate={handleNavigate} 
-        />
-        {renderPage()}
-      </AudioProvider>
+      {/* Loading screen shows above everything else */}
+      <LoadingScreen 
+        isLoading={!isAudioLoaded || !isAudioActivated} 
+        onActivateAudio={activateAudio} 
+        loadingProgress={loadingProgress}
+      />
+      
+      <Header 
+        currentPage={currentPage} 
+        onNavigate={handleNavigate} 
+      />
+      {renderPage()}
     </div>
+  );
+};
+
+function App() {
+  return (
+    <AudioProvider>
+      <AppContent />
+    </AudioProvider>
   );
 }
 

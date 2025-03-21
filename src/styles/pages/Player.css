@@ -76,6 +76,7 @@ h2 {
   text-transform: uppercase;
 }
 
+
 .play-button:hover {
   background-color: #ffffff;
   color: #111111;
@@ -85,6 +86,11 @@ h2 {
   background-color: #ffffff;
   color: #111111;
 }
+
+.play-button:not(.playing){
+  background-color: transparent;
+  color: white 
+  }
 
 /* VU meter-style visualization */
 .vu-meter {

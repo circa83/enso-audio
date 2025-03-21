@@ -19,14 +19,20 @@ const DEFAULT_VOLUMES = {
   nature: 0.6,
 };
 
+  
+
+  
+    
 export const AudioProvider = ({ children }) => {
   // State
+  const [isAudioLoaded, setIsAudioLoaded] = useState(false);
+  const [isAudioActivated, setIsAudioActivated] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volumes, setVolumes] = useState(DEFAULT_VOLUMES);
   const [sessionTime, setSessionTime] = useState(0);
   const [vuMeterLevel, setVuMeterLevel] = useState(0);
   const [availableLayers, setAvailableLayers] = useState(DEFAULT_AUDIO_LAYERS);
-  
+  const [loadingProgress, setLoadingProgress] = useState(0);
   // Refs
   const timerRef = useRef(null);
   const vuMeterRef = useRef(null);
@@ -35,6 +41,49 @@ export const AudioProvider = ({ children }) => {
   const gainNodesRef = useRef({});
   const sourceNodesRef = useRef({});
   
+  //activate audio for mobile
+  const activateAudio = () => {
+    if (!audioContextRef.current) return;
+    
+    try {
+      // Force resume the context
+      audioContextRef.current.resume().then(() => {
+        console.log('Audio context activated successfully');
+        setIsAudioActivated(true); // This sets the flag to hide loading screen
+      }).catch(err => {
+        console.error('Failed to activate audio context:', err);
+        setIsAudioActivated(true); // Set it anyway
+      });
+    } catch (e) {
+      console.error('Error activating audio:', e);
+      setIsAudioActivated(true); // Set it anyway
+    }
+  };
+  
+  
+
+  // Helper function for mobile audio
+  const ensureMobileAudioWorks = () => {
+    // More aggressive approach for mobile
+    if (audioContextRef.current) {
+      // Create a silent buffer
+      const buffer = audioContextRef.current.createBuffer(1, 1, 22050);
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioContextRef.current.destination);
+      source.start(0);
+      
+      // Force resume with user interaction
+      if (audioContextRef.current.state !== 'running') {
+        audioContextRef.current.resume().then(() => {
+          console.log('AudioContext resumed successfully');
+        }).catch(err => {
+          console.error('Failed to resume AudioContext:', err);
+        });
+      }
+    }
+  };
+
   // Initialize Web Audio API
   useEffect(() => {
     // Create audio context
@@ -51,7 +100,8 @@ export const AudioProvider = ({ children }) => {
     
     // Load audio buffers
     loadAudioBuffers();
-    
+     // Try to initialize audio immediately
+  ensureMobileAudioWorks();
     // Cleanup on unmount
     return () => {
       if (audioContextRef.current) {
@@ -68,30 +118,63 @@ export const AudioProvider = ({ children }) => {
   
   // Load audio buffers
   const loadAudioBuffers = async () => {
+    setIsAudioLoaded(false);
+    setLoadingProgress(0);
     const layers = Object.keys(availableLayers);
+    const totalLayers = layers.length;
     
     try {
+      let successCount = 0;
+      
       for (const layer of layers) {
         if (!availableLayers[layer]) continue;
         
-        const response = await fetch(availableLayers[layer]);
-        const arrayBuffer = await response.arrayBuffer();
-        
-        if (arrayBuffer.byteLength > 0) {
-          const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
-          audioRefs.current[layer] = audioBuffer;
+        try {
+          // Add a timeout to prevent hanging
+          const fetchPromise = fetch(availableLayers[layer]);
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Loading timeout')), 15000)
+          );
+          
+          const response = await Promise.race([fetchPromise, timeoutPromise]);
+          const arrayBuffer = await response.arrayBuffer();
+          
+          if (arrayBuffer && arrayBuffer.byteLength > 0) {
+            const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+            audioRefs.current[layer] = audioBuffer;
+            successCount++;
+          }
+          
+          // Update progress after each layer loads
+          setLoadingProgress(prev => Math.min(100, prev + (100 / totalLayers)));
+        } catch (layerError) {
+          console.error(`Error loading audio for layer ${layer}:`, layerError);
+          // Still update progress even on error
+          setLoadingProgress(prev => Math.min(100, prev + (100 / totalLayers)));
         }
       }
-      console.log('All audio layers loaded');
+      
+      console.log(`Audio loading complete: ${successCount}/${layers.length} layers loaded`);
+      
+      // Auto-activate audio when loaded
+      if (successCount > 0) {
+        setIsAudioLoaded(true);
+       // activateAudio(); // Auto-activate when loaded
+      } else {
+        console.error('Failed to load any audio layers');
+      }
     } catch (error) {
-      console.error('Error loading audio:', error);
+      console.error('Error in overall audio loading process:', error);
     }
   };
+
   
   // Play all tracks
   const playAllTracks = () => {
     if (!audioContextRef.current) return;
     
+    // Call our mobile audio fix function
+    ensureMobileAudioWorks();
     // Resume audio context if suspended
     if (audioContextRef.current.state === 'suspended') {
       audioContextRef.current.resume();
@@ -132,12 +215,14 @@ export const AudioProvider = ({ children }) => {
       const randomFactor = Math.random() * 20 - 10; // -10 to +10
       const newLevel = Math.max(0, Math.min(100, baseLevel + randomFactor));
       
+
       setVuMeterLevel(newLevel);
     }, 200);
   };
   
   // Stop all tracks
   const stopAllTracks = () => {
+   
     const layers = Object.keys(availableLayers);
     
     layers.forEach(layer => {
@@ -200,17 +285,21 @@ export const AudioProvider = ({ children }) => {
     setAvailableLayers(newLayers);
   };
   
-  // Context value
-  const contextValue = {
+   // Update contextValue to include the new state and function
+const contextValue = {
     isPlaying,
     volumes,
     sessionTime,
     vuMeterLevel,
     availableLayers,
+    isAudioLoaded,
+    isAudioActivated,
     togglePlayback,
     handleVolumeChange,
     resetTimer,
-    updateAvailableLayers
+    updateAvailableLayers,
+    activateAudio,
+    loadingProgress
   };
   
   return (
