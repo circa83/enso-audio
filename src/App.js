@@ -1,15 +1,38 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { AudioProvider } from './contexts/AudioContext';
+import Player from './pages/Player';
+import Library from './pages/Library';
+import Header from './components/layout/Header';
+import './styles/globals.css';
 import './App.css';
-// Import both player versions
-// import SimplePlayerEarthTones from './SimplePlayerEarthTones';
-import SimplePlayerDark from './SimplePlayerDark';
 
 function App() {
-  // You can toggle between versions by commenting/uncommenting
+  const [currentPage, setCurrentPage] = useState('player');
+  
+  const handleNavigate = (page) => {
+    setCurrentPage(page);
+  };
+  
+  // Render the current page
+  const renderPage = () => {
+    switch (currentPage) {
+      case 'library':
+        return <Library onNavigate={handleNavigate} />;
+      case 'player':
+      default:
+        return <Player />;
+    }
+  };
+  
   return (
     <div className="App">
-      {/* <SimplePlayerEarthTones /> */}
-      <SimplePlayerDark />
+      <AudioProvider>
+        <Header 
+          currentPage={currentPage} 
+          onNavigate={handleNavigate} 
+        />
+        {renderPage()}
+      </AudioProvider>
     </div>
   );
 }
