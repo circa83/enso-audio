@@ -1,7 +1,7 @@
+// src/pages/_app.js
 import React from 'react';
 import { AudioProvider } from '../contexts/StreamingAudioContext';
-import '../styles/globals.css';
-import '../styles/App.css';  // Keep the original path
+import '../styles/globals.css';  // Global CSS must be imported here
 
 function MyApp({ Component, pageProps }) {
   return (

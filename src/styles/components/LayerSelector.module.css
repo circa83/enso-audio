@@ -1,0 +1,146 @@
+/* src/styles/components/LayerSelector.module.css */
+.layer-selector {
+    margin-bottom: 20px;
+    background-color: #1c1c1c;
+    border: 1px solid #333;
+    overflow: hidden;
+    transition: all 0.3s ease;
+  }
+  
+  .layer-selector:hover {
+    border-color: #444;
+  }
+  
+  .layer-selector-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+  
+  .layer-selector-header:hover {
+    background-color: #252525;
+  }
+  
+  .layer-selector-header.active {
+    background-color: #252525;
+    border-bottom: 1px solid #333;
+  }
+  
+  .layer-info {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .layer-name {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.8rem;
+    color: #ffffff;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+  
+  .active-sample {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.7rem;
+    color: #aaaaaa;
+  }
+  
+  .expand-icon {
+    font-size: 0.7rem;
+    color: #aaaaaa;
+    transition: transform 0.3s ease;
+  }
+  
+  .expand-icon.expanded {
+    transform: rotate(180deg);
+  }
+  
+  .track-list {
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  
+  /* Minimal scrollbar styling */
+  .track-list::-webkit-scrollbar {
+    width: 3px;
+  }
+  
+  .track-list::-webkit-scrollbar-thumb {
+    background-color: #333;
+  }
+  
+  .track-list::-webkit-scrollbar-track {
+    background-color: #1c1c1c;
+  }
+  
+  .track-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 15px;
+    border-left: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .track-item:hover {
+    background-color: #252525;
+    border-left-color: #444;
+  }
+  
+  .track-item.active {
+    background-color: #252525;
+    border-left: 2px solid #ffffff;
+  }
+  
+  .track-name {
+    font-size: 0.75rem;
+    color: #aaaaaa;
+  }
+  
+  .active-indicator {
+    font-size: 0.7rem;
+    color: #ffffff;
+  }
+  
+  .track-item.loading {
+    opacity: 0.6;
+    pointer-events: none;
+  }
+  
+  .loading-indicator {
+    font-size: 0.7rem;
+    color: #aaaaaa;
+    animation: pulse 1.5s infinite;
+  }
+  
+  .error-message {
+    padding: 10px 15px;
+    font-size: 0.75rem;
+    color: #ff6b6b;
+    background-color: rgba(255, 107, 107, 0.1);
+    border-left: 2px solid #ff6b6b;
+  }
+  
+  @keyframes pulse {
+    0% { opacity: 0.4; }
+    50% { opacity: 1; }
+    100% { opacity: 0.4; }
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .layer-selector-header {
+      padding: 12px;
+    }
+    
+    .track-item {
+      padding: 12px;
+    }
+  }

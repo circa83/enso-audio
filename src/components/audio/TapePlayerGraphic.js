@@ -1,15 +1,17 @@
+// src/components/audio/TapePlayerGraphic.js
 import React from 'react';
+import { useAudio } from '../../contexts/StreamingAudioContext';
 import styles from '../../styles/components/TapePlayerGraphic.module.css';
 
 const TapePlayerGraphic = () => {
-  console.log("TapePlayerGraphic rendering");
+  const { isPlaying } = useAudio();
   
   return (
-    <div className={styles['tape-player-graphic']}>
+    <div className={styles.tapePlayerGraphic}>
       <img 
         src="/images/tape_reel_white.png" 
         alt="Tape Reel" 
-        className={styles['tape-reel-image']} 
+        className={`${styles.tapeReelImage} ${isPlaying ? styles.spinning : ''}`} 
       />
     </div>
   );

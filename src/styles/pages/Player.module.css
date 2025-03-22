@@ -1,8 +1,9 @@
+/* src/styles/pages/Player.module.css */
 /* Import Google Fonts - Space Mono for numeric elements and Archivo for ultra-thin modern text */
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@100;200;300&family=Space+Mono&display=swap');
 
 /* Base styling */
-.simple-player {
+.simplePlayer {
   max-width: 900px;
   margin: 50px auto;
   padding: 40px;
@@ -11,8 +12,8 @@
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 
-/* Change h1 to class */
-.pageTitle {
+/* Minimal typography */
+.title {
   font-family: 'Archivo', sans-serif;
   font-weight: 100;
   font-size: 2.5rem;
@@ -23,7 +24,6 @@
   text-transform: uppercase;
 }
 
-/* Change h2 to class */
 .sectionTitle {
   font-family: 'Archivo', sans-serif;
   font-weight: 200;
@@ -34,7 +34,7 @@
   text-transform: uppercase;
 }
 
-.session-description {
+.sessionDescription {
   font-family: 'Archivo', sans-serif;
   font-weight: 200;
   font-size: 0.9rem;
@@ -45,11 +45,11 @@
 }
 
 /* Player controls section with tape deck aesthetic */
-.player-controls {
+.playerControls {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 60px;
+  gap: 30px;
   margin: 30px 0;
   padding: 30px;
   background-color: #1c1c1c;
@@ -58,7 +58,7 @@
 }
 
 /* Minimal play button */
-.play-button {
+.playButton {
   width: 60px;
   height: 60px;
   border-radius: 50%;
@@ -77,47 +77,70 @@
   text-transform: uppercase;
 }
 
-.play-button:hover {
+.playButton:hover {
   background-color: #ffffff;
   color: #111111;
 }
 
-.play-button.playing {
+.playButton.playing {
   background-color: #ffffff;
   color: #111111;
 }
 
-.play-button-inactive {
+/* Sound library button */
+.soundLibraryButton {
+  padding: 8px 16px;
   background-color: transparent;
-  color: white;
+  border: 1px solid #444;
+  color: #aaaaaa;
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 0.7rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-/* VU meter-style visualization */
-.vu-meter {
-  width: 100%;
-  height: 10px;
-  background-color: #111;
-  margin: 30px 0;
-  position: relative;
-  overflow: hidden;
+.soundLibraryButton:hover {
+  border-color: #ffffff;
+  color: #ffffff;
 }
 
-.vu-meter-level {
-  height: 100%;
-  width: 50%;
-  background-color: #ffffff;
-  transition: width 0.2s ease;
+.soundLibraryButton.active {
+  border-color: #ffffff;
+  color: #ffffff;
 }
 
 /* Layer controls with minimal styling */
-.layer-controls {
+.layerControls {
   margin: 40px 0;
   padding: 40px;
   background-color: #1c1c1c;
   border: 1px solid #333;
 }
 
-.geometric-line {
+/* Layer selectors section */
+.layerSelectors {
+  margin: 40px 0;
+  padding: 40px;
+  background-color: #1c1c1c;
+  border: 1px solid #333;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.geometricLine {
   width: 100%;
   height: 1px;
   background-color: #333;
@@ -125,14 +148,14 @@
 }
 
 /*journey phases section */
-.journey-guide {
+.journeyGuide {
   margin: 40px 0 20px;
   padding: 25px;
   background-color: #1c1c1c;
   border: 1px solid #333;
 }
 
-.journey-title {
+.journeyGuide h3 {
   font-family: 'Archivo', sans-serif;
   font-weight: 200;
   font-size: 1rem;
@@ -143,14 +166,14 @@
   text-align: center;
 }
 
-.journey-phases {
+.journeyPhases {
   display: flex;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 10px;
 }
 
-.journey-phase {
+.journeyPhase {
   flex: 1;
   min-width: 120px;
   padding: 12px;
@@ -159,11 +182,11 @@
   transition: background-color 0.2s ease;
 }
 
-.journey-phase:hover {
+.journeyPhase:hover {
   background-color: #222222;
 }
 
-.phase-title {
+.journeyPhase h4 {
   font-family: 'Archivo', sans-serif;
   font-weight: 300;
   font-size: 0.85rem;
@@ -172,7 +195,7 @@
   letter-spacing: 0.5px;
 }
 
-.phase-description {
+.journeyPhase p {
   font-size: 0.75rem;
   color: #aaaaaa;
   line-height: 1.4;
@@ -180,23 +203,28 @@
 
 /* Responsive design */
 @media (max-width: 768px) {
-  .simple-player {
+  .simplePlayer {
     padding: 20px;
     margin: 10px;
   }
   
-  .pageTitle {
+  .title {
     font-size: 1.8rem;
     letter-spacing: 5px;
   }
   
-  .player-controls {
+  .playerControls {
     flex-direction: column;
-    gap: 30px;
+    gap: 20px;
     padding: 30px 20px;
   }
   
-  .journey-phases {
+  .layerControls, 
+  .layerSelectors {
+    padding: 20px;
+  }
+  
+  .journeyPhases {
     flex-direction: column;
   }
 }

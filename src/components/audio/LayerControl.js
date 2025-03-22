@@ -1,29 +1,23 @@
-import React, { memo } from 'react';
+// src/components/audio/LayerControl.js
+import React from 'react';
 import styles from '../../styles/components/LayerControl.module.css';
 
-const LayerControl = memo(({ label, value, onChange }) => {
-  const handleChange = (e) => {
-    onChange(parseFloat(e.target.value));
-  };
-  
+const LayerControl = ({ label, value, onChange }) => {
   return (
-    <div className={styles['layer-slider']}>
-      <label className={styles['slider-label']}>{label}</label>
+    <div className={styles.layerSlider}>
+      <label className={styles.label}>{label}</label>
       <input 
-        className={styles['slider-input']}
+        className={styles.slider}
         type="range" 
         min="0" 
         max="1" 
         step="0.01" 
         value={value}
-        onChange={handleChange}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
       />
-      <span className={styles['slider-value']}>{Math.round(value * 100)}%</span>
+      <span className={styles.value}>{Math.round(value * 100)}%</span>
     </div>
   );
-});
-
-// Add a display name for debugging
-LayerControl.displayName = 'LayerControl';
+};
 
 export default LayerControl;

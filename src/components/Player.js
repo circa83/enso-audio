@@ -1,99 +1,113 @@
-import React, { memo, useCallback } from 'react';
+// src/components/Player.js
+import React, { useCallback, useState } from 'react';
 import { useAudio } from '../contexts/StreamingAudioContext';
-import TapePlayerGraphic from './audio/TapePlayerGraphic';
 import LayerControl from './audio/LayerControl';
+import LayerSelector from './audio/LayerSelector';
 import SessionTimer from './audio/SessionTimer';
+import TapePlayerGraphic from './audio/TapePlayerGraphic';
 import styles from '../styles/pages/Player.module.css';
 
-const Player = memo(() => {
+const Player = () => {
   const { 
+    LAYERS, 
     isPlaying, 
     volumes, 
-    sessionTime, 
-    vuMeterLevel,
-    availableLayers,
-    togglePlayback, 
-    handleVolumeChange, 
-    resetTimer 
+    startSession, 
+    pauseSession,
+    hasSwitchableAudio,
+    setVolume,
+    getSessionTime
   } = useAudio();
-
-  // Memoize LayerControl onChange callback
-  const createVolumeChangeHandler = useCallback((layer) => {
-    return (value) => handleVolumeChange(layer, value);
-  }, [handleVolumeChange]);
-
+  
+  const [showLayerSelectors, setShowLayerSelectors] = useState(false);
+  
+  const togglePlayPause = useCallback(() => {
+    if (isPlaying) {
+      pauseSession();
+    } else {
+      startSession();
+    }
+  }, [isPlaying, pauseSession, startSession]);
+  
   return (
-    <div className={`${styles['simple-player']} ${isPlaying ? styles.playing : ''}`}>
-      <div className={styles['geometric-element']}></div>
+    <div className={styles.simplePlayer}>
+      <h1 className={styles.title}>Ensō Audio</h1>
       
-      <h1 className={styles.pageTitle}>Ensō Audio</h1>
-      
-      <TapePlayerGraphic />
-      
-      <div className={styles['session-description']}>
+      <div className={styles.sessionDescription}>
         Adjust audio layers in real-time to guide the therapeutic journey
       </div>
       
-      <div className={styles['player-controls']}>
+      <TapePlayerGraphic />
+      
+      <div className={styles.playerControls}>
         <button 
-          className={`${styles['play-button']} ${isPlaying ? styles.playing : styles['play-button-inactive']}`}
-          onClick={togglePlayback}
+          className={`${styles.playButton} ${isPlaying ? styles.playing : ''}`}
+          onClick={togglePlayPause}
         >
           {isPlaying ? 'Stop' : 'Play'}
         </button>
+        
+        {/* Only show this button if we have switchable audio */}
+        {hasSwitchableAudio && (
+          <button 
+            className={`${styles.soundLibraryButton} ${showLayerSelectors ? styles.active : ''}`}
+            onClick={() => setShowLayerSelectors(!showLayerSelectors)}
+          >
+            {showLayerSelectors ? 'Hide Sounds' : 'Change Sounds'}
+          </button>
+        )}
       </div>
       
-      <div className={styles['vu-meter']}>
-        <div 
-          className={styles['vu-meter-level']} 
-          style={{ width: `${vuMeterLevel}%` }}
-        ></div>
-      </div>
-
-      <div className={styles['layer-controls']}>
+      <div className={styles.layerControls}>
         <h2 className={styles.sectionTitle}>Audio Layers</h2>
         
-        {Object.keys(availableLayers).map(layer => (
+        {Object.values(LAYERS).map(layer => (
           <LayerControl
             key={layer}
             label={layer.charAt(0).toUpperCase() + layer.slice(1)}
             value={volumes[layer]}
-            onChange={createVolumeChangeHandler(layer)}
+            onChange={(value) => setVolume(layer, value)}
           />
         ))}
       </div>
       
-      <div className={styles['geometric-line']}></div>
+      {/* Only render layer selectors when shown and available */}
+      {showLayerSelectors && hasSwitchableAudio && (
+        <div className={styles.layerSelectors}>
+          <h2 className={styles.sectionTitle}>Sound Selection</h2>
+          {Object.values(LAYERS).map(layer => (
+            <LayerSelector key={layer} layer={layer} />
+          ))}
+        </div>
+      )}
       
-      <SessionTimer 
-        sessionTime={sessionTime}
-        resetTimer={resetTimer}
-      />
+      <div className={styles.geometricLine}></div>
       
-      <div className={styles['journey-guide']}>
-        <h3 className={styles['journey-title']}>Session Flow Guide</h3>
-        <div className={styles['journey-phases']}>
-          <div className={styles['journey-phase']}>
-            <h4 className={styles['phase-title']}>Pre-Onset</h4>
-            <p className={styles['phase-description']}>Higher drones, lower rhythm</p>
+      <SessionTimer />
+      
+      <div className={styles.journeyGuide}>
+        <h3>Session Flow Guide</h3>
+        <div className={styles.journeyPhases}>
+          <div className={styles.journeyPhase}>
+            <h4>Pre-Onset</h4>
+            <p>Higher drones, lower rhythm</p>
           </div>
-          <div className={styles['journey-phase']}>
-            <h4 className={styles['phase-title']}>Onset & Buildup</h4>
-            <p className={styles['phase-description']}>Increase melody and rhythm gradually</p>
+          <div className={styles.journeyPhase}>
+            <h4>Onset & Buildup</h4>
+            <p>Increase melody and rhythm gradually</p>
           </div>
-          <div className={styles['journey-phase']}>
-            <h4 className={styles['phase-title']}>Peak</h4>
-            <p className={styles['phase-description']}>Balanced mix of all elements</p>
+          <div className={styles.journeyPhase}>
+            <h4>Peak</h4>
+            <p>Balanced mix of all elements</p>
           </div>
-          <div className={styles['journey-phase']}>
-            <h4 className={styles['phase-title']}>Return & Integration</h4>
-            <p className={styles['phase-description']}>Reduce rhythm, increase nature</p>
+          <div className={styles.journeyPhase}>
+            <h4>Return & Integration</h4>
+            <p>Reduce rhythm, increase nature</p>
           </div>
         </div>
       </div>
     </div>
   );
-});
+};
 
-Player.displayName = 'Player';
 export default Player;

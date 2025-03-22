@@ -1,12 +1,26 @@
-/*Tape player png */
-.tape-player-graphic {
-    display: flex;
-    justify-content: center;
-    margin: 0 auto 1px;
-  }
+/* src/styles/components/TapePlayerGraphic.module.css */
+.tapePlayerGraphic {
+  display: flex;
+  justify-content: center;
+  margin: 0 auto 1px;
+}
+
+.tapeReelImage {
+  max-width: 100px;
+  height: auto;
+  display: block;
   
-  .tape-reel-image {
-    max-width: 100px;
-    height: auto;
-    display: block;
+}
+
+/* .spinning {
+  animation: spin 10s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
   }
+  to {
+    transform: rotate(360deg);
+  }
+} */

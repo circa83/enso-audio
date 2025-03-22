@@ -1,165 +1,146 @@
-.loading-screen {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.85);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
+/* src/styles/components/LoadingScreen.module.css */
+.loadingScreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.95);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  opacity: 1;
+}
+
+.loadingContent {
+  width: 90%;
+  max-width: 400px;
+  background-color: rgba(24, 24, 24, 0.8);
+  border: 1px solid #333;
+  border-radius: 2px;
+  padding: 40px;
+  text-align: center;
+}
+
+.loadingTitle {
+  font-family: 'Archivo', sans-serif;
+  font-weight: 100;
+  font-size: 2rem;
+  color: #ffffff;
+  margin-bottom: 30px;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+}
+
+.loadingSpinner {
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  border-top-color: #ffffff;
+  animation: spin 1s ease-in-out infinite;
+  margin: 20px auto;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.progressContainer {
+  width: 80%;
+  height: 1px;
+  background-color: #333;
+  margin: 20px auto;
+  overflow: hidden;
+}
+
+.progressBar {
+  height: 100%;
+  background-color: #ffffff;
+  transition: width 0.3s ease;
+}
+
+.progressText {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.8rem;
+  margin: 10px 0;
+  color: #aaaaaa;
+}
+
+.loadingInfo {
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 0.9rem;
+  color: #aaaaaa;
+  margin: 20px 0;
+  letter-spacing: 1px;
+}
+
+.loadingComplete {
+  width: 40px;
+  height: 40px;
+  margin: 20px auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+}
+
+.startButton {
+  background-color: transparent;
+  border: 1px solid #ffffff;
+  color: #ffffff;
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 0.8rem;
+  padding: 12px 24px;
+  margin-top: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.startButton:hover {
+  background-color: #ffffff;
+  color: #111111;
+}
+
+.startButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.fadeOut {
+  animation: fadeOut 0.8s forwards;
+}
+
+@keyframes fadeOut {
+  from {
     opacity: 1;
   }
-  
-  .loading-content {
-    text-align: center;
-    color: white;
-    width: 90%;
-    max-width: 400px;
-    padding: 20px;
+  to {
+    opacity: 0;
+  }
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .loadingContent {
+    padding: 30px 20px;
   }
   
-  .loading-spinner {
-    width: 50px;
-    height: 50px;
-    border: 3px solid rgba(255, 255, 255, 0.3);
-    border-radius: 50%;
-    border-top-color: white;
-    animation: spin 1s ease-in-out infinite;
-    margin: 20px auto;
+  .loadingTitle {
+    font-size: 1.5rem;
+    letter-spacing: 4px;
   }
   
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-  
-  .activate-audio-button,
-  .retry-button {
-    background-color: transparent;
-    border: 1px solid white;
-    color: white;
+  .startButton {
     padding: 10px 20px;
-    margin-top: 20px;
-    cursor: pointer;
-    font-family: inherit;
-    transition: all 0.3s ease;
+    font-size: 0.7rem;
   }
-  
-  .activate-audio-button:hover,
-  .retry-button:hover {
-    background-color: rgba(255, 255, 255, 0.2);
-  }
-  
-  .retry-button {
-    background-color: rgba(220, 53, 69, 0.2);
-    border-color: rgba(220, 53, 69, 0.8);
-    margin-top: 15px;
-  }
-  
-  .retry-button:hover {
-    background-color: rgba(220, 53, 69, 0.3);
-  }
-  
-  .progress-container {
-    width: 80%;
-    height: 10px;
-    background-color: rgba(255, 255, 255, 0.2);
-    border-radius: 5px;
-    margin: 20px auto;
-    overflow: hidden;
-  }
-  
-  .progress-bar {
-    height: 100%;
-    background-color: white;
-    transition: width 0.3s ease;
-  }
-  
-  .progress-text {
-    font-size: 14px;
-    margin: 5px 0 20px 0;
-    color: rgba(255, 255, 255, 0.8);
-  }
-  
-  .loading-complete {
-    width: 50px;
-    height: 50px;
-    margin: 20px auto;
-    background-color: rgba(255, 255, 255, 0.2);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-    color: #ffffff;
-  }
-  
-  .loading-screen.fade-out {
-    animation: fadeOut 0.8s forwards;
-  }
-  
-  @keyframes fadeOut {
-    from {
-      opacity: 1;
-    }
-    to {
-      opacity: 0;
-    }
-  }
-  
-  .start-audio-button {
-    background-color: transparent;
-    border: 2px solid white;
-    color: white;
-    padding: 12px 24px;
-    margin-top: 20px;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: 16px;
-    letter-spacing: 1px;
-    transition: all 0.3s ease;
-    border-radius: 4px;
-  }
-  
-  .start-audio-button:hover {
-    background-color: rgba(255, 255, 255, 0.2);
-    transform: scale(1.05);
-  }
-  
-  .start-audio-button:active {
-    transform: scale(0.98);
-  }
-  
-  /* Additional styles for mobile optimization */
-  .network-status {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.6);
-    margin-top: 15px;
-  }
-  
-  .loading-mode-switch {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.6);
-    margin-top: 10px;
-    text-decoration: underline;
-    cursor: pointer;
-  }
-  
-  /* Make clickable elements larger on mobile for easier touch */
-  @media (max-width: 768px) {
-    .start-audio-button,
-    .retry-button {
-      padding: 15px 30px;
-      font-size: 18px;
-      margin-top: 25px;
-    }
-    
-    .loading-content {
-      padding: 30px 15px;
-    }
-    
-    .progress-container {
-      height: 15px;
-    }
-  }
+}
