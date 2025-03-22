@@ -1,19 +1,21 @@
 import React from 'react';
-import '../../styles/components/Header.css';
+import styles from '../../styles/components/Header.module.css';
 
 const Header = ({ currentPage, onNavigate }) => {
+  console.log("Header component rendering");
+  
   return (
-    <header className="app-header">
-      <div className="logo">Ensō Audio</div>
-      <nav className="main-nav">
+    <header className={styles['app-header']}>
+      <div className={styles.logo}>Ensō Audio</div>
+      <nav className={styles['main-nav']}>
         <button 
-          className={`nav-link ${currentPage === 'player' ? 'active' : ''}`}
+          className={`${styles['nav-link']} ${currentPage === 'player' ? styles.active : ''}`}
           onClick={() => onNavigate('player')}
         >
           Player
         </button>
         <button 
-          className={`nav-link ${currentPage === 'library' ? 'active' : ''}`}
+          className={`${styles['nav-link']} ${currentPage === 'library' ? styles.active : ''}`}
           onClick={() => onNavigate('library')}
         >
           Library

@@ -11,8 +11,8 @@
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 
-/* Minimal typography */
-h1 {
+/* Change h1 to class */
+.pageTitle {
   font-family: 'Archivo', sans-serif;
   font-weight: 100;
   font-size: 2.5rem;
@@ -23,7 +23,8 @@ h1 {
   text-transform: uppercase;
 }
 
-h2 {
+/* Change h2 to class */
+.sectionTitle {
   font-family: 'Archivo', sans-serif;
   font-weight: 200;
   font-size: 1rem;
@@ -76,7 +77,6 @@ h2 {
   text-transform: uppercase;
 }
 
-
 .play-button:hover {
   background-color: #ffffff;
   color: #111111;
@@ -87,10 +87,10 @@ h2 {
   color: #111111;
 }
 
-.play-button:not(.playing){
+.play-button-inactive {
   background-color: transparent;
-  color: white 
-  }
+  color: white;
+}
 
 /* VU meter-style visualization */
 .vu-meter {
@@ -132,7 +132,7 @@ h2 {
   border: 1px solid #333;
 }
 
-.journey-guide h3 {
+.journey-title {
   font-family: 'Archivo', sans-serif;
   font-weight: 200;
   font-size: 1rem;
@@ -163,7 +163,7 @@ h2 {
   background-color: #222222;
 }
 
-.journey-phase h4 {
+.phase-title {
   font-family: 'Archivo', sans-serif;
   font-weight: 300;
   font-size: 0.85rem;
@@ -172,7 +172,7 @@ h2 {
   letter-spacing: 0.5px;
 }
 
-.journey-phase p {
+.phase-description {
   font-size: 0.75rem;
   color: #aaaaaa;
   line-height: 1.4;
@@ -185,7 +185,7 @@ h2 {
     margin: 10px;
   }
   
-  h1 {
+  .pageTitle {
     font-size: 1.8rem;
     letter-spacing: 5px;
   }

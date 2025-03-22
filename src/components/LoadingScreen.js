@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import '../styles/components/LoadingScreen.css';
+import styles from '../styles/components/LoadingScreen.module.css';
 
 const LoadingScreen = ({ 
   isLoading, 
@@ -55,21 +55,21 @@ const LoadingScreen = ({
   }
 
   return (
-    <div className={`loading-screen ${fadeOut ? 'fade-out' : ''}`}>
-      <div className="loading-content">
+    <div className={`${styles['loading-screen']} ${fadeOut ? styles['fade-out'] : ''}`}>
+      <div className={styles['loading-content']}>
         <h2>Ensō Audio</h2>
         
         {loadingProgress < 100 ? (
           // Still loading audio
           <>
-            <div className="loading-spinner"></div>
-            <div className="progress-container">
+            <div className={styles['loading-spinner']}></div>
+            <div className={styles['progress-container']}>
               <div 
-                className="progress-bar" 
+                className={styles['progress-bar']} 
                 style={{ width: `${loadingProgress}%` }}
               ></div>
             </div>
-            <div className="progress-text">
+            <div className={styles['progress-text']}>
               {Math.round(loadingProgress)}% loaded
               {usingChunks && ' (streaming mode)'}
             </div>
@@ -77,7 +77,7 @@ const LoadingScreen = ({
             
             {showRetryButton && (
               <button 
-                className="retry-button"
+                className={styles['retry-button']}
                 onClick={handleRetry}
               >
                 Retry Loading
@@ -87,10 +87,10 @@ const LoadingScreen = ({
         ) : (
           // Loading complete, waiting for user interaction
           <>
-            <div className="loading-complete">✓</div>
+            <div className={styles['loading-complete']}>✓</div>
             <p>{message}</p>
             <button 
-              className="start-audio-button"
+              className={styles['start-audio-button']}
               onClick={onActivateAudio}
             >
               Start Audio Session

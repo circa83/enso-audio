@@ -1,13 +1,15 @@
 import React from 'react';
 import { formatTime } from '../../utils/formatTime';
-import '../../styles/components/SessionTimer.css';
+import styles from '../../styles/components/SessionTimer.module.css';
 
 const SessionTimer = ({ sessionTime, resetTimer }) => {
+  console.log("SessionTimer rendering", { sessionTime });
+  
   return (
-    <div className="session-timer">
+    <div className={styles['session-timer']}>
       <h2>Session Time</h2>
-      <span className="time-display">{formatTime(sessionTime)}</span>
-      <button onClick={resetTimer}>Reset</button>
+      <span className={styles['time-display']}>{formatTime(sessionTime)}</span>
+      <button className={styles['timer-button']} onClick={resetTimer}>Reset</button>
     </div>
   );
 };

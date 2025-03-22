@@ -1,21 +1,29 @@
-import React from 'react';
-import '../../styles/components/LayerControl.css';
+import React, { memo } from 'react';
+import styles from '../../styles/components/LayerControl.module.css';
 
-const LayerControl = ({ label, value, onChange }) => {
+const LayerControl = memo(({ label, value, onChange }) => {
+  const handleChange = (e) => {
+    onChange(parseFloat(e.target.value));
+  };
+  
   return (
-    <div className="layer-slider">
-      <label>{label}</label>
+    <div className={styles['layer-slider']}>
+      <label className={styles['slider-label']}>{label}</label>
       <input 
+        className={styles['slider-input']}
         type="range" 
         min="0" 
         max="1" 
         step="0.01" 
         value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
+        onChange={handleChange}
       />
-      <span>{Math.round(value * 100)}%</span>
+      <span className={styles['slider-value']}>{Math.round(value * 100)}%</span>
     </div>
   );
-};
+});
+
+// Add a display name for debugging
+LayerControl.displayName = 'LayerControl';
 
 export default LayerControl;
