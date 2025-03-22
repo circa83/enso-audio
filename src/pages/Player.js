@@ -1,5 +1,5 @@
 import React from 'react';
-import { useAudio } from '../contexts/AudioContext';
+import { useAudio } from '../contexts/StreamingAudioContext';
 import TapePlayerGraphic from '../components/audio/TapePlayerGraphic';
 import LayerControl from '../components/audio/LayerControl';
 import SessionTimer from '../components/audio/SessionTimer';

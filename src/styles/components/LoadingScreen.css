@@ -15,6 +15,9 @@
   .loading-content {
     text-align: center;
     color: white;
+    width: 90%;
+    max-width: 400px;
+    padding: 20px;
   }
   
   .loading-spinner {
@@ -31,7 +34,8 @@
     to { transform: rotate(360deg); }
   }
   
-  .activate-audio-button {
+  .activate-audio-button,
+  .retry-button {
     background-color: transparent;
     border: 1px solid white;
     color: white;
@@ -42,10 +46,21 @@
     transition: all 0.3s ease;
   }
   
-  .activate-audio-button:hover {
+  .activate-audio-button:hover,
+  .retry-button:hover {
     background-color: rgba(255, 255, 255, 0.2);
   }
-
+  
+  .retry-button {
+    background-color: rgba(220, 53, 69, 0.2);
+    border-color: rgba(220, 53, 69, 0.8);
+    margin-top: 15px;
+  }
+  
+  .retry-button:hover {
+    background-color: rgba(220, 53, 69, 0.3);
+  }
+  
   .progress-container {
     width: 80%;
     height: 10px;
@@ -77,10 +92,8 @@
     align-items: center;
     justify-content: center;
     font-size: 24px;
-    color: #000000;
+    color: #ffffff;
   }
-
-  
   
   .loading-screen.fade-out {
     animation: fadeOut 0.8s forwards;
@@ -92,10 +105,9 @@
     }
     to {
       opacity: 0;
-     
     }
   }
-
+  
   .start-audio-button {
     background-color: transparent;
     border: 2px solid white;
@@ -117,4 +129,37 @@
   
   .start-audio-button:active {
     transform: scale(0.98);
+  }
+  
+  /* Additional styles for mobile optimization */
+  .network-status {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+    margin-top: 15px;
+  }
+  
+  .loading-mode-switch {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+    margin-top: 10px;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  
+  /* Make clickable elements larger on mobile for easier touch */
+  @media (max-width: 768px) {
+    .start-audio-button,
+    .retry-button {
+      padding: 15px 30px;
+      font-size: 18px;
+      margin-top: 25px;
+    }
+    
+    .loading-content {
+      padding: 30px 15px;
+    }
+    
+    .progress-container {
+      height: 15px;
+    }
   }
