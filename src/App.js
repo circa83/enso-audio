@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { AudioProvider, useAudio } from './contexts/StreamingAudioContext';
+import { AudioProvider, useAudio } from '../contexts/StreamingAudioContext';
 import Player from './pages/Player';
 import Library from './pages/Library';
-import Header from './components/layout/Header';
-import LoadingScreen from './components/LoadingScreen'; // Import the new component
+import Header from '../components/layout/Header';
+import LoadingScreen from '../components/LoadingScreen'; // Import the new component
 import './styles/globals.css';
 import './App.css';
 

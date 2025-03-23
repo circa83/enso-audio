@@ -1,0 +1,33 @@
+/* src/styles/components/SessionTimer.module.css */
+.sessionTimer {
+  margin-top: 40px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.timeDisplay {
+  font-family: 'Space Mono', monospace;
+  font-size: 2.5rem;
+  color: #ffffff;
+  letter-spacing: 4px;
+  margin-bottom: 15px;
+  display: block;
+}
+
+.timerTitle {
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 1rem;
+  color: #aaaaaa;
+  margin-bottom: 20px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+@media (max-width: 768px) {
+  .timeDisplay {
+    font-size: 2rem;
+  }
+}

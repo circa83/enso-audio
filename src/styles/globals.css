@@ -1,81 +1,35 @@
-/* Import Google Fonts - Space Mono for numeric elements and Archivo for ultra-thin modern text */
-@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@100;200;300&family=Space+Mono&display=swap');
-
-/* Base reset */
-* {
+/* src/styles/globals.css */
+html, body {
   margin: 0;
   padding: 0;
+  font-family: 'Archivo', sans-serif;
+  background-color: #121212;
+  color: #eeeeee;
+  overflow-x: hidden;
+}
+
+* {
   box-sizing: border-box;
 }
 
-body {
-  background-color: #111111;
-  color: #eaeaea;
-  font-family: 'Archivo', sans-serif;
-  font-weight: 200;
+.container {
+  width: 100%;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
-/* Common heading styles */
-h1 {
-  font-family: 'Archivo', sans-serif;
-  font-weight: 100;
-  font-size: 2.5rem;
-  text-align: center;
-  color: #ffffff;
-  margin-bottom: 40px;
-  letter-spacing: 8px;
-  text-transform: uppercase;
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
-h2 {
-  font-family: 'Archivo', sans-serif;
-  font-weight: 200;
-  font-size: 1rem;
-  color: #aaaaaa;
-  margin-bottom: 20px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-}
-
-/* Common button styles */
 button {
-  background-color: transparent;
-  border: 1px solid #333;
-  color: #aaaaaa;
   font-family: 'Archivo', sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
   font-weight: 200;
-  font-size: 0.8rem;
-  padding: 8px 16px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  letter-spacing: 1px;
-}
-
-button:hover {
-  border-color: #ffffff;
-  color: #ffffff;
-}
-
-/* Add some focus styles for accessibility */
-button:focus, input:focus {
-  outline: 1px solid #555;
-}
-
-/* Common container styles */
-.content-container {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 40px;
-}
-
-@media (max-width: 768px) {
-  h1 {
-    font-size: 1.8rem;
-    letter-spacing: 5px;
-  }
-  
-  .content-container {
-    padding: 20px;
-  }
+  margin-top: 0;
 }

@@ -1,97 +1,63 @@
+// src/components/LoadingScreen.js
 import React, { useState, useEffect } from 'react';
-import '../styles/components/LoadingScreen.css';
+import { useAudio } from '../contexts/StreamingAudioContext';
+import styles from '../styles/components/LoadingScreen.module.css';
 
-const LoadingScreen = ({ 
-  isLoading, 
-  onActivateAudio, 
-  loadingProgress, 
-  loadingError,
-  retryLoading,
-  usingChunks
-}) => {
+const LoadingScreen = ({ onStartSession }) => {
+  const { loadingProgress, isLoading } = useAudio();
   const [fadeOut, setFadeOut] = useState(false);
-  const [message, setMessage] = useState('Loading audio files...');
-  const [showRetryButton, setShowRetryButton] = useState(false);
-
+  const [startClicked, setStartClicked] = useState(false);
+  
   useEffect(() => {
-    // Update loading message based on progress and errors
-    if (loadingError) {
-      setMessage(loadingError);
-      setShowRetryButton(true);
-    } else if (usingChunks && loadingProgress > 0) {
-      setMessage('Loading essential audio (streaming mode)...');
-    } else if (loadingProgress === 100) {
-      setMessage('Audio loaded! Ready to play.');
-      setShowRetryButton(false);
-    } else {
-      setMessage('Loading audio files...');
-      setShowRetryButton(false);
+    // When loading is complete, prepare for transition
+    if (!isLoading && !fadeOut && !startClicked) {
+      // Keep the loading screen visible until user interaction
     }
-
-    // If we're not loading anymore, start the fade out animation
-    if (!isLoading) {
-      setFadeOut(true);
-      
-      // Remove the component from DOM after animation completes
-      const timer = setTimeout(() => {
-        // Component will be removed by parent due to isLoading=false
-      }, 800); // Match this to your CSS animation duration
-      
-      return () => clearTimeout(timer);
-    }
-  }, [isLoading, loadingProgress, loadingError, usingChunks]);
-
-  // Handle retry button click
-  const handleRetry = () => {
-    if (retryLoading) {
-      retryLoading();
-      setShowRetryButton(false);
-    }
+  }, [isLoading, fadeOut, startClicked]);
+  
+  const handleStartClick = () => {
+    setStartClicked(true);
+    setFadeOut(true);
+    
+    // Transition to player view
+    const timer = setTimeout(() => {
+      if (onStartSession && typeof onStartSession === 'function') {
+        onStartSession();
+      }
+    }, 800); // Match this to your CSS animation duration
+    
+    return () => clearTimeout(timer);
   };
-
-  // If loading is done and fade-out has completed, don't render the component
-  if (!isLoading && fadeOut) {
-    return null;
-  }
-
+  
   return (
-    <div className={`loading-screen ${fadeOut ? 'fade-out' : ''}`}>
-      <div className="loading-content">
-        <h2>Ensō Audio</h2>
+    <div className={`${styles.loadingScreen} ${fadeOut ? styles.fadeOut : ''}`}>
+      <div className={styles.loadingContent}>
+        <h2 className={styles.loadingTitle}>Ensō Audio</h2>
         
-        {loadingProgress < 100 ? (
+        {isLoading ? (
           // Still loading audio
           <>
-            <div className="loading-spinner"></div>
-            <div className="progress-container">
+            <div className={styles.loadingSpinner}></div>
+            <div className={styles.progressContainer}>
               <div 
-                className="progress-bar" 
+                className={styles.progressBar} 
                 style={{ width: `${loadingProgress}%` }}
               ></div>
             </div>
-            <div className="progress-text">
+            <div className={styles.progressText}>
               {Math.round(loadingProgress)}% loaded
-              {usingChunks && ' (streaming mode)'}
             </div>
-            <p>{message}</p>
-            
-            {showRetryButton && (
-              <button 
-                className="retry-button"
-                onClick={handleRetry}
-              >
-                Retry Loading
-              </button>
-            )}
+            <p className={styles.loadingInfo}>Loading audio files...</p>
           </>
         ) : (
           // Loading complete, waiting for user interaction
           <>
-            <div className="loading-complete">✓</div>
-            <p>{message}</p>
+            <div className={styles.loadingComplete}>✓</div>
+            <p className={styles.loadingInfo}>Audio loaded successfully!</p>
             <button 
-              className="start-audio-button"
-              onClick={onActivateAudio}
+              className={styles.startButton}
+              onClick={handleStartClick}
+              disabled={startClicked}
             >
               Start Audio Session
             </button>

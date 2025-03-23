@@ -1,11 +1,13 @@
+// src/components/audio/LayerControl.js
 import React from 'react';
-import '../../styles/components/LayerControl.css';
+import styles from '../../styles/components/LayerControl.module.css';
 
 const LayerControl = ({ label, value, onChange }) => {
   return (
-    <div className="layer-slider">
-      <label>{label}</label>
+    <div className={styles.layerSlider}>
+      <label className={styles.label}>{label}</label>
       <input 
+        className={styles.slider}
         type="range" 
         min="0" 
         max="1" 
@@ -13,7 +15,7 @@ const LayerControl = ({ label, value, onChange }) => {
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
       />
-      <span>{Math.round(value * 100)}%</span>
+      <span className={styles.value}>{Math.round(value * 100)}%</span>
     </div>
   );
 };

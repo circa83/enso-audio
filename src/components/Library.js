@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAudio } from '../contexts/StreamingAudioContext';
-import '../styles/pages/Library.css';
+import styles from '../styles/pages/Library.module.css';
 
 // Categories for sample organization
 const CATEGORIES = ['Drones', 'Melody', 'Rhythm', 'Nature'];
@@ -73,15 +73,15 @@ const Library = ({ onNavigate }) => {
   // Render upload UI
   const renderUploadUI = (category) => {
     return (
-      <div className="upload-container">
+      <div className={styles['upload-container']}>
         <input 
           type="file" 
           accept="audio/*" 
           onChange={(e) => handleFileUpload(e, category)}
-          className="file-input"
+          className={styles['file-input']}
         />
         <button 
-          className="cancel-upload-btn"
+          className={styles['cancel-upload-btn']}
           onClick={() => setUploadingCategory(null)}
         >
           Cancel
@@ -91,18 +91,18 @@ const Library = ({ onNavigate }) => {
   };
   
   return (
-    <div className="library-container">
+    <div className={styles['library-container']}>
       <h1>Audio Library</h1>
-      <p className="library-description">
+      <p className={styles['library-description']}>
         Select audio samples for each category or upload your own custom files.
       </p>
       
       {CATEGORIES.map(category => (
-        <div key={category} className="category-section">
-          <div className="category-header">
-            <h2>{category}</h2>
+        <div key={category} className={styles['category-section']}>
+          <div className={styles['category-header']}>
+            <h2 className={styles['category-title']}>{category}</h2>
             <button 
-              className="upload-btn"
+              className={styles['upload-btn']}
               onClick={() => setUploadingCategory(category)}
             >
               Upload Custom
@@ -112,19 +112,19 @@ const Library = ({ onNavigate }) => {
           {uploadingCategory === category ? (
             renderUploadUI(category)
           ) : (
-            <div className="samples-list">
+            <div className={styles['samples-list']}>
               {samples
                 .filter(sample => sample.category === category)
                 .map(sample => (
                   <div 
                     key={sample.id} 
-                    className={`sample-item ${
-                      selectedSamples[category.toLowerCase()] === sample.path ? 'selected' : ''
+                    className={`${styles['sample-item']} ${
+                      selectedSamples[category.toLowerCase()] === sample.path ? styles.selected : ''
                     }`}
                     onClick={() => handleSelectSample(category, sample.path)}
                   >
-                    <span className="sample-name">{sample.name}</span>
-                    {sample.isCustom && <span className="custom-badge">Custom</span>}
+                    <span className={styles['sample-name']}>{sample.name}</span>
+                    {sample.isCustom && <span className={styles['custom-badge']}>Custom</span>}
                   </div>
                 ))
               }
@@ -133,9 +133,9 @@ const Library = ({ onNavigate }) => {
         </div>
       ))}
       
-      <div className="library-actions">
+      <div className={styles['library-actions']}>
         <button 
-          className="return-btn"
+          className={styles['return-btn']}
           onClick={() => onNavigate('player')}
         >
           Return to Player
