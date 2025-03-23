@@ -47,15 +47,13 @@ const Player = () => {
           {isPlaying ? 'Stop' : 'Play'}
         </button>
         
-        {/* Only show this button if we have switchable audio */}
-        {hasSwitchableAudio && (
-          <button 
-            className={`${styles.soundLibraryButton} ${showLayerSelectors ? styles.active : ''}`}
-            onClick={() => setShowLayerSelectors(!showLayerSelectors)}
-          >
-            {showLayerSelectors ? 'Hide Sounds' : 'Change Sounds'}
-          </button>
-        )}
+        {/* Sound library button - always show this */}
+        <button 
+          className={`${styles.soundLibraryButton} ${showLayerSelectors ? styles.active : ''}`}
+          onClick={() => setShowLayerSelectors(!showLayerSelectors)}
+        >
+          {showLayerSelectors ? 'Hide Sounds' : 'Change Sounds'}
+        </button>
       </div>
       
       <div className={styles.layerControls}>
@@ -71,8 +69,8 @@ const Player = () => {
         ))}
       </div>
       
-      {/* Only render layer selectors when shown and available */}
-      {showLayerSelectors && hasSwitchableAudio && (
+      {/* Layer selectors section */}
+      {showLayerSelectors && (
         <div className={styles.layerSelectors}>
           <h2 className={styles.sectionTitle}>Sound Selection</h2>
           {Object.values(LAYERS).map(layer => (
@@ -90,7 +88,7 @@ const Player = () => {
         <div className={styles.journeyPhases}>
           <div className={styles.journeyPhase}>
             <h4>Pre-Onset</h4>
-            <p>Higher drones, lower rhythm</p>
+            <p>Higher drone, lower rhythm</p>
           </div>
           <div className={styles.journeyPhase}>
             <h4>Onset & Buildup</h4>

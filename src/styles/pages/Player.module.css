@@ -87,6 +87,11 @@
   color: #111111;
 }
 
+.playbutton:not(.playing){
+  background-color: transparent;
+  color: white 
+  }
+
 /* Sound library button */
 .soundLibraryButton {
   padding: 8px 16px;
