@@ -61,10 +61,10 @@ export const AudioProvider = ({ children }) => {
   
   // Volume levels for each layer (0-1)
   const [volumes, setVolumes] = useState({
-    [LAYERS.DRONE]: 0.7,
-    [LAYERS.MELODY]: 0.5,
-    [LAYERS.RHYTHM]: 0.4,
-    [LAYERS.NATURE]: 0.6
+    [LAYERS.DRONE]: 0.25,
+    [LAYERS.MELODY]: 0.0,
+    [LAYERS.RHYTHM]: 0.0,
+    [LAYERS.NATURE]: 0.0
   });
 
   // Session state
@@ -76,6 +76,21 @@ export const AudioProvider = ({ children }) => {
 
   // Add a ref to track the actual playing state to prevent race conditions
   const isPlayingRef = useRef(false);
+  
+  // Crossfade state tracking for UI feedback
+  const [crossfadeProgress, setCrossfadeProgress] = useState({});
+  const [activeCrossfades, setActiveCrossfades] = useState({});
+  const crossfadeTimers = useRef({});
+  const activeCrossfadeNodes = useRef({});
+  
+  // Track metadata for all loaded tracks (duration, etc.)
+  const trackData = useRef({});
+  
+  // Currently loaded audio files tracking
+  const loadedFiles = useRef(new Set());
+  
+  // Track audio loading progress for preloading
+  const [preloadProgress, setPreloadProgress] = useState({});
   
   // Initialize the Web Audio API context
   useEffect(() => {
@@ -203,7 +218,7 @@ export const AudioProvider = ({ children }) => {
     if (!ctx) return;
     
     const totalFiles = Object.values(LAYERS).length;
-    let loadedFiles = 0;
+    let loadedFilesCount = 0;
     
     const newActiveAudio = {};
     const newAudioElements = { 
@@ -229,10 +244,21 @@ export const AudioProvider = ({ children }) => {
         const loadPromise = new Promise((resolve) => {
           // Set up handlers for this audio element
           const loadHandler = () => {
-            loadedFiles++;
-            const progress = Math.round((loadedFiles / totalFiles) * 80) + 20; // Start at 20%, go up to 100%
+            loadedFilesCount++;
+            const progress = Math.round((loadedFilesCount / totalFiles) * 80) + 20; // Start at 20%, go up to 100%
             setLoadingProgress(progress);
             console.log(`Loaded audio for ${layer}, progress: ${progress}%`);
+            
+            // Store metadata about the track
+            if (audioElement.duration && audioElement.duration > 0) {
+              trackData.current[defaultTrack.id] = {
+                duration: audioElement.duration,
+                loaded: true
+              };
+              // Also add to loaded files set
+              loadedFiles.current.add(defaultTrack.id);
+            }
+            
             resolve();
           };
           
@@ -281,8 +307,8 @@ export const AudioProvider = ({ children }) => {
       } catch (error) {
         console.error(`Error initializing audio for layer ${layer}:`, error);
         // Increment progress anyway to avoid getting stuck
-        loadedFiles++;
-        const progress = Math.round((loadedFiles / totalFiles) * 80) + 20;
+        loadedFilesCount++;
+        const progress = Math.round((loadedFilesCount / totalFiles) * 80) + 20;
         setLoadingProgress(progress);
       }
     }
@@ -295,7 +321,7 @@ export const AudioProvider = ({ children }) => {
     console.log("All audio loaded successfully");
   };
 
-  // Function to safely set playing state - define this FIRST
+  // Function to safely set playing state
   const updatePlayingState = useCallback((newState) => {
     console.log(`Updating playing state to: ${newState}`);
     // Update the ref immediately (sync)
@@ -304,7 +330,7 @@ export const AudioProvider = ({ children }) => {
     setIsPlaying(newState);
   }, []);
 
-  // Start the session - define SECOND
+  // Start the session
   const startSession = useCallback(() => {
     // Use ref for current state check to avoid race conditions
     if (!audioCtx || isPlayingRef.current) {
@@ -388,20 +414,101 @@ export const AudioProvider = ({ children }) => {
     }
   }, [audioCtx, audioElements, activeAudio, gainNodes, volumes, updatePlayingState]);
 
-  // Pause the session - define THIRD
+  // Pause/Stop session function that stops ALL audio, including crossfades
   const pauseSession = useCallback(() => {
     // Use ref for current state check to avoid race conditions
-    if (!isPlayingRef.current) {
+    if (!isPlayingRef.current && Object.keys(activeCrossfadeNodes.current).length === 0) {
       console.log("Not playing, nothing to pause");
       return;
     }
     
     try {
-      console.log("Pausing session...");
+      console.log("Pausing session (including any active crossfades)...");
       let pauseCount = 0;
       let totalTracks = 0;
       
-      // Pause all active audio elements
+      // First, cancel any active crossfades
+      Object.keys(crossfadeTimers.current).forEach(layer => {
+        if (crossfadeTimers.current[layer]) {
+          console.log(`Cancelling active crossfade for ${layer}`);
+          clearInterval(crossfadeTimers.current[layer]);
+          crossfadeTimers.current[layer] = null;
+          
+          // Clean up UI state
+          setActiveCrossfades(prev => ({
+            ...prev,
+            [layer]: null
+          }));
+          
+          setCrossfadeProgress(prev => ({
+            ...prev,
+            [layer]: 0
+          }));
+        }
+      });
+      
+      // Clean up and pause all active crossfade nodes
+      Object.entries(activeCrossfadeNodes.current).forEach(([layer, nodes]) => {
+        if (nodes) {
+          try {
+            // Get the active crossfade nodes
+            const { fadeOutGain, fadeInGain } = nodes;
+            
+            // Find which tracks are connected to these nodes
+            let crossfadeSource = null;
+            let crossfadeTarget = null;
+            
+            // Check for active crossfade
+            if (activeCrossfades[layer]) {
+              crossfadeSource = activeCrossfades[layer].from;
+              crossfadeTarget = activeCrossfades[layer].to;
+            }
+            
+            // Disconnect gain nodes
+            if (fadeOutGain) fadeOutGain.disconnect();
+            if (fadeInGain) fadeInGain.disconnect();
+            
+            // Pause any audio elements connected to the crossfade
+            if (crossfadeSource && audioElements[layer][crossfadeSource]?.element) {
+              audioElements[layer][crossfadeSource].element.pause();
+              totalTracks++;
+              pauseCount++;
+              console.log(`Paused crossfade source for ${layer}: ${crossfadeSource}`);
+              
+              // Reconnect to main gain node for future use
+              try {
+                audioElements[layer][crossfadeSource].source.disconnect();
+                audioElements[layer][crossfadeSource].source.connect(gainNodes[layer]);
+              } catch (e) {
+                console.warn(`Could not reconnect source: ${e.message}`);
+              }
+            }
+            
+            if (crossfadeTarget && audioElements[layer][crossfadeTarget]?.element) {
+              audioElements[layer][crossfadeTarget].element.pause();
+              totalTracks++;
+              pauseCount++;
+              console.log(`Paused crossfade target for ${layer}: ${crossfadeTarget}`);
+              
+              // Reconnect to main gain node for future use
+              try {
+                audioElements[layer][crossfadeTarget].source.disconnect();
+                audioElements[layer][crossfadeTarget].source.connect(gainNodes[layer]);
+              } catch (e) {
+                console.warn(`Could not reconnect target: ${e.message}`);
+              }
+            }
+            
+            // Clear the crossfade nodes
+            activeCrossfadeNodes.current[layer] = null;
+            
+          } catch (e) {
+            console.error(`Error cleaning up crossfade for ${layer}: ${e.message}`);
+          }
+        }
+      });
+      
+      // Also pause all regular active audio elements
       Object.entries(activeAudio).forEach(([layer, trackId]) => {
         const track = audioElements[layer][trackId];
         if (track && track.element) {
@@ -434,9 +541,9 @@ export const AudioProvider = ({ children }) => {
       // Still try to update state even if an error occurs
       updatePlayingState(false);
     }
-  }, [activeAudio, audioElements, updatePlayingState]);
+  }, [activeAudio, audioElements, updatePlayingState, activeCrossfades, gainNodes]);
 
-  // Update volume for a layer
+  // Update volume for a layer - IMPROVED to handle volume during crossfades
   const setVolume = useCallback((layer, value) => {
     if (!gainNodes[layer]) return;
     
@@ -446,177 +553,33 @@ export const AudioProvider = ({ children }) => {
       [layer]: value
     }));
     
-    // Apply to gain node
+    // Apply to main gain node
     gainNodes[layer].gain.value = value;
-  }, [gainNodes]);
-
-  // Optimized preloadAudio function for large files
-  const preloadAudio = useCallback(async (layer, trackId) => {
-    if (!audioCtx || !audioLibrary[layer]) {
-      console.error("Cannot preload: audio context or library missing");
-      return false;
-    }
     
-    // Find the track in the library
-    const track = audioLibrary[layer].find(t => t.id === trackId);
-    if (!track) {
-      console.error(`Track ${trackId} not found in library`);
-      return false;
-    }
-    
-    // Skip if already loaded
-    if (audioElements[layer][trackId]) {
-      console.log(`Track ${trackId} already loaded, skipping preload`);
-      return true;
-    }
-    
-    try {
-      console.log(`Starting preload for ${layer}: ${trackId} (${track.path})`);
+    // Apply to any active crossfade nodes for this layer
+    if (activeCrossfadeNodes.current[layer]) {
+      const { fadeOutGain, fadeInGain } = activeCrossfadeNodes.current[layer];
       
-      // Create new audio element with optimized settings
-      const audioElement = new Audio();
+      // Get the current progress of the crossfade
+      const progress = crossfadeProgress[layer] || 0;
       
-      // Set options for large file handling
-      audioElement.preload = "auto";       // Use automatic preloading
-      audioElement.autobuffer = true;      // Enable auto buffering
-      
-      // For longer files, we want to make sure we can start playing as soon as enough
-      // has been buffered, even if the entire file isn't loaded
-      
-      // Set up a more comprehensive loading system with progress tracking
-      let loadingProgress = 0;
-      
-      // This promise will resolve when enough data is loaded to begin playback
-      const loadPromise = new Promise((resolve, reject) => {
-        // Several events to track loading progress
-        
-        // canplay - enough data is loaded to begin playback
-        audioElement.addEventListener('canplay', () => {
-          console.log(`Track ${trackId} can begin playing (partially loaded)`);
-          loadingProgress = 0.6; // 60% progress when playback can begin
-          // Don't resolve yet, keep loading more
-        }, { once: false });
-        
-        // canplaythrough - enough data loaded for continuous playback
-        audioElement.addEventListener('canplaythrough', () => {
-          console.log(`Track ${trackId} loaded enough for continuous playback`);
-          loadingProgress = 0.9; // 90% when enough is loaded for continuous playback
-          resolve(true); // Now we can resolve - this is enough for our purposes
-        }, { once: true });
-        
-        // progress - fired periodically as data loads
-        audioElement.addEventListener('progress', (e) => {
-          // Try to get buffered data
-          if (audioElement.buffered && audioElement.buffered.length > 0 && audioElement.duration) {
-            // Calculate how much has been buffered
-            const bufferedEnd = audioElement.buffered.end(audioElement.buffered.length - 1);
-            const percentBuffered = (bufferedEnd / audioElement.duration) * 100;
-            console.log(`Loading progress for ${trackId}: ${percentBuffered.toFixed(1)}%`);
-          }
-        }, { once: false });
-        
-        // loadeddata - basic data is loaded
-        audioElement.addEventListener('loadeddata', () => {
-          console.log(`Basic data loaded for ${trackId}`);
-          loadingProgress = 0.4; // 40% when basic data is loaded
-        }, { once: true });
-        
-        // Handle errors during loading
-        audioElement.addEventListener('error', (e) => {
-          const errorMessage = audioElement.error ? 
-            `Error code: ${audioElement.error.code}, message: ${audioElement.error.message}` : 
-            'Unknown error';
-          console.error(`Error loading audio ${track.path}: ${errorMessage}`);
-          reject(new Error(`Audio loading error: ${errorMessage}`));
-        }, { once: true });
-        
-        // Set a timeout in case loading stalls
-        const timeout = setTimeout(() => {
-          if (loadingProgress < 0.8) {  // If we're not at least 80% loaded
-            console.warn(`Loading of ${trackId} taking too long, but continuing in background`);
-            resolve(true); // Resolve anyway to prevent UI from hanging
-          }
-        }, 30000); // 30 second timeout for initial loading
-        
-        // Clean up timeout if we resolve or reject
-        audioElement.addEventListener('canplaythrough', () => clearTimeout(timeout), { once: true });
-        audioElement.addEventListener('error', () => clearTimeout(timeout), { once: true });
-      });
-      
-      // Now set the source and start loading
-      audioElement.src = track.path;
-      audioElement.loop = true;
-      audioElement.load(); // Start loading
-      
-      // Create media element source
-      const source = audioCtx.createMediaElementSource(audioElement);
-      source.connect(gainNodes[layer]);
-      
-      // Store the audio element with initial gain of 0
-      setAudioElements(prev => ({
-        ...prev,
-        [layer]: {
-          ...prev[layer],
-          [trackId]: {
-            element: audioElement,
-            source: source,
-            track: track,
-            isActive: false,
-            gain: 0,
-            loading: true // Mark as still loading
-          }
-        }
-      }));
-      
-      // Wait for loading to reach a playable state
-      try {
-        await loadPromise;
-        
-        // Update the audio element to mark loading as complete
-        setAudioElements(prev => ({
-          ...prev,
-          [layer]: {
-            ...prev[layer],
-            [trackId]: {
-              ...prev[layer][trackId],
-              loading: false // Mark loading as complete
-            }
-          }
-        }));
-        
-        console.log(`Track ${trackId} preloaded successfully`);
-        return true;
-      } catch (error) {
-        console.error(`Failed to preload ${trackId}: ${error.message}`);
-        
-        // Clean up the failed audio element
-        try {
-          audioElement.pause();
-          audioElement.src = '';
-          source.disconnect();
-        } catch (cleanupError) {
-          console.error(`Error during cleanup: ${cleanupError.message}`);
-        }
-        
-        // Remove from audio elements
-        setAudioElements(prev => {
-          const newElements = { ...prev };
-          if (newElements[layer] && newElements[layer][trackId]) {
-            delete newElements[layer][trackId];
-          }
-          return newElements;
-        });
-        
-        return false;
+      if (fadeOutGain && fadeOutGain.gain) {
+        // Adjust the fade-out gain based on crossfade progress
+        fadeOutGain.gain.value = value * (1 - progress);
       }
-    } catch (error) {
-      console.error(`Error in preload process for ${track.path}: ${error.message}`);
-      return false;
+      
+      if (fadeInGain && fadeInGain.gain) {
+        // Adjust the fade-in gain based on crossfade progress
+        fadeInGain.gain.value = value * progress;
+      }
     }
-  }, [audioCtx, audioElements, audioLibrary, gainNodes]);
+  }, [gainNodes, crossfadeProgress]);
 
-  // Enhanced crossfade function with smoother transitions for long files
+  // FIXED Enhanced crossfade function with reliable first-click support
   const enhancedCrossfadeTo = useCallback(async (layer, newTrackId, fadeDuration = 15000) => {
+    console.log(`🎵 Starting crossfade process for ${layer}: ${newTrackId}`);
+    
+    // Verify we have what we need
     if (!audioCtx || !gainNodes[layer]) {
       console.error("Cannot crossfade: missing audio context or gain node");
       return false;
@@ -631,192 +594,442 @@ export const AudioProvider = ({ children }) => {
       return true;
     }
     
-    console.log(`Crossfading ${layer} from ${currentTrackId} to ${newTrackId} over ${fadeDuration/1000}s`);
-    
-    // Ensure the new track is loaded
-    if (!audioElements[layer][newTrackId]) {
-      console.log(`Preloading track ${newTrackId} for crossfade`);
+    // Don't allow overlapping crossfades for the same layer
+    if (activeCrossfadeNodes.current[layer]) {
+      console.warn(`Crossfade already in progress for ${layer}, cancelling it first`);
+      
+      // Cancel existing crossfade
+      if (crossfadeTimers.current[layer]) {
+        clearInterval(crossfadeTimers.current[layer]);
+        crossfadeTimers.current[layer] = null;
+      }
+      
       try {
-        const success = await preloadAudio(layer, newTrackId);
-        if (!success) {
-          console.error(`Failed to preload ${newTrackId}`);
-          return false;
-        }
+        const { fadeOutGain, fadeInGain } = activeCrossfadeNodes.current[layer];
+        fadeOutGain.disconnect();
+        fadeInGain.disconnect();
+      } catch (e) {
+        console.error(`Error cleaning up previous crossfade: ${e.message}`);
+      }
+      
+      activeCrossfadeNodes.current[layer] = null;
+      
+      // Clear UI state
+      setActiveCrossfades(prev => ({
+        ...prev,
+        [layer]: null
+      }));
+    }
+    
+    // Update UI to show we're loading
+    setActiveCrossfades(prev => ({
+      ...prev,
+      [layer]: { 
+        from: currentTrackId,
+        to: newTrackId,
+        progress: 0,
+        isLoading: true 
+      }
+    }));
+    
+    // Step 1: Get or create the new track's audio elements
+    // We'll track in a local variable to avoid race conditions with React state
+    let newTrackElements = null;
+    
+    // First check if it's already available in state (for second click)
+    if (audioElements[layer]?.[newTrackId]?.element && 
+        audioElements[layer][newTrackId].source) {
+      console.log(`Track ${newTrackId} already loaded, using existing elements`);
+      newTrackElements = audioElements[layer][newTrackId];
+    } else {
+      console.log(`Track ${newTrackId} needs loading, preparing now...`);
+      
+      // Find the track in the library
+      const track = audioLibrary[layer].find(t => t.id === newTrackId);
+      if (!track) {
+        console.error(`Track ${newTrackId} not found in library`);
+        
+        // Reset crossfade state
+        setActiveCrossfades(prev => ({
+          ...prev,
+          [layer]: null
+        }));
+        
+        return false;
+      }
+      
+      try {
+        // Create and set up a new audio element
+        const audioElement = new Audio();
+        audioElement.preload = "auto";
+        audioElement.loop = true;
+        
+        // Track loading progress for UI
+        let loadingProgress = 0;
+        const updateLoadingProgress = (progress) => {
+          if (progress > loadingProgress) {
+            loadingProgress = progress;
+            setPreloadProgress(prev => ({
+              ...prev,
+              [newTrackId]: progress
+            }));
+          }
+        };
+        
+        // Initial progress update
+        updateLoadingProgress(10);
+        
+        // Set up a promise to track loading
+        const loadPromise = new Promise((resolve, reject) => {
+          let loaded = false;
+          
+          // We'll resolve once we have enough data
+          const finishLoading = () => {
+            if (loaded) return; // Only resolve once
+            loaded = true;
+            
+            // Create the source node
+            const source = audioCtx.createMediaElementSource(audioElement);
+            source.connect(gainNodes[layer]);
+            
+            // Store metadata
+            if (audioElement.duration && audioElement.duration > 0) {
+              trackData.current[newTrackId] = {
+                duration: audioElement.duration,
+                loaded: true
+              };
+            } else {
+              // Use fallback duration as last resort
+              trackData.current[newTrackId] = {
+                duration: 300, // 5 minute default
+                loaded: true,
+                estimated: true
+              };
+            }
+            
+            // Mark as loaded
+            loadedFiles.current.add(newTrackId);
+            
+            // Return the elements
+            newTrackElements = {
+              element: audioElement,
+              source: source,
+              track: track,
+              isActive: false
+            };
+            
+            // Update the state for future use
+            setAudioElements(prev => ({
+              ...prev,
+              [layer]: {
+                ...prev[layer],
+                [newTrackId]: newTrackElements
+              }
+            }));
+            
+            // Final progress update
+            updateLoadingProgress(100);
+            
+            resolve(newTrackElements);
+          };
+          
+          // Track progress events
+          audioElement.addEventListener('progress', () => {
+            if (audioElement.buffered && audioElement.buffered.length > 0 && audioElement.duration) {
+              const bufferedEnd = audioElement.buffered.end(audioElement.buffered.length - 1);
+              const percentBuffered = Math.min(85, (bufferedEnd / audioElement.duration) * 85);
+              updateLoadingProgress(Math.round(percentBuffered));
+            }
+          });
+          
+          // Set up event listeners
+          audioElement.addEventListener('loadeddata', () => updateLoadingProgress(30));
+          audioElement.addEventListener('loadedmetadata', () => {
+            console.log(`Metadata loaded for ${newTrackId}`);
+            updateLoadingProgress(40);
+            
+            // Store metadata immediately
+            if (audioElement.duration && audioElement.duration > 0) {
+              trackData.current[newTrackId] = {
+                duration: audioElement.duration,
+                loaded: true
+              };
+              console.log(`Stored metadata for ${newTrackId}: ${audioElement.duration}s`);
+              updateLoadingProgress(50);
+            }
+          });
+          
+          audioElement.addEventListener('canplaythrough', () => {
+            updateLoadingProgress(90);
+            finishLoading();
+          }, { once: true });
+          
+          // Error handling
+          audioElement.addEventListener('error', (e) => {
+            reject(new Error(`Error loading audio: ${e.message || 'unknown error'}`));
+          }, { once: true });
+          
+          // Timeout to avoid hanging
+          setTimeout(() => {
+            if (!loaded) {
+              console.warn("Loading taking too long, proceeding anyway");
+              updateLoadingProgress(95);
+              finishLoading();
+            }
+          }, 5000);
+        });
+        
+        // Start loading
+        audioElement.src = track.path;
+        audioElement.load();
+        
+        // Wait for loading to complete
+        await loadPromise;
+        
       } catch (error) {
-        console.error(`Error preloading audio for crossfade: ${error.message}`);
+        console.error(`Error preparing track ${newTrackId}: ${error.message}`);
+        
+        // Reset crossfade state
+        setActiveCrossfades(prev => ({
+          ...prev,
+          [layer]: null
+        }));
+        
+        // Reset progress on error
+        setPreloadProgress(prev => {
+          const newState = {...prev};
+          delete newState[newTrackId];
+          return newState;
+        });
+        
         return false;
       }
     }
     
-    const currentTrack = audioElements[layer][currentTrackId];
-    const newTrack = audioElements[layer][newTrackId];
+    // Step 2: Now we have the new track elements, get the current track
+    const currentTrack = audioElements[layer]?.[currentTrackId];
     
-    if (!currentTrack || !newTrack) {
-      console.error(`Missing track data for crossfade`);
+    // Validate both tracks
+    if (!currentTrack?.element || !currentTrack.source || 
+        !newTrackElements?.element || !newTrackElements.source) {
+      console.error(`Missing track elements for crossfade: current: ${!!currentTrack?.element}, new: ${!!newTrackElements?.element}`);
+      
+      // Reset crossfade state
+      setActiveCrossfades(prev => ({
+        ...prev,
+        [layer]: null
+      }));
+      
       return false;
     }
     
-    // Get the current volume for this layer
+    // Update UI - now loading is complete
+    setActiveCrossfades(prev => ({
+      ...prev,
+      [layer]: { 
+        ...prev[layer],
+        isLoading: false 
+      }
+    }));
+    
+    // Step 3: Set up the crossfade
+    console.log(`Setting up crossfade from ${currentTrackId} to ${newTrackId}`);
+    
+    // Get current volume
     const currentVolume = volumes[layer];
     
-    // Create dedicated gain nodes for this crossfade operation
-    // This prevents interference with the main gain nodes
+    // Create gain nodes for crossfade
     const fadeOutGain = audioCtx.createGain();
     const fadeInGain = audioCtx.createGain();
     
     fadeOutGain.gain.value = currentVolume;
-    fadeInGain.gain.value = 0.001;  // Start nearly silent but not zero (to avoid errors)
+    fadeInGain.gain.value = 0.001;  // Start nearly silent
+    
+    // Store nodes for cancellation and volume control
+    activeCrossfadeNodes.current[layer] = { fadeOutGain, fadeInGain };
     
     // Connect to destination
     fadeOutGain.connect(audioCtx.destination);
     fadeInGain.connect(audioCtx.destination);
     
-    // Temporarily disconnect current track from main gain node and connect to fade node
+    // Disconnect and reconnect audio graphs
     try {
+      // Disconnect current track from main gain and connect to fade out
       currentTrack.source.disconnect();
       currentTrack.source.connect(fadeOutGain);
+      
+      // Connect new track to fade in
+      newTrackElements.source.disconnect();
+      newTrackElements.source.connect(fadeInGain);
     } catch (error) {
-      console.error(`Error disconnecting current track: ${error.message}`);
-      // Attempt recovery by reconnecting to main gain node
-      try {
-        currentTrack.source.connect(gainNodes[layer]);
-      } catch (innerError) {
-        console.error(`Error reconnecting track: ${innerError.message}`);
-      }
-      return false;
-    }
-    
-    // Connect new track to fade-in gain
-    try {
-      newTrack.source.disconnect();
-      newTrack.source.connect(fadeInGain);
-    } catch (error) {
-      console.error(`Error connecting new track: ${error.message}`);
-      // Attempt recovery
+      console.error(`Error connecting audio graph: ${error.message}`);
+      
+      // Attempt recovery - reconnect to main gain nodes
       try {
         currentTrack.source.disconnect();
         currentTrack.source.connect(gainNodes[layer]);
-      } catch (innerError) {
-        console.error(`Error in recovery: ${innerError.message}`);
+        
+        newTrackElements.source.disconnect();
+        newTrackElements.source.connect(gainNodes[layer]);
+      } catch (e) {
+        console.error(`Recovery failed: ${e.message}`);
       }
+      
+      // Reset crossfade state
+      setActiveCrossfades(prev => ({
+        ...prev,
+        [layer]: null
+      }));
+      
       return false;
     }
     
-    // Start the new track if we're playing
-    let playPromise = Promise.resolve();
+    // Step 4: Start playback of new track if we're playing
     if (isPlayingRef.current) {
       try {
-        // Don't reset currentTime for longer tracks - we want to fade between tracks at their current positions
-        // Only reset time if the new track is not currently playing
-        if (newTrack.element.paused) {
-          console.log("Starting new track from beginning");
-          newTrack.element.currentTime = 0;
-        } else {
-          console.log("New track already playing, continuing from current position");
+        // Set the position
+        if (newTrackElements.element.paused) {
+          const currentPosition = currentTrack.element.currentTime || 0;
+          const currentDuration = trackData.current[currentTrackId]?.duration || 
+                                currentTrack.element.duration || 300;
+          const newDuration = trackData.current[newTrackId]?.duration || 
+                            newTrackElements.element.duration || 300;
+          
+          // Calculate relative position
+          const relativePosition = (currentPosition / currentDuration);
+          newTrackElements.element.currentTime = relativePosition * newDuration;
+          console.log(`Matched position at ${(relativePosition * 100).toFixed(1)}% into track`);
         }
         
-        playPromise = newTrack.element.play()
-          .catch(error => {
-            console.error(`Error playing new track during crossfade: ${error.message}`);
-            return null;
-          });
+        // Start playback
+        await newTrackElements.element.play()
+            .catch(e => console.error(`Error playing: ${e.message}`));
       } catch (error) {
-        console.error(`Error starting new track for crossfade: ${error.message}`);
-        return false;
+        console.error(`Error starting playback: ${error.message}`);
+        
+        // Continue anyway - the crossfade might still work
       }
     }
     
-    // Wait for play to start
-    await playPromise;
-    
-    // Use Web Audio API's precision timing for smooth crossfade
+    // Step 5: Schedule the gain curves
     const now = audioCtx.currentTime;
-    const fadeEnd = now + (fadeDuration / 1000);  // Convert ms to seconds
+    const endTime = now + (fadeDuration / 1000);
     
-    // For longer fades, linear ramps may sound more natural than exponential
-    // Schedule the volume changes using linear ramps for smoother long transitions
     try {
-      // Schedule fade out - start at current volume
+      // Schedule fade out
       fadeOutGain.gain.setValueAtTime(currentVolume, now);
-      fadeOutGain.gain.linearRampToValueAtTime(0.001, fadeEnd); // Avoid zero for exponential
+      fadeOutGain.gain.linearRampToValueAtTime(0.001, endTime);
       
-      // Schedule fade in - start from near-zero
+      // Schedule fade in
       fadeInGain.gain.setValueAtTime(0.001, now);
-      fadeInGain.gain.linearRampToValueAtTime(currentVolume, fadeEnd);
+      fadeInGain.gain.linearRampToValueAtTime(currentVolume, endTime);
       
-      console.log(`Crossfade ramps scheduled from ${now.toFixed(2)}s to ${fadeEnd.toFixed(2)}s`);
+      console.log(`Crossfade ramps scheduled from ${now.toFixed(2)}s to ${endTime.toFixed(2)}s`);
     } catch (error) {
       console.error(`Error scheduling gain ramps: ${error.message}`);
-      // Attempt recovery
-      try {
-        fadeOutGain.gain.value = 0;
-        fadeInGain.gain.value = currentVolume;
-      } catch (innerError) {
-        console.error(`Error in gain recovery: ${innerError.message}`);
-      }
+      
+      // Try recovery
+      fadeOutGain.gain.value = 0;
+      fadeInGain.gain.value = currentVolume;
     }
     
-    // Update active audio state immediately
+    // Step 6: Update active track
     setActiveAudio(prev => ({
       ...prev,
       [layer]: newTrackId
     }));
     
-    // Update isActive status in audioElements
-    setAudioElements(prev => ({
-      ...prev,
-      [layer]: {
-        ...prev[layer],
-        [currentTrackId]: {
-          ...prev[layer][currentTrackId],
-          isActive: false
-        },
-        [newTrackId]: {
-          ...prev[layer][newTrackId],
-          isActive: true
+    // Step 7: Setup progress tracking
+    const updateInterval = 100; // 100ms updates
+    const totalUpdates = fadeDuration / updateInterval;
+    let updateCount = 0;
+    
+    crossfadeTimers.current[layer] = setInterval(() => {
+      updateCount++;
+      const progress = Math.min(updateCount / totalUpdates, 1);
+      
+      // Update progress state
+      setCrossfadeProgress(prev => ({
+        ...prev,
+        [layer]: progress
+      }));
+      
+      // Update UI
+      setActiveCrossfades(prev => {
+        if (prev[layer]) {
+          return {
+            ...prev,
+            [layer]: {
+              ...prev[layer],
+              progress: progress
+            }
+          };
         }
+        return prev;
+      });
+      
+      // When complete, clean up
+      if (updateCount >= totalUpdates) {
+        // Clear interval
+        clearInterval(crossfadeTimers.current[layer]);
+        crossfadeTimers.current[layer] = null;
+        
+        // Stop old track
+        if (isPlayingRef.current) {
+          try {
+            console.log(`Pausing old track: ${currentTrackId}`);
+            currentTrack.element.pause();
+          } catch (e) {
+            console.error(`Error pausing old track: ${e.message}`);
+          }
+        }
+        
+        // Reconnect new track to main gain
+        try {
+          console.log(`Reconnecting new track to main gain node`);
+          newTrackElements.source.disconnect();
+          newTrackElements.source.connect(gainNodes[layer]);
+          gainNodes[layer].gain.value = currentVolume;
+        } catch (error) {
+          console.error(`Error reconnecting: ${error.message}`);
+        }
+        
+        // Clean up gain nodes
+        try {
+          fadeOutGain.disconnect();
+          fadeInGain.disconnect();
+          console.log(`Temporary gain nodes cleaned up`);
+        } catch (error) {
+          console.error(`Error cleaning up: ${error.message}`);
+        }
+        
+        // Clear references
+        activeCrossfadeNodes.current[layer] = null;
+        
+        // Clear UI state
+        setActiveCrossfades(prev => ({
+          ...prev,
+          [layer]: null
+        }));
+        
+        setCrossfadeProgress(prev => ({
+          ...prev,
+          [layer]: 0
+        }));
+        
+        // Clear preload progress
+        setPreloadProgress(prev => {
+          const newState = {...prev};
+          delete newState[newTrackId];
+          return newState;
+        });
+        
+        console.log(`Crossfade complete for ${layer}`);
       }
-    }));
+    }, updateInterval);
     
-    // Wait for the crossfade to complete
-    // Use a setTimeout to avoid blocking
-    console.log(`Waiting for ${fadeDuration + 200}ms for crossfade to complete`);
-    await new Promise(resolve => setTimeout(resolve, fadeDuration + 200));
-    
-    // Stop the old track if we're playing
-    if (isPlayingRef.current) {
-      try {
-        console.log(`Pausing old track: ${currentTrackId}`);
-        currentTrack.element.pause();
-      } catch (e) {
-        console.error(`Error pausing old track: ${e.message}`);
-      }
-    }
-    
-    // Reconnect new track to main gain node with correct volume
-    try {
-      console.log(`Reconnecting new track to main gain node`);
-      newTrack.source.disconnect();
-      newTrack.source.connect(gainNodes[layer]);
-      gainNodes[layer].gain.value = currentVolume;
-    } catch (error) {
-      console.error(`Error reconnecting to main gain: ${error.message}`);
-    }
-    
-    // Clean up temporary gain nodes
-    setTimeout(() => {
-      try {
-        fadeOutGain.disconnect();
-        fadeInGain.disconnect();
-        console.log(`Temporary gain nodes cleaned up`);
-      } catch (error) {
-        console.error(`Error cleaning up gain nodes: ${error.message}`);
-      }
-    }, 250);
-    
-    console.log(`Crossfade complete for ${layer}`);
     return true;
-  }, [audioCtx, audioElements, gainNodes, activeAudio, volumes, preloadAudio]);
+  }, [audioCtx, gainNodes, volumes, activeAudio, audioLibrary, audioElements, isPlayingRef]);
 
   // Calculate elapsed session time
   const getSessionTime = useCallback(() => {
@@ -880,13 +1093,16 @@ export const AudioProvider = ({ children }) => {
     activeAudio,
     audioLibrary,
     hasSwitchableAudio,
+    crossfadeProgress,
+    activeCrossfades,
+    preloadProgress, // Add preload progress for UI to show loading status
     
     // Audio controls
     setVolume,
     startSession,
     pauseSession,
-    enhancedCrossfadeTo,
-    preloadAudio,
+    crossfadeTo: enhancedCrossfadeTo,
+    preloadAudio: enhancedCrossfadeTo, // Use the same function for preloading
     getSessionTime,
     testCrossfade,
     
@@ -900,11 +1116,13 @@ export const AudioProvider = ({ children }) => {
     activeAudio, 
     audioLibrary,
     hasSwitchableAudio,
+    crossfadeProgress, 
+    activeCrossfades,
+    preloadProgress,
     setVolume, 
     startSession, 
     pauseSession, 
     enhancedCrossfadeTo,
-    preloadAudio,
     getSessionTime,
     testCrossfade
   ]);
