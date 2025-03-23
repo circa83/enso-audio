@@ -7,30 +7,63 @@ const LayerSelector = ({ layer }) => {
   const { 
     audioLibrary, 
     activeAudio, 
-    crossfadeTo
+    enhancedCrossfadeTo
   } = useAudio();
   
   const [isExpanded, setIsExpanded] = useState(false);
   const [loadingTrack, setLoadingTrack] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
+  const [isCrossfading, setIsCrossfading] = useState(false);
+  const [crossfadeProgress, setCrossfadeProgress] = useState(0);
 
-  // Handle track selection
+  // Handle track selection with enhanced crossfade
   const handleTrackSelect = async (trackId) => {
     // Don't do anything if already selected or already loading
-    if (trackId === activeAudio[layer] || loadingTrack) return;
+    if (trackId === activeAudio[layer] || loadingTrack || isCrossfading) return;
     
     setLoadingTrack(trackId);
     setErrorMessage(null);
+    setIsCrossfading(true);
+    setCrossfadeProgress(0);
     
     try {
-      // Attempt crossfade (preloading happens inside crossfadeTo)
-      await crossfadeTo(layer, trackId);
+      // Start progress indicator
+      const progressInterval = setInterval(() => {
+        setCrossfadeProgress(prev => {
+          if (prev >= 95) {
+            clearInterval(progressInterval);
+            return prev;
+          }
+          return prev + 5;
+        });
+      }, 100);
       
-      // Close the selector after selection
-      setIsExpanded(false);
+      // Use the enhanced crossfade function with a 15 second fade
+      const result = await enhancedCrossfadeTo(layer, trackId, 15000);
+      
+      // Clear the progress interval
+      clearInterval(progressInterval);
+      
+      if (result) {
+        // Successfully crossfaded
+        setCrossfadeProgress(100);
+        setTimeout(() => {
+          setIsCrossfading(false);
+          setCrossfadeProgress(0);
+          // Close the selector after successful selection
+          setIsExpanded(false);
+        }, 500);
+      } else {
+        // Crossfade failed
+        setErrorMessage('Could not crossfade to selected track');
+        setIsCrossfading(false);
+        setCrossfadeProgress(0);
+      }
     } catch (error) {
       console.error('Error changing track:', error);
       setErrorMessage('Could not load audio track');
+      setIsCrossfading(false);
+      setCrossfadeProgress(0);
     } finally {
       setLoadingTrack(null);
     }
@@ -69,6 +102,18 @@ const LayerSelector = ({ layer }) => {
             <div className={styles['error-message']}>{errorMessage}</div>
           )}
           
+          {isCrossfading && (
+            <div className={styles['crossfade-progress']}>
+              <div className={styles['progress-text']}>Crossfading (15s)...</div>
+              <div className={styles['progress-bar-container']}>
+                <div 
+                  className={styles['progress-bar']} 
+                  style={{width: `${crossfadeProgress}%`}}
+                ></div>
+              </div>
+            </div>
+          )}
+          
           {audioLibrary[layer] && audioLibrary[layer].map(track => (
             <div 
               key={track.id}
@@ -76,6 +121,7 @@ const LayerSelector = ({ layer }) => {
                 ${styles['track-item']} 
                 ${activeAudio[layer] === track.id ? styles.active : ''}
                 ${loadingTrack === track.id ? styles.loading : ''}
+                ${isCrossfading ? styles.disabled : ''}
               `}
               onClick={() => handleTrackSelect(track.id)}
             >
