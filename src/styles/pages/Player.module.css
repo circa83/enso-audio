@@ -5,11 +5,13 @@
 /* Base styling */
 .simplePlayer {
   max-width: 900px;
+  width: 100%;
   margin: 50px auto;
   padding: 40px;
   background-color: #181818;
   border-radius: 2px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  box-sizing: border-box;
 }
 
 /* Minimal typography */
@@ -89,8 +91,8 @@
 
 .playbutton:not(.playing){
   background-color: transparent;
-  color: white 
-  }
+  color: white;
+}
 
 /* Sound library button */
 .soundLibraryButton {
@@ -123,6 +125,8 @@
   padding: 40px;
   background-color: #1c1c1c;
   border: 1px solid #333;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* Layer selectors section */
@@ -132,6 +136,8 @@
   background-color: #1c1c1c;
   border: 1px solid #333;
   animation: fadeIn 0.3s ease;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 @keyframes fadeIn {
@@ -158,6 +164,8 @@
   padding: 25px;
   background-color: #1c1c1c;
   border: 1px solid #333;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .journeyGuide h3 {

@@ -1,0 +1,145 @@
+/* src/styles/components/SessionTimeline.module.css */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@100;200;300&family=Space+Mono&display=swap');
+
+.timelineContainer {
+  margin: 40px 0;
+  padding: 30px;
+  background-color: #1c1c1c;
+  border: 1px solid #333;
+  width: 100%;
+  max-width: 900px;
+  box-sizing: border-box;
+}
+
+.timelineHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.timelineTitle {
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 1rem;
+  color: #aaaaaa;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.timelineControls {
+  display: flex;
+  gap: 10px;
+}
+
+.controlButton {
+  background-color: transparent;
+  border: 1px solid #555;
+  color: #aaaaaa;
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 0.7rem;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.controlButton:hover {
+  border-color: #ffffff;
+  color: #ffffff;
+}
+
+.controlButton.active {
+  border-color: #ffaa00;
+  color: #ffaa00;
+}
+
+.phaseIndicator {
+  text-align: center;
+  margin-bottom: 10px;
+  font-family: 'Archivo', sans-serif;
+  font-size: 0.9rem;
+  color: #777;
+}
+
+.activePhase {
+  color: #ffffff;
+  font-weight: 300;
+  letter-spacing: 1px;
+}
+
+.transitioningLabel {
+  color: #ffaa00;
+  font-style: italic;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+.timeInfo {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.85rem;
+  color: #999;
+}
+
+.remainingTime {
+  color: #666;
+}
+
+.timeline {
+  position: relative;
+  height: 3px;
+  background-color: #333;
+  margin-bottom: 30px;
+  cursor: pointer;
+  overflow: visible;
+}
+
+.progressBar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background-color: #ffffff;
+  transition: width 0.25s linear;
+}
+
+.timelineLabels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: #666;
+  font-family: 'Archivo', sans-serif;
+  letter-spacing: 0.5px;
+}
+
+.editInstructions {
+  text-align: center;
+  font-size: 0.7rem;
+  color: #666;
+  margin-top: 15px;
+  font-style: italic;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .timelineContainer {
+    padding: 20px 15px;
+  }
+  
+  .timelineTitle {
+    font-size: 0.9rem;
+  }
+  
+  .controlButton {
+    font-size: 0.6rem;
+    padding: 4px 8px;
+  }
+}
