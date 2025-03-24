@@ -2,8 +2,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@100;200;300&family=Space+Mono&display=swap');
 
 .timelineContainer {
-  margin: 40px 0;
-  padding: 30px;
+  margin: 50px 0;
+  padding: 35px;
   background-color: #1c1c1c;
   border: 1px solid #333;
   width: 100%;
@@ -15,13 +15,13 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 25px;
 }
 
 .timelineTitle {
   font-family: 'Archivo', sans-serif;
   font-weight: 200;
-  font-size: 1rem;
+  font-size: 1.1rem;
   color: #aaaaaa;
   letter-spacing: 2px;
   text-transform: uppercase;
@@ -39,7 +39,7 @@
   font-family: 'Archivo', sans-serif;
   font-weight: 200;
   font-size: 0.7rem;
-  padding: 5px 10px;
+  padding: 5px 12px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -56,7 +56,7 @@
 
 .phaseIndicator {
   text-align: center;
-  margin-bottom: 10px;
+  margin-bottom: 15px;
   font-family: 'Archivo', sans-serif;
   font-size: 0.9rem;
   color: #777;
@@ -83,7 +83,7 @@
 .timeInfo {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 15px;
   font-family: 'Space Mono', monospace;
   font-size: 0.85rem;
   color: #999;
@@ -95,11 +95,23 @@
 
 .timeline {
   position: relative;
-  height: 3px;
+  height: 6px; /* Thicker timeline for better visibility */
   background-color: #333;
-  margin-bottom: 30px;
+  margin-bottom: 40px;
   cursor: pointer;
   overflow: visible;
+  border-radius: 3px;
+}
+
+/* Slider-like appearance */
+.timeline::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: 0;
+  right: 0;
+  height: 26px; /* Larger hit area for better interaction */
+  background-color: transparent;
 }
 
 .progressBar {
@@ -109,37 +121,64 @@
   height: 100%;
   background-color: #ffffff;
   transition: width 0.25s linear;
+  border-radius: 3px;
 }
 
 .timelineLabels {
   display: flex;
   justify-content: space-between;
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   color: #666;
   font-family: 'Archivo', sans-serif;
   letter-spacing: 0.5px;
+  margin-top: 10px;
 }
 
 .editInstructions {
   text-align: center;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: #666;
-  margin-top: 15px;
+  margin-top: 20px;
   font-style: italic;
+  line-height: 1.4;
+}
+
+/* Marker ticks on the timeline */
+.timeline::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  background: repeating-linear-gradient(
+    to right,
+    transparent,
+    transparent 9.999%,
+    rgba(255, 255, 255, 0.2) 10%,
+    rgba(255, 255, 255, 0.2) 10.001%,
+    transparent 10.002%,
+    transparent 19.999%,
+    rgba(255, 255, 255, 0.2) 20%,
+    rgba(255, 255, 255, 0.2) 20.001%,
+    transparent 20.002%
+  );
+  pointer-events: none;
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .timelineContainer {
-    padding: 20px 15px;
+    padding: 25px 20px;
+    margin: 30px 0;
   }
   
   .timelineTitle {
-    font-size: 0.9rem;
+    font-size: 1rem;
   }
   
   .controlButton {
-    font-size: 0.6rem;
-    padding: 4px 8px;
+    font-size: 0.65rem;
+    padding: 4px 10px;
   }
 }

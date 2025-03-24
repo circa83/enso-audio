@@ -1,11 +1,11 @@
 // src/components/audio/SessionSettings.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styles from '../../styles/components/SessionSettings.module.css';
 
 const SessionSettings = ({ 
   sessionDuration, 
   timelineEnabled,
-  transitionDuration = 10000,
+  transitionDuration = 4000, // Default to 4 seconds
   onDurationChange,
   onTransitionDurationChange,
   onTimelineToggle
@@ -14,6 +14,13 @@ const SessionSettings = ({
   const [durationHours, setDurationHours] = useState(Math.floor(sessionDuration / (60 * 60 * 1000)));
   const [durationMinutes, setDurationMinutes] = useState(Math.floor((sessionDuration % (60 * 60 * 1000)) / (60 * 1000)));
   const [durationSeconds, setDurationSeconds] = useState(Math.floor((sessionDuration % (60 * 1000)) / 1000));
+  
+  // Initialize with default 4 second transition
+  useEffect(() => {
+    if (onTransitionDurationChange && transitionDuration !== 4000) {
+      onTransitionDurationChange(4000);
+    }
+  }, []);
   
   // Handle duration change
   const handleDurationChange = () => {
@@ -158,8 +165,8 @@ const SessionSettings = ({
           <div className={styles.settingGroup}>
             <p className={styles.settingInfo}>
               {timelineEnabled 
-                ? 'With timeline enabled, you can set up phase transitions that automatically adjust audio layers during the session.'
-                : 'With timeline disabled, you control audio layers manually throughout the session.'}
+                ? 'With timeline enabled, audio layers will automatically adjust during the session based on your configured phases.'
+                : 'With timeline disabled, you have complete manual control over audio layers throughout the session.'}
             </p>
           </div>
         </div>

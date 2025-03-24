@@ -12,39 +12,61 @@ const PhaseMarker = ({
   onDrag, 
   onClick,
   onStateCapture,
-  storedState
+  storedState,
+  editMode
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const markerRef = useRef(null);
+  const timelineRef = useRef(null);
+  const dragStartPosition = useRef({ x: 0, offset: 0 });
   
-  // Handle mouse down on marker to start dragging
+  // Combined function for both selecting and starting drag
   const handleMouseDown = (e) => {
-    if (!isDraggable) {
-      console.log(`Marker ${name} is not draggable`);
-      return;
-    }
-    
+    // Always stop propagation to prevent parent elements from handling the event
     e.preventDefault();
     e.stopPropagation();
-    console.log(`Starting drag on ${name} marker`);
+    
+    // Call onClick handler to select the marker
+    onClick(e);
+    
+    // If not draggable, don't proceed with drag setup
+    if (!isDraggable) return;
+    
+    // Start the drag operation
+    startDrag(e.clientX);
+  };
+  
+  // Start drag operation
+  const startDrag = (clientX) => {
+    // Set dragging state
     setIsDragging(true);
+    
+    // Store the timeline reference
+    if (markerRef.current && markerRef.current.parentElement) {
+      timelineRef.current = markerRef.current.parentElement;
+    }
+    
+    // Store initial position for relative movement
+    dragStartPosition.current = { 
+      x: clientX,
+      offset: position
+    };
     
     // Add event listeners for mouse move and up
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
   };
   
-  // Handle mouse move during drag
+  // Handle mouse move during drag with improved responsiveness
   const handleMouseMove = (e) => {
-    if (!isDragging || !markerRef.current || !markerRef.current.parentElement) {
-      return;
-    }
+    if (!isDragging || !timelineRef.current) return;
     
-    const timeline = markerRef.current.parentElement;
-    const rect = timeline.getBoundingClientRect();
+    const rect = timelineRef.current.getBoundingClientRect();
+    const deltaX = e.clientX - dragStartPosition.current.x;
+    const deltaPct = (deltaX / rect.width) * 100;
     
-    // Calculate position as percentage of timeline width
-    const newPosition = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
+    // Calculate new position based on original position plus delta
+    const newPosition = Math.min(100, Math.max(0, dragStartPosition.current.offset + deltaPct));
     
     // Call onDrag with new position
     onDrag(newPosition);
@@ -53,37 +75,42 @@ const PhaseMarker = ({
   // Handle mouse up - end dragging
   const handleMouseUp = () => {
     if (isDragging) {
-      console.log(`Ending drag on ${name} marker`);
       setIsDragging(false);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     }
   };
   
-  // Also handle touch events for mobile
+  // Touch event handlers for mobile
   const handleTouchStart = (e) => {
+    // Call onClick to select the marker
+    onClick(e);
+    
+    // If not draggable, don't proceed with drag setup
     if (!isDraggable) return;
     
     e.preventDefault();
     e.stopPropagation();
-    console.log(`Starting touch drag on ${name} marker`);
-    setIsDragging(true);
+    
+    if (e.touches && e.touches[0]) {
+      startDrag(e.touches[0].clientX);
+    }
     
     document.addEventListener('touchmove', handleTouchMove, { passive: false });
     document.addEventListener('touchend', handleTouchEnd);
   };
   
   const handleTouchMove = (e) => {
-    if (!isDragging || !markerRef.current || !markerRef.current.parentElement) return;
+    if (!isDragging || !timelineRef.current || !e.touches || !e.touches[0]) return;
     
     e.preventDefault(); // Prevent scrolling while dragging
     
-    const timeline = markerRef.current.parentElement;
-    const rect = timeline.getBoundingClientRect();
-    const touch = e.touches[0];
+    const rect = timelineRef.current.getBoundingClientRect();
+    const deltaX = e.touches[0].clientX - dragStartPosition.current.x;
+    const deltaPct = (deltaX / rect.width) * 100;
     
-    // Calculate position as percentage of timeline width
-    const newPosition = Math.min(100, Math.max(0, ((touch.clientX - rect.left) / rect.width) * 100));
+    // Calculate new position based on original position plus delta
+    const newPosition = Math.min(100, Math.max(0, dragStartPosition.current.offset + deltaPct));
     
     // Call onDrag with new position
     onDrag(newPosition);
@@ -91,7 +118,6 @@ const PhaseMarker = ({
   
   const handleTouchEnd = () => {
     if (isDragging) {
-      console.log(`Ending touch drag on ${name} marker`);
       setIsDragging(false);
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
@@ -108,21 +134,8 @@ const PhaseMarker = ({
     };
   }, []);
   
-  // Format state summary for display
-  const formatStateDisplay = () => {
-    if (!storedState) return 'No state saved';
-    
-    const volumeSummary = Object.entries(storedState.volumes || {})
-      .map(([layer, vol]) => `${layer.charAt(0).toUpperCase()}: ${Math.round(vol * 100)}%`)
-      .join(', ');
-      
-    const trackSummary = Object.entries(storedState.activeAudio || {})
-      .map(([layer, trackId]) => `${layer.charAt(0).toUpperCase()}: ${trackId}`)
-      .slice(0, 2) // Show only first 2 tracks to avoid cluttering
-      .join(', ');
-      
-    return `${volumeSummary}${trackSummary ? ` | ${trackSummary}` : ''}`;
-  };
+  // Only show selection highlight when in edit mode
+  const showSelectedHighlight = isSelected && editMode;
   
   return (
     <div 
@@ -130,14 +143,13 @@ const PhaseMarker = ({
       className={`
         ${styles.phaseMarker} 
         ${isActive ? styles.activeMarker : ''} 
-        ${isSelected ? styles.selectedMarker : ''}
+        ${showSelectedHighlight ? styles.selectedMarker : ''}
         ${isDraggable ? styles.draggable : ''}
         ${!isDraggable ? styles.fixed : ''}
         ${isDragging ? styles.dragging : ''}
       `} 
       style={{ 
         left: `${position}%`,
-        backgroundColor: color
       }}
       onClick={onClick}
       onMouseDown={handleMouseDown}
@@ -145,16 +157,12 @@ const PhaseMarker = ({
     >
       <div className={styles.markerLabel}>{name}</div>
       
-      {storedState && (
-        <div className={styles.stateIndicator}>
-          <div className={styles.stateDetail}>{formatStateDisplay()}</div>
-        </div>
-      )}
-      
-      {onStateCapture && (
+      {/* Capture state button - centered below marker */}
+      {onStateCapture && isSelected && editMode && (
         <button 
           className={styles.captureButton}
           onClick={(e) => {
+            e.preventDefault();
             e.stopPropagation();
             onStateCapture();
           }}
