@@ -1,0 +1,166 @@
+/* src/styles/components/PhaseMarker.module.css */
+.phaseMarker {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    transition: all 0.2s ease;
+    touch-action: none; /* Prevent default touch actions on mobile */
+  }
+  
+  .phaseMarker:hover {
+    transform: translate(-50%, -50%) scale(1.2);
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+  }
+  
+  .phaseMarker::before {
+    content: '';
+    position: absolute;
+    height: 15px;
+    width: 1px;
+    background-color: #444;
+    bottom: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  
+  .activeMarker {
+    border: 2px solid #ffffff;
+  }
+  
+  .selectedMarker {
+    border: 2px solid #ffaa00;
+    z-index: 3;
+  }
+  
+  .draggable {
+    cursor: grab;
+  }
+  
+  .fixed {
+    cursor: default;
+  }
+  
+  .dragging {
+    cursor: grabbing !important;
+    transform: translate(-50%, -50%) scale(1.2) !important;
+    z-index: 10 !important;
+    border: 2px solid #ffaa00 !important;
+    box-shadow: 0 0 12px rgba(255, 170, 0, 0.5) !important;
+  }
+  
+  .markerLabel {
+    position: absolute;
+    top: -25px;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: 0.7rem;
+    color: #aaa;
+    font-family: 'Archivo', sans-serif;
+    letter-spacing: 0.5px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+  }
+  
+  .phaseMarker:hover .markerLabel,
+  .dragging .markerLabel,
+  .selectedMarker .markerLabel {
+    opacity: 1;
+  }
+  
+  .stateIndicator {
+    position: absolute;
+    bottom: -22px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .stateIndicator::after {
+    content: '✓';
+    font-size: 8px;
+    color: #aaffaa;
+  }
+  
+  .stateDetail {
+    position: absolute;
+    bottom: 16px;
+    min-width: 100px;
+    max-width: 300px;
+    padding: 4px 8px;
+    background-color: rgba(30, 30, 30, 0.9);
+    border: 1px solid #444;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    color: #ddd;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    transform: translateY(5px);
+    pointer-events: none;
+    z-index: 5;
+  }
+  
+  .stateIndicator:hover .stateDetail,
+  .dragging .stateDetail {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  
+  .captureButton {
+    position: absolute;
+    display: none;
+    top: -40px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(30, 30, 30, 0.9);
+    border: 1px solid #444;
+    color: #aaa;
+    padding: 2px 5px;
+    font-size: 0.6rem;
+    white-space: nowrap;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+    z-index: 4;
+  }
+  
+  .captureButton:hover {
+    background-color: #333;
+    color: #fff;
+    border-color: #555;
+  }
+  
+  .selectedMarker .captureButton {
+    display: block;
+  }
+  
+  @media (max-width: 768px) {
+    .phaseMarker {
+      width: 16px; /* Larger for touch devices */
+      height: 16px;
+    }
+    
+    .markerLabel, .stateDetail, .captureButton {
+      display: none;
+    }
+    
+    .phaseMarker:active .markerLabel,
+    .selectedMarker .captureButton,
+    .dragging .markerLabel {
+      display: block;
+    }
+    
+    .stateIndicator:active .stateDetail,
+    .dragging .stateDetail {
+      display: block;
+      opacity: 1;
+    }
+  }

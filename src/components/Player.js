@@ -1,9 +1,11 @@
 // src/components/Player.js
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useAudio } from '../contexts/StreamingAudioContext';
 import LayerControl from './audio/LayerControl';
 import LayerSelector from './audio/LayerSelector';
 import SessionTimer from './audio/SessionTimer';
+import SessionTimeline from './audio/SessionTimeline';
+import SessionSettings from './audio/SessionSettings';
 import TapePlayerGraphic from './audio/TapePlayerGraphic';
 import styles from '../styles/pages/Player.module.css';
 
@@ -20,6 +22,19 @@ const Player = () => {
   } = useAudio();
   
   const [showLayerSelectors, setShowLayerSelectors] = useState(false);
+  const [sessionDuration, setSessionDuration] = useState(60 * 1000); // Default 1 minute (for testing)
+  const [timelineEnabled, setTimelineEnabled] = useState(true);
+  const [transitionDuration, setTransitionDuration] = useState(10000); // Default 10 seconds
+  
+  // Log state changes when toggling timeline
+  useEffect(() => {
+    console.log(`Timeline ${timelineEnabled ? 'enabled' : 'disabled'}`);
+  }, [timelineEnabled]);
+  
+  // Log transition duration changes
+  useEffect(() => {
+    console.log(`Transition duration set to: ${transitionDuration / 1000}s`);
+  }, [transitionDuration]);
   
   const togglePlayPause = useCallback(() => {
     if (isPlaying) {
@@ -56,6 +71,24 @@ const Player = () => {
         </button>
       </div>
       
+      {/* Session settings component */}
+      <SessionSettings 
+        sessionDuration={sessionDuration}
+        timelineEnabled={timelineEnabled}
+        transitionDuration={transitionDuration}
+        onDurationChange={newDuration => setSessionDuration(newDuration)}
+        onTransitionDurationChange={newDuration => setTransitionDuration(newDuration)}
+        onTimelineToggle={enabled => setTimelineEnabled(enabled)}
+      />
+      
+      {/* Timeline Component - only if enabled */}
+      <SessionTimeline 
+        enabled={timelineEnabled}
+        sessionDuration={sessionDuration}
+        transitionDuration={transitionDuration}
+        onDurationChange={setSessionDuration}
+      />
+      
       <div className={styles.layerControls}>
         <h2 className={styles.sectionTitle}>Audio Layers</h2>
         
@@ -83,27 +116,29 @@ const Player = () => {
       
       <SessionTimer />
       
-      <div className={styles.journeyGuide}>
-        <h3>Session Flow Guide</h3>
-        <div className={styles.journeyPhases}>
-          <div className={styles.journeyPhase}>
-            <h4>Pre-Onset</h4>
-            <p>Higher drone, lower rhythm</p>
-          </div>
-          <div className={styles.journeyPhase}>
-            <h4>Onset & Buildup</h4>
-            <p>Increase melody and rhythm gradually</p>
-          </div>
-          <div className={styles.journeyPhase}>
-            <h4>Peak</h4>
-            <p>Balanced mix of all elements</p>
-          </div>
-          <div className={styles.journeyPhase}>
-            <h4>Return & Integration</h4>
-            <p>Reduce rhythm, increase nature</p>
+      {!timelineEnabled && (
+        <div className={styles.journeyGuide}>
+          <h3>Session Flow Guide</h3>
+          <div className={styles.journeyPhases}>
+            <div className={styles.journeyPhase}>
+              <h4>Pre-Onset</h4>
+              <p>Higher drone, lower rhythm</p>
+            </div>
+            <div className={styles.journeyPhase}>
+              <h4>Onset & Buildup</h4>
+              <p>Increase melody and rhythm gradually</p>
+            </div>
+            <div className={styles.journeyPhase}>
+              <h4>Peak</h4>
+              <p>Balanced mix of all elements</p>
+            </div>
+            <div className={styles.journeyPhase}>
+              <h4>Return & Integration</h4>
+              <p>Reduce rhythm, increase nature</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

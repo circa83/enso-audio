@@ -1,0 +1,188 @@
+/* src/styles/components/SessionSettings.module.css */
+.settingsContainer {
+    margin-bottom: 20px;
+    background-color: #1c1c1c;
+    border: 1px solid #333;
+    overflow: hidden;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .settingsHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+  
+  .settingsHeader:hover {
+    background-color: #252525;
+  }
+  
+  .settingsHeader.active {
+    background-color: #252525;
+    border-bottom: 1px solid #333;
+  }
+  
+  .settingsTitle {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.9rem;
+    color: #ffffff;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+  
+  .expandIcon {
+    font-size: 0.7rem;
+    color: #aaaaaa;
+    transition: transform 0.3s ease;
+  }
+  
+  .settingsContent {
+    padding: 20px;
+    animation: fadeIn 0.3s ease;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .settingGroup {
+    margin-bottom: 20px;
+  }
+  
+  .settingLabel {
+    display: block;
+    margin-bottom: 10px;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.8rem;
+    color: #aaaaaa;
+    letter-spacing: 1px;
+  }
+  
+  .settingToggle {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .toggleButton {
+    flex: 1;
+    padding: 8px 0;
+    background-color: transparent;
+    border: 1px solid #444;
+    color: #aaaaaa;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .toggleButton:hover {
+    border-color: #ffffff;
+    color: #ffffff;
+  }
+  
+  .toggleButton.active {
+    background-color: #252525;
+    border-color: #ffaa00;
+    color: #ffaa00;
+  }
+  
+  .durationInputs {
+    display: flex;
+    gap: 15px;
+  }
+  
+  .inputGroup {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .timeInput {
+    width: 60px;
+    padding: 8px;
+    background-color: #252525;
+    border: 1px solid #333;
+    color: #ffffff;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.9rem;
+    text-align: center;
+  }
+  
+  .timeInput:focus {
+    outline: none;
+    border-color: #555;
+  }
+  
+  .timeLabel {
+    font-size: 0.8rem;
+    color: #aaaaaa;
+  }
+  
+  .rangeInput {
+    width: 100%;
+    height: 4px;
+    -webkit-appearance: none;
+    background-color: #333;
+    border-radius: 2px;
+    margin: 10px 0;
+  }
+  
+  .rangeInput::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background-color: #ffffff;
+    cursor: pointer;
+    border: none;
+  }
+  
+  .rangeInput::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background-color: #ffffff;
+    cursor: pointer;
+    border: none;
+  }
+  
+  .rangeInput:focus {
+    outline: none;
+  }
+  
+  .rangeLabels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    color: #888;
+    margin-top: 5px;
+  }
+  
+  .settingInfo {
+    font-size: 0.8rem;
+    color: #777;
+    font-style: italic;
+    line-height: 1.4;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .durationInputs {
+      flex-direction: column;
+      gap: 10px;
+    }
+  }

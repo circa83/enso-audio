@@ -92,6 +92,11 @@ export const AudioProvider = ({ children }) => {
   // Track audio loading progress for preloading
   const [preloadProgress, setPreloadProgress] = useState({});
   
+  // Timeline events state
+  const [timelineEvents, setTimelineEvents] = useState([]);
+  const [nextEventIndex, setNextEventIndex] = useState(0);
+  const timelineCheckInterval = useRef(null);
+  
   // Initialize the Web Audio API context
   useEffect(() => {
     const initAudioContext = async () => {
@@ -407,6 +412,10 @@ export const AudioProvider = ({ children }) => {
         updatePlayingState(true);
         setSessionStartTime(Date.now());
       }
+      
+      // Reset the timeline event index when starting a new session
+      resetTimelineEventIndex();
+      
     } catch (error) {
       console.error('Error starting session:', error);
       // Reset state if we hit an error
@@ -1083,6 +1092,73 @@ export const AudioProvider = ({ children }) => {
     return true;
   }, [audioLibrary, activeAudio, hasSwitchableAudio, startSession, enhancedCrossfadeTo]);
 
+  // Timeline event handling effect
+  useEffect(() => {
+    if (isPlaying && timelineEvents.length > 0) {
+      // Start checking for timeline events
+      timelineCheckInterval.current = setInterval(() => {
+        const currentTime = getSessionTime();
+        
+        // Check if we need to trigger the next event
+        if (nextEventIndex < timelineEvents.length) {
+          const nextEvent = timelineEvents[nextEventIndex];
+          
+          if (currentTime >= nextEvent.time) {
+            console.log(`Triggering timeline event: ${nextEvent.name}`);
+            
+            // Execute the event action
+            if (nextEvent.action === 'crossfade' && nextEvent.layerSettings) {
+              // Handle crossfade events
+              Object.entries(nextEvent.layerSettings).forEach(([layer, settings]) => {
+                if (settings.trackId) {
+                  enhancedCrossfadeTo(layer, settings.trackId, settings.duration || 3000);
+                }
+                
+                if (settings.volume !== undefined) {
+                  setVolume(layer, settings.volume);
+                }
+              });
+            }
+            
+            // Move to the next event
+            setNextEventIndex(nextEventIndex + 1);
+          }
+        }
+      }, 1000); // Check every second
+    } else {
+      // Clear interval when not playing
+      if (timelineCheckInterval.current) {
+        clearInterval(timelineCheckInterval.current);
+      }
+    }
+    
+    return () => {
+      if (timelineCheckInterval.current) {
+        clearInterval(timelineCheckInterval.current);
+      }
+    };
+  }, [isPlaying, timelineEvents, nextEventIndex, getSessionTime, enhancedCrossfadeTo, setVolume]);
+
+  // Add function to register a timeline event
+  const registerTimelineEvent = useCallback((event) => {
+    setTimelineEvents(prev => {
+      // Add the new event and sort by time
+      const updatedEvents = [...prev, event].sort((a, b) => a.time - b.time);
+      return updatedEvents;
+    });
+  }, []);
+
+  // Add function to clear timeline events
+  const clearTimelineEvents = useCallback(() => {
+    setTimelineEvents([]);
+    setNextEventIndex(0);
+  }, []);
+
+  // Add function to reset timeline event index (e.g., when restarting a session)
+  const resetTimelineEventIndex = useCallback(() => {
+    setNextEventIndex(0);
+  }, []);
+
   // Exposed context value
   const value = useMemo(() => ({
     // Audio state
@@ -1106,6 +1182,12 @@ export const AudioProvider = ({ children }) => {
     getSessionTime,
     testCrossfade,
     
+    // Timeline event functions
+    timelineEvents,
+    registerTimelineEvent,
+    clearTimelineEvents,
+    resetTimelineEventIndex,
+    
     // Constants
     LAYERS
   }), [
@@ -1124,7 +1206,11 @@ export const AudioProvider = ({ children }) => {
     pauseSession, 
     enhancedCrossfadeTo,
     getSessionTime,
-    testCrossfade
+    testCrossfade,
+    timelineEvents,
+    registerTimelineEvent,
+    clearTimelineEvents,
+    resetTimelineEventIndex
   ]);
 
   return (
