@@ -94,8 +94,8 @@
   color: white;
 }
 
-/* Sound library button */
-.soundLibraryButton {
+/* Button styles */
+.soundLibraryButton, .presetButton {
   padding: 8px 16px;
   background-color: transparent;
   border: 1px solid #444;
@@ -109,12 +109,12 @@
   transition: all 0.2s ease;
 }
 
-.soundLibraryButton:hover {
+.soundLibraryButton:hover, .presetButton:hover {
   border-color: #ffffff;
   color: #ffffff;
 }
 
-.soundLibraryButton.active {
+.soundLibraryButton.active, .presetButton.active {
   border-color: #ffffff;
   color: #ffffff;
 }
@@ -138,6 +138,113 @@
   animation: fadeIn 0.3s ease;
   width: 100%;
   box-sizing: border-box;
+}
+
+/* Preset panel styling */
+.presetsPanel {
+  margin: 40px 0;
+  padding: 40px;
+  background-color: #1c1c1c;
+  border: 1px solid #333;
+  animation: fadeIn 0.3s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.presetControls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 25px;
+}
+
+.presetInput {
+  flex: 1;
+  padding: 10px;
+  background-color: #252525;
+  border: 1px solid #333;
+  color: #ffffff;
+  font-family: 'Archivo', sans-serif;
+  font-size: 0.8rem;
+}
+
+.savePresetButton {
+  background-color: transparent;
+  border: 1px solid #444;
+  color: #aaaaaa;
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 0.7rem;
+  padding: 0 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.savePresetButton:hover:not(:disabled) {
+  border-color: #ffffff;
+  color: #ffffff;
+}
+
+.savePresetButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.presetsList {
+  display: grid;
+  gap: 10px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.presetItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  background-color: #252525;
+  border-left: 2px solid #333;
+  transition: all 0.2s ease;
+}
+
+.presetItem:hover {
+  background-color: #303030;
+  border-left-color: #555;
+}
+
+.presetName {
+  font-size: 0.9rem;
+  color: #ffffff;
+  font-weight: 300;
+}
+
+.presetDate {
+  font-size: 0.7rem;
+  color: #888;
+  font-family: 'Space Mono', monospace;
+}
+
+.loadPresetButton {
+  background-color: transparent;
+  border: 1px solid #444;
+  color: #aaa;
+  font-family: 'Archivo', sans-serif;
+  font-size: 0.7rem;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.loadPresetButton:hover {
+  border-color: #fff;
+  color: #fff;
+}
+
+.noPresets {
+  padding: 20px;
+  text-align: center;
+  color: #666;
+  font-style: italic;
 }
 
 @keyframes fadeIn {
@@ -214,6 +321,15 @@
   line-height: 1.4;
 }
 
+.debugNote {
+  text-align: center;
+  font-size: 0.7rem;
+  color: #555;
+  margin-top: 30px;
+  font-style: italic;
+  opacity: 0.5;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
   .simplePlayer {
@@ -233,8 +349,13 @@
   }
   
   .layerControls, 
-  .layerSelectors {
+  .layerSelectors,
+  .presetsPanel {
     padding: 20px;
+  }
+  
+  .presetControls {
+    flex-direction: column;
   }
   
   .journeyPhases {

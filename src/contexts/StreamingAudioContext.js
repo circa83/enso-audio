@@ -96,6 +96,9 @@ export const AudioProvider = ({ children }) => {
   const [timelineEvents, setTimelineEvents] = useState([]);
   const [nextEventIndex, setNextEventIndex] = useState(0);
   const timelineCheckInterval = useRef(null);
+
+  // Presets storage
+  const [presets, setPresets] = useState({});
   
   // Initialize the Web Audio API context
   useEffect(() => {
@@ -135,6 +138,17 @@ export const AudioProvider = ({ children }) => {
           
           // Check if variation files available (in background)
           tryLoadVariationFiles();
+
+          // Load presets from localStorage if available
+          try {
+            const savedPresets = localStorage.getItem('ensoAudioPresets');
+            if (savedPresets) {
+              setPresets(JSON.parse(savedPresets));
+            }
+          } catch (e) {
+            console.warn('Failed to load presets from localStorage:', e);
+          }
+          
         } catch (error) {
           console.error("Error initializing audio context:", error);
           // Force loading to complete anyway so UI doesn't get stuck
@@ -339,10 +353,7 @@ export const AudioProvider = ({ children }) => {
   const startSession = useCallback(() => {
     // Use ref for current state check to avoid race conditions
     if (!audioCtx || isPlayingRef.current) {
-      console.log("Can't start: context missing or already playing", {
-        hasContext: !!audioCtx,
-        isPlayingRef: isPlayingRef.current
-      });
+      console.log("Can't start: context missing or already playing");
       return;
     }
     
@@ -355,6 +366,15 @@ export const AudioProvider = ({ children }) => {
           console.error('Error resuming audio context:', err);
         });
       }
+      
+      // Make sure all audio elements are reset to beginning
+      Object.entries(activeAudio).forEach(([layer, trackId]) => {
+        const track = audioElements[layer][trackId];
+        if (track && track.element) {
+          // Reset to beginning of track
+          track.element.currentTime = 0;
+        }
+      });
       
       // Play all active audio elements
       let allPlayPromises = [];
@@ -584,8 +604,9 @@ export const AudioProvider = ({ children }) => {
     }
   }, [gainNodes, crossfadeProgress]);
 
-  // FIXED Enhanced crossfade function with reliable first-click support
-  const enhancedCrossfadeTo = useCallback(async (layer, newTrackId, fadeDuration = 15000) => {
+  // Enhanced crossfade function with reliable first-click support
+  // and immediate track switching when audio is stopped
+  const enhancedCrossfadeTo = useCallback(async (layer, newTrackId, fadeDuration = 4000) => {
     console.log(`🎵 Starting crossfade process for ${layer}: ${newTrackId}`);
     
     // Verify we have what we need
@@ -601,6 +622,72 @@ export const AudioProvider = ({ children }) => {
     if (currentTrackId === newTrackId) {
       console.log(`Already playing ${newTrackId} on ${layer}`);
       return true;
+    }
+    
+    // If audio is not playing, do an immediate switch without crossfade
+    if (!isPlayingRef.current) {
+      try {
+        // Find track in library
+        const track = audioLibrary[layer].find(t => t.id === newTrackId);
+        if (!track) {
+          console.error(`Track ${newTrackId} not found in library`);
+          return false;
+        }
+        
+        // Check if we already have this track loaded
+        let trackElements = null;
+        
+        if (audioElements[layer]?.[newTrackId]?.element && 
+            audioElements[layer][newTrackId].source) {
+          trackElements = audioElements[layer][newTrackId];
+        } else {
+          // Create and load the track if needed
+          const audioElement = new Audio();
+          audioElement.preload = "auto";
+          audioElement.loop = true;
+          audioElement.src = track.path;
+          
+          // Create source node
+          const source = audioCtx.createMediaElementSource(audioElement);
+          source.connect(gainNodes[layer]);
+          
+          // Store the new track
+          trackElements = {
+            element: audioElement,
+            source: source,
+            track: track,
+            isActive: false
+          };
+          
+          // Update the audio elements state
+          setAudioElements(prev => ({
+            ...prev,
+            [layer]: {
+              ...prev[layer],
+              [newTrackId]: trackElements
+            }
+          }));
+          
+          // Update loaded files tracking
+          trackData.current[newTrackId] = {
+            duration: 300, // Default duration
+            loaded: true
+          };
+          loadedFiles.current.add(newTrackId);
+        }
+        
+        // Update active audio state immediately
+        setActiveAudio(prev => ({
+          ...prev,
+          [layer]: newTrackId
+        }));
+        
+        console.log(`Immediate switch to ${newTrackId} successful for ${layer}`);
+        return true;
+      } catch (error) {
+        console.error(`Error during immediate track switch: ${error.message}`);
+        return false;
+      }
     }
     
     // Don't allow overlapping crossfades for the same layer
@@ -900,7 +987,7 @@ export const AudioProvider = ({ children }) => {
         if (newTrackElements.element.paused) {
           const currentPosition = currentTrack.element.currentTime || 0;
           const currentDuration = trackData.current[currentTrackId]?.duration || 
-                                currentTrack.element.duration || 300;
+                              currentTrack.element.duration || 300;
           const newDuration = trackData.current[newTrackId]?.duration || 
                             newTrackElements.element.duration || 300;
           
@@ -912,7 +999,7 @@ export const AudioProvider = ({ children }) => {
         
         // Start playback
         await newTrackElements.element.play()
-            .catch(e => console.error(`Error playing: ${e.message}`));
+          .catch(e => console.error(`Error playing: ${e.message}`));
       } catch (error) {
         console.error(`Error starting playback: ${error.message}`);
         
@@ -1092,6 +1179,11 @@ export const AudioProvider = ({ children }) => {
     return true;
   }, [audioLibrary, activeAudio, hasSwitchableAudio, startSession, enhancedCrossfadeTo]);
 
+  // Add function to reset timeline event index (e.g., when restarting a session)
+  const resetTimelineEventIndex = useCallback(() => {
+    setNextEventIndex(0);
+  }, []);
+
   // Timeline event handling effect
   useEffect(() => {
     if (isPlaying && timelineEvents.length > 0) {
@@ -1111,7 +1203,7 @@ export const AudioProvider = ({ children }) => {
               // Handle crossfade events
               Object.entries(nextEvent.layerSettings).forEach(([layer, settings]) => {
                 if (settings.trackId) {
-                  enhancedCrossfadeTo(layer, settings.trackId, settings.duration || 3000);
+                  enhancedCrossfadeTo(layer, settings.trackId, settings.duration || 4000);
                 }
                 
                 if (settings.volume !== undefined) {
@@ -1154,9 +1246,137 @@ export const AudioProvider = ({ children }) => {
     setNextEventIndex(0);
   }, []);
 
-  // Add function to reset timeline event index (e.g., when restarting a session)
-  const resetTimelineEventIndex = useCallback(() => {
-    setNextEventIndex(0);
+  // Preset Management Functions
+  
+  // Save current state as a preset
+  const savePreset = useCallback((name) => {
+    if (!name || name.trim() === '') return false;
+    
+    const preset = {
+      name,
+      date: new Date().toISOString(),
+      state: {
+        volumes: { ...volumes },
+        activeAudio: { ...activeAudio },
+        timelineEvents: [...timelineEvents],
+        phases: [] // This would be filled by the timeline component
+      }
+    };
+    
+    setPresets(prev => {
+      const newPresets = {
+        ...prev,
+        [name]: preset
+      };
+      
+      // Store in localStorage
+      try {
+        localStorage.setItem('ensoAudioPresets', JSON.stringify(newPresets));
+      } catch (e) {
+        console.warn('Could not save presets to localStorage:', e);
+      }
+      
+      return newPresets;
+    });
+    
+    return true;
+  }, [volumes, activeAudio, timelineEvents]);
+  
+  // Load a saved preset
+  const loadPreset = useCallback((name) => {
+    const preset = presets[name];
+    if (!preset) return false;
+    
+    // Apply the preset state
+    if (preset.state.volumes) {
+      Object.entries(preset.state.volumes).forEach(([layer, vol]) => {
+        setVolume(layer, vol);
+      });
+    }
+    
+    if (preset.state.activeAudio) {
+      // Load all track changes without crossfade (immediate)
+      Object.entries(preset.state.activeAudio).forEach(([layer, trackId]) => {
+        enhancedCrossfadeTo(layer, trackId, 0);
+      });
+    }
+    
+    if (preset.state.timelineEvents) {
+      setTimelineEvents(preset.state.timelineEvents);
+      setNextEventIndex(0);
+    }
+    
+    return true;
+  }, [presets, setVolume, enhancedCrossfadeTo]);
+  
+  // Delete a preset
+  const deletePreset = useCallback((name) => {
+    setPresets(prev => {
+      const newPresets = { ...prev };
+      delete newPresets[name];
+      
+      // Update localStorage
+      try {
+        localStorage.setItem('ensoAudioPresets', JSON.stringify(newPresets));
+      } catch (e) {
+        console.warn('Could not update presets in localStorage:', e);
+      }
+      
+      return newPresets;
+    });
+    
+    return true;
+  }, []);
+  
+  // Get all available presets
+  const getPresets = useCallback(() => {
+    return Object.values(presets).sort((a, b) => 
+      new Date(b.date) - new Date(a.date)
+    );
+  }, [presets]);
+  
+  // Export a preset to a JSON string
+  const exportPreset = useCallback((name) => {
+    const preset = presets[name];
+    if (!preset) return null;
+    
+    return JSON.stringify(preset);
+  }, [presets]);
+  
+  // Import a preset from a JSON string
+  const importPreset = useCallback((jsonString) => {
+    try {
+      const preset = JSON.parse(jsonString);
+      
+      // Validate the preset format
+      if (!preset.name || !preset.state) {
+        return { success: false, error: 'Invalid preset format' };
+      }
+      
+      // Add to presets
+      setPresets(prev => {
+        const newPresets = {
+          ...prev,
+          [preset.name]: {
+            ...preset,
+            date: new Date().toISOString() // Update the date
+          }
+        };
+        
+        // Update localStorage
+        try {
+          localStorage.setItem('ensoAudioPresets', JSON.stringify(newPresets));
+        } catch (e) {
+          console.warn('Could not save imported preset to localStorage:', e);
+        }
+        
+        return newPresets;
+      });
+      
+      return { success: true, name: preset.name };
+    } catch (e) {
+      return { success: false, error: `Error importing preset: ${e.message}` };
+    }
   }, []);
 
   // Exposed context value
@@ -1188,6 +1408,14 @@ export const AudioProvider = ({ children }) => {
     clearTimelineEvents,
     resetTimelineEventIndex,
     
+    // Preset management
+    savePreset,
+    loadPreset,
+    deletePreset,
+    getPresets,
+    exportPreset,
+    importPreset,
+    
     // Constants
     LAYERS
   }), [
@@ -1210,7 +1438,13 @@ export const AudioProvider = ({ children }) => {
     timelineEvents,
     registerTimelineEvent,
     clearTimelineEvents,
-    resetTimelineEventIndex
+    resetTimelineEventIndex,
+    savePreset,
+    loadPreset,
+    deletePreset,
+    getPresets,
+    exportPreset,
+    importPreset
   ]);
 
   return (

@@ -1,70 +1,120 @@
-# Getting Started with Create React App
+# Ensō Audio
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A therapeutic sound platform for guided sessions with real-time audio layer control.
 
-## Available Scripts
+## Overview
 
-In the project directory, you can run:
+Ensō Audio is a Next.js web application designed for therapists conducting therapeutic sessions. The platform allows real-time control of multiple audio layers (drones, melody, rhythm, nature) to create customized soundscapes during therapy sessions, with a dark minimalist UI optimized for low-distraction therapeutic environments.
 
-### `npm start`
+## Current Features
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- **Multi-layered Audio Engine**: Independent control of four distinct sound layers (drones, melody, rhythm, nature)
+- **Real-time Volume Control**: Adjust volume levels of each layer during sessions
+- **Session Timer**: Track therapy session duration
+- **Dark Minimalist UI**: Low-distraction interface optimized for therapeutic settings
+- **Sound Library**: Select different audio samples for each layer
+- **Responsive Design**: Works on both desktop and mobile devices
+- **Session Flow Guide**: Recommendations for audio balance during different phases
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Technical Stack
 
-### `npm test`
+- **Framework**: Next.js 15.x
+- **Audio Engine**: Web Audio API
+- **State Management**: React Context API
+- **Styling**: CSS Modules
+- **UI Components**: Custom React components
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Project Structure
 
-### `npm run build`
+Key components and files:
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+- `src/contexts/StreamingAudioContext.js` - Core audio management system
+- `src/components/Player.js` - Main interface for controlling audio layers
+- `src/components/Library.js` - Interface for selecting different audio samples
+- `src/components/LoadingScreen.js` - Manages audio initialization
+- `src/components/audio/LayerControl.js` - Volume adjustment for each audio layer
+- `src/components/audio/SessionTimer.js` - Tracks therapy duration
+- `src/components/audio/TapePlayerGraphic.js` - Visual reel-to-reel element
+- `src/pages/_app.js` - Main app entry point
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## Getting Started
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Prerequisites
 
-### `npm run eject`
+- Node.js (v18+)
+- npm or yarn
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+### Installation
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+1. Clone the repository
+```bash
+git clone https://github.com/yourusername/enso-audio.git
+cd enso-audio
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+2. Install dependencies
+```bash
+npm install
+# or
+yarn install
+```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+3. Start the development server
+```bash
+npm run dev
+# or
+yarn dev
+```
 
-## Learn More
+4. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+## Development Status
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+The application is currently in Phase 1 of development with the following core functionality implemented:
 
-### Code Splitting
+- Basic audio playback engine
+- Multi-layer volume control
+- Session timing
+- Dark, minimal UI
+- Library interface for audio sample selection
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## Next Development Focus
 
-### Analyzing the Bundle Size
+- **Audio Crossfading**: Implement seamless transitions between audio files within the same layer
+- **Buffer Preloading**: Create a preloading system for upcoming audio transitions
+- **Gain Smoothing**: Develop algorithms for natural-sounding transitions
+- **Session Timeline**: Design UI component for tracking session phases
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+## File Structure
 
-### Making a Progressive Web App
+```
+enso-audio/
+├── public/
+│   ├── images/
+│   └── samples/         # Audio samples
+├── src/
+│   ├── components/      # React components
+│   │   ├── audio/       # Audio-specific components
+│   │   └── layout/      # Layout components
+│   ├── contexts/        # React context providers
+│   ├── pages/           # Next.js pages
+│   │   ├── _app.js      # Main app component
+│   │   ├── _document.js # Document customization
+│   │   └── index.js     # Home page
+│   ├── styles/          # CSS modules
+│   └── utils/           # Utility functions
+├── next.config.js       # Next.js configuration
+└── package.json         # Project dependencies
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+## License
 
-### Advanced Configuration
+[Private] - © 2025 circa83 / Ensō Audio
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+## Contact
 
-### Deployment
+For more information, contact hello@enso-audio.com
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+---
 
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+**Note**: This is a work in progress. Additional features and improvements are planned for future releases.
