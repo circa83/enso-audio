@@ -32,7 +32,7 @@ const PhaseMarker = ({
     // If not draggable, don't proceed with drag setup
     if (!isDraggable) return;
     
-    // Start the drag operation
+    // Start the drag operation immediately
     startDrag(e.clientX);
   };
   
@@ -124,6 +124,22 @@ const PhaseMarker = ({
     }
   };
   
+  // Completely separate capture button click handler with no connection to marker selection
+  const handleCaptureButtonClick = (event) => {
+    // Prevent all default behaviors and propagation
+    event.preventDefault();
+    event.stopPropagation();
+    
+    // Call the capture function directly
+    if (onStateCapture) {
+      console.log(`Capturing state for ${name} phase`);
+      onStateCapture();
+    }
+    
+    // Return false to ensure no other handlers are called
+    return false;
+  };
+  
   // Clean up event listeners on unmount
   useEffect(() => {
     return () => {
@@ -150,21 +166,27 @@ const PhaseMarker = ({
       `} 
       style={{ 
         left: `${position}%`,
+        backgroundColor: color
       }}
-      onClick={onClick}
       onMouseDown={handleMouseDown}
       onTouchStart={handleTouchStart}
     >
       <div className={styles.markerLabel}>{name}</div>
       
-      {/* Capture state button - centered below marker */}
-      {onStateCapture && isSelected && editMode && (
+      {/* State captured indicator (checkmark) */}
+      {storedState && (
+        <div className={styles.storedStateIndicator}>✓</div>
+      )}
+      
+      {/* Capture state button - visible when selected in edit mode */}
+      {isSelected && editMode && onStateCapture && (
         <button 
           className={styles.captureButton}
-          onClick={(e) => {
+          onClick={handleCaptureButtonClick}
+          onMouseDown={(e) => {
+            // Completely stop event propagation
             e.preventDefault();
             e.stopPropagation();
-            onStateCapture();
           }}
         >
           {storedState ? 'Update' : 'Capture'} State

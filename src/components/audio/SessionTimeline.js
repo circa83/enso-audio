@@ -4,6 +4,7 @@ import { useAudio } from '../../contexts/StreamingAudioContext';
 import PhaseMarker from './PhaseMarker';
 import styles from '../../styles/components/SessionTimeline.module.css';
 
+// Define default phases with more visually distinct colors
 const DEFAULT_PHASES = [
   { id: 'pre-onset', name: 'Pre-Onset', position: 0, color: '#4A6670', state: null, locked: true },
   { id: 'onset', name: 'Onset & Buildup', position: 20, color: '#6E7A8A', state: null, locked: false },
@@ -155,11 +156,12 @@ const SessionTimeline = ({
         setCurrentTime(time);
         
         // Calculate progress as percentage of total duration
+        // Always update progress regardless of transition state
         const progressPercent = Math.min(100, (time / sessionDuration) * 100);
         setProgress(progressPercent);
         
-        // Only check for phase transitions if timeline is enabled, not already transitioning, 
-        // and no marker is being dragged
+        // Only check for phase transitions if timeline is enabled,
+        // not already transitioning, and no marker is being dragged
         if (enabled && !transitioning && !isDraggingMarker.current && transitionCompletedRef.current) {
           // Find the currently active phase based on progress
           let newActivePhase = null;
@@ -196,7 +198,7 @@ const SessionTimeline = ({
             }
           }
         }
-      }, 250); // Check more frequently for more precision
+      }, 50); // Update more frequently (50ms) for smoother progress
     }
     
     return () => {
@@ -244,6 +246,12 @@ const SessionTimeline = ({
       return newPhases;
     });
     
+    // Also update selected phase if this is the one being dragged
+    if (selectedPhase === index) {
+      // Keep it selected even during drag
+      setSelectedPhase(index);
+    }
+    
     // Reset dragging flag after a short delay
     setTimeout(() => {
       isDraggingMarker.current = false;
@@ -252,17 +260,26 @@ const SessionTimeline = ({
   
   // Capture current player state for a phase
   const capturePhaseState = (index) => {
+    console.log(`Capturing state for phase: ${phases[index].name}`);
+    
     // Create a state object with current volumes and active tracks
     const state = {
       volumes: { ...volumes },
       activeAudio: { ...activeAudio }
     };
     
-    setPhases(prev => {
-      const newPhases = [...prev];
-      newPhases[index].state = state;
-      return newPhases;
-    });
+    console.log('Captured volumes:', state.volumes);
+    console.log('Captured audio tracks:', state.activeAudio);
+    
+    // Update phases immutably
+    const newPhases = [...phases];
+    newPhases[index] = {
+      ...newPhases[index],
+      state: state
+    };
+    
+    // Set the phases with the new state
+    setPhases(newPhases);
     
     // If we're capturing the pre-onset phase and it's currently active,
     // also update the current state references
@@ -270,22 +287,30 @@ const SessionTimeline = ({
       currentVolumeState.current = { ...volumes };
       currentAudioState.current = { ...activeAudio };
     }
+    
+    // Important: Force a re-render after setting the phase state
+    // This makes sure the checkmark appears immediately
+    setTimeout(() => {
+      setSelectedPhase(index);
+    }, 10);
   };
   
   // Start transition to a phase's state
   const startTransition = (phase) => {
-    // Skip if already transitioning, timeline is disabled, or phase has no state
-    if (!enabled || !phase.state || transitioning) {
-      console.log('Skipping transition - either disabled, no state, or already transitioning');
+    // Skip if timeline is disabled or phase has no state
+    if (!enabled || !phase.state) {
+      console.log('Skipping transition - either disabled or no state');
       return;
     }
     
-    // Clear any existing transition timer
+    // If already transitioning, just clear the current timer but don't return
+    // This allows a new transition to start even if one is in progress
     if (transitionTimer.current) {
       clearInterval(transitionTimer.current);
       transitionTimer.current = null;
     }
     
+    // Set transitioning state - but progress bar will continue to update
     setTransitioning(true);
     
     // Use the configured transition duration
@@ -343,6 +368,28 @@ const SessionTimeline = ({
         console.log(`Transition to ${phase.name} phase complete`);
       }
     }, updateInterval);
+    
+    // Important: Set a timeout to ensure transitions eventually complete
+    // This prevents "stuck" transitions
+    setTimeout(() => {
+      if (transitionTimer.current) {
+        console.log('Forcing transition completion after timeout');
+        clearInterval(transitionTimer.current);
+        transitionTimer.current = null;
+        
+        // Update state references
+        currentVolumeState.current = { ...phase.state.volumes };
+        currentAudioState.current = { ...phase.state.activeAudio };
+        
+        // Apply final values
+        Object.entries(phase.state.volumes).forEach(([layer, targetVolume]) => {
+          setVolume(layer, targetVolume);
+        });
+        
+        setTransitioning(false);
+        transitionCompletedRef.current = true;
+      }
+    }, actualTransitionDuration + 1000); // Add 1 second buffer
   };
   
   // If timeline is disabled, render nothing

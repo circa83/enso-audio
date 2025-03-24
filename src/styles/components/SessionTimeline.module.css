@@ -25,6 +25,7 @@
   color: #aaaaaa;
   letter-spacing: 2px;
   text-transform: uppercase;
+  margin: 0;
 }
 
 .timelineControls {
@@ -97,13 +98,13 @@
   position: relative;
   height: 6px; /* Thicker timeline for better visibility */
   background-color: #333;
-  margin-bottom: 40px;
+  margin-bottom: 60px; /* Increased space for markers and capture buttons */
   cursor: pointer;
   overflow: visible;
   border-radius: 3px;
 }
 
-/* Slider-like appearance */
+/* Ensure all timeline elements align properly */
 .timeline::before {
   content: '';
   position: absolute;
@@ -131,7 +132,7 @@
   color: #666;
   font-family: 'Archivo', sans-serif;
   letter-spacing: 0.5px;
-  margin-top: 10px;
+  margin-top: 20px; /* Space after the markers and capture button */
 }
 
 .editInstructions {
@@ -180,5 +181,9 @@
   .controlButton {
     font-size: 0.65rem;
     padding: 4px 10px;
+  }
+  
+  .timeline {
+    margin-bottom: 70px; /* More space on mobile for markers and buttons */
   }
 }

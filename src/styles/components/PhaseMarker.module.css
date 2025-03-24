@@ -19,15 +19,17 @@
     box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
   }
   
+  /* Vertical line indicator below marker */
   .phaseMarker::before {
     content: '';
     position: absolute;
     height: 22px;
     width: 1px;
     background-color: #555;
-    bottom: -24px;
+    /* Position the line precisely below the diamond without rotation */
+    bottom: -22px;
     left: 50%;
-    transform: translateX(-50%) rotate(-45deg); /* Adjust for diamond rotation */
+    transform: translateX(-50%) rotate(-45deg); /* Undo the diamond rotation */
   }
   
   .activeMarker {
@@ -58,11 +60,14 @@
     transition: none !important; /* No transition during drag for immediate feedback */
   }
   
+  /* Marker label (phase name) - vertically aligned without rotation */
   .markerLabel {
     position: absolute;
-    top: -30px;
-    left: 50%;
-    transform: translateX(-50%) rotate(-45deg); /* Adjust for diamond rotation */
+    /* Position directly above the diamond */
+    top: 0;
+    left: 0;
+    /* Undo the parent rotation to keep text straight and center it */
+    transform: translate(-50%, -100%) rotate(-45deg);
     white-space: nowrap;
     font-size: 0.75rem;
     color: #bbb;
@@ -74,19 +79,43 @@
     background-color: rgba(20, 20, 20, 0.8);
     padding: 2px 6px;
     border-radius: 3px;
+    z-index: 3;
   }
   
   .phaseMarker:hover .markerLabel,
-  .dragging .markerLabel,
   .selectedMarker .markerLabel {
     opacity: 1;
   }
   
+  /* Checkmark indicator for stored state - vertically aligned without rotation */
+  .storedStateIndicator {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    /* Position directly below the diamond */
+    bottom: -25px;
+    left: 0;
+    /* Undo the parent rotation to keep text straight and center it */
+    transform: translate(-50%, 0) rotate(-45deg);
+    color: white;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 4;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+  
+  /* Capture state button - vertically aligned without rotation */
   .captureButton {
     position: absolute;
-    bottom: -40px; /* Positioned below the marker */
-    left: 50%;
-    transform: translateX(-50%) rotate(-45deg); /* Adjust for diamond rotation */
+    /* Position below the checkmark */
+    bottom: -48px;
+    left: 0;
+    /* Undo the parent rotation to keep text straight and center it */
+    transform: translate(-50%, 0) rotate(-45deg);
     background-color: rgba(30, 30, 30, 0.9);
     border: 1px solid #444;
     color: #aaa;
@@ -96,18 +125,14 @@
     cursor: pointer;
     border-radius: 3px;
     transition: all 0.2s ease;
-    z-index: 4;
-    display: none;
+    z-index: 100; /* Higher z-index to ensure it's on top */
+    pointer-events: all; /* Ensure clicks are captured */
   }
   
   .captureButton:hover {
     background-color: #333;
     color: #fff;
     border-color: #555;
-  }
-  
-  .selectedMarker .captureButton {
-    display: block;
   }
   
   /* Create a larger hit area for interacting with the marker */
@@ -131,11 +156,10 @@
     .captureButton {
       padding: 4px 8px;
       font-size: 0.8rem;
-      bottom: -36px; /* Slightly closer on mobile */
+      bottom: -48px; /* Slightly closer on mobile */
     }
     
     .markerLabel {
       font-size: 0.7rem; /* Smaller text on mobile */
-      top: -25px; /* Closer to the marker */
     }
   }
