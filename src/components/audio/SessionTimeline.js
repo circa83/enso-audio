@@ -14,7 +14,7 @@ const DEFAULT_PHASES = [
 const SessionTimeline = ({ 
   enabled = true, 
   sessionDuration = 60 * 1000,
-  transitionDuration = 4000,
+  transitionDuration = 4000, // Default 4s transition time
   onDurationChange 
 }) => {
   const { 
@@ -22,10 +22,12 @@ const SessionTimeline = ({
     isPlaying,
     activeAudio,
     volumes,
-    crossfadeTo,
+    crossfadeTo, // Using the actual function name from your context
     setVolume,
     LAYERS,
-    resetTimelineEventIndex
+    resetTimelineEventIndex,
+    crossfadeProgress,
+    activeCrossfades
   } = useAudio();
   
   const [currentTime, setCurrentTime] = useState(0);
@@ -37,7 +39,7 @@ const SessionTimeline = ({
   const [transitioning, setTransitioning] = useState(false);
   
   const timelineRef = useRef(null);
-  const transitionTimer = useRef(null);
+  const volumeTransitionTimer = useRef(null);
   const startingPhaseApplied = useRef(false);
   const lastActivePhaseId = useRef(null);
   const wasPlayingBeforeStop = useRef(false);
@@ -45,12 +47,13 @@ const SessionTimeline = ({
   const currentVolumeState = useRef({});
   const currentAudioState = useRef({});
   const previousEditMode = useRef(editMode);
+  const transitionInProgress = useRef(false);
   
   // Handle enabling/disabling timeline
   useEffect(() => {
-    if (!enabled && transitionTimer.current) {
-      clearInterval(transitionTimer.current);
-      transitionTimer.current = null;
+    if (!enabled && volumeTransitionTimer.current) {
+      clearInterval(volumeTransitionTimer.current);
+      volumeTransitionTimer.current = null;
       setTransitioning(false);
     }
     
@@ -81,62 +84,88 @@ const SessionTimeline = ({
       wasPlayingBeforeStop.current = true;
     } else {
       wasPlayingBeforeStop.current = false;
+      // Reset the starting phase flag when playback stops
+      // This ensures that when playback is restarted, the pre-onset phase will be applied again
+      startingPhaseApplied.current = false;
     }
   }, [isPlaying]);
+
+  // Watch for active crossfades to update our transition state
+  useEffect(() => {
+    const hasActiveCrossfades = Object.values(activeCrossfades).some(cf => cf !== null);
+    
+    // If any layer is in transition, mark as transitioning
+    if (hasActiveCrossfades) {
+      transitionInProgress.current = true;
+      setTransitioning(true);
+    } else if (transitionInProgress.current) {
+      // If was transitioning but now no crossfades are active
+      transitionInProgress.current = false;
+      
+      // Short delay before allowing new transitions
+      setTimeout(() => {
+        setTransitioning(false);
+        transitionCompletedRef.current = true;
+      }, 200);
+    }
+  }, [activeCrossfades]);
   
   // Reset all timeline state for a clean restart
   const resetTimeline = () => {
     setProgress(0);
     setCurrentTime(0);
     
-    startingPhaseApplied.current = false;
     lastActivePhaseId.current = null;
     setActivePhase(null);
     
-    if (transitionTimer.current) {
-      clearInterval(transitionTimer.current);
-      transitionTimer.current = null;
+    if (volumeTransitionTimer.current) {
+      clearInterval(volumeTransitionTimer.current);
+      volumeTransitionTimer.current = null;
     }
     setTransitioning(false);
     transitionCompletedRef.current = true;
+    transitionInProgress.current = false;
     
     if (resetTimelineEventIndex) {
       resetTimelineEventIndex();
     }
   };
   
-  // Apply pre-onset phase immediately when play is pressed
+  // Apply pre-onset phase IMMEDIATELY when play is pressed (no transition)
   useEffect(() => {
     if (enabled && isPlaying && !startingPhaseApplied.current) {
       const preOnsetPhase = phases.find(p => p.id === 'pre-onset');
       if (preOnsetPhase && preOnsetPhase.state) {
-        console.log('Applying pre-onset phase state immediately at start of playback');
+        console.log('Applying pre-onset phase immediately at start of playback (no transition)');
         
+        // Immediately set volumes from pre-onset state
         Object.entries(preOnsetPhase.state.volumes).forEach(([layer, volume]) => {
           setVolume(layer, volume);
         });
         
+        // Handle track changes immediately (with a nearly instant 50ms crossfade)
+        // We use a very short crossfade (50ms) instead of 0ms to avoid potential pops/clicks
         Object.entries(preOnsetPhase.state.activeAudio).forEach(([layer, trackId]) => {
           if (trackId !== activeAudio[layer]) {
-            crossfadeTo(layer, trackId, 500);
+            console.log(`Immediate switch to ${trackId} for ${layer}`);
+            crossfadeTo(layer, trackId, 50); // 50ms is practically instant but avoids audio pops
           }
         });
         
-        currentVolumeState.current = { ...preOnsetPhase.state.volumes };
-        currentAudioState.current = { ...preOnsetPhase.state.activeAudio };
-        
+        // Mark as applied and update state refs
         startingPhaseApplied.current = true;
         lastActivePhaseId.current = 'pre-onset';
         setActivePhase('pre-onset');
+        
+        // Update current state refs
+        currentVolumeState.current = { ...preOnsetPhase.state.volumes };
+        currentAudioState.current = { ...preOnsetPhase.state.activeAudio };
       }
-    }
-    
-    if (!isPlaying) {
-      startingPhaseApplied.current = false;
     }
   }, [enabled, isPlaying, phases, setVolume, crossfadeTo, activeAudio]);
   
-  // Update time and progress
+  // SEPARATED: Update time and progress bar - this runs continuously during playback
+  // regardless of transitions
   useEffect(() => {
     let interval;
     
@@ -147,43 +176,69 @@ const SessionTimeline = ({
         
         const progressPercent = Math.min(100, (time / sessionDuration) * 100);
         setProgress(progressPercent);
+      }, 50); // Update more frequently for smoother animation
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [enabled, isPlaying, getSessionTime, sessionDuration]);
+  
+  // SEPARATED: Phase detection logic - this can be paused during transitions
+  useEffect(() => {
+    let phaseCheckInterval;
+    
+    if (enabled && isPlaying) {
+      phaseCheckInterval = setInterval(() => {
+        // Skip phase checks during active transitions
+        if (transitioning || !transitionCompletedRef.current || transitionInProgress.current) {
+          return;
+        }
         
-        if (enabled && !transitioning && transitionCompletedRef.current) {
-          let newActivePhase = null;
-          
-          const sortedPhases = [...phases].sort((a, b) => b.position - a.position);
-          
-          for (const phase of sortedPhases) {
-            if (progressPercent >= phase.position) {
-              newActivePhase = phase;
-              break;
-            }
+        const time = getSessionTime();
+        const progressPercent = Math.min(100, (time / sessionDuration) * 100);
+        
+        let newActivePhase = null;
+        
+        // Find the current phase based on progress
+        const sortedPhases = [...phases].sort((a, b) => b.position - a.position);
+        
+        for (const phase of sortedPhases) {
+          if (progressPercent >= phase.position) {
+            newActivePhase = phase;
+            break;
           }
+        }
+        
+        // If we've reached a new phase and it has state data
+        if (newActivePhase && newActivePhase.id !== lastActivePhaseId.current) {
+          console.log(`New active phase detected: ${newActivePhase.name} at ${progressPercent.toFixed(1)}%`);
           
-          if (newActivePhase && newActivePhase.id !== lastActivePhaseId.current) {
-            console.log(`New active phase detected: ${newActivePhase.name} at ${progressPercent.toFixed(1)}%`);
+          lastActivePhaseId.current = newActivePhase.id;
+          setActivePhase(newActivePhase.id);
+          
+          if (newActivePhase.state) {
+            console.log(`Starting transition to ${newActivePhase.name} phase`);
             
-            lastActivePhaseId.current = newActivePhase.id;
-            setActivePhase(newActivePhase.id);
+            // Store current state before transition
+            currentVolumeState.current = { ...volumes };
+            currentAudioState.current = { ...activeAudio };
             
-            if (newActivePhase.state) {
-              console.log(`Starting transition to ${newActivePhase.name} phase`);
-              
-              currentVolumeState.current = { ...volumes };
-              currentAudioState.current = { ...activeAudio };
-              
-              transitionCompletedRef.current = false;
-              startTransition(newActivePhase);
-            }
+            // Begin transition
+            transitionCompletedRef.current = false;
+            transitionInProgress.current = true;
+            
+            // Start full transition
+            startFullTransition(newActivePhase);
           }
         }
       }, 250);
     }
     
     return () => {
-      if (interval) clearInterval(interval);
+      if (phaseCheckInterval) clearInterval(phaseCheckInterval);
     };
-  }, [enabled, isPlaying, getSessionTime, sessionDuration, phases, transitioning, volumes, activeAudio]);
+  }, [enabled, isPlaying, phases, volumes, activeAudio, getSessionTime, sessionDuration, transitioning]);
   
   // Format time display (HH:MM:SS)
   const formatTime = (ms) => {
@@ -229,17 +284,16 @@ const SessionTimeline = ({
     }
   };
   
-// Toggle edit mode
-const toggleEditMode = () => {
-  // If currently in edit mode and about to exit, deselect all markers first
-  if (editMode) {
-    deselectAllMarkers();
-  }
-  
-  // Toggle edit mode state
-  setEditMode(!editMode);
-};
-
+  // Toggle edit mode
+  const toggleEditMode = () => {
+    // If currently in edit mode and about to exit, deselect all markers first
+    if (editMode) {
+      deselectAllMarkers();
+    }
+    
+    // Toggle edit mode state
+    setEditMode(!editMode);
+  };
 
   // Select a marker - handles both edit mode and view mode differently
   const handleSelectMarker = (index) => {
@@ -264,7 +318,6 @@ const toggleEditMode = () => {
     }
   };
   
-  
   // Capture current player state for a phase
   const capturePhaseState = (index) => {
     const state = {
@@ -287,65 +340,160 @@ const toggleEditMode = () => {
     deselectAllMarkers();
   };
   
-  // Start transition to a phase's state
-  const startTransition = (phase) => {
-    if (!enabled || !phase.state || transitioning) {
-      console.log('Skipping transition - either disabled, no state, or already transitioning');
+  // IMPROVED: Full transition function that coordinates track changes and volume changes
+  const startFullTransition = (phase) => {
+    if (!enabled || !phase.state) {
+      console.log('Skipping transition - either disabled or no state');
       return;
     }
     
-    if (transitionTimer.current) {
-      clearInterval(transitionTimer.current);
-      transitionTimer.current = null;
+    // Clean up any existing volume transition timer
+    if (volumeTransitionTimer.current) {
+      clearInterval(volumeTransitionTimer.current);
+      volumeTransitionTimer.current = null;
     }
     
+    // Signal that transition is starting
     setTransitioning(true);
     
-    const actualTransitionDuration = transitionDuration;
-    const updateInterval = 50;
-    const totalSteps = actualTransitionDuration / updateInterval;
-    let currentStep = 0;
+    // Use the duration from session settings
+    const duration = transitionDuration;
+    console.log(`Starting full transition with duration: ${duration}ms`);
+    
+    // Step 1: Identify track changes needed
+    const trackChanges = [];
     
     Object.entries(phase.state.activeAudio).forEach(([layer, targetTrackId]) => {
       const currentTrackId = currentAudioState.current[layer] || activeAudio[layer];
+      
       if (targetTrackId !== currentTrackId) {
-        console.log(`Starting crossfade for ${layer}: ${currentTrackId} → ${targetTrackId}`);
-        crossfadeTo(layer, targetTrackId, actualTransitionDuration);
+        console.log(`Need to crossfade ${layer}: ${currentTrackId} → ${targetTrackId}`);
+        
+        // Add to our list of needed track changes
+        trackChanges.push({
+          layer,
+          from: currentTrackId,
+          to: targetTrackId
+        });
       }
     });
     
-    transitionTimer.current = setInterval(() => {
-      currentStep++;
+    // Step 2: Execute all track crossfades with the same duration
+    // This ensures they all finish at the same time
+    const crossfadePromises = trackChanges.map(change => {
+      return crossfadeTo(change.layer, change.to, duration)
+        .catch(err => {
+          console.error(`Error in crossfade for ${change.layer}:`, err);
+          return false;
+        });
+    });
+    
+    // Step 3: Handle volume changes with smooth transitions over the same duration
+    // We'll set up a timer for volume transitions that operates in parallel with track changes
+    
+    // Track which layers need volume changes
+    const volumeChanges = [];
+    
+    Object.entries(phase.state.volumes).forEach(([layer, targetVolume]) => {
+      const currentVolume = currentVolumeState.current[layer] !== undefined 
+        ? currentVolumeState.current[layer] 
+        : volumes[layer];
       
-      Object.entries(phase.state.volumes).forEach(([layer, targetVolume]) => {
-        const startVolume = currentVolumeState.current[layer] !== undefined 
-          ? currentVolumeState.current[layer] 
-          : volumes[layer];
-        
-        const progress = currentStep / totalSteps;
-        const easedProgress = 0.5 - 0.5 * Math.cos(progress * Math.PI);
-        const newVolume = startVolume + (targetVolume - startVolume) * easedProgress;
-        
-        setVolume(layer, newVolume);
-      });
+      // Only transition if there's a meaningful difference
+      if (Math.abs(targetVolume - currentVolume) > 0.01) {
+        volumeChanges.push({
+          layer,
+          from: currentVolume,
+          to: targetVolume
+        });
+      }
+    });
+    
+    // If we have volume changes to make, set up the transition timer
+    if (volumeChanges.length > 0) {
+      const updateInterval = 50; // ms between volume updates
+      const totalSteps = duration / updateInterval;
+      let currentStep = 0;
       
-      if (currentStep >= totalSteps) {
-        clearInterval(transitionTimer.current);
-        transitionTimer.current = null;
+      volumeTransitionTimer.current = setInterval(() => {
+        currentStep++;
         
-        currentVolumeState.current = { ...phase.state.volumes };
-        currentAudioState.current = { ...phase.state.activeAudio };
-        
-        setTransitioning(false);
-        transitionCompletedRef.current = true;
-        
-        Object.entries(phase.state.volumes).forEach(([layer, targetVolume]) => {
-          setVolume(layer, targetVolume);
+        // Update all volume changes with eased transitions
+        volumeChanges.forEach(change => {
+          // Calculate progress with easing for smoother transitions
+          const progress = currentStep / totalSteps;
+          const easedProgress = 0.5 - 0.5 * Math.cos(progress * Math.PI); // Cosine easing
+          const newVolume = change.from + (change.to - change.from) * easedProgress;
+          
+          // Update volume (but not if this layer is in an active crossfade)
+          // as the crossfade will handle its own volume transition
+          const isInCrossfade = trackChanges.some(tc => tc.layer === change.layer);
+          if (!isInCrossfade) {
+            setVolume(change.layer, newVolume);
+          }
         });
         
-        console.log(`Transition to ${phase.name} phase complete`);
-      }
-    }, updateInterval);
+        // Check if volume transition is complete
+        if (currentStep >= totalSteps) {
+          // Clear the interval
+          clearInterval(volumeTransitionTimer.current);
+          volumeTransitionTimer.current = null;
+          
+          // Make sure target volumes are exactly set
+          volumeChanges.forEach(change => {
+            const isInCrossfade = trackChanges.some(tc => tc.layer === change.layer);
+            if (!isInCrossfade) {
+              setVolume(change.layer, change.to);
+            }
+          });
+          
+          // Update state only if all track crossfades are done
+          // Otherwise the crossfade completion will handle this
+          if (trackChanges.length === 0) {
+            // Only mark transition complete if no track changes are happening
+            finishTransition(phase);
+          }
+        }
+      }, updateInterval);
+    }
+    
+    // Step 4: If we have track changes, wait for them to complete
+    if (trackChanges.length > 0) {
+      // Wait for all crossfades to complete
+      Promise.all(crossfadePromises)
+        .then(() => {
+          console.log(`All track crossfades complete`);
+          
+          // Check if volume transition is still running
+          if (volumeTransitionTimer.current) {
+            // Let it finish naturally
+            console.log('Volume transition still in progress, letting it complete');
+          } else {
+            // Volume transition already done
+            finishTransition(phase);
+          }
+        });
+    } else if (volumeChanges.length === 0) {
+      // No track changes or volume changes needed
+      console.log('No transitions needed for this phase');
+      finishTransition(phase);
+    }
+  };
+  
+  // Helper function to finish the transition and update state
+  const finishTransition = (phase) => {
+    // Update current state references
+    currentVolumeState.current = { ...phase.state.volumes };
+    currentAudioState.current = { ...phase.state.activeAudio };
+    
+    // Clear transition flags after a small delay to avoid race conditions
+    setTimeout(() => {
+      setTransitioning(false);
+      transitionCompletedRef.current = true;
+      transitionInProgress.current = false;
+      
+      console.log(`Transition to ${phase.name} phase complete`);
+    }, 200);
   };
   
   // Handle click away from markers - deselect the current marker
