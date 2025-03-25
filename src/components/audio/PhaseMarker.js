@@ -13,7 +13,8 @@ const PhaseMarker = ({
   onClick,
   onStateCapture,
   storedState,
-  editMode
+  editMode,
+  sessionDuration
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const markerRef = useRef(null);
@@ -137,6 +138,38 @@ const PhaseMarker = ({
   // Only show selection highlight when in edit mode
   const showSelectedHighlight = isSelected && editMode;
   
+  // Calculate the timestamp based on position percentage and session duration
+  const formatTimestamp = () => {
+    if (!sessionDuration) return '00:00:00';
+    
+    // Calculate milliseconds based on position percentage
+    // This will update automatically when the position changes during drag
+    const ms = (position / 100) * sessionDuration;
+    
+    // Convert to HH:MM:SS format
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
+  
+  // Keep track of position changes in real-time during drag
+  useEffect(() => {
+    // The timestamp will be recalculated whenever the position changes
+    // This ensures it updates in real-time during dragging
+  }, [position, sessionDuration]);
+  
+  // Create a separate event handler to prevent event propagation
+  const handleCaptureClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onStateCapture) {
+      onStateCapture();
+    }
+  };
+  
   return (
     <div 
       ref={markerRef}
@@ -155,17 +188,14 @@ const PhaseMarker = ({
       onMouseDown={handleMouseDown}
       onTouchStart={handleTouchStart}
     >
+      <div className={styles.timeStamp}>{formatTimestamp()}</div>
       <div className={styles.markerLabel}>{name}</div>
       
-      {/* Capture state button - centered below marker */}
-      {onStateCapture && isSelected && editMode && (
+      {/* Capture state button - always rendered but visibility controlled by CSS */}
+      {editMode && (
         <button 
           className={styles.captureButton}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onStateCapture();
-          }}
+          onClick={handleCaptureClick}
         >
           {storedState ? 'Update' : 'Capture'} State
         </button>

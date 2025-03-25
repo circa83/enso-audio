@@ -3,23 +3,23 @@
     position: absolute;
     width: 16px;
     height: 16px;
-    transform: translate(-50%, -50%) rotate(45deg); /* Diamond shape rotation */
+    transform: translate(-50%, -50%);
     top: 50%;
-    left: 0; /* This gets overridden by inline style */
+    left: 0;
     z-index: 2;
-    border: 2px solid #ffffff; /* White border */
-    background-color: transparent !important; /* No fill */
+    border: 2px solid #ffffff;
+    background-color: transparent !important;
     cursor: pointer;
     transition: transform 0.15s ease, box-shadow 0.15s ease;
-    touch-action: none; /* Prevent default touch actions on mobile */
-  }
-  
-  .phaseMarker:hover {
-    transform: translate(-50%, -50%) rotate(45deg) scale(1.2);
+    touch-action: none;
+}
+
+.phaseMarker:hover {
+    transform: translate(-50%, -50%) scale(1.2);
     box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
-  }
-  
-  .phaseMarker::before {
+}
+
+.phaseMarker::before {
     content: '';
     position: absolute;
     height: 22px;
@@ -27,46 +27,46 @@
     background-color: #555;
     bottom: -24px;
     left: 50%;
-    transform: translateX(-50%) rotate(-45deg); /* Adjust for diamond rotation */
-  }
-  
-  .activeMarker {
+    transform: translateX(-50%);
+}
+
+.activeMarker {
     border: 2px solid #ffffff;
     box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
-  }
-  
-  .selectedMarker {
+}
+
+.selectedMarker {
     border: 2px solid #ffaa00;
     z-index: 5;
     box-shadow: 0 0 10px rgba(255, 170, 0, 0.4);
-  }
-  
-  .draggable {
+}
+
+.draggable {
     cursor: grab;
-  }
-  
-  .fixed {
+}
+
+.fixed {
     cursor: default;
-  }
-  
-  .dragging {
+}
+
+.dragging {
     cursor: grabbing !important;
-    transform: translate(-50%, -50%) rotate(45deg) scale(1.3) !important;
+    transform: translate(-50%, -50%) scale(1.3) !important;
     z-index: 10 !important;
     border: 2px solid #ffaa00 !important;
     box-shadow: 0 0 10px rgba(255, 170, 0, 0.5) !important;
-    transition: none !important; /* No transition during drag for immediate feedback */
-  }
-  
-  .markerLabel {
+    transition: none !important;
+}
+
+.timeStamp {
     position: absolute;
-    top: -30px;
+    top: -55px;
     left: 50%;
-    transform: translateX(-50%) rotate(-45deg); /* Adjust for diamond rotation */
+    transform: translateX(-50%);
     white-space: nowrap;
-    font-size: 0.75rem;
-    color: #bbb;
-    font-family: 'Archivo', sans-serif;
+    font-size: 0.7rem;
+    color: #ffaa00;
+    font-family: 'Space Mono', monospace;
     letter-spacing: 0.5px;
     opacity: 0;
     transition: opacity 0.2s ease;
@@ -74,19 +74,48 @@
     background-color: rgba(20, 20, 20, 0.8);
     padding: 2px 6px;
     border-radius: 3px;
-  }
-  
-  .phaseMarker:hover .markerLabel,
-  .dragging .markerLabel,
-  .selectedMarker .markerLabel {
-    opacity: 1;
-  }
-  
-  .captureButton {
+    z-index: 3;
+    text-align: center;
+}
+
+.markerLabel {
     position: absolute;
-    bottom: -40px; /* Positioned below the marker */
+    top: -30px;
     left: 50%;
-    transform: translateX(-50%) rotate(-45deg); /* Adjust for diamond rotation */
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: 0.75rem;
+    color: #bbb;
+    font-family: 'Archivo', sans-serif;
+    letter-spacing: 0.5px;
+    /* Always visible */
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+    background-color: rgba(20, 20, 20, 0.8);
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-align: center;
+}
+
+/* Updated selectors for displaying the timestamp - only show on hover, selected or dragging */
+.phaseMarker:hover .timeStamp,
+.dragging .timeStamp,
+.selectedMarker .timeStamp {
+    opacity: 1;
+}
+
+.phaseMarker:hover .captureButton,
+.dragging .captureButton,
+.selectedMarker .captureButton {
+    opacity: 1;
+}
+
+
+.captureButton {
+    position: absolute;
+    bottom: -40px;
+    left: 50%;
+    transform: translateX(-50%);
     background-color: rgba(30, 30, 30, 0.9);
     border: 1px solid #444;
     color: #aaa;
@@ -97,21 +126,22 @@
     border-radius: 3px;
     transition: all 0.2s ease;
     z-index: 4;
-    display: none;
-  }
-  
-  .captureButton:hover {
+    text-align: center;
+  opacity: 0;
+}
+
+.captureButton:hover {
     background-color: #333;
     color: #fff;
     border-color: #555;
-  }
-  
-  .selectedMarker .captureButton {
-    display: block;
-  }
-  
-  /* Create a larger hit area for interacting with the marker */
-  .phaseMarker::after {
+}
+
+/* Important flag to ensure it always overrides any other display styles */
+.selectedMarker .captureButton {
+    display: block !important;
+}
+
+.phaseMarker::after {
     content: '';
     position: absolute;
     width: 30px;
@@ -120,22 +150,33 @@
     left: 50%;
     transform: translate(-50%, -50%);
     z-index: -1;
-  }
-  
-  @media (max-width: 768px) {
+}
+
+@media (max-width: 768px) {
     .phaseMarker {
-      width: 18px; 
-      height: 18px;
+        width: 18px; 
+        height: 18px;
     }
     
     .captureButton {
-      padding: 4px 8px;
-      font-size: 0.8rem;
-      bottom: -36px; /* Slightly closer on mobile */
+        padding: 4px 8px;
+        font-size: 0.8rem;
+        bottom: -36px;
     }
     
     .markerLabel {
-      font-size: 0.7rem; /* Smaller text on mobile */
-      top: -25px; /* Closer to the marker */
+        font-size: 0.7rem;
+        top: -25px;
     }
-  }
+    
+    .timeStamp {
+        font-size: 0.65rem;
+        top: -45px;
+        padding: 1px 4px;
+    }
+    
+    .phaseMarker::before {
+        height: 18px;
+        bottom: -20px;
+    }
+}
