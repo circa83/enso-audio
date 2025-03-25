@@ -40,11 +40,11 @@ const SessionTimeline = ({
   const transitionTimer = useRef(null);
   const startingPhaseApplied = useRef(false);
   const lastActivePhaseId = useRef(null);
-  const isDraggingMarker = useRef(false);
   const wasPlayingBeforeStop = useRef(false);
   const transitionCompletedRef = useRef(true);
   const currentVolumeState = useRef({});
   const currentAudioState = useRef({});
+  const previousEditMode = useRef(editMode);
   
   // Handle enabling/disabling timeline
   useEffect(() => {
@@ -59,10 +59,16 @@ const SessionTimeline = ({
     }
   }, [enabled]);
   
-  // Clear selection when edit mode changes
+  // Effect to track edit mode changes and ensure deselection
   useEffect(() => {
-    if (!editMode) {
-      setSelectedPhase(null);
+    if (previousEditMode.current !== editMode) {
+      // If exiting edit mode, deselect all markers
+      if (!editMode && previousEditMode.current) {
+        deselectAllMarkers();
+      }
+      
+      // Update the previous value
+      previousEditMode.current = editMode;
     }
   }, [editMode]);
   
@@ -142,7 +148,7 @@ const SessionTimeline = ({
         const progressPercent = Math.min(100, (time / sessionDuration) * 100);
         setProgress(progressPercent);
         
-        if (enabled && !transitioning && !isDraggingMarker.current && transitionCompletedRef.current) {
+        if (enabled && !transitioning && transitionCompletedRef.current) {
           let newActivePhase = null;
           
           const sortedPhases = [...phases].sort((a, b) => b.position - a.position);
@@ -196,14 +202,12 @@ const SessionTimeline = ({
     return formatTime(remainingMs);
   };
   
-  // Handle phase marker drag
+  // Handle phase marker position change
   const handlePhaseMarkerDrag = (index, newPosition) => {
     if (phases[index].locked) {
       console.log('Cannot move Pre-Onset marker as it is locked to position 0');
       return;
     }
-    
-    isDraggingMarker.current = true;
     
     const lowerBound = index > 0 ? phases[index - 1].position + 1 : 0;
     const upperBound = index < phases.length - 1 ? phases[index + 1].position - 1 : 100;
@@ -215,11 +219,51 @@ const SessionTimeline = ({
       newPhases[index].position = clampedPosition;
       return newPhases;
     });
-    
-    setTimeout(() => {
-      isDraggingMarker.current = false;
-    }, 100);
   };
+  
+  // Deselect all markers - explicitly defined function
+  const deselectAllMarkers = () => {
+    if (selectedPhase !== null) {
+      console.log('Deselecting all markers');
+      setSelectedPhase(null);
+    }
+  };
+  
+// Toggle edit mode
+const toggleEditMode = () => {
+  // If currently in edit mode and about to exit, deselect all markers first
+  if (editMode) {
+    deselectAllMarkers();
+  }
+  
+  // Toggle edit mode state
+  setEditMode(!editMode);
+};
+
+
+  // Select a marker - handles both edit mode and view mode differently
+  const handleSelectMarker = (index) => {
+    // If the same marker is already selected
+    if (selectedPhase === index) {
+      // In edit mode, don't deselect (keep selected for capture)
+      if (!editMode) {
+        // In view mode, toggle selection
+        setSelectedPhase(null);
+        deselectAllMarkers();
+      }
+    } else {
+      // Different marker selected, or no marker was selected before
+      setSelectedPhase(index);
+    }
+  };
+  
+  // Deselect a specific marker
+  const handleDeselectMarker = (index) => {
+    if (selectedPhase === index) {
+      setSelectedPhase(null);
+    }
+  };
+  
   
   // Capture current player state for a phase
   const capturePhaseState = (index) => {
@@ -238,6 +282,9 @@ const SessionTimeline = ({
       currentVolumeState.current = { ...volumes };
       currentAudioState.current = { ...activeAudio };
     }
+    
+    // After capturing state, deselect all markers
+    deselectAllMarkers();
   };
   
   // Start transition to a phase's state
@@ -303,11 +350,9 @@ const SessionTimeline = ({
   
   // Handle click away from markers - deselect the current marker
   const handleBackgroundClick = (e) => {
-    if (editMode && selectedPhase !== null) {
-      // Only deselect if we're not clicking on a marker
-      if (e.target === timelineRef.current) {
-        setSelectedPhase(null);
-      }
+    // Make sure we're clicking on the timeline background, not a marker
+    if (e.target === timelineRef.current) {
+      deselectAllMarkers();
     }
   };
   
@@ -321,7 +366,7 @@ const SessionTimeline = ({
         <div className={styles.timelineControls}>
           <button 
             className={`${styles.controlButton} ${editMode ? styles.active : ''}`}
-            onClick={() => setEditMode(!editMode)}
+            onClick={toggleEditMode}
           >
             {editMode ? 'Done' : 'Edit Timeline'}
           </button>
@@ -357,22 +402,13 @@ const SessionTimeline = ({
             isSelected={selectedPhase === index}
             isDraggable={editMode && !phase.locked}
             onDrag={(newPosition) => handlePhaseMarkerDrag(index, newPosition)}
-            onClick={(e) => {
-              if (editMode) {
-                e.stopPropagation();
-                if (selectedPhase === index) {
-                  // Deselect if clicking on the already selected marker
-                  setSelectedPhase(null);
-                } else {
-                  // Select this marker, deselecting any previously selected marker
-                  setSelectedPhase(index);
-                }
-              }
-            }}
-            onStateCapture={editMode ? () => capturePhaseState(index) : null}
+            onSelect={() => handleSelectMarker(index)}
+            onDeselect={() => handleDeselectMarker(index)}
+            onStateCapture={() => capturePhaseState(index)}
             storedState={phase.state}
             editMode={editMode}
             sessionDuration={sessionDuration}
+            hasStateCaptured={!!phase.state}
           />
         ))}
       </div>
@@ -390,8 +426,7 @@ const SessionTimeline = ({
       
       {editMode && (
         <div className={styles.editInstructions}>
-          Click on a phase marker to select it, then click "Capture State" to save the current audio settings.
-          Drag markers (except Pre-Onset) to adjust when each phase begins.
+          Press and hold a marker to drag it. Tap a marker to select it, then tap "Capture State" to save current audio settings.
         </div>
       )}
     </div>

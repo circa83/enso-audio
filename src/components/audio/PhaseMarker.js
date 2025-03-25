@@ -10,140 +10,323 @@ const PhaseMarker = ({
   isSelected,
   isDraggable,
   onDrag, 
-  onClick,
+  onSelect,
+  onDeselect,
   onStateCapture,
   storedState,
   editMode,
-  sessionDuration
+  sessionDuration,
+  hasStateCaptured
 }) => {
   const [isDragging, setIsDragging] = useState(false);
+  const [isReturningFromDrag, setIsReturningFromDrag] = useState(false);
   const markerRef = useRef(null);
   const timelineRef = useRef(null);
   const dragStartPosition = useRef({ x: 0, offset: 0 });
+  const touchStartTime = useRef(0);
+  const hasMoved = useRef(false);
+  const dragTimerRef = useRef(null);
   
-  // Combined function for both selecting and starting drag
-  const handleMouseDown = (e) => {
-    // Always stop propagation to prevent parent elements from handling the event
-    e.preventDefault();
-    e.stopPropagation();
+  // Constants for touch/mouse behavior
+  const DRAG_THRESHOLD = 5; // Pixels needed to move before considering it a drag
+  
+  // Helper function to end drag state properly with cursor reset
+  const endDragState = () => {
+    // Clear any existing timers
+    if (dragTimerRef.current) {
+      clearTimeout(dragTimerRef.current);
+      dragTimerRef.current = null;
+    }
+    console.log('Ending drag state');
+    // Immediately end dragging state
+    setIsDragging(false);
     
-    // Call onClick handler to select the marker
-    onClick(e);
+    // Force an update to the DOM to ensure style changes are applied
+    if (markerRef.current) {
+      // Remove dragging class directly from DOM for immediate effect
+      markerRef.current.classList.remove(styles.dragging);
+      // Force a reflow to ensure changes are applied immediately
+      void markerRef.current.offsetWidth;
+    }
     
-    // If not draggable, don't proceed with drag setup
-    if (!isDraggable) return;
+    // Set return from drag state for smooth transition
+    setIsReturningFromDrag(true);
     
-    // Start the drag operation
-    startDrag(e.clientX);
+    // Clear returning from drag after animation completes
+    dragTimerRef.current = setTimeout(() => {
+      setIsReturningFromDrag(false);
+      
+      // If not in edit mode, deselect the marker
+      if (!editMode) {
+        onDeselect();
+      }
+    }, 200);
   };
   
-  // Start drag operation
-  const startDrag = (clientX) => {
-    // Set dragging state
-    setIsDragging(true);
+  // Touch start handler - beginning of all touch interactions
+  const handleTouchStart = (e) => {
+    //Toggle selection if not in edit mode
+    if (isSelected && !editMode) {
+      // If already selected and not in edit mode, deselect it
+      onDeselect();
+    } else {
+      onSelect();
+    }
+  
+    // Reset the returning from drag state if it was set
+    if (isReturningFromDrag) {
+      setIsReturningFromDrag(false);
+    }
     
-    // Store the timeline reference
-    if (markerRef.current && markerRef.current.parentElement) {
+    // Record the touch start time
+    touchStartTime.current = Date.now();
+    hasMoved.current = false;
+    
+    // Stop propagation to prevent parent elements from handling the event
+    e.stopPropagation();
+    
+    // Store the timeline reference if not already set
+    if (!timelineRef.current && markerRef.current?.parentElement) {
       timelineRef.current = markerRef.current.parentElement;
     }
     
-    // Store initial position for relative movement
-    dragStartPosition.current = { 
-      x: clientX,
-      offset: position
-    };
-    
-    // Add event listeners for mouse move and up
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  };
-  
-  // Handle mouse move during drag with improved responsiveness
-  const handleMouseMove = (e) => {
-    if (!isDragging || !timelineRef.current) return;
-    
-    const rect = timelineRef.current.getBoundingClientRect();
-    const deltaX = e.clientX - dragStartPosition.current.x;
-    const deltaPct = (deltaX / rect.width) * 100;
-    
-    // Calculate new position based on original position plus delta
-    const newPosition = Math.min(100, Math.max(0, dragStartPosition.current.offset + deltaPct));
-    
-    // Call onDrag with new position
-    onDrag(newPosition);
-  };
-  
-  // Handle mouse up - end dragging
-  const handleMouseUp = () => {
-    if (isDragging) {
-      setIsDragging(false);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    }
-  };
-  
-  // Touch event handlers for mobile
-  const handleTouchStart = (e) => {
-    // Call onClick to select the marker
-    onClick(e);
-    
-    // If not draggable, don't proceed with drag setup
-    if (!isDraggable) return;
-    
-    e.preventDefault();
-    e.stopPropagation();
-    
+    // Store initial touch position
     if (e.touches && e.touches[0]) {
-      startDrag(e.touches[0].clientX);
+      dragStartPosition.current = {
+        x: e.touches[0].clientX,
+        offset: position
+      };
     }
     
+    // Add touch move and end listeners
     document.addEventListener('touchmove', handleTouchMove, { passive: false });
     document.addEventListener('touchend', handleTouchEnd);
   };
   
+  // Touch move handler - detects and handles dragging
   const handleTouchMove = (e) => {
-    if (!isDragging || !timelineRef.current || !e.touches || !e.touches[0]) return;
+    if (!e.touches || !e.touches[0]) return;
     
-    e.preventDefault(); // Prevent scrolling while dragging
+    // Calculate how far we've moved from the starting point
+    const touchX = e.touches[0].clientX;
+    const deltaX = Math.abs(touchX - dragStartPosition.current.x);
     
-    const rect = timelineRef.current.getBoundingClientRect();
-    const deltaX = e.touches[0].clientX - dragStartPosition.current.x;
-    const deltaPct = (deltaX / rect.width) * 100;
-    
-    // Calculate new position based on original position plus delta
-    const newPosition = Math.min(100, Math.max(0, dragStartPosition.current.offset + deltaPct));
-    
-    // Call onDrag with new position
-    onDrag(newPosition);
-  };
-  
-  const handleTouchEnd = () => {
-    if (isDragging) {
-      setIsDragging(false);
-      document.removeEventListener('touchmove', handleTouchMove);
-      document.removeEventListener('touchend', handleTouchEnd);
+    // If we've moved beyond the threshold, start dragging
+    if (deltaX > DRAG_THRESHOLD) {
+      // Mark that we've moved (to differentiate from a tap)
+      hasMoved.current = true;
+      
+      // Only start dragging if in edit mode and the marker is draggable
+      if (isDraggable && editMode) {
+        // Enable dragging state if not already set
+        if (!isDragging) {
+          // Clear any active timers
+          if (dragTimerRef.current) {
+            clearTimeout(dragTimerRef.current);
+            dragTimerRef.current = null;
+          }
+          
+          // Reset returning from drag state
+          setIsReturningFromDrag(false);
+          
+          // Set dragging state
+          setIsDragging(true);
+          
+          // If we're starting to drag, make sure this marker is selected
+          if (!isSelected) {
+            onSelect();
+          }
+        }
+        
+        // Now handle the actual drag movement
+        if (timelineRef.current) {
+          e.preventDefault(); // Prevent scrolling while dragging
+          
+          const rect = timelineRef.current.getBoundingClientRect();
+          const moveDeltaX = touchX - dragStartPosition.current.x;
+          const deltaPct = (moveDeltaX / rect.width) * 100;
+          
+          // Calculate new position based on original position plus delta
+          const newPosition = Math.min(100, Math.max(0, dragStartPosition.current.offset + deltaPct));
+          
+          // Call onDrag with new position
+          onDrag(newPosition);
+        }
+      }
     }
   };
   
-  // Clean up event listeners on unmount
+  const handleTouchEnd = (e) => {
+    // Clean up listeners first
+    document.removeEventListener('touchmove', handleTouchMove);
+    document.removeEventListener('touchend', handleTouchEnd);
+   
+    // If we were dragging, call endDragState to handle all necessary transitions
+    if (isDragging) {
+      endDragState();
+      return;
+    }
+    endDragState();
+   
+    // If we didn't move and it was a tap, treat as a tap/selection
+    if (!hasMoved.current) {
+      // This was a tap (not a drag)
+      if (isSelected) {
+        // If already selected and not in edit mode, deselect it
+        if (!editMode) {
+          onDeselect();
+        }
+      } else {
+        // If not selected, select it
+        onSelect();
+      }
+    }
+  };
+  
+  // Mouse event handlers (for desktop compatibility)
+  const handleMouseDown = (e) => {
+    // Reset the returning from drag state if it was set
+    if (isReturningFromDrag) {
+      setIsReturningFromDrag(false);
+    }
+    
+    // Record initial state
+    hasMoved.current = false;
+    
+    // Stop propagation
+    e.stopPropagation();
+    e.preventDefault();
+    
+    // Store timeline reference
+    if (!timelineRef.current && markerRef.current?.parentElement) {
+      timelineRef.current = markerRef.current.parentElement;
+    }
+    
+    // Store initial position
+    dragStartPosition.current = {
+      x: e.clientX,
+      offset: position
+    };
+    
+    // Add mouse event listeners
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+  
+  const handleMouseMove = (e) => {
+    // Calculate distance moved
+    const deltaX = Math.abs(e.clientX - dragStartPosition.current.x);
+    
+    // If we've moved beyond threshold, start dragging (if allowed)
+    if (deltaX > DRAG_THRESHOLD && isDraggable && editMode) {
+      hasMoved.current = true;
+      
+      // Enable dragging state
+      if (!isDragging) {
+        // Clear any active timers
+        if (dragTimerRef.current) {
+          clearTimeout(dragTimerRef.current);
+          dragTimerRef.current = null;
+        }
+        
+        // Reset returning from drag state
+        setIsReturningFromDrag(false);
+        
+        // Set dragging state
+        setIsDragging(true);
+        
+        // Select this marker if not already selected
+        if (!isSelected) {
+          onSelect();
+        }
+      }
+      
+      // Handle position change
+      if (timelineRef.current) {
+        const rect = timelineRef.current.getBoundingClientRect();
+        const moveDeltaX = e.clientX - dragStartPosition.current.x;
+        const deltaPct = (moveDeltaX / rect.width) * 100;
+        
+        // Calculate new position
+        const newPosition = Math.min(100, Math.max(0, dragStartPosition.current.offset + deltaPct));
+        
+        // Update position
+        onDrag(newPosition);
+      }
+    }
+  };
+  
+  const handleMouseUp = (e) => {
+    // Clean up event listeners
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    
+    // If we were dragging, call endDragState to handle all necessary transitions
+    if (isDragging) {
+      console.log('Ending drag state');
+      endDragState();
+      return;
+    }
+    
+    // If we didn't move, handle as a click/selection
+    if (!hasMoved.current) {
+      if (isSelected) {
+        // If already selected and not in edit mode, deselect it
+        if (!editMode) {
+          onDeselect();
+        }
+      } else {
+        // If not selected, select it
+        onSelect();
+      }
+    }
+  };
+  
+  // Handle click for desktop - used only to stop propagation
+  const handleClick = (e) => {
+    console.log('Click');
+    endDragState();
+    // Just stop propagation to prevent parent elements from handling
+    e.stopPropagation();
+  };
+  
+  // Effect to handle edit mode changes
+  useEffect(() => {
+    // When edit mode is turned off, ensure we're not in dragging state
+    if (!editMode && isDragging) {
+      endDragState();
+    }
+  }, [editMode, isDragging]);
+  
+  // Clean up event listeners and timers on unmount
   useEffect(() => {
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
+      
+      if (dragTimerRef.current) {
+        clearTimeout(dragTimerRef.current);
+      }
     };
   }, []);
   
-  // Only show selection highlight when in edit mode
-  const showSelectedHighlight = isSelected && editMode;
+  // Create a separate event handler for the capture button
+  const handleCaptureClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (onStateCapture) {
+      onStateCapture();
+    }
+  };
   
   // Calculate the timestamp based on position percentage and session duration
   const formatTimestamp = () => {
     if (!sessionDuration) return '00:00:00';
     
     // Calculate milliseconds based on position percentage
-    // This will update automatically when the position changes during drag
     const ms = (position / 100) * sessionDuration;
     
     // Convert to HH:MM:SS format
@@ -155,50 +338,43 @@ const PhaseMarker = ({
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
   
-  // Keep track of position changes in real-time during drag
-  useEffect(() => {
-    // The timestamp will be recalculated whenever the position changes
-    // This ensures it updates in real-time during dragging
-  }, [position, sessionDuration]);
-  
-  // Create a separate event handler to prevent event propagation
-  const handleCaptureClick = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (onStateCapture) {
-      onStateCapture();
-    }
-  };
-  
   return (
     <div 
       ref={markerRef}
       className={`
         ${styles.phaseMarker} 
         ${isActive ? styles.activeMarker : ''} 
-        ${showSelectedHighlight ? styles.selectedMarker : ''}
-        ${isDraggable ? styles.draggable : ''}
+        ${isSelected ? styles.selectedMarker : ''}
+        ${isDraggable && editMode ? styles.draggable : ''}
         ${!isDraggable ? styles.fixed : ''}
         ${isDragging ? styles.dragging : ''}
+        ${isReturningFromDrag ? styles.returnFromDrag : ''}
+        ${hasStateCaptured ? styles.stateCaptured : ''}
       `} 
       style={{ 
         left: `${position}%`,
+        backgroundColor: color || 'transparent'
       }}
-      onClick={onClick}
+      onClick={handleClick}
       onMouseDown={handleMouseDown}
       onTouchStart={handleTouchStart}
     >
       <div className={styles.timeStamp}>{formatTimestamp()}</div>
       <div className={styles.markerLabel}>{name}</div>
       
-      {/* Capture state button - always rendered but visibility controlled by CSS */}
-      {editMode && (
+      {/* Capture state button - only shown when in edit mode and selected */}
+      {editMode && isSelected && (
         <button 
           className={styles.captureButton}
           onClick={handleCaptureClick}
         >
           {storedState ? 'Update' : 'Capture'} State
         </button>
+      )}
+      
+      {/* Checkmark indicator for captured state */}
+      {hasStateCaptured && (
+        <div className={styles.stateIndicator}>✓</div>
       )}
     </div>
   );
