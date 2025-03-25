@@ -14,44 +14,66 @@
   text-transform: uppercase;
 }
 
-/* Minimal slider styling */
+/* Minimal slider styling with improved touch target */
 .slider {
   flex-grow: 1;
   margin: 0 15px;
-  height: 1px;
+  height: 3px; /* Slightly thicker base line */
   -webkit-appearance: none;
   appearance: none;
   background: #333;
   outline: none;
+  border-radius: 3px; /* Rounded edges */
+  cursor: pointer;
 }
 
+/* Larger thumb for better touch control */
 .slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 12px;
-  height: 12px;
+  width: 18px; /* Larger thumb size */
+  height: 18px; /* Larger thumb size */
   background: #ffffff;
   cursor: pointer;
   transition: all 0.2s ease;
+  border-radius: 50%; /* Ensure perfectly round */
+  border: none;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.2); /* Subtle shadow for depth */
 }
 
 .slider::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
+  width: 18px; /* Larger thumb size */
+  height: 18px; /* Larger thumb size */
   background: #ffffff;
   cursor: pointer;
   transition: all 0.2s ease;
   border: none;
+  border-radius: 50%; /* Ensure perfectly round */
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.2); /* Subtle shadow for depth */
 }
 
+/* Add a touch-friendly hover effect */
 .slider::-webkit-slider-thumb:hover {
   background: #ffffff;
   transform: scale(1.2);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
 }
 
 .slider::-moz-range-thumb:hover {
   background: #ffffff;
   transform: scale(1.2);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+/* Create a larger invisible touch area */
+.slider::before {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 30px; /* Larger hit area */
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: -1;
 }
 
 .value {
@@ -62,8 +84,8 @@
   color: #aaaaaa;
 }
 
-/* Responsive styles */
-@media (max-width: 768px) {
+/* Responsive styles - apply to tablets and mobile */
+@media (max-width: 1024px) {
   .layerSlider {
     display: flex;
     align-items: center;
@@ -73,34 +95,34 @@
   }
   
   .label {
-    width: 60px;
-    min-width: 60px;
-    font-size: 0.7rem;
+    width: 70px;
+    min-width: 70px;
+    font-size: 0.8rem;
     margin-bottom: 0;
     white-space: nowrap;
   }
   
   .slider {
-      flex-grow: 1;
-      margin: 0 8px;
-      height: 20px; /* Increase height for touch */
-    }
+    flex-grow: 1;
+    margin: 0 12px;
+    height: 6px; /* Even thicker for touch */ 
+  }
 
   .slider::-webkit-slider-thumb {
-      width: 24px; /* Larger thumb */
-      height: 24px; /* Larger thumb */
-    }
+    width: 24px; /* Larger thumb for touch */
+    height: 24px; /* Larger thumb */
+  }
   
-    .slider::-moz-range-thumb {
-      width: 24px; /* Larger thumb */
-      height: 24px; /* Larger thumb */
-    }
+  .slider::-moz-range-thumb {
+    width: 24px; /* Larger thumb for touch */
+    height: 24px; /* Larger thumb */
+  }
     
   .value {
-    width: 40px;
-    min-width: 40px;
+    width: 50px;
+    min-width: 50px;
     text-align: right;
     margin-top: 0;
-    font-size: 0.7rem;
+    font-size: 0.8rem;
   }
 }
