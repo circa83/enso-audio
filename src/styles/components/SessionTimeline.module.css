@@ -25,7 +25,6 @@
   color: #aaaaaa;
   letter-spacing: 2px;
   text-transform: uppercase;
-  margin: 0;
 }
 
 .timelineControls {
@@ -81,10 +80,12 @@
   100% { opacity: 0.6; }
 }
 
+/* Moved timeInfo below the timeline */
 .timeInfo {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 15px;
+  margin-top: 5px;
+  margin-bottom: 5px;
   font-family: 'Space Mono', monospace;
   font-size: 0.85rem;
   color: #999;
@@ -96,22 +97,23 @@
 
 .timeline {
   position: relative;
-  height: 6px; /* Thicker timeline for better visibility */
+  height: 6px;
   background-color: #333;
-  margin-bottom: 60px; /* Increased space for markers and capture buttons */
+  margin-top: 40px;
+  margin-bottom: 10px;
   cursor: pointer;
   overflow: visible;
   border-radius: 3px;
 }
 
-/* Ensure all timeline elements align properly */
+/* Slider-like appearance */
 .timeline::before {
   content: '';
   position: absolute;
   top: -10px;
   left: 0;
   right: 0;
-  height: 26px; /* Larger hit area for better interaction */
+  height: 26px;
   background-color: transparent;
 }
 
@@ -132,7 +134,7 @@
   color: #666;
   font-family: 'Archivo', sans-serif;
   letter-spacing: 0.5px;
-  margin-top: 20px; /* Space after the markers and capture button */
+  margin-top: 5px;
 }
 
 .editInstructions {
@@ -181,9 +183,5 @@
   .controlButton {
     font-size: 0.65rem;
     padding: 4px 10px;
-  }
-  
-  .timeline {
-    margin-bottom: 70px; /* More space on mobile for markers and buttons */
   }
 }

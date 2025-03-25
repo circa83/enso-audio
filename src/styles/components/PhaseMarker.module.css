@@ -3,75 +3,70 @@
     position: absolute;
     width: 16px;
     height: 16px;
-    transform: translate(-50%, -50%) rotate(45deg); /* Diamond shape rotation */
+    transform: translate(-50%, -50%);
     top: 50%;
-    left: 0; /* This gets overridden by inline style */
+    left: 0;
     z-index: 2;
-    border: 2px solid #ffffff; /* White border */
-    background-color: transparent !important; /* No fill */
+    border: 2px solid #ffffff;
+    background-color: transparent !important;
     cursor: pointer;
     transition: transform 0.15s ease, box-shadow 0.15s ease;
-    touch-action: none; /* Prevent default touch actions on mobile */
-  }
-  
-  .phaseMarker:hover {
-    transform: translate(-50%, -50%) rotate(45deg) scale(1.2);
+    touch-action: none;
+}
+
+.phaseMarker:hover {
+    transform: translate(-50%, -50%) scale(1.2);
     box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
-  }
-  
-  /* Vertical line indicator below marker */
-  .phaseMarker::before {
+}
+
+.phaseMarker::before {
     content: '';
     position: absolute;
     height: 22px;
     width: 1px;
     background-color: #555;
-    /* Position the line precisely below the diamond without rotation */
-    bottom: -22px;
+    bottom: -24px;
     left: 50%;
-    transform: translateX(-50%) rotate(-45deg); /* Undo the diamond rotation */
-  }
-  
-  .activeMarker {
+    transform: translateX(-50%);
+}
+
+.activeMarker {
     border: 2px solid #ffffff;
     box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
-  }
-  
-  .selectedMarker {
+}
+
+.selectedMarker {
     border: 2px solid #ffaa00;
     z-index: 5;
     box-shadow: 0 0 10px rgba(255, 170, 0, 0.4);
-  }
-  
-  .draggable {
+}
+
+.draggable {
     cursor: grab;
-  }
-  
-  .fixed {
+}
+
+.fixed {
     cursor: default;
-  }
-  
-  .dragging {
+}
+
+.dragging {
     cursor: grabbing !important;
-    transform: translate(-50%, -50%) rotate(45deg) scale(1.3) !important;
+    transform: translate(-50%, -50%) scale(1.3) !important;
     z-index: 10 !important;
     border: 2px solid #ffaa00 !important;
     box-shadow: 0 0 10px rgba(255, 170, 0, 0.5) !important;
-    transition: none !important; /* No transition during drag for immediate feedback */
-  }
-  
-  /* Marker label (phase name) - vertically aligned without rotation */
-  .markerLabel {
+    transition: none !important;
+}
+
+.timeStamp {
     position: absolute;
-    /* Position directly above the diamond */
-    top: 0;
-    left: 0;
-    /* Undo the parent rotation to keep text straight and center it */
-    transform: translate(-50%, -100%) rotate(-45deg);
+    top: -55px;
+    left: 50%;
+    transform: translateX(-50%);
     white-space: nowrap;
-    font-size: 0.75rem;
-    color: #bbb;
-    font-family: 'Archivo', sans-serif;
+    font-size: 0.7rem;
+    color: #ffaa00;
+    font-family: 'Space Mono', monospace;
     letter-spacing: 0.5px;
     opacity: 0;
     transition: opacity 0.2s ease;
@@ -80,42 +75,47 @@
     padding: 2px 6px;
     border-radius: 3px;
     z-index: 3;
-  }
-  
-  .phaseMarker:hover .markerLabel,
-  .selectedMarker .markerLabel {
+    text-align: center;
+}
+
+.markerLabel {
+    position: absolute;
+    top: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: 0.75rem;
+    color: #bbb;
+    font-family: 'Archivo', sans-serif;
+    letter-spacing: 0.5px;
+    /* Always visible */
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+    background-color: rgba(20, 20, 20, 0.8);
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-align: center;
+}
+
+/* Updated selectors for displaying the timestamp - only show on hover, selected or dragging */
+.phaseMarker:hover .timeStamp,
+.dragging .timeStamp,
+.selectedMarker .timeStamp {
     opacity: 1;
-  }
-  
-  /* Checkmark indicator for stored state - vertically aligned without rotation */
-  .storedStateIndicator {
+}
+
+.phaseMarker:hover .captureButton,
+.dragging .captureButton,
+.selectedMarker .captureButton {
+    opacity: 1;
+}
+
+
+.captureButton {
     position: absolute;
-    width: 14px;
-    height: 14px;
-    /* Position directly below the diamond */
-    bottom: -25px;
-    left: 0;
-    /* Undo the parent rotation to keep text straight and center it */
-    transform: translate(-50%, 0) rotate(-45deg);
-    color: white;
-    font-size: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 4;
-    background-color: rgba(0, 0, 0, 0.5);
-    border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-  }
-  
-  /* Capture state button - vertically aligned without rotation */
-  .captureButton {
-    position: absolute;
-    /* Position below the checkmark */
-    bottom: -48px;
-    left: 0;
-    /* Undo the parent rotation to keep text straight and center it */
-    transform: translate(-50%, 0) rotate(-45deg);
+    bottom: -40px;
+    left: 50%;
+    transform: translateX(-50%);
     background-color: rgba(30, 30, 30, 0.9);
     border: 1px solid #444;
     color: #aaa;
@@ -125,18 +125,23 @@
     cursor: pointer;
     border-radius: 3px;
     transition: all 0.2s ease;
-    z-index: 100; /* Higher z-index to ensure it's on top */
-    pointer-events: all; /* Ensure clicks are captured */
-  }
-  
-  .captureButton:hover {
+    z-index: 4;
+    text-align: center;
+  opacity: 0;
+}
+
+.captureButton:hover {
     background-color: #333;
     color: #fff;
     border-color: #555;
-  }
-  
-  /* Create a larger hit area for interacting with the marker */
-  .phaseMarker::after {
+}
+
+/* Important flag to ensure it always overrides any other display styles */
+.selectedMarker .captureButton {
+    display: block !important;
+}
+
+.phaseMarker::after {
     content: '';
     position: absolute;
     width: 30px;
@@ -145,21 +150,33 @@
     left: 50%;
     transform: translate(-50%, -50%);
     z-index: -1;
-  }
-  
-  @media (max-width: 768px) {
+}
+
+@media (max-width: 768px) {
     .phaseMarker {
-      width: 18px; 
-      height: 18px;
+        width: 18px; 
+        height: 18px;
     }
     
     .captureButton {
-      padding: 4px 8px;
-      font-size: 0.8rem;
-      bottom: -48px; /* Slightly closer on mobile */
+        padding: 4px 8px;
+        font-size: 0.8rem;
+        bottom: -36px;
     }
     
     .markerLabel {
-      font-size: 0.7rem; /* Smaller text on mobile */
+        font-size: 0.7rem;
+        top: -25px;
     }
-  }
+    
+    .timeStamp {
+        font-size: 0.65rem;
+        top: -45px;
+        padding: 1px 4px;
+    }
+    
+    .phaseMarker::before {
+        height: 18px;
+        bottom: -20px;
+    }
+}

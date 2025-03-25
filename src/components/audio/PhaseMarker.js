@@ -13,7 +13,8 @@ const PhaseMarker = ({
   onClick,
   onStateCapture,
   storedState,
-  editMode
+  editMode,
+  sessionDuration
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const markerRef = useRef(null);
@@ -32,7 +33,7 @@ const PhaseMarker = ({
     // If not draggable, don't proceed with drag setup
     if (!isDraggable) return;
     
-    // Start the drag operation immediately
+    // Start the drag operation
     startDrag(e.clientX);
   };
   
@@ -124,22 +125,6 @@ const PhaseMarker = ({
     }
   };
   
-  // Completely separate capture button click handler with no connection to marker selection
-  const handleCaptureButtonClick = (event) => {
-    // Prevent all default behaviors and propagation
-    event.preventDefault();
-    event.stopPropagation();
-    
-    // Call the capture function directly
-    if (onStateCapture) {
-      console.log(`Capturing state for ${name} phase`);
-      onStateCapture();
-    }
-    
-    // Return false to ensure no other handlers are called
-    return false;
-  };
-  
   // Clean up event listeners on unmount
   useEffect(() => {
     return () => {
@@ -152,6 +137,38 @@ const PhaseMarker = ({
   
   // Only show selection highlight when in edit mode
   const showSelectedHighlight = isSelected && editMode;
+  
+  // Calculate the timestamp based on position percentage and session duration
+  const formatTimestamp = () => {
+    if (!sessionDuration) return '00:00:00';
+    
+    // Calculate milliseconds based on position percentage
+    // This will update automatically when the position changes during drag
+    const ms = (position / 100) * sessionDuration;
+    
+    // Convert to HH:MM:SS format
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
+  
+  // Keep track of position changes in real-time during drag
+  useEffect(() => {
+    // The timestamp will be recalculated whenever the position changes
+    // This ensures it updates in real-time during dragging
+  }, [position, sessionDuration]);
+  
+  // Create a separate event handler to prevent event propagation
+  const handleCaptureClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onStateCapture) {
+      onStateCapture();
+    }
+  };
   
   return (
     <div 
@@ -166,28 +183,19 @@ const PhaseMarker = ({
       `} 
       style={{ 
         left: `${position}%`,
-        backgroundColor: color
       }}
+      onClick={onClick}
       onMouseDown={handleMouseDown}
       onTouchStart={handleTouchStart}
     >
+      <div className={styles.timeStamp}>{formatTimestamp()}</div>
       <div className={styles.markerLabel}>{name}</div>
       
-      {/* State captured indicator (checkmark) */}
-      {storedState && (
-        <div className={styles.storedStateIndicator}>✓</div>
-      )}
-      
-      {/* Capture state button - visible when selected in edit mode */}
-      {isSelected && editMode && onStateCapture && (
+      {/* Capture state button - always rendered but visibility controlled by CSS */}
+      {editMode && (
         <button 
           className={styles.captureButton}
-          onClick={handleCaptureButtonClick}
-          onMouseDown={(e) => {
-            // Completely stop event propagation
-            e.preventDefault();
-            e.stopPropagation();
-          }}
+          onClick={handleCaptureClick}
         >
           {storedState ? 'Update' : 'Capture'} State
         </button>
