@@ -8,15 +8,18 @@
     left: 0;
     z-index: 2;
     border: 2px solid #ffffff;
+    border-radius: 50%;
     background-color: transparent !important;
-    cursor: pointer;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-    touch-action: none;
+    cursor: pointer; /* Default cursor */
+    /* Include cursor in transition properties */
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, cursor 0s;
+    touch-action: none; /* Prevent browser handling of touch gestures */
 }
 
 .phaseMarker:hover {
     transform: translate(-50%, -50%) scale(1.2);
     box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+    z-index: 5;
 }
 
 .phaseMarker::before {
@@ -41,6 +44,7 @@
     box-shadow: 0 0 10px rgba(255, 170, 0, 0.4);
 }
 
+/* Cursor for draggable markers in edit mode */
 .draggable {
     cursor: grab;
 }
@@ -49,13 +53,30 @@
     cursor: default;
 }
 
+/* Applied during active dragging */
 .dragging {
     cursor: grabbing !important;
     transform: translate(-50%, -50%) scale(1.3) !important;
     z-index: 10 !important;
     border: 2px solid #ffaa00 !important;
     box-shadow: 0 0 10px rgba(255, 170, 0, 0.5) !important;
+    /* No transition during active drag for responsiveness */
     transition: none !important;
+}
+
+/* Applied immediately after dragging ends for a smooth return */
+.returnFromDrag {
+    /* Explicitly reset cursor immediately */
+    cursor: grab !important;
+    transition: transform 0.2s ease-out, 
+                border-color 0.2s ease-out, 
+                box-shadow 0.2s ease-out,
+                cursor 0s !important;
+}
+
+/* When not in edit mode, reset cursor to default */
+.returnFromDrag:not(.draggable) {
+    cursor: pointer !important;
 }
 
 .timeStamp {
@@ -105,11 +126,28 @@
 }
 
 .phaseMarker:hover .captureButton,
-.dragging .captureButton,
 .selectedMarker .captureButton {
     opacity: 1;
 }
 
+/* State indicator for captured state */
+.stateIndicator {
+    position: absolute;
+    bottom: -36px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 16px;
+    height: 16px;
+    background-color: rgba(20, 20, 20, 0.8);
+    border: 1px solid #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 0.7rem;
+    pointer-events: none;
+}
 
 .captureButton {
     position: absolute;
@@ -127,25 +165,34 @@
     transition: all 0.2s ease;
     z-index: 4;
     text-align: center;
-  opacity: 0;
+    opacity: 0;
+    /* Make button easier to tap on mobile */
+    min-width: 80px;
+    min-height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.captureButton:hover {
+.captureButton:hover,
+.captureButton:active {
     background-color: #333;
     color: #fff;
     border-color: #555;
 }
 
-/* Important flag to ensure it always overrides any other display styles */
+/* Always show the capture button when the marker is selected */
 .selectedMarker .captureButton {
-    display: block !important;
+    opacity: 1;
+    display: flex !important;
 }
 
+/* Larger touch target - invisible element to make it easier to grab on mobile */
 .phaseMarker::after {
     content: '';
     position: absolute;
-    width: 30px;
-    height: 30px;
+    width: 40px;
+    height: 40px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
@@ -159,9 +206,11 @@
     }
     
     .captureButton {
-        padding: 4px 8px;
+        padding: 6px 10px;
         font-size: 0.8rem;
-        bottom: -36px;
+        bottom: -40px;
+        min-width: 100px;
+        min-height: 36px;
     }
     
     .markerLabel {
@@ -178,5 +227,19 @@
     .phaseMarker::before {
         height: 18px;
         bottom: -20px;
+    }
+    
+    /* Even larger invisible touch target for mobile */
+    .phaseMarker::after {
+        width: 50px;
+        height: 50px;
+    }
+    
+    /* Adjust state indicator for mobile */
+    .stateIndicator {
+        width: 18px;
+        height: 18px;
+        bottom: -38px;
+        font-size: 0.8rem;
     }
 }

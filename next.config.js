@@ -2,6 +2,6 @@
 const nextConfig = {
     reactStrictMode: false, // Temporarily disable strict mode to debug
     // Your other config settings can go here later
-  }
+    devIndicators:false  }
   
   module.exports = nextConfig
