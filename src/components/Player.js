@@ -1,8 +1,7 @@
-// src/components/Player.js - Update the default session duration
+// src/components/Player.js
 import React, { useCallback, useState, useEffect } from 'react';
 import { useAudio } from '../contexts/StreamingAudioContext';
 import LayerControl from './audio/LayerControl';
-import LayerSelector from './audio/LayerSelector';
 import SessionTimer from './audio/SessionTimer';
 import SessionTimeline from './audio/SessionTimeline';
 import SessionSettings from './audio/SessionSettings';
@@ -25,8 +24,7 @@ const Player = () => {
     getPresets
   } = useAudio();
   
-  const [showLayerSelectors, setShowLayerSelectors] = useState(false);
-  const [sessionDuration, setSessionDuration] = useState(60 * 1000); // Default 1 minute (changed from 60 minutes)
+  const [sessionDuration, setSessionDuration] = useState(60 * 1000); // Default 1 minute
   const [timelineEnabled, setTimelineEnabled] = useState(true);
   const [transitionDuration, setTransitionDuration] = useState(4000); // Default 4 seconds
   const [showDebugPanel, setShowDebugPanel] = useState(false); // Debug panel state
@@ -100,14 +98,6 @@ const Player = () => {
           onClick={togglePlayPause}
         >
           {isPlaying ? 'Stop' : 'Play'}
-        </button>
-        
-        {/* Sound library button */}
-        <button 
-          className={`${styles.soundLibraryButton} ${showLayerSelectors ? styles.active : ''}`}
-          onClick={() => setShowLayerSelectors(!showLayerSelectors)}
-        >
-          {showLayerSelectors ? 'Hide Sounds' : 'Change Sounds'}
         </button>
         
         {/* Preset management button */}
@@ -194,19 +184,10 @@ const Player = () => {
             label={layer.charAt(0).toUpperCase() + layer.slice(1)}
             value={volumes[layer]}
             onChange={(value) => setVolume(layer, value)}
+            layer={layer}  
           />
         ))}
       </div>
-      
-      {/* Layer selectors section */}
-      {showLayerSelectors && (
-        <div className={styles.layerSelectors}>
-          <h2 className={styles.sectionTitle}>Sound Selection</h2>
-          {Object.values(LAYERS).map(layer => (
-            <LayerSelector key={layer} layer={layer} />
-          ))}
-        </div>
-      )}
       
       <div className={styles.geometricLine}></div>
       

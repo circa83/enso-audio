@@ -1,11 +1,18 @@
 // src/components/audio/LayerControl.js
 import React from 'react';
+import { useAudio } from '../../contexts/StreamingAudioContext';
+import LayerDropdown from './LayerDropdown';
 import styles from '../../styles/components/LayerControl.module.css';
 
-const LayerControl = ({ label, value, onChange }) => {
+const LayerControl = ({ label, value, onChange, layer }) => {
+  const { hasSwitchableAudio } = useAudio();
+  
   return (
     <div className={styles.layerSlider}>
-      <label className={styles.label}>{label}</label>
+      <div className={styles.labelContainer}>
+        <label className={styles.label}>{label}</label>
+        {hasSwitchableAudio && <LayerDropdown layer={layer.toLowerCase()} />}
+      </div>
       <input 
         className={styles.slider}
         type="range" 
