@@ -1,5 +1,5 @@
 // src/components/audio/SessionTimeline.js
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudio } from '../../contexts/StreamingAudioContext';
 import PhaseMarker from './PhaseMarker';
 import styles from '../../styles/components/SessionTimeline.module.css';
@@ -27,7 +27,10 @@ const SessionTimeline = ({
     LAYERS,
     resetTimelineEventIndex,
     crossfadeProgress,
-    activeCrossfades
+    activeCrossfades,
+    // New functions for preset integration
+    updateTimelinePhases,
+    registerPresetStateProvider
   } = useAudio();
   
   const [currentTime, setCurrentTime] = useState(0);
@@ -48,6 +51,59 @@ const SessionTimeline = ({
   const currentAudioState = useRef({});
   const previousEditMode = useRef(editMode);
   const transitionInProgress = useRef(false);
+  
+  // Register the state provider for presets
+  useEffect(() => {
+    if (registerPresetStateProvider) {
+      // This function will be called by the AudioContext when saving a preset
+      const getTimelineState = () => {
+        return {
+          phases: phases.map(phase => ({
+            id: phase.id,
+            name: phase.name,
+            position: phase.position,
+            color: phase.color,
+            state: phase.state,
+            locked: phase.locked
+          })),
+          sessionDuration: sessionDuration,
+          transitionDuration: transitionDuration
+        };
+      };
+
+      // Register the function
+      registerPresetStateProvider('timeline', getTimelineState);
+      
+      // Clean up when component unmounts
+      return () => registerPresetStateProvider('timeline', null);
+    }
+  }, [registerPresetStateProvider, phases, sessionDuration, transitionDuration]);
+
+  // Handle when timeline phases are updated from a preset
+  useEffect(() => {
+    // Custom event listener for timeline phase updates
+    const handleTimelineUpdate = (eventData) => {
+      if (eventData.detail && eventData.detail.phases) {
+        console.log('Updating timeline phases from preset:', eventData.detail.phases);
+        
+        // Update phases
+        setPhases(eventData.detail.phases);
+        
+        // Update session duration if provided
+        if (eventData.detail.sessionDuration && onDurationChange) {
+          onDurationChange(eventData.detail.sessionDuration);
+        }
+      }
+    };
+
+    // Add event listener
+    window.addEventListener('timeline-update', handleTimelineUpdate);
+    
+    // Clean up
+    return () => {
+      window.removeEventListener('timeline-update', handleTimelineUpdate);
+    };
+  }, [onDurationChange]);
   
   // Handle enabling/disabling timeline
   useEffect(() => {
@@ -131,36 +187,61 @@ const SessionTimeline = ({
     }
   };
   
+  // Define default pre-onset phase state - used if no saved state exists
+  const DEFAULT_PRE_ONSET_STATE = {
+    volumes: {
+      [LAYERS.DRONE]: 0.25,
+      [LAYERS.MELODY]: 0.0,
+      [LAYERS.RHYTHM]: 0.0,
+      [LAYERS.NATURE]: 0.0
+    },
+    // We'll use whatever tracks are currently active
+    activeAudio: {}
+  };
+
   // Apply pre-onset phase IMMEDIATELY when play is pressed (no transition)
   useEffect(() => {
     if (enabled && isPlaying && !startingPhaseApplied.current) {
       const preOnsetPhase = phases.find(p => p.id === 'pre-onset');
-      if (preOnsetPhase && preOnsetPhase.state) {
-        console.log('Applying pre-onset phase immediately at start of playback (no transition)');
-        
-        // Immediately set volumes from pre-onset state
-        Object.entries(preOnsetPhase.state.volumes).forEach(([layer, volume]) => {
-          setVolume(layer, volume);
+      
+      // Determine the state to apply - either the saved state or the default
+      const stateToApply = preOnsetPhase?.state || DEFAULT_PRE_ONSET_STATE;
+      
+      // If using default state, fill in current active audio
+      if (!preOnsetPhase?.state) {
+        Object.keys(LAYERS).forEach(layer => {
+          stateToApply.activeAudio[layer.toLowerCase()] = activeAudio[layer.toLowerCase()];
         });
-        
-        // Handle track changes immediately (with a nearly instant 50ms crossfade)
-        // We use a very short crossfade (50ms) instead of 0ms to avoid potential pops/clicks
-        Object.entries(preOnsetPhase.state.activeAudio).forEach(([layer, trackId]) => {
-          if (trackId !== activeAudio[layer]) {
-            console.log(`Immediate switch to ${trackId} for ${layer}`);
-            crossfadeTo(layer, trackId, 50); // 50ms is practically instant but avoids audio pops
-          }
-        });
-        
-        // Mark as applied and update state refs
-        startingPhaseApplied.current = true;
-        lastActivePhaseId.current = 'pre-onset';
-        setActivePhase('pre-onset');
-        
-        // Update current state refs
-        currentVolumeState.current = { ...preOnsetPhase.state.volumes };
-        currentAudioState.current = { ...preOnsetPhase.state.activeAudio };
+        console.log('Using DEFAULT pre-onset state (no saved state found)', stateToApply);
+      } else {
+        console.log('Applying SAVED pre-onset phase state', stateToApply);
       }
+      
+      // Apply the state
+      console.log('Applying pre-onset phase immediately at start of playback (no transition)');
+      
+      // Immediately set volumes
+      Object.entries(stateToApply.volumes).forEach(([layer, volume]) => {
+        setVolume(layer, volume);
+      });
+      
+      // Handle track changes immediately (with a nearly instant 50ms crossfade)
+      // We use a very short crossfade (50ms) instead of 0ms to avoid potential pops/clicks
+      Object.entries(stateToApply.activeAudio).forEach(([layer, trackId]) => {
+        if (trackId !== activeAudio[layer]) {
+          console.log(`Immediate switch to ${trackId} for ${layer}`);
+          crossfadeTo(layer, trackId, 50); // 50ms is practically instant but avoids audio pops
+        }
+      });
+      
+      // Mark as applied and update state refs
+      startingPhaseApplied.current = true;
+      lastActivePhaseId.current = 'pre-onset';
+      setActivePhase('pre-onset');
+      
+      // Update current state refs
+      currentVolumeState.current = { ...stateToApply.volumes };
+      currentAudioState.current = { ...stateToApply.activeAudio };
     }
   }, [enabled, isPlaying, phases, setVolume, crossfadeTo, activeAudio]);
   
@@ -274,6 +355,13 @@ const SessionTimeline = ({
       newPhases[index].position = clampedPosition;
       return newPhases;
     });
+    
+    // Notify the context system that phases have been updated (for preset saving)
+    if (updateTimelinePhases) {
+      const updatedPhases = [...phases];
+      updatedPhases[index].position = clampedPosition;
+      updateTimelinePhases(updatedPhases);
+    }
   };
   
   // Deselect all markers - explicitly defined function
@@ -330,6 +418,14 @@ const SessionTimeline = ({
       newPhases[index].state = state;
       return newPhases;
     });
+    
+    // Notify the audio context of updated phases
+    // This is important for preset saving
+    if (updateTimelinePhases) {
+      const updatedPhases = [...phases];
+      updatedPhases[index].state = state;
+      updateTimelinePhases(updatedPhases);
+    }
     
     if (phases[index].id === 'pre-onset' && lastActivePhaseId.current === 'pre-onset') {
       currentVolumeState.current = { ...volumes };
