@@ -1,0 +1,179 @@
+/* Auth.module.css */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@100;200;300&family=Space+Mono&display=swap');
+
+.authContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background-color: #111111;
+  padding: 20px;
+}
+
+.authCard {
+  width: 100%;
+  max-width: 500px;
+  background-color: #181818;
+  border-radius: 2px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  padding: 40px;
+}
+
+.authTitle {
+  font-family: 'Archivo', sans-serif;
+  font-weight: 100;
+  font-size: 2.5rem;
+  text-align: center;
+  color: #ffffff;
+  margin-bottom: 10px;
+  letter-spacing: 8px;
+  text-transform: uppercase;
+}
+
+.authSubtitle {
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 1rem;
+  text-align: center;
+  color: #aaaaaa;
+  margin-bottom: 40px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.authForm {
+  margin-bottom: 30px;
+}
+
+.formGroup {
+  margin-bottom: 20px;
+}
+
+.formGroup label {
+  display: block;
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 0.8rem;
+  color: #aaaaaa;
+  margin-bottom: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.formInput {
+  width: 100%;
+  padding: 12px;
+  background-color: #252525;
+  border: 1px solid #333;
+  color: #ffffff;
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 0.9rem;
+  transition: border-color 0.2s ease;
+  outline: none;
+}
+
+.formInput:focus {
+  border-color: #555;
+}
+
+.formInput::placeholder {
+  color: #555;
+}
+
+.authButton {
+  width: 100%;
+  background-color: transparent;
+  border: 1px solid #ffffff;
+  color: #ffffff;
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 0.8rem;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-top: 10px;
+}
+
+.authButton:hover:not(:disabled) {
+  background-color: #ffffff;
+  color: #111111;
+}
+
+.authButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.demoButton {
+  width: 100%;
+  background-color: transparent;
+  border: 1px solid #444;
+  color: #aaaaaa;
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 0.8rem;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-top: 15px;
+}
+
+.demoButton:hover:not(:disabled) {
+  border-color: #777;
+  color: #ffffff;
+}
+
+.demoButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.authLinks {
+  text-align: center;
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 0.8rem;
+  color: #777;
+}
+
+.authLinks a, .authLink {
+  color: #aaaaaa;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.authLinks a:hover, .authLink:hover {
+  color: #ffffff;
+}
+
+.errorMessage {
+  background-color: rgba(255, 107, 107, 0.1);
+  border-left: 2px solid #ff6b6b;
+  color: #ff6b6b;
+  padding: 12px;
+  margin-bottom: 20px;
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 0.8rem;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .authCard {
+    padding: 30px 20px;
+  }
+  
+  .authTitle {
+    font-size: 2rem;
+    letter-spacing: 6px;
+  }
+  
+  .formInput {
+    padding: 10px;
+  }
+}

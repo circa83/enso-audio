@@ -1,35 +1,37 @@
 // src/pages/index.js
-import React, { useState } from 'react';
-import Head from 'next/head';
-import { useAudio } from '../contexts/StreamingAudioContext';
-import LoadingScreen from '../components/LoadingScreen';
-import Player from '../components/Player';
+import { useEffect } from 'react';
+import { useRouter } from 'next/router';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Home() {
-  const { isLoading } = useAudio();
-  const [showPlayer, setShowPlayer] = useState(false);
+  const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuth();
   
-  // Handler for when the "Start Audio Session" button is clicked
-  const handleStartSession = () => {
-    setShowPlayer(true);
-  };
+  useEffect(() => {
+    if (!isLoading) {
+      if (isAuthenticated) {
+        router.push('/dashboard');
+      } else {
+        router.push('/login');
+      }
+    }
+  }, [isLoading, isAuthenticated, router]);
   
   return (
-    <div className="container">
-      <Head>
-        <title>Ensō Audio</title>
-        <meta name="description" content="Therapeutic sound platform for psychedelic-assisted therapy" />
-        <link rel="icon" href="/favicon.ico" />
-        {/* Font import moved to _document.js */}
-      </Head>
-
-      <main>
-        {(isLoading || !showPlayer) ? (
-          <LoadingScreen onStartSession={handleStartSession} />
-        ) : (
-          <Player />
-        )}
-      </main>
+    <div style={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      height: '100vh',
+      background: '#111111',
+      color: '#aaaaaa',
+      fontFamily: 'Archivo, sans-serif',
+      letterSpacing: '2px'
+    }}>
+      <h1 style={{
+        fontWeight: 100,
+        letterSpacing: '8px'
+      }}>Ensō Audio</h1>
     </div>
   );
 }

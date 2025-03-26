@@ -1,0 +1,74 @@
+/* src/styles/pages/DashboardPlayer.module.css */
+.playerContainer {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background-color: #111111;
+  }
+  
+  .playerTopBar {
+    height: 60px;
+    background-color: #181818;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    border-bottom: 1px solid #333;
+  }
+  
+  .backButton {
+    background-color: transparent;
+    border: 1px solid #444;
+    color: #aaaaaa;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.8rem;
+    padding: 8px 15px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    letter-spacing: 1px;
+    text-decoration: none;
+    display: inline-block;
+  }
+  
+  .backButton:hover {
+    border-color: #ffffff;
+    color: #ffffff;
+  }
+  
+  .sessionControls {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .sessionButton {
+    background-color: transparent;
+    border: 1px solid #ffffff;
+    color: #ffffff;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.8rem;
+    padding: 8px 15px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  
+  .sessionButton:hover {
+    background-color: #ffffff;
+    color: #111111;
+  }
+  
+  /* Responsive styles */
+  @media (max-width: 768px) {
+    .playerTopBar {
+      padding: 0 15px;
+      height: 50px;
+    }
+    
+    .backButton, .sessionButton {
+      font-size: 0.7rem;
+      padding: 6px 12px;
+    }
+  }
