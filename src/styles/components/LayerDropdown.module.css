@@ -1,0 +1,170 @@
+/* src/styles/components/LayerDropdown.module.css */
+.dropdownContainer {
+    position: relative;
+    margin-left: 10px;
+    display: inline-block; /* Ensure the container is visible */
+  }
+  
+  .dropdownToggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background-color: #1c1c1c;
+    border: 1px solid #333;
+    color: #aaaaaa;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.75rem;
+    padding: 4px 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 90px;
+    justify-content: space-between;
+  }
+  
+  .dropdownToggle:hover {
+    border-color: #555;
+    color: #ffffff;
+  }
+  
+  .dropdownToggle.expanded {
+    border-color: #ffffff;
+    color: #ffffff;
+  }
+  
+  .currentTrack {
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .arrowIcon {
+    font-size: 0.6rem;
+    transition: transform 0.2s ease;
+  }
+  
+  .dropdownToggle.expanded .arrowIcon {
+    transform: rotate(180deg);
+  }
+  
+  /* Fixed position dropdown menu with higher z-index */
+  .dropdownMenu {
+    position: fixed; /* Fixed positioning to stay in place during scroll */
+    margin-top: 2px;
+    width: 170px;
+    max-height: 200px;
+    overflow-y: auto;
+    background-color: #121212; /* Very dark solid color */
+    border: 1px solid #333;
+    list-style: none;
+    padding: 0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8); /* Strong shadow for separation */
+    pointer-events: auto; /* Ensure clicks are captured */
+    animation: fadeIn 0.2s ease; /* Add animation for better UX */
+    /* z-index will be set dynamically in the component with much higher values */
+  }
+  
+  /* Fixed dropdown item design */
+  .dropdownItem {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    font-size: 0.75rem;
+    color: #aaaaaa;
+    cursor: pointer;
+    background-color: #121212; /* Same dark color as menu */
+    position: relative; /* Create stacking context */
+    border-left: 2px solid transparent;
+    pointer-events: auto;
+  }
+  
+  .dropdownItem:hover {
+    background-color: #333333;
+    color: #ffffff;
+    border-left-color: #555;
+  }
+  
+  .dropdownItem.active {
+    background-color: #2a2a2a;
+    border-left: 2px solid #ffffff;
+    color: #ffffff;
+  }
+  
+  .trackName {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .activeIndicator {
+    margin-left: 8px;
+    font-size: 0.7rem;
+    color: #ffffff;
+  }
+  
+  /* Crossfade status styling */
+  .crossfadeStatus {
+    color: #ffaa00;
+    font-style: italic;
+    animation: pulse 1.5s infinite;
+  }
+  
+  .dropdownToggle.crossfading {
+    border-color: #ffaa00;
+    pointer-events: none;
+    cursor: not-allowed;
+  }
+  
+  .preloadingIndicator {
+    margin-left: 8px;
+    font-size: 0.7rem;
+    color: #aaaaaa;
+    animation: pulse 1.5s infinite;
+  }
+  
+  /* Add overlay blocker to prevent click-through */
+  .menuOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: auto;
+    background-color: transparent;
+    /* z-index is set dynamically in the component */
+  }
+  
+  @keyframes pulse {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  /* Mobile optimization */
+  @media (max-width: 768px) {
+    .dropdownToggle {
+      min-width: 75px;
+      padding: 6px 10px;
+      font-size: 0.7rem;
+    }
+    
+    .dropdownMenu {
+      width: 140px;
+    }
+  }
+  
+  /* Fix for dropdown positioning on very small screens */
+  @media (max-width: 480px) {
+    .dropdownMenu {
+      right: 0;
+      left: auto;
+    }
+  }
