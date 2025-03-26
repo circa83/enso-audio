@@ -1,0 +1,171 @@
+/* src/styles/pages/Settings.module.css */
+.settingsContainer {
+    padding: 20px 0;
+  }
+  
+  .pageTitle {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 1.8rem;
+    color: #ffffff;
+    margin-bottom: 30px;
+    letter-spacing: 2px;
+  }
+  
+  .settingsGrid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+  
+  .settingsSection {
+    background-color: #1c1c1c;
+    border: 1px solid #333;
+    padding: 30px;
+  }
+  
+  .sectionTitle {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 1.2rem;
+    color: #ffffff;
+    margin-bottom: 25px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+  
+  .settingsForm {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  
+  .formGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .formGroup label {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.8rem;
+    color: #aaaaaa;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  
+  .formInput {
+    padding: 12px;
+    background-color: #252525;
+    border: 1px solid #333;
+    color: #ffffff;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.9rem;
+    transition: border-color 0.2s ease;
+  }
+  
+  .formInput:focus {
+    outline: none;
+    border-color: #555;
+  }
+  
+  .formTextarea {
+    padding: 12px;
+    background-color: #252525;
+    border: 1px solid #333;
+    color: #ffffff;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.9rem;
+    resize: vertical;
+    min-height: 120px;
+    transition: border-color 0.2s ease;
+  }
+  
+  .formTextarea:focus {
+    outline: none;
+    border-color: #555;
+  }
+  
+  .saveButton {
+    align-self: flex-start;
+    background-color: transparent;
+    border: 1px solid #ffffff;
+    color: #ffffff;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.8rem;
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 10px;
+  }
+  
+  .saveButton:hover:not(:disabled) {
+    background-color: #ffffff;
+    color: #111111;
+  }
+  
+  .saveButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .loadingContainer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 300px;
+    text-align: center;
+    color: #aaaaaa;
+    font-family: 'Archivo', sans-serif;
+    font-size: 0.9rem;
+    letter-spacing: 1px;
+  }
+  
+  .errorMessage {
+    background-color: rgba(255, 107, 107, 0.1);
+    border-left: 2px solid #ff6b6b;
+    color: #ff6b6b;
+    padding: 12px;
+    margin-bottom: 20px;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.9rem;
+  }
+  
+  .successMessage {
+    background-color: rgba(107, 255, 148, 0.1);
+    border-left: 2px solid #6bff94;
+    color: #6bff94;
+    padding: 12px;
+    margin-bottom: 20px;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.9rem;
+  }
+  
+  /* Responsive styles */
+  @media (min-width: 768px) {
+    .settingsGrid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .settingsSection:last-child {
+      grid-column: span 2;
+    }
+  }
+  
+  @media (min-width: 1200px) {
+    .settingsGrid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    
+    .settingsSection:last-child {
+      grid-column: auto;
+    }
+  }
