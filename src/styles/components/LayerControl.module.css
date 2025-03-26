@@ -10,6 +10,7 @@
   display: flex;
   align-items: center;
   min-width: 200px;
+  width: 200px; /* Fixed width to prevent shifts */
   position: static; /* Ensure it doesn't create a new stacking context */
 }
 
@@ -19,6 +20,7 @@
   color: #aaaaaa;
   letter-spacing: 1px;
   text-transform: uppercase;
+  flex-shrink: 0; /* Prevent shrinking */
 }
 
 /* Minimal slider styling with improved touch target */
@@ -89,6 +91,7 @@
   font-family: 'Space Mono', monospace;
   font-size: 0.8rem;
   color: #aaaaaa;
+  flex-shrink: 0; /* Prevent shrinking */
 }
 
 /* Responsive styles - apply to tablets and mobile */
@@ -102,6 +105,7 @@
     width: 100%;
     margin-bottom: 10px;
     min-width: 0;
+    justify-content: space-between;
   }
   
   .label {

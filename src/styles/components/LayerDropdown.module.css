@@ -3,9 +3,10 @@
     position: relative;
     margin-left: 10px;
     display: inline-block; /* Ensure the container is visible */
-  }
+    width: 100px; /* Fixed width to prevent layout shifts */
+}
   
-  .dropdownToggle {
+.dropdownToggle {
     display: flex;
     align-items: center;
     gap: 5px;
@@ -19,37 +20,40 @@
     cursor: pointer;
     transition: all 0.2s ease;
     min-width: 90px;
+    width: 100%;
     justify-content: space-between;
-  }
+    box-sizing: border-box;
+}
   
-  .dropdownToggle:hover {
+.dropdownToggle:hover {
     border-color: #555;
     color: #ffffff;
-  }
+}
   
-  .dropdownToggle.expanded {
+.dropdownToggle.expanded {
     border-color: #ffffff;
     color: #ffffff;
-  }
+}
   
-  .currentTrack {
-    max-width: 90px;
+.currentTrack {
+    max-width: 70px; /* Leave room for the arrow */
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
+}
   
-  .arrowIcon {
+.arrowIcon {
     font-size: 0.6rem;
     transition: transform 0.2s ease;
-  }
+    flex-shrink: 0; /* Prevent shrinking */
+}
   
-  .dropdownToggle.expanded .arrowIcon {
+.dropdownToggle.expanded .arrowIcon {
     transform: rotate(180deg);
-  }
+}
   
-  /* Fixed position dropdown menu with higher z-index */
-  .dropdownMenu {
+/* Fixed position dropdown menu with higher z-index */
+.dropdownMenu {
     position: fixed; /* Fixed positioning to stay in place during scroll */
     margin-top: 2px;
     width: 170px;
@@ -63,10 +67,10 @@
     pointer-events: auto; /* Ensure clicks are captured */
     animation: fadeIn 0.2s ease; /* Add animation for better UX */
     /* z-index will be set dynamically in the component with much higher values */
-  }
+}
   
-  /* Fixed dropdown item design */
-  .dropdownItem {
+/* Fixed dropdown item design */
+.dropdownItem {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -78,55 +82,61 @@
     position: relative; /* Create stacking context */
     border-left: 2px solid transparent;
     pointer-events: auto;
-  }
+}
   
-  .dropdownItem:hover {
+.dropdownItem:hover {
     background-color: #333333;
     color: #ffffff;
     border-left-color: #555;
-  }
+}
   
-  .dropdownItem.active {
+.dropdownItem.active {
     background-color: #2a2a2a;
     border-left: 2px solid #ffffff;
     color: #ffffff;
-  }
+}
   
-  .trackName {
+.trackName {
     flex-grow: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
+}
   
-  .activeIndicator {
+.activeIndicator {
     margin-left: 8px;
     font-size: 0.7rem;
     color: #ffffff;
-  }
+    flex-shrink: 0; /* Prevent shrinking */
+}
   
-  /* Crossfade status styling */
-  .crossfadeStatus {
+/* Crossfade status styling */
+.crossfadeStatus {
     color: #ffaa00;
     font-style: italic;
     animation: pulse 1.5s infinite;
-  }
+    max-width: 80px; /* Limit width */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
   
-  .dropdownToggle.crossfading {
+.dropdownToggle.crossfading {
     border-color: #ffaa00;
     pointer-events: none;
     cursor: not-allowed;
-  }
+}
   
-  .preloadingIndicator {
+.preloadingIndicator {
     margin-left: 8px;
     font-size: 0.7rem;
     color: #aaaaaa;
     animation: pulse 1.5s infinite;
-  }
+    flex-shrink: 0; /* Prevent shrinking */
+}
   
-  /* Add overlay blocker to prevent click-through */
-  .menuOverlay {
+/* Add overlay blocker to prevent click-through */
+.menuOverlay {
     position: fixed;
     top: 0;
     left: 0;
@@ -135,36 +145,36 @@
     pointer-events: auto;
     background-color: transparent;
     /* z-index is set dynamically in the component */
-  }
+}
   
-  @keyframes pulse {
+@keyframes pulse {
     0% { opacity: 0.6; }
     50% { opacity: 1; }
     100% { opacity: 0.6; }
-  }
+}
   
-  @keyframes fadeIn {
+@keyframes fadeIn {
     from { opacity: 0; transform: translateY(-5px); }
     to { opacity: 1; transform: translateY(0); }
-  }
+}
   
-  /* Mobile optimization */
-  @media (max-width: 768px) {
+/* Mobile optimization */
+@media (max-width: 768px) {
     .dropdownToggle {
-      min-width: 75px;
-      padding: 6px 10px;
-      font-size: 0.7rem;
+        min-width: 75px;
+        padding: 6px 10px;
+        font-size: 0.7rem;
     }
     
     .dropdownMenu {
-      width: 140px;
+        width: 140px;
     }
-  }
+}
   
-  /* Fix for dropdown positioning on very small screens */
-  @media (max-width: 480px) {
+/* Fix for dropdown positioning on very small screens */
+@media (max-width: 480px) {
     .dropdownMenu {
-      right: 0;
-      left: auto;
+        right: 0;
+        left: auto;
     }
-  }
+}

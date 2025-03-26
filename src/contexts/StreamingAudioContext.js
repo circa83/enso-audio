@@ -1,4 +1,4 @@
-// src/contexts/StreamingAudioContext.js
+// src/contexts/StreamingAudioContext.js - Extended with preset functionality
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
 // Define our audio layers
@@ -99,6 +99,12 @@ export const AudioProvider = ({ children }) => {
 
   // Presets storage
   const [presets, setPresets] = useState({});
+  
+  // NEW: Timeline phases tracking for presets
+  const [timelinePhases, setTimelinePhases] = useState([]);
+  
+  // NEW: State providers for different components
+  const stateProviders = useRef({});
   
   // Initialize the Web Audio API context
   useEffect(() => {
@@ -1246,12 +1252,46 @@ export const AudioProvider = ({ children }) => {
     setNextEventIndex(0);
   }, []);
 
-  // Preset Management Functions
+  // NEW: Function to update timeline phases (called from SessionTimeline)
+  const updateTimelinePhases = useCallback((phases) => {
+    if (!phases || !Array.isArray(phases)) return;
+    setTimelinePhases(phases);
+    console.log('Updated timeline phases in context:', phases);
+  }, []);
+
+  // NEW: Function to register state providers for different components
+  const registerPresetStateProvider = useCallback((key, providerFn) => {
+    if (!key) return;
+    
+    if (providerFn === null) {
+      // Unregister provider
+      delete stateProviders.current[key];
+    } else {
+      // Register provider
+      stateProviders.current[key] = providerFn;
+    }
+  }, []);
+
+  // Preset Management Functions - ENHANCED FOR TIMELINE INTEGRATION
   
-  // Save current state as a preset
+  // Save current state as a preset - ENHANCED
   const savePreset = useCallback((name) => {
     if (!name || name.trim() === '') return false;
     
+    // Collect state from all registered providers
+    const componentStates = {};
+    Object.entries(stateProviders.current).forEach(([key, providerFn]) => {
+      try {
+        const state = providerFn();
+        if (state) {
+          componentStates[key] = state;
+        }
+      } catch (error) {
+        console.error(`Error getting state from provider ${key}:`, error);
+      }
+    });
+    
+    // Create the preset with all state data
     const preset = {
       name,
       date: new Date().toISOString(),
@@ -1259,9 +1299,12 @@ export const AudioProvider = ({ children }) => {
         volumes: { ...volumes },
         activeAudio: { ...activeAudio },
         timelineEvents: [...timelineEvents],
-        phases: [] // This would be filled by the timeline component
+        components: componentStates,  // Include component-specific states
+        timelinePhases: [...timelinePhases] // Include timeline phases
       }
     };
+    
+    console.log('Saving preset with complete state:', preset);
     
     setPresets(prev => {
       const newPresets = {
@@ -1280,12 +1323,14 @@ export const AudioProvider = ({ children }) => {
     });
     
     return true;
-  }, [volumes, activeAudio, timelineEvents]);
+  }, [volumes, activeAudio, timelineEvents, timelinePhases]);
   
-  // Load a saved preset
+  // Load a saved preset - ENHANCED
   const loadPreset = useCallback((name) => {
     const preset = presets[name];
     if (!preset) return false;
+    
+    console.log('Loading preset:', preset);
     
     // Apply the preset state
     if (preset.state.volumes) {
@@ -1304,6 +1349,34 @@ export const AudioProvider = ({ children }) => {
     if (preset.state.timelineEvents) {
       setTimelineEvents(preset.state.timelineEvents);
       setNextEventIndex(0);
+    }
+    
+    // NEW: Apply timeline phases if they exist
+    if (preset.state.timelinePhases && preset.state.timelinePhases.length > 0) {
+      setTimelinePhases(preset.state.timelinePhases);
+      console.log('Loaded timeline phases from preset:', preset.state.timelinePhases);
+      
+      // Dispatch event to notify the timeline component
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent('timeline-update', { 
+          detail: { 
+            phases: preset.state.timelinePhases,
+            sessionDuration: preset.state.components?.timeline?.sessionDuration
+          } 
+        });
+        window.dispatchEvent(event);
+      }
+    }
+    
+    // NEW: Apply component-specific states
+    if (preset.state.components) {
+      Object.entries(preset.state.components).forEach(([componentKey, state]) => {
+        // Dispatch custom events for each component to handle its own state
+        if (typeof window !== 'undefined') {
+          const event = new CustomEvent(`${componentKey}-update`, { detail: state });
+          window.dispatchEvent(event);
+        }
+      });
     }
     
     return true;
@@ -1408,6 +1481,11 @@ export const AudioProvider = ({ children }) => {
     clearTimelineEvents,
     resetTimelineEventIndex,
     
+    // NEW: Timeline phase functions
+    updateTimelinePhases,
+    registerPresetStateProvider,
+    timelinePhases,
+    
     // Preset management
     savePreset,
     loadPreset,
@@ -1439,6 +1517,8 @@ export const AudioProvider = ({ children }) => {
     registerTimelineEvent,
     clearTimelineEvents,
     resetTimelineEventIndex,
+    updateTimelinePhases,
+    registerPresetStateProvider,
     savePreset,
     loadPreset,
     deletePreset,
