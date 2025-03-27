@@ -1,0 +1,130 @@
+/* src/styles/components/loading/CircleVisualizer.module.css */
+.container {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: visible;
+  }
+  
+  .active .pulseCircle {
+    animation: pulse 3s infinite ease-in-out;
+  }
+  
+  .pulseCircle {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+  }
+  
+  .svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    overflow: visible;
+  }
+  
+  .backgroundCircle {
+    fill: transparent;
+    stroke: rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+  }
+  
+  .rotatingCircle {
+    fill: transparent;
+    stroke: rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+  }
+  
+  .active .rotatingCircle {
+    animation: rotate 12s infinite linear;
+  }
+  
+  .innerCircle {
+    fill: transparent;
+    stroke: rgba(255, 255, 255, 0.15);
+    transition: all 0.3s ease;
+  }
+  
+  .active .innerCircle {
+    animation: pulse 4s infinite ease-in-out alternate;
+  }
+  
+  .progressCircle {
+    fill: transparent;
+    stroke: rgba(255, 255, 255, 0.7);
+    transition: stroke-dashoffset 0.5s ease;
+  }
+  
+  .progressText {
+    position: absolute;
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    color: rgba(255, 255, 255, 0.8);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  
+  .active .progressText {
+    opacity: 1;
+  }
+  
+  .ensoSymbol {
+    position: absolute;
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 36px;
+    color: rgba(255, 255, 255, 0.2);
+    transform: translateY(2px);
+    transition: all 0.3s ease;
+  }
+  
+  .active .ensoSymbol {
+    animation: fadeInOut 5s infinite alternate ease-in-out;
+  }
+  
+  @keyframes pulse {
+    0% { 
+      transform: scale(0.98); 
+      opacity: 0.5; 
+    }
+    50% { 
+      transform: scale(1.02); 
+      opacity: 0.8; 
+    }
+    100% { 
+      transform: scale(0.98); 
+      opacity: 0.5; 
+    }
+  }
+  
+  @keyframes rotate {
+    from { 
+      transform-origin: center; 
+      transform: rotate(0deg); 
+    }
+    to { 
+      transform-origin: center; 
+      transform: rotate(360deg); 
+    }
+  }
+  
+  @keyframes fadeInOut {
+    0% { 
+      opacity: 0.1; 
+      transform: translateY(2px) scale(0.95);
+    }
+    50% { 
+      opacity: 0.7; 
+      transform: translateY(0) scale(1);
+    }
+    100% { 
+      opacity: 0.1; 
+      transform: translateY(2px) scale(0.95);
+    }
+  }

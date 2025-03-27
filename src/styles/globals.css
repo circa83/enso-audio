@@ -1,4 +1,6 @@
 /* src/styles/globals.css */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@100;200;300&family=Space+Mono&family=Noto+Sans+JP:wght@300&display=swap');
+
 html, body {
   margin: 0;
   padding: 0;
@@ -33,11 +35,47 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 200;
   margin-top: 0;
 }
+
+/* Visualizer variables */
 :root {
-  /* Existing variables */
-  
-  /* Visualizer variables */
   --bass-intensity: 0;
   --mid-intensity: 0;
   --high-intensity: 0;
+}
+
+/* Prevent FOUC (Flash of Unstyled Content) */
+.no-fouc {
+  visibility: hidden;
+}
+
+.fouc-ready {
+  visibility: visible;
+  transition: opacity 0.3s ease;
+}
+
+/* Add some global animation keyframes that can be reused */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes pulse {
+  0%, 100% { 
+    transform: scale(0.98); 
+    opacity: 0.5; 
+  }
+  50% { 
+    transform: scale(1.02); 
+    opacity: 0.8; 
+  }
+}
+
+/* Prevent scrolling when modals are open */
+body.modal-open {
+  overflow: hidden;
 }

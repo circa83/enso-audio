@@ -1,14 +1,14 @@
 // pages/_app.js
 import React, { useState, useEffect } from 'react';
-import { SessionProvider, signOut } from 'next-auth/react';
+import { SessionProvider } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { AudioProvider } from '../contexts/StreamingAudioContext';
 import { AuthProvider } from '../contexts/AuthContext';
-import LoadingScreen from '../components/LoadingScreen';
-import '../styles/globals.css';  // Global CSS must be imported here
+import AppLoadingScreen from '../components/loading/AppLoadingScreen';
+import '../styles/globals.css';
 
-// Error handler for auth failures
+// Error handler component for auth failures
 const AuthErrorBoundary = ({ children }) => {
   const [hasError, setHasError] = useState(false);
   const router = useRouter();
@@ -16,21 +16,13 @@ const AuthErrorBoundary = ({ children }) => {
   useEffect(() => {
     // Function to handle auth errors
     const handleAuthError = async (event) => {
-      if (event.detail?.error && 
-          (event.detail.error.includes('auth') || 
-           event.detail.error.includes('session'))) {
+      if (event.detail?.error) {
         console.error('Auth error detected:', event.detail.error);
         setHasError(true);
-        
-        // Attempt to clear session and redirect to login
-        try {
-          await signOut({ redirect: false });
+        // Redirect to login after a short delay
+        setTimeout(() => {
           router.push('/login?error=AuthError');
-        } catch (err) {
-          console.error('Failed to sign out after auth error:', err);
-          // Force redirect to login as fallback
-          router.push('/login?error=AuthError');
-        }
+        }, 1000);
       }
     };
 
@@ -78,148 +70,111 @@ const AuthErrorBoundary = ({ children }) => {
   return children;
 };
 
-// Custom fetch function to handle auth timeouts
-function setupAuthTimeoutHandling() {
-  const originalFetch = window.fetch;
+function AppContent({ Component, pageProps }) {
+  const router = useRouter();
+  const [loadingState, setLoadingState] = useState({
+    isLoading: true,
+    progress: 0,
+    message: 'Initializing application...'
+  });
   
-  window.fetch = async function (...args) {
-    const url = args[0] && typeof args[0] === 'string' ? args[0] : '';
+  // Handle loading progress
+  useEffect(() => {
+    let currentProgress = 0;
     
-    // Only intercept auth-related requests
-    if (url.includes('/api/auth')) {
-      // Create a timeout for auth requests
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
-      
-      // Add signal to request options
-      if (args[1] && typeof args[1] === 'object') {
-        args[1].signal = controller.signal;
-      } else {
-        args[1] = { signal: controller.signal };
-      }
-      
-      try {
-        const response = await originalFetch.apply(this, args);
-        clearTimeout(timeoutId);
+    // Simulate loading progress
+    const interval = setInterval(() => {
+      if (currentProgress < 100) {
+        currentProgress += Math.random() * 15;
         
-        // Check for auth errors in the response
-        if (!response.ok && url.includes('/api/auth')) {
-          const errorEvent = new CustomEvent('auth-error', { 
-            detail: { 
-              error: `Auth request failed: ${response.status} ${response.statusText}`,
-              url
-            } 
-          });
-          window.dispatchEvent(errorEvent);
+        if (currentProgress > 85 && currentProgress < 98) {
+          // Slow down near the end for a more realistic feel
+          currentProgress += Math.random() * 2;
         }
         
-        return response;
-      } catch (error) {
-        clearTimeout(timeoutId);
-        
-        // Dispatch custom event for auth errors
-        if (url.includes('/api/auth')) {
-          const errorEvent = new CustomEvent('auth-error', { 
-            detail: { 
-              error: `Auth request error: ${error.message}`,
-              url
-            } 
-          });
-          window.dispatchEvent(errorEvent);
+        if (currentProgress > 100) {
+          currentProgress = 100;
         }
         
-        throw error;
-      }
-    }
-    
-    // Pass through non-auth requests
-    return originalFetch.apply(this, args);
-  };
-}
-
-function MyApp({ Component, pageProps: { session, ...pageProps } }) {
-  const [isLoading, setIsLoading] = useState(true);
-  
-  useEffect(() => {
-    // Setup auth timeout handling
-    setupAuthTimeoutHandling();
-    
-    // Add a reasonable delay for app initialization
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
-    
-    return () => clearTimeout(timer);
-  }, []);
-  
-  // Authentication system healthcheck
-  useEffect(() => {
-    const checkAuthSystem = async () => {
-      try {
-        const response = await fetch('/api/auth/health', {
-          method: 'GET',
-          cache: 'no-store'
+        // Update loading message based on progress
+        let message = 'Initializing application...';
+        if (currentProgress > 30) message = 'Loading resources...';
+        if (currentProgress > 60) message = 'Preparing audio engine...';
+        if (currentProgress > 85) message = 'Almost ready...';
+        if (currentProgress >= 100) message = 'Finishing up...';
+        
+        setLoadingState({
+          isLoading: true,
+          progress: Math.floor(currentProgress),
+          message
         });
+      } else {
+        clearInterval(interval);
         
-        if (!response.ok) {
-          console.warn('Auth system health check failed:', await response.json());
-        } else {
-          console.log('Auth system health check passed');
-        }
-      } catch (error) {
-        console.error('Error checking auth system health:', error);
+        // Short delay before hiding loading screen to ensure smooth transition
+        setTimeout(() => {
+          setLoadingState({
+            isLoading: false,
+            progress: 100,
+            message: 'Complete'
+          });
+        }, 500);
       }
-    };
+    }, 150);
     
-    checkAuthSystem();
+    return () => clearInterval(interval);
   }, []);
   
-  if (isLoading) {
+  // Public pages that don't require the full app initialization
+  const isPublicPage = 
+    router.pathname === '/login' || 
+    router.pathname === '/register' || 
+    router.pathname === '/';
+  
+  // For public pages, don't load the AudioProvider (heavy) but still use AuthProvider
+  if (isPublicPage && !loadingState.isLoading) {
     return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-        backgroundColor: '#121212',
-        color: '#eaeaea'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <h1 style={{ 
-            fontFamily: 'Archivo, sans-serif', 
-            fontWeight: 100,
-            fontSize: '2rem',
-            letterSpacing: '8px'
-          }}>
-            Ensō Audio
-          </h1>
-          <p style={{ 
-            fontFamily: 'Archivo, sans-serif', 
-            fontWeight: 200, 
-            fontSize: '1rem',
-            opacity: 0.7
-          }}>
-            Loading application...
-          </p>
-        </div>
-      </div>
+      <AuthProvider>
+        <Component {...pageProps} />
+      </AuthProvider>
     );
   }
+  
+  // Show loading screen while initializing
+  if (loadingState.isLoading) {
+    return (
+      <AppLoadingScreen 
+        progress={loadingState.progress} 
+        message={loadingState.message}
+        isVisible={true}
+      />
+    );
+  }
+  
+  // For authenticated routes, wrap with providers
+  return (
+    <AuthProvider>
+      <AudioProvider>
+        <Component {...pageProps} />
+      </AudioProvider>
+    </AuthProvider>
+  );
+}
 
+function MyApp({ Component, pageProps }) {
   return (
     <>
       <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Ensō Audio</title>
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300&display=swap" rel="stylesheet" />
       </Head>
       
-      <SessionProvider 
-  session={session} 
-  refetchInterval={60} // Refetch session every minute
-  refetchOnWindowFocus={true} // Refetch when user focuses window
->
-  {/* Your components */}
-</SessionProvider>
+      <SessionProvider session={pageProps.session} refetchInterval={0}>
+        <AuthErrorBoundary>
+          <AppContent Component={Component} pageProps={pageProps} />
+        </AuthErrorBoundary>
+      </SessionProvider>
     </>
   );
 }
