@@ -33,3 +33,11 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 200;
   margin-top: 0;
 }
+:root {
+  /* Existing variables */
+  
+  /* Visualizer variables */
+  --bass-intensity: 0;
+  --mid-intensity: 0;
+  --high-intensity: 0;
+}
