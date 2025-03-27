@@ -348,7 +348,7 @@ const Player = () => {
       {/* Collapsible Section for Session Timeline */}
       <CollapsibleSection 
         title="Session Timeline" 
-        initialExpanded={true}
+        initialExpanded={false}
       >
         {renderSessionTimeline()}
       </CollapsibleSection>
@@ -356,7 +356,7 @@ const Player = () => {
       {/* Collapsible Section for Audio Layers */}
       <CollapsibleSection 
         title="Audio Layers" 
-        initialExpanded={true}
+        initialExpanded={false}
       >
         {renderLayerControls()}
       </CollapsibleSection>

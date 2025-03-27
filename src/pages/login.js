@@ -5,7 +5,6 @@ import Link from 'next/link';
 import Head from 'next/head';
 import { signIn, useSession } from 'next-auth/react';
 import { useAuth } from '../contexts/AuthContext';
-import CircleVisualizer from '../components/loading/CircleVisualizer';
 import styles from '../styles/pages/Auth.module.css';
 
 const Login = () => {
@@ -18,17 +17,6 @@ const Login = () => {
   const [formError, setFormError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loginInProgress, setLoginInProgress] = useState(false);
-  const [pageLoading, setPageLoading] = useState(true);
-  
-  // Handle initial page loading
-  useEffect(() => {
-    // Short timeout to ensure loading UI is visible
-    const timer = setTimeout(() => {
-      setPageLoading(false);
-    }, 800);
-    
-    return () => clearTimeout(timer);
-  }, []);
   
   // Get error message from URL if present
   useEffect(() => {
@@ -160,36 +148,6 @@ const Login = () => {
       setIsLoading(false);
     }
   };
-  
-  // If the page is in initial loading state
-  if (pageLoading) {
-    return (
-      <div className={styles.authContainer}>
-        <div className={styles.authCard}>
-          <h1 className={styles.authTitle}>Ensō Audio</h1>
-          <div style={{ margin: '30px auto', width: '80px', height: '80px' }}>
-            <CircleVisualizer size={80} isActive={true} progress={100} />
-          </div>
-          <h2 className={styles.authSubtitle}>Preparing login...</h2>
-        </div>
-      </div>
-    );
-  }
-  
-  // If NextAuth is still initializing
-  if (status === 'loading') {
-    return (
-      <div className={styles.authContainer}>
-        <div className={styles.authCard}>
-          <h1 className={styles.authTitle}>Ensō Audio</h1>
-          <div style={{ margin: '30px auto', width: '80px', height: '80px' }}>
-            <CircleVisualizer size={80} isActive={true} progress={100} />
-          </div>
-          <h2 className={styles.authSubtitle}>Checking authentication...</h2>
-        </div>
-      </div>
-    );
-  }
   
   return (
     <div className={styles.authContainer}>

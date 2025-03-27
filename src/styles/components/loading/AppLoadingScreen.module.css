@@ -13,6 +13,9 @@
   opacity: 1;
   transition: opacity 0.5s ease;
 }
+.fadeOut {
+  opacity: 0;
+}
 
 .loadingContent {
   display: flex;
