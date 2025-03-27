@@ -213,15 +213,13 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
         <title>Ensō Audio</title>
       </Head>
       
-      <SessionProvider session={session} refetchInterval={60} refetchOnWindowFocus={true}>
-        <AuthErrorBoundary>
-          <AuthProvider>
-            <AudioProvider>
-              <Component {...pageProps} />
-            </AudioProvider>
-          </AuthProvider>
-        </AuthErrorBoundary>
-      </SessionProvider>
+      <SessionProvider 
+  session={session} 
+  refetchInterval={60} // Refetch session every minute
+  refetchOnWindowFocus={true} // Refetch when user focuses window
+>
+  {/* Your components */}
+</SessionProvider>
     </>
   );
 }

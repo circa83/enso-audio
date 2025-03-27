@@ -4,18 +4,36 @@ import dbConnect from '../../../lib/mongodb';
 import User from '../../../models/User';
 
 export default async function handler(req, res) {
+  // Get the session using the more reliable method
   const session = await getSession({ req });
+  
+  // Debug log to help troubleshoot
+  console.log('Session in stats API:', session ? 'Session exists' : 'No session found');
   
   // Check authentication
   if (!session) {
-    return res.status(401).json({ message: 'Unauthorized' });
+    console.log('No session found, returning 401');
+    return res.status(401).json({ message: 'Unauthorized - No session found' });
   }
   
   // Connect to database
-  await dbConnect();
+  try {
+    await dbConnect();
+  } catch (error) {
+    console.error('Database connection error:', error);
+    return res.status(500).json({ message: 'Database connection failed' });
+  }
   
   // Get user ID from session
   const userId = session.user.id;
+  
+  // Debug log to help troubleshoot
+  console.log('User ID from session:', userId);
+  
+  if (!userId) {
+    console.log('Session exists but no user ID found');
+    return res.status(401).json({ message: 'Unauthorized - Invalid session (no user ID)' });
+  }
   
   switch (req.method) {
     case 'GET':
@@ -23,11 +41,22 @@ export default async function handler(req, res) {
       try {
         const user = await User.findById(userId);
         if (!user) {
+          console.log('User not found with ID:', userId);
           return res.status(404).json({ message: 'User not found' });
         }
         
-        // Return just the stats
-        return res.status(200).json(user.stats);
+        // If the user has no stats yet, return defaults
+        const stats = user.stats || {
+          sessionsCompleted: 0,
+          activeClients: 0,
+          totalSessionTime: 0,
+        };
+        
+        // Log success
+        console.log('Successfully retrieved stats for user:', userId);
+        
+        // Return user data (password is automatically excluded by the schema)
+        return res.status(200).json(stats);
       } catch (error) {
         console.error('Error getting user stats:', error);
         return res.status(500).json({ message: 'Error getting user stats' });
