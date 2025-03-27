@@ -1,6 +1,7 @@
 // pages/_app.js
 import React, { useState, useEffect } from 'react';
 import { SessionProvider } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { AudioProvider } from '../contexts/StreamingAudioContext';
@@ -72,67 +73,57 @@ const AuthErrorBoundary = ({ children }) => {
 
 function AppContent({ Component, pageProps }) {
   const router = useRouter();
-  const [loadingState, setLoadingState] = useState({
-    isLoading: true,
-    progress: 0,
-    message: 'Initializing application...'
-  });
+  const { data: session, status } = useSession();
+  const [isLoading, setIsLoading] = useState(true);
+  const [progress, setProgress] = useState(0);
   
-  // Handle loading progress
+  // Single smooth loading simulation
   useEffect(() => {
     let currentProgress = 0;
+    const targetProgress = 100;
     
-    // Simulate loading progress
+    // Simulate loading progress - go all the way to 100%
     const interval = setInterval(() => {
-      if (currentProgress < 100) {
-        currentProgress += Math.random() * 15;
+      if (currentProgress < targetProgress) {
+        // Start fast, then slow down near completion
+        const increment = currentProgress < 70 
+          ? Math.random() * 10  // Faster initially
+          : Math.random() * 3;  // Slower as we approach completion
         
-        if (currentProgress > 85 && currentProgress < 98) {
-          // Slow down near the end for a more realistic feel
-          currentProgress += Math.random() * 2;
+        currentProgress += increment;
+        
+        if (currentProgress > targetProgress) {
+          currentProgress = targetProgress;
         }
         
-        if (currentProgress > 100) {
-          currentProgress = 100;
+        setProgress(Math.floor(currentProgress));
+        
+        // When we reach 100%, wait a moment before hiding the loading screen
+        if (currentProgress >= targetProgress) {
+          clearInterval(interval);
+          
+          // Give a small delay for visual polish before revealing content
+          setTimeout(() => {
+            setIsLoading(false);
+          }, 300);
         }
-        
-        // Update loading message based on progress
-        let message = 'Initializing application...';
-        if (currentProgress > 30) message = 'Loading resources...';
-        if (currentProgress > 60) message = 'Preparing audio engine...';
-        if (currentProgress > 85) message = 'Almost ready...';
-        if (currentProgress >= 100) message = 'Finishing up...';
-        
-        setLoadingState({
-          isLoading: true,
-          progress: Math.floor(currentProgress),
-          message
-        });
-      } else {
-        clearInterval(interval);
-        
-        // Short delay before hiding loading screen to ensure smooth transition
-        setTimeout(() => {
-          setLoadingState({
-            isLoading: false,
-            progress: 100,
-            message: 'Complete'
-          });
-        }, 500);
       }
     }, 150);
     
     return () => clearInterval(interval);
   }, []);
   
-  // Public pages that don't require the full app initialization
-  const isPublicPage = 
-    router.pathname === '/login' || 
-    router.pathname === '/register' || 
-    router.pathname === '/';
+  // Show loading screen until fully loaded
+  if (isLoading || status === 'loading') {
+    return <AppLoadingScreen 
+      progress={progress} 
+      isVisible={true} 
+      message={progress >= 90 ? "Preparing application..." : "Loading..."}
+    />;
+  }
   
-  // For public pages, don't load the AudioProvider (heavy) but still use AuthProvider
-  if (isPublicPage && !loadingState.isLoading) {
+  // For unauthenticated users, still use AuthProvider but not AudioProvider
+  if (status === 'unauthenticated') {
     return (
       <AuthProvider>
         <Component {...pageProps} />
@@ -140,18 +131,7 @@ function AppContent({ Component, pageProps }) {
     );
   }
   
-  // Show loading screen while initializing
-  if (loadingState.isLoading) {
-    return (
-      <AppLoadingScreen 
-        progress={loadingState.progress} 
-        message={loadingState.message}
-        isVisible={true}
-      />
-    );
-  }
-  
-  // For authenticated routes, wrap with providers
+  // For authenticated users, wrap with both providers
   return (
     <AuthProvider>
       <AudioProvider>
@@ -167,7 +147,7 @@ function MyApp({ Component, pageProps }) {
       <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Ensō Audio</title>
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@100;200;300&family=Space+Mono&family=Noto+Sans+JP:wght@300&display=swap" rel="stylesheet" />
       </Head>
       
       <SessionProvider session={pageProps.session} refetchInterval={0}>
