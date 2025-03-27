@@ -1,4 +1,4 @@
-// src/contexts/StreamingAudioContext.js - Extended with preset functionality
+// src/contexts/StreamingAudioContext.js - Extended with preset and master volume functionality
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
 // Define our audio layers
@@ -42,6 +42,10 @@ export const AudioProvider = ({ children }) => {
   
   // Store gain nodes for each layer
   const [gainNodes, setGainNodes] = useState({});
+  
+  // Master volume control - NEW
+  const [masterVolume, setMasterVolume] = useState(0.8); // Default to 80%
+  const masterGainRef = useRef(null);
   
   // Store all audio elements (active and preloaded)
   const [audioElements, setAudioElements] = useState({
@@ -115,11 +119,18 @@ export const AudioProvider = ({ children }) => {
           const ctx = new (window.AudioContext || window.webkitAudioContext)();
           setAudioCtx(ctx);
           
+          // Create master gain node - NEW
+          const masterGain = ctx.createGain();
+          masterGain.gain.value = masterVolume;
+          masterGain.connect(ctx.destination);
+          masterGainRef.current = masterGain;
+          
           // Create gain nodes for each layer
           const nodes = {};
           Object.values(LAYERS).forEach(layer => {
             nodes[layer] = ctx.createGain();
-            nodes[layer].connect(ctx.destination);
+            // Connect to master gain instead of directly to destination - CHANGED
+            nodes[layer].connect(masterGain);
           });
           setGainNodes(nodes);
           
@@ -578,6 +589,14 @@ export const AudioProvider = ({ children }) => {
     }
   }, [activeAudio, audioElements, updatePlayingState, activeCrossfades, gainNodes]);
 
+  // Update master volume for overall output - NEW
+  const setMasterVolumeLevel = useCallback((value) => {
+    if (!masterGainRef.current) return;
+    
+    setMasterVolume(value);
+    masterGainRef.current.gain.value = value;
+  }, []);
+
   // Update volume for a layer - IMPROVED to handle volume during crossfades
   const setVolume = useCallback((layer, value) => {
     if (!gainNodes[layer]) return;
@@ -950,9 +969,9 @@ export const AudioProvider = ({ children }) => {
     // Store nodes for cancellation and volume control
     activeCrossfadeNodes.current[layer] = { fadeOutGain, fadeInGain };
     
-    // Connect to destination
-    fadeOutGain.connect(audioCtx.destination);
-    fadeInGain.connect(audioCtx.destination);
+    // Connect to destination (actually to master gain node) - CHANGED
+    fadeOutGain.connect(masterGainRef.current);
+    fadeInGain.connect(masterGainRef.current);
     
     // Disconnect and reconnect audio graphs
     try {
@@ -1131,7 +1150,7 @@ export const AudioProvider = ({ children }) => {
     }, updateInterval);
     
     return true;
-  }, [audioCtx, gainNodes, volumes, activeAudio, audioLibrary, audioElements, isPlayingRef]);
+  }, [audioCtx, gainNodes, volumes, activeAudio, audioLibrary, audioElements, isPlayingRef, masterGainRef]);
 
   // Calculate elapsed session time
   const getSessionTime = useCallback(() => {
@@ -1183,7 +1202,7 @@ export const AudioProvider = ({ children }) => {
     
     console.log("Crossfade test complete");
     return true;
-  }, [audioLibrary, activeAudio, hasSwitchableAudio, startSession, enhancedCrossfadeTo]);
+  }, [audioLibrary, activeAudio, hasSwitchableAudio, startSession, enhancedCrossfadeTo, isPlayingRef]);
 
   // Add function to reset timeline event index (e.g., when restarting a session)
   const resetTimelineEventIndex = useCallback(() => {
@@ -1466,6 +1485,10 @@ export const AudioProvider = ({ children }) => {
     activeCrossfades,
     preloadProgress, // Add preload progress for UI to show loading status
     
+    // NEW: Master volume
+    masterVolume,
+    setMasterVolumeLevel,
+    
     // Audio controls
     setVolume,
     startSession,
@@ -1507,18 +1530,27 @@ export const AudioProvider = ({ children }) => {
     crossfadeProgress, 
     activeCrossfades,
     preloadProgress,
+    
+    // NEW: Master volume
+    masterVolume,
+    setMasterVolumeLevel,
+    
     setVolume, 
     startSession, 
     pauseSession, 
     enhancedCrossfadeTo,
     getSessionTime,
     testCrossfade,
+    
     timelineEvents,
     registerTimelineEvent,
     clearTimelineEvents,
     resetTimelineEventIndex,
+    
     updateTimelinePhases,
     registerPresetStateProvider,
+    timelinePhases,
+    
     savePreset,
     loadPreset,
     deletePreset,

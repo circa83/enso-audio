@@ -1,21 +1,19 @@
 // src/components/Player.js
-import React, { useCallback, useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAudio } from '../contexts/StreamingAudioContext';
+import CollapsibleSection from './common/CollapsibleSection';
 import LayerControl from './audio/LayerControl';
 import SessionTimer from './audio/SessionTimer';
 import SessionTimeline from './audio/SessionTimeline';
 import SessionSettings from './audio/SessionSettings';
-import TapePlayerGraphic from './audio/TapePlayerGraphic';
+import PlayerControlPanel from './audio/PlayerControlPanel';
 import TimelineDebugPanel from './audio/TimelineDebugPanel';
 import styles from '../styles/pages/Player.module.css';
 
 const Player = () => {
   const { 
     LAYERS, 
-    isPlaying, 
     volumes, 
-    startSession, 
-    pauseSession,
     hasSwitchableAudio,
     setVolume,
     getSessionTime,
@@ -28,7 +26,7 @@ const Player = () => {
     registerPresetStateProvider
   } = useAudio();
   
-  const [sessionDuration, setSessionDuration] = useState(60 * 1000); // Default 1 hour
+  const [sessionDuration, setSessionDuration] = useState(60 * 60 * 1000); // Default 1 hour
   const [timelineEnabled, setTimelineEnabled] = useState(true);
   const [transitionDuration, setTransitionDuration] = useState(4000); // Default 4 seconds
   const [showDebugPanel, setShowDebugPanel] = useState(false); // Debug panel state
@@ -113,14 +111,6 @@ const Player = () => {
       setPresets(availablePresets);
     }
   }, [showPresets, getPresets]);
-  
-  const togglePlayPause = useCallback(() => {
-    if (isPlaying) {
-      pauseSession();
-    } else {
-      startSession();
-    }
-  }, [isPlaying, pauseSession, startSession]);
   
   // Save current state as a preset
   const handleSavePreset = () => {
@@ -285,6 +275,55 @@ const Player = () => {
     reader.readAsText(file);
   };
   
+  // Render audio layer controls
+  const renderLayerControls = () => {
+    return (
+      <div className={styles.layerControlsContent}>
+        {Object.values(LAYERS).map(layer => (
+          <LayerControl
+            key={layer}
+            label={layer.charAt(0).toUpperCase() + layer.slice(1)}
+            value={volumes[layer.toLowerCase()]}
+            onChange={(value) => setVolume(layer.toLowerCase(), value)}
+            layer={layer}
+          />
+        ))}
+      </div>
+    );
+  };
+  
+  // Render session timeline content
+  const renderSessionTimeline = () => {
+    if (!timelineEnabled) return (
+      <div className={styles.timelineDisabled}>
+        Timeline is currently disabled. Enable it in Session Settings.
+      </div>
+    );
+    
+    return (
+      <SessionTimeline 
+        enabled={true}
+        sessionDuration={sessionDuration}
+        transitionDuration={transitionDuration}
+        onDurationChange={setSessionDuration}
+      />
+    );
+  };
+  
+  // Render session settings content - reusing the existing component
+  const renderSessionSettings = () => {
+    return (
+      <SessionSettings 
+        sessionDuration={sessionDuration}
+        timelineEnabled={timelineEnabled}
+        transitionDuration={transitionDuration}
+        onDurationChange={newDuration => setSessionDuration(newDuration)}
+        onTransitionDurationChange={newDuration => setTransitionDuration(newDuration)}
+        onTimelineToggle={enabled => setTimelineEnabled(enabled)}
+      />
+    );
+  };
+  
   return (
     <div className={styles.simplePlayer}>
       <h1 className={styles.title}>Ensō Audio</h1>
@@ -293,17 +332,11 @@ const Player = () => {
         Adjust audio layers in real-time to guide the therapeutic journey
       </div>
       
-      <TapePlayerGraphic />
+      {/* Main player and controls */}
+      <PlayerControlPanel />
       
-      <div className={styles.playerControls}>
-        <button 
-          className={`${styles.playButton} ${isPlaying ? styles.playing : ''}`}
-          onClick={togglePlayPause}
-        >
-          {isPlaying ? 'Stop' : 'Play'}
-        </button>
-        
-        {/* Preset management button */}
+      {/* Preset Toggle Button */}
+      <div className={styles.presetToggle}>
         <button 
           className={`${styles.presetButton} ${showPresets ? styles.active : ''}`}
           onClick={() => setShowPresets(!showPresets)}
@@ -311,6 +344,33 @@ const Player = () => {
           {showPresets ? 'Hide Presets' : 'Presets'}
         </button>
       </div>
+      
+      {/* Collapsible Section for Session Timeline */}
+      <CollapsibleSection 
+        title="Session Timeline" 
+        initialExpanded={true}
+      >
+        {renderSessionTimeline()}
+      </CollapsibleSection>
+      
+      {/* Collapsible Section for Audio Layers */}
+      <CollapsibleSection 
+        title="Audio Layers" 
+        initialExpanded={true}
+      >
+        {renderLayerControls()}
+      </CollapsibleSection>
+      
+      {/* Collapsible Section for Session Settings */}
+      <CollapsibleSection 
+        title="Session Settings" 
+        initialExpanded={false}
+      >
+        {renderSessionSettings()}
+      </CollapsibleSection>
+      
+      {/* Session Timer */}
+      <SessionTimer />
       
       {/* Preset management panel */}
       {showPresets && (
@@ -470,68 +530,8 @@ const Player = () => {
         </div>
       )}
       
-      {/* Session settings component */}
-      <SessionSettings 
-        sessionDuration={sessionDuration}
-        timelineEnabled={timelineEnabled}
-        transitionDuration={transitionDuration}
-        onDurationChange={newDuration => setSessionDuration(newDuration)}
-        onTransitionDurationChange={newDuration => setTransitionDuration(newDuration)}
-        onTimelineToggle={enabled => setTimelineEnabled(enabled)}
-      />
-      
-      {/* Timeline Component - only if enabled */}
-      <SessionTimeline 
-        enabled={timelineEnabled}
-        sessionDuration={sessionDuration}
-        transitionDuration={transitionDuration}
-        onDurationChange={setSessionDuration}
-      />
-      
       {/* Debug Panel - only visible when toggled */}
       <TimelineDebugPanel enabled={showDebugPanel} />
-      
-      <div className={styles.layerControls}>
-        <h2 className={styles.sectionTitle}>Audio Layers</h2>
-        
-        {Object.values(LAYERS).map(layer => (
-          <LayerControl
-            key={layer}
-            label={layer.charAt(0).toUpperCase() + layer.slice(1)}
-            value={volumes[layer]}
-            onChange={(value) => setVolume(layer, value)}
-            layer={layer}  
-          />
-        ))}
-      </div>
-      
-      <div className={styles.geometricLine}></div>
-      
-      <SessionTimer />
-      
-      {!timelineEnabled && (
-        <div className={styles.journeyGuide}>
-          <h3>Session Flow Guide</h3>
-          <div className={styles.journeyPhases}>
-            <div className={styles.journeyPhase}>
-              <h4>Pre-Onset</h4>
-              <p>Higher drone, lower rhythm</p>
-            </div>
-            <div className={styles.journeyPhase}>
-              <h4>Onset & Buildup</h4>
-              <p>Increase melody and rhythm gradually</p>
-            </div>
-            <div className={styles.journeyPhase}>
-              <h4>Peak</h4>
-              <p>Balanced mix of all elements</p>
-            </div>
-            <div className={styles.journeyPhase}>
-              <h4>Return & Integration</h4>
-              <p>Reduce rhythm, increase nature</p>
-            </div>
-          </div>
-        </div>
-      )}
       
       <div className={styles.debugNote}>
         Press Ctrl+Shift+D to toggle debug panel

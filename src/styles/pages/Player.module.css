@@ -47,56 +47,14 @@
   letter-spacing: 1px;
 }
 
-/* Player controls section with tape deck aesthetic */
-.playerControls {
+/* Preset toggle button */
+.presetToggle {
   display: flex;
   justify-content: center;
-  align-items: center;
-  gap: 30px;
-  margin: 30px 0;
-  padding: 30px;
-  background-color: #1c1c1c;
-  border: 1px solid #333;
-  position: relative;
+  margin: 20px 0;
 }
 
-/* Minimal play button */
-.playButton {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background-color: transparent;
-  border: 1px solid #ffffff;
-  color: #ffffff;
-  font-family: 'Archivo', sans-serif;
-  font-weight: 200;
-  font-size: 0.8rem;
-  letter-spacing: 1px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-transform: uppercase;
-}
-
-.playButton:hover {
-  background-color: #ffffff;
-  color: #111111;
-}
-
-.playButton.playing {
-  background-color: #ffffff;
-  color: #111111;
-}
-
-.playbutton:not(.playing){
-  background-color: transparent;
-  color: white;
-}
-
-/* Button styles */
-.soundLibraryButton, .presetButton {
+.presetButton {
   padding: 8px 16px;
   background-color: transparent;
   border: 1px solid #444;
@@ -110,35 +68,36 @@
   transition: all 0.2s ease;
 }
 
-.soundLibraryButton:hover, .presetButton:hover {
+.presetButton:hover {
   border-color: #ffffff;
   color: #ffffff;
 }
 
-.soundLibraryButton.active, .presetButton.active {
+.presetButton.active {
   border-color: #ffffff;
   color: #ffffff;
 }
 
-/* Layer controls with minimal styling */
-.layerControls {
-  margin: 40px 0;
-  padding: 40px;
-  background-color: #1c1c1c;
-  border: 1px solid #333;
-  width: 100%;
-  box-sizing: border-box;
+/* Layer controls content container */
+.layerControlsContent {
+  padding: 10px 0;
 }
 
-/* Layer selectors section */
-.layerSelectors {
-  margin: 40px 0;
-  padding: 40px;
-  background-color: #1c1c1c;
-  border: 1px solid #333;
-  animation: fadeIn 0.3s ease;
+/* Timeline disabled message */
+.timelineDisabled {
+  text-align: center;
+  padding: 30px;
+  color: #666;
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+/* Geometric line for section separation */
+.geometricLine {
   width: 100%;
-  box-sizing: border-box;
+  height: 1px;
+  background-color: #333;
+  margin: 50px 0;
 }
 
 /* Enhanced Preset panel styling */
@@ -483,13 +442,6 @@
   }
 }
 
-.geometricLine {
-  width: 100%;
-  height: 1px;
-  background-color: #333;
-  margin: 50px 0;
-}
-
 /*journey phases section */
 .journeyGuide {
   margin: 40px 0 20px;
@@ -567,14 +519,6 @@
     letter-spacing: 5px;
   }
   
-  .playerControls {
-    flex-direction: column;
-    gap: 20px;
-    padding: 30px 20px;
-  }
-  
-  .layerControls, 
-  .layerSelectors,
   .presetsPanel {
     padding: 20px;
   }
