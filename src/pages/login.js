@@ -4,17 +4,31 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Head from 'next/head';
 import { signIn, useSession } from 'next-auth/react';
+import { useAuth } from '../contexts/AuthContext';
+import CircleVisualizer from '../components/loading/CircleVisualizer';
 import styles from '../styles/pages/Auth.module.css';
 
 const Login = () => {
   const router = useRouter();
   const { data: session, status } = useSession();
+  const { user } = useAuth();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [formError, setFormError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loginInProgress, setLoginInProgress] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
+  
+  // Handle initial page loading
+  useEffect(() => {
+    // Short timeout to ensure loading UI is visible
+    const timer = setTimeout(() => {
+      setPageLoading(false);
+    }, 800);
+    
+    return () => clearTimeout(timer);
+  }, []);
   
   // Get error message from URL if present
   useEffect(() => {
@@ -25,6 +39,8 @@ const Login = () => {
         'CredentialsSignin': 'Invalid email or password. Please try again.',
         'SessionRequired': 'You need to be logged in to access that page.',
         'AccessDenied': 'You do not have permission to access that page.',
+        'AuthError': 'An authentication error occurred. Please try again.',
+        'SessionExpired': 'Your session has expired. Please log in again.',
         'Default': 'An error occurred during sign in. Please try again.'
       };
       
@@ -145,13 +161,31 @@ const Login = () => {
     }
   };
   
+  // If the page is in initial loading state
+  if (pageLoading) {
+    return (
+      <div className={styles.authContainer}>
+        <div className={styles.authCard}>
+          <h1 className={styles.authTitle}>Ensō Audio</h1>
+          <div style={{ margin: '30px auto', width: '80px', height: '80px' }}>
+            <CircleVisualizer size={80} isActive={true} progress={100} />
+          </div>
+          <h2 className={styles.authSubtitle}>Preparing login...</h2>
+        </div>
+      </div>
+    );
+  }
+  
   // If NextAuth is still initializing
   if (status === 'loading') {
     return (
       <div className={styles.authContainer}>
         <div className={styles.authCard}>
           <h1 className={styles.authTitle}>Ensō Audio</h1>
-          <h2 className={styles.authSubtitle}>Loading...</h2>
+          <div style={{ margin: '30px auto', width: '80px', height: '80px' }}>
+            <CircleVisualizer size={80} isActive={true} progress={100} />
+          </div>
+          <h2 className={styles.authSubtitle}>Checking authentication...</h2>
         </div>
       </div>
     );
@@ -165,7 +199,7 @@ const Login = () => {
       
       <div className={styles.authCard}>
         <h1 className={styles.authTitle}>Ensō Audio</h1>
-        <h2 className={styles.authSubtitle}>Therapist Login</h2>
+        <h2 className={styles.authSubtitle}>Session Login</h2>
         
         <form className={styles.authForm} onSubmit={handleSubmit}>
           {formError && <div className={styles.errorMessage}>{formError}</div>}
@@ -201,7 +235,13 @@ const Login = () => {
             className={styles.authButton}
             disabled={isLoading}
           >
-            {isLoading ? 'Logging in...' : 'Login'}
+            {isLoading ? (
+              <span className={styles.loadingIndicator}>
+                <span className={styles.loadingDot}></span>
+                <span className={styles.loadingDot}></span>
+                <span className={styles.loadingDot}></span>
+              </span>
+            ) : 'Login'}
           </button>
           
           <button
