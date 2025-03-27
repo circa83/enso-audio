@@ -1,0 +1,31 @@
+{
+    "version": 2,
+    "functions": {
+      "api/auth/**": {
+        "memory": 1024,
+        "maxDuration": 15
+      }
+    },
+    "headers": [
+      {
+        "source": "/api/(.*)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store, max-age=0"
+          }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "/(.*)",
+        "destination": "/$1"
+      }
+    ],
+    "env": {
+      "NEXTAUTH_URL": "${NEXTAUTH_URL}",
+      "MONGODB_URI": "${MONGODB_URI}"
+    },
+    "regions": ["iad1"]
+  }

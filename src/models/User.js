@@ -15,6 +15,7 @@ const UserSchema = new mongoose.Schema({
     lowercase: true,
     trim: true,
     match: [/^\S+@\S+\.\S+$/, 'Please use a valid email address'],
+    index: true, // Add index for faster lookups
   },
   password: {
     type: String,
@@ -51,11 +52,17 @@ const UserSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
+    index: true, // Add index for sorting
   },
+  lastLogin: {
+    type: Date,
+    default: null
+  }
 });
 
 // Hash password before saving
 UserSchema.pre('save', async function (next) {
+  // Only hash the password if it's modified or new
   if (!this.isModified('password')) {
     return next();
   }
@@ -65,16 +72,41 @@ UserSchema.pre('save', async function (next) {
     this.password = await bcrypt.hash(this.password, salt);
     next();
   } catch (error) {
+    console.error('Error hashing password:', error);
     next(error);
   }
 });
 
-// Method to check password validity
+// Method to check password validity with improved error handling
 UserSchema.methods.comparePassword = async function (candidatePassword) {
   try {
-    return await bcrypt.compare(candidatePassword, this.password);
+    // Ensure candidate password is provided
+    if (!candidatePassword) {
+      console.warn('Empty password provided for comparison');
+      return false;
+    }
+    
+    // Ensure the model has a password to compare against
+    if (!this.password) {
+      console.error('User model has no password stored');
+      return false;
+    }
+    
+    // Compare passwords with bcrypt
+    const isMatch = await bcrypt.compare(candidatePassword, this.password);
+    
+    // Update last login time if passwords match
+    if (isMatch) {
+      this.lastLogin = new Date();
+      // Save without triggering validators to avoid potential issues
+      await this.save({ validateBeforeSave: false });
+    }
+    
+    return isMatch;
   } catch (error) {
-    throw error;
+    console.error('Password comparison error:', error);
+    // Return false on error rather than throwing to prevent API failures
+    return false;
   }
 };
 
@@ -85,6 +117,10 @@ UserSchema.set('toJSON', {
     return ret;
   }
 });
+
+// Add index to commonly queried fields
+UserSchema.index({ email: 1 }, { unique: true });
+UserSchema.index({ role: 1 });
 
 // Prevent mongoose error when model is already defined
 const User = mongoose.models.User || mongoose.model('User', UserSchema);
