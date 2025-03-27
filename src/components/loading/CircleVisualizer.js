@@ -1,84 +1,79 @@
 // src/components/loading/CircleVisualizer.js
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import styles from '../../styles/components/loading/CircleVisualizer.module.css';
 
 /**
- * CircleVisualizer - An animated loading indicator with concentric circles
+ * CircleVisualizer - A loading visualizer that matches the AudioVisualizer style
  * @param {Object} props
  * @param {number} [props.size=200] - Size of the visualizer in pixels
- * @param {boolean} [props.isActive=true] - Whether the animation is active
  * @param {number} [props.progress=0] - Loading progress (0-100)
  */
-const CircleVisualizer = ({ size = 200, isActive = true, progress = 0 }) => {
-  // Calculate the progress percentage for the progress arc
-  const radius = size / 2;
-  const circumference = 2 * Math.PI * (radius - 10); // Adjust for stroke width
-  const progressOffset = circumference - (progress / 100) * circumference;
+const CircleVisualizer = ({ size = 200, progress = 0 }) => {
+  // Convert progress to intensity values for each circle
+  const [intensities, setIntensities] = useState({
+    bass: 0,
+    mid: 0,
+    high: 0
+  });
   
+  // Update intensities based on progress
+  useEffect(() => {
+    // Add some randomness for a more dynamic feeling
+    const addRandomness = (baseValue) => {
+      return Math.min(1, baseValue + (Math.random() * 0.3 * baseValue));
+    };
+    
+    // Calculate base intensity from progress
+    const baseIntensity = progress / 100;
+    
+    // Stagger the intensities slightly for a more varied animation
+    setIntensities({
+      bass: addRandomness(baseIntensity),
+      mid: addRandomness(baseIntensity * 0.9),
+      high: addRandomness(baseIntensity * 0.8)
+    });
+    
+    // Update every 200ms to create animation
+    const interval = setInterval(() => {
+      setIntensities(prev => ({
+        bass: addRandomness(baseIntensity),
+        mid: addRandomness(baseIntensity * 0.9),
+        high: addRandomness(baseIntensity * 0.8)
+      }));
+    }, 200);
+    
+    return () => clearInterval(interval);
+  }, [progress]);
+
   return (
-    <div 
-      className={`${styles.container} ${isActive ? styles.active : ''}`}
-      style={{ width: size, height: size }}
-    >
-      {/* Outermost circle - pulsating */}
-      <div className={styles.pulseCircle}></div>
-      
-      {/* Main circles */}
-      <svg 
-        className={styles.svg} 
-        width={size} 
-        height={size} 
-        viewBox={`0 0 ${size} ${size}`}
-      >
-        {/* Background circle */}
-        <circle 
-          className={styles.backgroundCircle}
-          cx={radius}
-          cy={radius}
-          r={radius - 10}
-          strokeWidth="1"
-        />
+    <div className={styles.visualizerContainer} style={{ width: size, height: size }}>
+      <div className={styles.audioVisualizer}>
+        {/* Red circle - Bass */}
+        <div 
+          className={`${styles.circle} ${styles.bass}`}
+          style={{ 
+            '--bass-intensity': intensities.bass 
+          }}
+        ></div>
         
-        {/* Middle circle - rotating */}
-        <circle 
-          className={styles.rotatingCircle}
-          cx={radius}
-          cy={radius}
-          r={radius - 25}
-          strokeWidth="1"
-          strokeDasharray="4 6"
-        />
+        {/* Blue circle - Mid */}
+        <div 
+          className={`${styles.circle} ${styles.mid}`}
+          style={{ 
+            '--mid-intensity': intensities.mid 
+          }}
+        ></div>
         
-        {/* Inner circle - pulsating */}
-        <circle 
-          className={styles.innerCircle}
-          cx={radius}
-          cy={radius}
-          r={radius - 45}
-          strokeWidth="1"
-        />
+        {/* Yellow circle - High */}
+        <div 
+          className={`${styles.circle} ${styles.high}`}
+          style={{ 
+            '--high-intensity': intensities.high 
+          }}
+        ></div>
         
-        {/* Progress indicator */}
-        <circle 
-          className={styles.progressCircle}
-          cx={radius}
-          cy={radius}
-          r={radius - 10}
-          strokeWidth="2"
-          strokeDasharray={circumference}
-          strokeDashoffset={progressOffset}
-          transform={`rotate(-90 ${radius} ${radius})`}
-        />
-      </svg>
-      
-      {/* Display progress percentage in the center */}
-      <div className={styles.progressText}>
-        {Math.round(progress)}%
-      </div>
-      
-      {/* Ensō (Zen circle) symbol in the center */}
-      <div className={styles.ensoSymbol}>
-        音
+        {/* White overlay circle */}
+        <div className={`${styles.circle} ${styles.overlay}`}></div>
       </div>
     </div>
   );

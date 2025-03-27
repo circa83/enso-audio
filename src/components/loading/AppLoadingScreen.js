@@ -4,15 +4,13 @@ import CircleVisualizer from './CircleVisualizer';
 import styles from '../../styles/components/loading/AppLoadingScreen.module.css';
 
 /**
- * AppLoadingScreen - Main application loading screen with visualization
+ * AppLoadingScreen - Simplified loading screen that just shows the CircleVisualizer
  * @param {Object} props
  * @param {number} [props.progress=0] - Loading progress (0-100)
- * @param {string} [props.message='Loading...'] - Loading message to display
  * @param {boolean} [props.isVisible=true] - Whether the loading screen is visible
  */
 const AppLoadingScreen = ({ 
   progress = 0, 
-  message = 'Loading...', 
   isVisible = true 
 }) => {
   if (!isVisible) return null;
@@ -24,19 +22,9 @@ const AppLoadingScreen = ({
         
         <div className={styles.visualizerContainer}>
           <CircleVisualizer 
-            size={180} 
-            isActive={true} 
-            progress={progress} 
+            size={200}
+            progress={progress}
           />
-        </div>
-        
-        <div className={styles.messageContainer}>
-          <p className={styles.loadingMessage}>{message}</p>
-          <div className={styles.loadingDots}>
-            <span className={styles.dot}></span>
-            <span className={styles.dot}></span>
-            <span className={styles.dot}></span>
-          </div>
         </div>
       </div>
     </div>
