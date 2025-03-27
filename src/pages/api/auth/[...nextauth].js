@@ -111,6 +111,12 @@ export default async function auth(req, res) {
         strategy: "jwt",
         maxAge: 30 * 24 * 60 * 60, // 30 days
       },
+      jwt: {
+        // Explicitly set JWT secret for more reliable token validation
+        secret: process.env.NEXTAUTH_SECRET,
+        // Increase JWT lifetime to match session
+        maxAge: 30 * 24 * 60 * 60, // 30 days
+      },
       cookies: {
         sessionToken: {
           name: `next-auth.session-token`,
@@ -128,6 +134,8 @@ export default async function auth(req, res) {
           if (user) {
             token.id = user.id;
             token.role = user.role;
+            token.email = user.email;
+            token.name = user.name;
           }
           return token;
         },
@@ -136,6 +144,8 @@ export default async function auth(req, res) {
           if (token) {
             session.user.id = token.id;
             session.user.role = token.role;
+            session.user.email = token.email;
+            session.user.name = token.name;
           }
           return session;
         },
@@ -145,19 +155,6 @@ export default async function auth(req, res) {
         error: '/login', // Redirect to login page on error
       },
       debug: process.env.NODE_ENV === 'development',
-      logger: {
-        error(code, metadata) {
-          console.error(`NextAuth error: ${code}`, metadata);
-        },
-        warn(code) {
-          console.warn(`NextAuth warning: ${code}`);
-        },
-        debug(code, metadata) {
-          if (process.env.NODE_ENV === 'development') {
-            console.log(`NextAuth debug: ${code}`, metadata);
-          }
-        },
-      },
     });
   } catch (error) {
     console.error('NextAuth initialization error:', error);

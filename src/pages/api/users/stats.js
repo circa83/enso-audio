@@ -1,19 +1,22 @@
 // pages/api/users/stats.js
-import { getSession } from 'next-auth/react';
+import { getToken } from 'next-auth/jwt';
 import dbConnect from '../../../lib/mongodb';
 import User from '../../../models/User';
 
 export default async function handler(req, res) {
-  // Get the session using the more reliable method
-  const session = await getSession({ req });
+  // Get the JWT token directly - more reliable than getSession
+  const token = await getToken({ 
+    req,
+    secret: process.env.NEXTAUTH_SECRET
+  });
   
   // Debug log to help troubleshoot
-  console.log('Session in stats API:', session ? 'Session exists' : 'No session found');
+  console.log('Token in stats API:', token ? 'Token exists' : 'No token found');
   
   // Check authentication
-  if (!session) {
-    console.log('No session found, returning 401');
-    return res.status(401).json({ message: 'Unauthorized - No session found' });
+  if (!token) {
+    console.log('No valid token found, returning 401');
+    return res.status(401).json({ message: 'Unauthorized - No valid token found' });
   }
   
   // Connect to database
@@ -24,15 +27,15 @@ export default async function handler(req, res) {
     return res.status(500).json({ message: 'Database connection failed' });
   }
   
-  // Get user ID from session
-  const userId = session.user.id;
+  // Get user ID from token
+  const userId = token.id || token.sub;
   
   // Debug log to help troubleshoot
-  console.log('User ID from session:', userId);
+  console.log('User ID from token:', userId);
   
   if (!userId) {
-    console.log('Session exists but no user ID found');
-    return res.status(401).json({ message: 'Unauthorized - Invalid session (no user ID)' });
+    console.log('Token exists but no user ID found');
+    return res.status(401).json({ message: 'Unauthorized - Invalid token (no user ID)' });
   }
   
   switch (req.method) {
@@ -71,6 +74,15 @@ export default async function handler(req, res) {
         const user = await User.findById(userId);
         if (!user) {
           return res.status(404).json({ message: 'User not found' });
+        }
+        
+        // Initialize stats object if it doesn't exist
+        if (!user.stats) {
+          user.stats = {
+            sessionsCompleted: 0,
+            activeClients: 0,
+            totalSessionTime: 0
+          };
         }
         
         // Update stats if provided
