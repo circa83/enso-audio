@@ -39,7 +39,7 @@ const Login = () => {
   // Redirect to dashboard if already authenticated
   useEffect(() => {
     if (status === 'authenticated' && session) {
-      router.replace('/dashboard');
+      router.replace('/dashboard/player');
     }
   }, [status, session, router]);
   
