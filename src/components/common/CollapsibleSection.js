@@ -1,5 +1,5 @@
 // src/components/common/CollapsibleSection.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styles from '../../styles/components/CollapsibleSection.module.css';
 
 const CollapsibleSection = ({ 
@@ -8,15 +8,29 @@ const CollapsibleSection = ({
   initialExpanded = false,
   className = '',
   titleClassName = '',
-  contentClassName = ''
+  contentClassName = '',
+  onExpand = null // New prop for callback when section is expanded
 }) => {
   const [isExpanded, setIsExpanded] = useState(initialExpanded);
+  
+  // Call onExpand callback when section is expanded
+  useEffect(() => {
+    if (isExpanded && onExpand) {
+      onExpand();
+    }
+  }, [isExpanded, onExpand]);
+  
+  // Toggle expanded state
+  const toggleExpanded = () => {
+    const newExpandedState = !isExpanded;
+    setIsExpanded(newExpandedState);
+  };
   
   return (
     <div className={`${styles.sectionContainer} ${className}`}>
       <div 
         className={`${styles.sectionHeader} ${isExpanded ? styles.active : ''} ${titleClassName}`}
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={toggleExpanded}
       >
         <span className={styles.sectionTitle}>{title}</span>
         <span className={styles.expandIcon}>{isExpanded ? '▲' : '▼'}</span>

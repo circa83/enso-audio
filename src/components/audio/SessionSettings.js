@@ -67,110 +67,98 @@ const SessionSettings = ({
   
   return (
     <div className={styles.settingsContainer}>
-      <div 
-        className={`${styles.settingsHeader} ${isExpanded ? styles.active : ''}`}
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        <span className={styles.settingsTitle}>Session Settings</span>
-        <span className={styles.expandIcon}>{isExpanded ? '▲' : '▼'}</span>
+      <div className={styles.settingGroup}>
+        <label className={styles.settingLabel}>Timeline</label>
+        <div className={styles.settingToggle}>
+          <button 
+            className={`${styles.toggleButton} ${timelineEnabled ? styles.active : ''}`}
+            onClick={() => onTimelineToggle(true)}
+          >
+            Enabled
+          </button>
+          <button 
+            className={`${styles.toggleButton} ${!timelineEnabled ? styles.active : ''}`}
+            onClick={() => onTimelineToggle(false)}
+          >
+            Disabled
+          </button>
+        </div>
       </div>
       
-      {isExpanded && (
-        <div className={styles.settingsContent}>
+      {timelineEnabled && (
+        <>
           <div className={styles.settingGroup}>
-            <label className={styles.settingLabel}>Timeline</label>
-            <div className={styles.settingToggle}>
-              <button 
-                className={`${styles.toggleButton} ${timelineEnabled ? styles.active : ''}`}
-                onClick={() => onTimelineToggle(true)}
-              >
-                Enabled
-              </button>
-              <button 
-                className={`${styles.toggleButton} ${!timelineEnabled ? styles.active : ''}`}
-                onClick={() => onTimelineToggle(false)}
-              >
-                Disabled
-              </button>
+            <label className={styles.settingLabel}>Session Duration</label>
+            <div className={styles.durationInputs}>
+              <div className={styles.inputGroup}>
+                <input
+                  type="number"
+                  min="0"
+                  max="12"
+                  value={durationHours}
+                  onChange={handleHoursChange}
+                  onBlur={handleBlur}
+                  className={styles.timeInput}
+                />
+                <span className={styles.timeLabel}>hours</span>
+              </div>
+              
+              <div className={styles.inputGroup}>
+                <input
+                  type="number"
+                  min="0"
+                  max="59"
+                  value={durationMinutes}
+                  onChange={handleMinutesChange}
+                  onBlur={handleBlur}
+                  className={styles.timeInput}
+                />
+                <span className={styles.timeLabel}>minutes</span>
+              </div>
+              
+              <div className={styles.inputGroup}>
+                <input
+                  type="number"
+                  min="0"
+                  max="59"
+                  value={durationSeconds}
+                  onChange={handleSecondsChange}
+                  onBlur={handleBlur}
+                  className={styles.timeInput}
+                />
+                <span className={styles.timeLabel}>seconds</span>
+              </div>
             </div>
           </div>
           
-          {timelineEnabled && (
-            <>
-              <div className={styles.settingGroup}>
-                <label className={styles.settingLabel}>Session Duration</label>
-                <div className={styles.durationInputs}>
-                  <div className={styles.inputGroup}>
-                    <input
-                      type="number"
-                      min="0"
-                      max="12"
-                      value={durationHours}
-                      onChange={handleHoursChange}
-                      onBlur={handleBlur}
-                      className={styles.timeInput}
-                    />
-                    <span className={styles.timeLabel}>hours</span>
-                  </div>
-                  
-                  <div className={styles.inputGroup}>
-                    <input
-                      type="number"
-                      min="0"
-                      max="59"
-                      value={durationMinutes}
-                      onChange={handleMinutesChange}
-                      onBlur={handleBlur}
-                      className={styles.timeInput}
-                    />
-                    <span className={styles.timeLabel}>minutes</span>
-                  </div>
-                  
-                  <div className={styles.inputGroup}>
-                    <input
-                      type="number"
-                      min="0"
-                      max="59"
-                      value={durationSeconds}
-                      onChange={handleSecondsChange}
-                      onBlur={handleBlur}
-                      className={styles.timeInput}
-                    />
-                    <span className={styles.timeLabel}>seconds</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div className={styles.settingGroup}>
-                <label className={styles.settingLabel}>
-                  Transition Duration: {(transitionDuration / 1000).toFixed(1)} seconds
-                </label>
-                <input 
-                  type="range" 
-                  min="2000" 
-                  max="30000" 
-                  step="1000" 
-                  value={transitionDuration}
-                  onChange={handleTransitionDurationChange}
-                  className={styles.rangeInput}
-                />
-                <div className={styles.rangeLabels}>
-                  <span>Fast (2s)</span>
-                  <span>Slow (30s)</span>
-                </div>
-              </div>
-            </>
-          )}
-          
           <div className={styles.settingGroup}>
-            <p className={styles.settingInfo}>
-              {timelineEnabled 
-                ? 'With timeline enabled, audio layers will automatically adjust during the session based on your configured phases.'
-                : 'With timeline disabled, you have complete manual control over audio layers throughout the session.'}
-            </p>
+            <label className={styles.settingLabel}>
+              Transition Duration: {(transitionDuration / 1000).toFixed(1)} seconds
+            </label>
+            <input 
+              type="range" 
+              min="2000" 
+              max="30000" 
+              step="1000" 
+              value={transitionDuration}
+              onChange={handleTransitionDurationChange}
+              className={styles.rangeInput}
+            />
+            <div className={styles.rangeLabels}>
+              <span>Fast (2s)</span>
+              <span>Slow (30s)</span>
+            </div>
           </div>
-        </div>
+        </>
       )}
+      
+      <div className={styles.settingGroup}>
+        <p className={styles.settingInfo}>
+          {timelineEnabled 
+            ? 'With timeline enabled, audio layers will automatically adjust during the session based on your configured phases.'
+            : 'With timeline disabled, you have complete manual control over audio layers throughout the session.'}
+        </p>
+      </div>
     </div>
   );
 };
