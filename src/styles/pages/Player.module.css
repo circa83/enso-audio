@@ -47,37 +47,6 @@
   letter-spacing: 1px;
 }
 
-/* Preset toggle button */
-.presetToggle {
-  display: flex;
-  justify-content: center;
-  margin: 20px 0;
-}
-
-.presetButton {
-  padding: 8px 16px;
-  background-color: transparent;
-  border: 1px solid #444;
-  color: #aaaaaa;
-  font-family: 'Archivo', sans-serif;
-  font-weight: 200;
-  font-size: 0.7rem;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.presetButton:hover {
-  border-color: #ffffff;
-  color: #ffffff;
-}
-
-.presetButton.active {
-  border-color: #ffffff;
-  color: #ffffff;
-}
-
 /* Layer controls content container */
 .layerControlsContent {
   padding: 10px 0;
@@ -100,18 +69,12 @@
   margin: 50px 0;
 }
 
-/* Enhanced Preset panel styling */
-.presetsPanel {
-  margin: 40px 0;
-  padding: 40px;
-  background-color: #1c1c1c;
-  border: 1px solid #333;
-  animation: fadeIn 0.3s ease;
-  width: 100%;
-  box-sizing: border-box;
-  position: relative;
+/* Presets content container */
+.presetsContent {
+  padding: 20px 0;
 }
 
+/* Preset controls - Updated for collapsible section */
 .presetControls {
   display: flex;
   gap: 10px;
@@ -519,8 +482,8 @@
     letter-spacing: 5px;
   }
   
-  .presetsPanel {
-    padding: 20px;
+  .presetsContent {
+    padding: 10px;
   }
   
   .presetControls {

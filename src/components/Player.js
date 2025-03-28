@@ -32,7 +32,6 @@ const Player = () => {
   const [showDebugPanel, setShowDebugPanel] = useState(false); // Debug panel state
   
   // Preset management
-  const [showPresets, setShowPresets] = useState(false);
   const [presets, setPresets] = useState([]);
   const [newPresetName, setNewPresetName] = useState('');
   const [selectedPreset, setSelectedPreset] = useState(null);
@@ -104,13 +103,11 @@ const Player = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
   
-  // Load available presets
-  useEffect(() => {
-    if (showPresets) {
-      const availablePresets = getPresets();
-      setPresets(availablePresets);
-    }
-  }, [showPresets, getPresets]);
+  // Load available presets when the presets section is expanded
+  const handlePresetsExpanded = () => {
+    const availablePresets = getPresets();
+    setPresets(availablePresets);
+  };
   
   // Save current state as a preset
   const handleSavePreset = () => {
@@ -324,6 +321,164 @@ const Player = () => {
     );
   };
   
+  // Render presets content
+  const renderPresetsContent = () => {
+    return (
+      <div className={styles.presetsContent}>
+        <div className={styles.presetControls}>
+          <input
+            type="text"
+            value={newPresetName}
+            onChange={(e) => setNewPresetName(e.target.value)}
+            placeholder="New preset name..."
+            className={styles.presetInput}
+          />
+          <button 
+            className={styles.savePresetButton}
+            onClick={handleSavePreset}
+            disabled={newPresetName.trim() === ''}
+          >
+            Save Current State
+          </button>
+        </div>
+        
+        <div className={styles.presetActions}>
+          <button 
+            className={styles.importButton}
+            onClick={handleShowImport}
+          >
+            Import Preset
+          </button>
+        </div>
+        
+        {/* Import interface */}
+        {isImporting && (
+          <div className={styles.importContainer}>
+            <div className={styles.importHeader}>
+              <h3>Import Preset</h3>
+              <button 
+                className={styles.closeButton}
+                onClick={handleCancelImport}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className={styles.importContent}>
+              <div className={styles.fileSelectArea}>
+                <button
+                  className={styles.fileSelectButton}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Select Preset File
+                </button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                  accept=".json"
+                  style={{ display: 'none' }}
+                />
+              </div>
+              
+              <textarea
+                className={styles.importTextarea}
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                placeholder="Or paste preset JSON data here..."
+              />
+              
+              {importError && (
+                <div className={styles.importError}>{importError}</div>
+              )}
+              
+              <div className={styles.importActions}>
+                <button 
+                  className={styles.cancelButton}
+                  onClick={handleCancelImport}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className={styles.importButton}
+                  onClick={handleImportFromText}
+                >
+                  Import
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Confirmation dialog */}
+        {confirmOperation && (
+          <div className={styles.confirmDialog}>
+            <div className={styles.confirmContent}>
+              <h3>Confirm {confirmOperation.type === 'delete' ? 'Delete' : confirmOperation.type === 'overwrite' ? 'Overwrite' : 'Load'}</h3>
+              <p>
+                {confirmOperation.type === 'delete' && `Are you sure you want to delete the preset "${confirmOperation.presetName}"?`}
+                {confirmOperation.type === 'overwrite' && `A preset named "${confirmOperation.presetName}" already exists. Do you want to overwrite it?`}
+                {confirmOperation.type === 'load' && `Load preset "${confirmOperation.presetName}"? This will replace your current settings.`}
+              </p>
+              <div className={styles.confirmActions}>
+                <button
+                  className={styles.cancelButton}
+                  onClick={handleCancelOperation}
+                >
+                  Cancel
+                </button>
+                <button
+                  className={styles.confirmButton}
+                  onClick={confirmOperation.action}
+                >
+                  {confirmOperation.type === 'delete' ? 'Delete' : confirmOperation.type === 'overwrite' ? 'Overwrite' : 'Load'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        <div className={styles.presetsList}>
+          {presets.length === 0 ? (
+            <div className={styles.noPresets}>No saved presets</div>
+          ) : (
+            presets.map(preset => (
+              <div 
+                key={preset.name} 
+                className={`${styles.presetItem} ${selectedPreset === preset.name ? styles.selected : ''}`}
+              >
+                <span className={styles.presetName}>{preset.name}</span>
+                <span className={styles.presetDate}>
+                  {new Date(preset.date).toLocaleDateString()}
+                </span>
+                <div className={styles.presetButtons}>
+                  <button 
+                    className={styles.presetActionButton}
+                    onClick={() => handleLoadPreset(preset.name)}
+                  >
+                    Load
+                  </button>
+                  <button 
+                    className={styles.presetActionButton}
+                    onClick={() => handleExportPreset(preset.name)}
+                  >
+                    Export
+                  </button>
+                  <button 
+                    className={`${styles.presetActionButton} ${styles.deleteButton}`}
+                    onClick={() => handleDeletePreset(preset.name)}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  };
+  
   return (
     <div className={styles.simplePlayer}>
       <h1 className={styles.title}>Ensō Audio</h1>
@@ -334,16 +489,6 @@ const Player = () => {
       
       {/* Main player and controls */}
       <PlayerControlPanel />
-      
-      {/* Preset Toggle Button */}
-      <div className={styles.presetToggle}>
-        <button 
-          className={`${styles.presetButton} ${showPresets ? styles.active : ''}`}
-          onClick={() => setShowPresets(!showPresets)}
-        >
-          {showPresets ? 'Hide Presets' : 'Presets'}
-        </button>
-      </div>
       
       {/* Collapsible Section for Session Timeline */}
       <CollapsibleSection 
@@ -369,166 +514,17 @@ const Player = () => {
         {renderSessionSettings()}
       </CollapsibleSection>
       
+      {/* NEW: Collapsible Section for Presets */}
+      <CollapsibleSection 
+        title="Presets" 
+        initialExpanded={false}
+        onExpand={handlePresetsExpanded}
+      >
+        {renderPresetsContent()}
+      </CollapsibleSection>
+      
       {/* Session Timer */}
       <SessionTimer />
-      
-      {/* Preset management panel */}
-      {showPresets && (
-        <div className={styles.presetsPanel}>
-          <h2 className={styles.sectionTitle}>Session Presets</h2>
-          
-          <div className={styles.presetControls}>
-            <input
-              type="text"
-              value={newPresetName}
-              onChange={(e) => setNewPresetName(e.target.value)}
-              placeholder="New preset name..."
-              className={styles.presetInput}
-            />
-            <button 
-              className={styles.savePresetButton}
-              onClick={handleSavePreset}
-              disabled={newPresetName.trim() === ''}
-            >
-              Save Current State
-            </button>
-          </div>
-          
-          <div className={styles.presetActions}>
-            <button 
-              className={styles.importButton}
-              onClick={handleShowImport}
-            >
-              Import Preset
-            </button>
-          </div>
-          
-          {/* Import interface */}
-          {isImporting && (
-            <div className={styles.importContainer}>
-              <div className={styles.importHeader}>
-                <h3>Import Preset</h3>
-                <button 
-                  className={styles.closeButton}
-                  onClick={handleCancelImport}
-                >
-                  ×
-                </button>
-              </div>
-              
-              <div className={styles.importContent}>
-                <div className={styles.fileSelectArea}>
-                  <button
-                    className={styles.fileSelectButton}
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    Select Preset File
-                  </button>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileSelect}
-                    accept=".json"
-                    style={{ display: 'none' }}
-                  />
-                </div>
-                
-                <textarea
-                  className={styles.importTextarea}
-                  value={importText}
-                  onChange={(e) => setImportText(e.target.value)}
-                  placeholder="Or paste preset JSON data here..."
-                />
-                
-                {importError && (
-                  <div className={styles.importError}>{importError}</div>
-                )}
-                
-                <div className={styles.importActions}>
-                  <button 
-                    className={styles.cancelButton}
-                    onClick={handleCancelImport}
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    className={styles.importButton}
-                    onClick={handleImportFromText}
-                  >
-                    Import
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {/* Confirmation dialog */}
-          {confirmOperation && (
-            <div className={styles.confirmDialog}>
-              <div className={styles.confirmContent}>
-                <h3>Confirm {confirmOperation.type === 'delete' ? 'Delete' : confirmOperation.type === 'overwrite' ? 'Overwrite' : 'Load'}</h3>
-                <p>
-                  {confirmOperation.type === 'delete' && `Are you sure you want to delete the preset "${confirmOperation.presetName}"?`}
-                  {confirmOperation.type === 'overwrite' && `A preset named "${confirmOperation.presetName}" already exists. Do you want to overwrite it?`}
-                  {confirmOperation.type === 'load' && `Load preset "${confirmOperation.presetName}"? This will replace your current settings.`}
-                </p>
-                <div className={styles.confirmActions}>
-                  <button
-                    className={styles.cancelButton}
-                    onClick={handleCancelOperation}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className={styles.confirmButton}
-                    onClick={confirmOperation.action}
-                  >
-                    {confirmOperation.type === 'delete' ? 'Delete' : confirmOperation.type === 'overwrite' ? 'Overwrite' : 'Load'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          <div className={styles.presetsList}>
-            {presets.length === 0 ? (
-              <div className={styles.noPresets}>No saved presets</div>
-            ) : (
-              presets.map(preset => (
-                <div 
-                  key={preset.name} 
-                  className={`${styles.presetItem} ${selectedPreset === preset.name ? styles.selected : ''}`}
-                >
-                  <span className={styles.presetName}>{preset.name}</span>
-                  <span className={styles.presetDate}>
-                    {new Date(preset.date).toLocaleDateString()}
-                  </span>
-                  <div className={styles.presetButtons}>
-                    <button 
-                      className={styles.presetActionButton}
-                      onClick={() => handleLoadPreset(preset.name)}
-                    >
-                      Load
-                    </button>
-                    <button 
-                      className={styles.presetActionButton}
-                      onClick={() => handleExportPreset(preset.name)}
-                    >
-                      Export
-                    </button>
-                    <button 
-                      className={`${styles.presetActionButton} ${styles.deleteButton}`}
-                      onClick={() => handleDeletePreset(preset.name)}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
       
       {/* Debug Panel - only visible when toggled */}
       <TimelineDebugPanel enabled={showDebugPanel} />
