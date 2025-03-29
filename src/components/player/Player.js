@@ -1,6 +1,6 @@
 // src/components/player/Player.js
 import React, { useState, useEffect, useCallback, memo } from 'react';
-import { useAudio } from '../../contexts/AudioContext';
+import { useAudio } from '../../hooks/useAudio';
 
 // Import components
 import CollapsibleSection from '../common/CollapsibleSection';

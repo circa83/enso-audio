@@ -1,6 +1,6 @@
-// src/components/audio/ImprovedAudioVisualizer.js
-import React, { useEffect, useRef, useMemo } from 'react';
-import { useAudio } from '../../contexts/AudioContext';
+// src/components/audio/AudioVisualizer.js
+import React, { useEffect, useRef } from 'react';
+import { useAudio } from '../../hooks/useAudio'; // Fixed import path
 import styles from '../../styles/components/AudioVisualizer.module.css';
 
 /**
@@ -8,40 +8,34 @@ import styles from '../../styles/components/AudioVisualizer.module.css';
  * Displays reactive circular visualizations based on audio layers
  */
 const AudioVisualizer = () => {
+  // Extract only what we need from the context
   const { 
     isPlaying, 
-    volumes,
-    LAYERS 
+    volumes
   } = useAudio();
   
   const visualizerRef = useRef(null);
   const animationFrameRef = useRef(null);
   
-  // Group layers by frequency range for visualization
-  const frequencyRanges = useMemo(() => ({
-    bass: [LAYERS.DRONE, LAYERS.RHYTHM],
-    mid: [LAYERS.MELODY],
-    high: [LAYERS.NATURE]
-  }), [LAYERS]);
+  // Define frequency range directly to avoid LAYERS dependency
+  // This prevents the error since we're not depending on potentially undefined values
+  const bassLayers = ['drone', 'rhythm'];
+  const midLayers = ['melody'];
+  const highLayers = ['nature'];
   
   // Animation effect for visualization
   useEffect(() => {
     // Function to calculate intensity values with randomness
     const calculateIntensities = () => {
-      // Maps layers to frequency bands for visualization
-      const bassLayers = frequencyRanges.bass;
-      const midLayers = frequencyRanges.mid;
-      const highLayers = frequencyRanges.high;
-      
       // Get average volumes for each frequency range
       const bassVolume = bassLayers.reduce((sum, layer) => 
-        sum + (volumes[layer.toLowerCase()] || 0), 0) / bassLayers.length;
+        sum + (volumes[layer] || 0), 0) / bassLayers.length;
       
       const midVolume = midLayers.reduce((sum, layer) => 
-        sum + (volumes[layer.toLowerCase()] || 0), 0) / midLayers.length;
+        sum + (volumes[layer] || 0), 0) / midLayers.length;
       
       const highVolume = highLayers.reduce((sum, layer) => 
-        sum + (volumes[layer.toLowerCase()] || 0), 0) / highLayers.length;
+        sum + (volumes[layer] || 0), 0) / highLayers.length;
       
       // Add randomness for more lively visualization
       const addRandomness = (value) => {
@@ -100,7 +94,7 @@ const AudioVisualizer = () => {
         animationFrameRef.current = null;
       }
     };
-  }, [isPlaying, volumes, frequencyRanges]);
+  }, [isPlaying, volumes]);
   
   return (
     <div className={styles.visualizerContainer} ref={visualizerRef}>

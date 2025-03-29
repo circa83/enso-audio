@@ -67,8 +67,7 @@ export function useLayerControls() {
     crossfadeTo,
     activeCrossfades,
     crossfadeProgress,
-    preloadProgress,
-    LAYERS
+    preloadProgress
   } = useAudio();
   
   return {
@@ -79,56 +78,7 @@ export function useLayerControls() {
     crossfadeTo,
     activeCrossfades,
     crossfadeProgress,
-    preloadProgress,
-    LAYERS
-  };
-}
-
-/**
- * Custom hook for timeline functionality
- * 
- * Provides focused access to just the timeline functionality
- * 
- * @returns {Object} Timeline functions and state
- */
-export function useTimeline() {
-  const {
-    timelinePhases,
-    updateTimelinePhases,
-    resetTimelineEventIndex
-  } = useAudio();
-  
-  return {
-    timelinePhases,
-    updateTimelinePhases,
-    resetTimelineEventIndex
-  };
-}
-
-/**
- * Custom hook for preset management
- * 
- * Provides focused access to just the preset management functionality
- * 
- * @returns {Object} Preset functions and state
- */
-export function usePresets() {
-  const {
-    savePreset,
-    loadPreset,
-    deletePreset,
-    getPresets,
-    exportPreset,
-    importPreset
-  } = useAudio();
-  
-  return {
-    savePreset,
-    loadPreset,
-    deletePreset,
-    getPresets,
-    exportPreset,
-    importPreset
+    preloadProgress
   };
 }
 

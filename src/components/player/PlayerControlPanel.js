@@ -1,6 +1,6 @@
 // src/components/player/PlayerControlPanel.js
 import React, { useState, useCallback, useEffect } from 'react';
-import { useAudio } from '../../contexts/AudioContext';
+import { useAudio } from '../../hooks/useAudio';
 import AudioVisualizer from '../audio/AudioVisualizer';
 import MasterVolumeControl from '../audio/MasterVolumeControl';
 import styles from '../../styles/components/PlayerControlPanel.module.css';

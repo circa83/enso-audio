@@ -555,7 +555,8 @@ export const AudioProvider = ({ children }) => {
     updateTimelinePhases,
     savePreset,
     loadPreset,
-    enhancedCrossfadeTo
+    enhancedCrossfadeTo,
+    LAYERS
   }), [
     isLoading, loadingProgress, isPlaying, volumes, masterVolume,
     audioLibrary, hasSwitchableAudio, timelinePhases

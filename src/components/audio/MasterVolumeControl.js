@@ -1,6 +1,6 @@
 // src/components/audio/ImprovedMasterVolumeControl.js
 import React, { memo, useCallback } from 'react';
-import { useAudio } from '../../contexts/AudioContext';
+import { useAudio } from '../../hooks/useAudio';
 import styles from '../../styles/components/MasterVolumeControl.module.css';
 
 /**
