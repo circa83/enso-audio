@@ -89,6 +89,7 @@ class AudioCore {
       if (typeof window === 'undefined') return false;
       
       // Create new AudioContext
+      this.log('Attempting to create AudioContext');
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (!AudioContextClass) {
         console.error('Web Audio API not supported in this browser');
@@ -133,6 +134,8 @@ class AudioCore {
       console.error('Audio context not initialized');
       return false;
     }
+    
+    this.log(`Current AudioContext state: ${this.audioContext.state}`);
     
     if (this.audioContext.state === 'suspended') {
       try {

@@ -17,10 +17,10 @@ const LAYERS = {
 
 // Default audio files paths - verify these paths are correct
 const DEFAULT_AUDIO = {
-  [LAYERS.DRONE]: 'public/samples/default/drone.mp3',
-  [LAYERS.MELODY]: 'public/samples/default/melody.mp3',
-  [LAYERS.RHYTHM]: 'public/samples/default/rhythm.mp3',
-  [LAYERS.NATURE]: 'public/samples/default/nature.mp3'
+  [LAYERS.DRONE]: '../samples/default/drone.mp3',
+  [LAYERS.MELODY]: '../samples/default/melody.mp3',
+  [LAYERS.RHYTHM]: '../samples/default/rhythm.mp3',
+  [LAYERS.NATURE]: '../samples/default/nature.mp3'
 };
 
 // Create the context
@@ -45,6 +45,9 @@ export const AudioProvider = ({ children }) => {
   const [hasSwitchableAudio, setHasSwitchableAudio] = useState(false);
   const [masterVolume, setMasterVolume] = useState(0.8);
   const [sessionStartTime, setSessionStartTime] = useState(null);
+  const [loadingErrors, setLoadingErrors] = useState([]);
+  
+  const [isAudioActivated, setIsAudioActivated] = useState(false);
   
   // Tracking states
   const [crossfadeProgress, setCrossfadeProgress] = useState({});
