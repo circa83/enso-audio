@@ -8,7 +8,7 @@ import styles from '../../styles/components/PlayerControlPanel.module.css';
 /**
  * PlayerControlPanel - Main control interface for audio playback
  * Includes play/pause button, visualizer, and master volume control
- * With improved activation handling
+ * With improved activation and initialization handling
  */
 const PlayerControlPanel = () => {
   const { 
@@ -17,45 +17,38 @@ const PlayerControlPanel = () => {
     pauseSession, 
     isAudioActivated,
     activateAudio,
-    audioCore,
+    isLoading,
+    loadingProgress,
     volumes,
     activeAudio
   } = useAudio();
   
   const [isActivating, setIsActivating] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isInitialized, setIsInitialized] = useState(false);
   
-  // Handle audio context activation and automatic retry
+  // Track if we have audio tracks loaded
   useEffect(() => {
-    // This effect activates audio on mount to prepare for playback
-    const prepareAudio = async () => {
-      if (!isAudioActivated && audioCore) {
-        try {
-          setIsActivating(true);
-          
-          // Attempt to activate audio with user interaction
-          if (audioCore.audioContext && audioCore.audioContext.state === 'suspended') {
-            console.log('Activating audio on component mount');
-            await activateAudio();
-          }
-        } catch (error) {
-          console.error('Error activating audio:', error);
-        } finally {
-          setIsActivating(false);
-        }
-      }
-    };
+    const hasAudioTracks = Object.keys(activeAudio).length > 0;
+    setIsInitialized(hasAudioTracks);
     
-    prepareAudio();
-  }, [isAudioActivated, activateAudio, audioCore]);
+    if (!hasAudioTracks) {
+      setErrorMessage('Waiting for audio tracks to load...');
+    } else {
+      setErrorMessage('');
+    }
+  }, [activeAudio]);
   
   // Check for empty tracks in active audio
   useEffect(() => {
     // This helps diagnose why no sound is playing
-    if (isPlaying && Object.values(activeAudio).length === 0) {
+    if (isPlaying && Object.keys(activeAudio).length === 0) {
       console.warn('Playing state is true but no active audio tracks are loaded');
       setErrorMessage('No audio tracks loaded. Please reload the page.');
-    } else if (isPlaying) {
+      return;
+    }
+    
+    if (isPlaying) {
       // Log volumes for debugging
       const allZero = Object.values(volumes).every(vol => vol === 0);
       if (allZero) {
@@ -64,12 +57,10 @@ const PlayerControlPanel = () => {
       } else {
         setErrorMessage('');
       }
-    } else {
-      setErrorMessage('');
     }
   }, [isPlaying, activeAudio, volumes]);
   
-  // Enhanced toggle function that handles activation
+  // Enhanced toggle function that handles activation and initialization
   const togglePlayPause = useCallback(async () => {
     try {
       if (isActivating) {
@@ -80,36 +71,50 @@ const PlayerControlPanel = () => {
       if (isPlaying) {
         console.log('Pausing session...');
         pauseSession();
-      } else {
-        console.log('Starting session...');
-        setIsActivating(true);
-        
-        // Make sure audio is activated first
-        if (!isAudioActivated) {
-          await activateAudio();
+        return;
+      }
+      
+      // Starting playback...
+      console.log('Starting session...');
+      setIsActivating(true);
+      
+      // Check if we have audio tracks loaded
+      if (Object.keys(activeAudio).length === 0) {
+        console.warn('No active audio tracks loaded, cannot start playback');
+        setErrorMessage('Audio tracks not loaded yet. Please wait a moment and try again.');
+        setIsActivating(false);
+        return;
+      }
+      
+      // Make sure audio is activated first
+      if (!isAudioActivated) {
+        console.log('Activating audio context...');
+        const activated = await activateAudio();
+        if (!activated) {
+          setErrorMessage('Failed to activate audio. Please click again or reload the page.');
+          setIsActivating(false);
+          return;
         }
-        
-        const success = await startSession();
-        console.log(`Session start ${success ? 'successful' : 'failed'}`);
-        
-        if (!success) {
-          const contextState = audioCore?.audioContext?.state || 'unknown';
-          console.warn(`Audio context state after failed start: ${contextState}`);
-          
-          if (contextState === 'suspended') {
-            setErrorMessage('Audio system blocked. Click play again.');
-          } else {
-            setErrorMessage('Failed to start audio playback. Try reloading.');
-          }
-        }
+      }
+      
+      // Try to start the session
+      console.log('Starting audio session...');
+      const success = await startSession();
+      console.log(`Session start ${success ? 'successful' : 'failed'}`);
+      
+      if (!success) {
+        setErrorMessage('Failed to start audio playback. Try clicking play again or reload the page.');
       }
     } catch (error) {
       console.error('Error toggling playback:', error);
-      setErrorMessage('Error toggling playback. Please reload the page.');
+      setErrorMessage(`Error toggling playback: ${error.message}. Please reload the page.`);
     } finally {
       setIsActivating(false);
     }
-  }, [isPlaying, startSession, pauseSession, isAudioActivated, activateAudio, audioCore, isActivating]);
+  }, [isPlaying, startSession, pauseSession, isAudioActivated, activateAudio, activeAudio, isActivating]);
+  
+  // Show loading state if tracks aren't loaded yet
+  const showLoading = isLoading || !isInitialized;
   
   return (
     <div className={styles.playerControlPanel}>
@@ -119,12 +124,12 @@ const PlayerControlPanel = () => {
       
       <div className={styles.controlsSection}>
         <button 
-          className={`${styles.playButton} ${isPlaying ? styles.playing : ''} ${isActivating ? styles.activating : ''}`}
+          className={`${styles.playButton} ${isPlaying ? styles.playing : ''} ${isActivating ? styles.activating : ''} ${showLoading ? styles.loading : ''}`}
           onClick={togglePlayPause}
-          disabled={isActivating}
+          disabled={isActivating || showLoading}
           aria-label={isPlaying ? "Stop playback" : "Start playback"}
         >
-          {isActivating ? '...' : isPlaying ? 'Stop' : 'Play'}
+          {isActivating ? '...' : showLoading ? 'Loading' : isPlaying ? 'Stop' : 'Play'}
         </button>
         
         {errorMessage && (

@@ -1,4 +1,4 @@
-// src/services/audio/AudioCore.js - Updated with fixes
+// src/services/audio/AudioCore.js
 
 /**
  * AudioCore.js
@@ -28,6 +28,7 @@ class AudioCore {
     this.isPlaying = false;
     this.sessionStartTime = null;
     this.onStateChange = null; // Callback for state changes
+    this.initialized = false; // Track initialization state
     
     // Initialize empty structures for each layer
     Object.values(LAYERS).forEach(layer => {
@@ -66,10 +67,24 @@ class AudioCore {
   }
 
   /**
+   * Get initialization status
+   * @returns {boolean} Whether AudioCore is initialized
+   */
+  isInitialized() {
+    return this.initialized && this.audioContext !== null;
+  }
+
+  /**
    * Initialize the Web Audio API context and basic audio graph
    * @returns {Promise<boolean>} Success status
    */
   async initialize() {
+    // Don't re-initialize if already done
+    if (this.initialized && this.audioContext) {
+      this.log('AudioCore already initialized');
+      return true;
+    }
+    
     try {
       if (typeof window === 'undefined') return false;
       
@@ -98,11 +113,47 @@ class AudioCore {
         this.log(`Created gain node for ${layerId}`);
       });
       
+      this.initialized = true;
+      this.log('AudioCore initialization complete');
+      
       return true;
     } catch (error) {
       console.error('Error initializing audio context:', error);
+      this.initialized = false;
       return false;
     }
+  }
+
+  /**
+   * Make sure the audio context is resumed (for browsers that suspend it)
+   * @returns {Promise<boolean>} Success status
+   */
+  async ensureAudioContextResumed() {
+    if (!this.audioContext) {
+      console.error('Audio context not initialized');
+      return false;
+    }
+    
+    if (this.audioContext.state === 'suspended') {
+      try {
+        this.log('Resuming suspended audio context');
+        await this.audioContext.resume();
+        
+        // Verify it actually resumed
+        if (this.audioContext.state !== 'running') {
+          console.warn(`Audio context still in ${this.audioContext.state} state after resume`);
+          return false;
+        }
+        
+        this.log('Audio context resumed successfully');
+        return true;
+      } catch (error) {
+        console.error('Error resuming audio context:', error);
+        return false;
+      }
+    }
+    
+    return this.audioContext.state === 'running';
   }
 
   /**
@@ -116,9 +167,14 @@ class AudioCore {
   async createAudioElement(layer, trackId, sourcePath, initialVolume = 0) {
     const layerId = layer.toLowerCase();
     
-    if (!this.audioContext || !this.gainNodes[layerId]) {
-      console.error('Audio context not initialized or invalid layer');
-      return null;
+    // Make sure we're initialized
+    if (!this.isInitialized()) {
+      console.error('Audio context not initialized, attempting to initialize now');
+      const success = await this.initialize();
+      if (!success) {
+        console.error('Failed to initialize audio context');
+        return null;
+      }
     }
     
     try {
@@ -160,6 +216,14 @@ class AudioCore {
       
       // Create media element source
       const source = this.audioContext.createMediaElementSource(audioElement);
+      
+      // Make sure gain node exists
+      if (!this.gainNodes[layerId]) {
+        console.warn(`Gain node for ${layerId} not found, creating it now`);
+        this.gainNodes[layerId] = this.audioContext.createGain();
+        this.gainNodes[layerId].connect(this.masterGain);
+      }
+      
       source.connect(this.gainNodes[layerId]);
       
       this.log(`Connected audio source for ${layerId}/${trackId} to gain node`);
@@ -274,19 +338,27 @@ class AudioCore {
    * @returns {Promise<boolean>} Success status
    */
   async startPlayback(activeElements, volumes) {
-    if (!this.audioContext) {
-      console.error('Audio context not initialized');
-      return false;
+    // Make sure we're initialized
+    if (!this.isInitialized()) {
+      console.error('Audio context not initialized, attempting to initialize now');
+      const initSuccess = await this.initialize();
+      if (!initSuccess) {
+        console.error('Failed to initialize audio context, cannot start playback');
+        return false;
+      }
     }
     
     try {
       this.log('Starting playback', { activeElements, volumes });
       
-      // Resume audio context if suspended
-      if (this.audioContext.state === 'suspended') {
-        this.log('Resuming suspended audio context');
-        await this.audioContext.resume();
+      // Make sure we have active elements
+      if (Object.keys(activeElements).length === 0) {
+        console.error('No active audio elements provided for playback');
+        return false;
       }
+      
+      // Resume audio context if suspended
+      await this.ensureAudioContextResumed();
       
       // Log the audio context state
       this.log(`Audio context state: ${this.audioContext.state}`);
@@ -340,7 +412,14 @@ class AudioCore {
       });
       
       // Wait for all play operations to complete
-      await Promise.all(playPromises);
+      const results = await Promise.all(playPromises);
+      
+      // Check if any playback failed
+      const allSucceeded = results.every(result => result !== null);
+      
+      if (!allSucceeded) {
+        console.warn('Some audio elements failed to play');
+      }
       
       // Update state
       this.isPlaying = true;
@@ -461,6 +540,7 @@ class AudioCore {
     // Reset state
     this.isPlaying = false;
     this.sessionStartTime = null;
+    this.initialized = false;
     
     // Clear references
     this.audioContext = null;

@@ -29,16 +29,11 @@ const LayerDropdown = ({ layer }) => {
   const toggleButtonRef = useRef(null);
   const menuRef = useRef(null);
   
-  // Check if there are multiple tracks available for this layer
+  // Get layer tracks
   const layerTracks = audioLibrary[layer] || [];
   const hasMultipleTracks = layerTracks.length > 1;
   
-  // If no tracks or only one track, don't render the dropdown
-  if (!hasMultipleTracks) {
-    return null;
-  }
-  
-  // Update menu position when toggling the dropdown
+  // Callbacks - declare ALL hooks regardless of conditions
   const updateMenuPosition = useCallback(() => {
     if (!toggleButtonRef.current) return;
     
@@ -55,7 +50,9 @@ const LayerDropdown = ({ layer }) => {
   
   // Toggle dropdown visibility
   const toggleDropdown = useCallback((e) => {
-    e.stopPropagation(); // Prevent event from reaching parent elements
+    if (e) {
+      e.stopPropagation(); // Prevent event from reaching parent elements
+    }
     
     // If we're about to expand, update the menu position
     if (!isExpanded) {
@@ -64,6 +61,76 @@ const LayerDropdown = ({ layer }) => {
     
     setIsExpanded(prev => !prev);
   }, [isExpanded, updateMenuPosition]);
+  
+  // Get active track name - always define this hook
+  const getActiveTrackName = useCallback(() => {
+    if (!activeAudio[layer] || !audioLibrary[layer]) return 'Default';
+    
+    const activeTrack = audioLibrary[layer].find(t => t.id === activeAudio[layer]);
+    return activeTrack ? activeTrack.name : 'Default';
+  }, [activeAudio, audioLibrary, layer]);
+  
+  // Handle track selection - always define this hook
+  const handleTrackSelect = useCallback((e, trackId) => {
+    e.stopPropagation(); // Prevent event bubbling
+    e.preventDefault();
+    
+    // Don't allow selection during active crossfade
+    if (activeCrossfades && activeCrossfades[layer]) {
+      console.log(`Crossfade already in progress for ${layer}`);
+      return;
+    }
+    
+    // Skip if already selected
+    if (trackId === activeAudio[layer]) {
+      setIsExpanded(false);
+      return;
+    }
+    
+    // Perform crossfade
+    crossfadeTo(layer, trackId, 2000);
+    
+    // Close the dropdown
+    setIsExpanded(false);
+  }, [activeCrossfades, layer, activeAudio, crossfadeTo]);
+  
+  // Check if the layer is currently in a crossfade
+  const isInCrossfade = activeCrossfades && activeCrossfades[layer];
+  
+  // Get progress percentage for display - always define this hook
+  const getProgressPercent = useCallback(() => {
+    if (!isInCrossfade) return 0;
+    return Math.floor((crossfadeProgress[layer] || 0) * 100);
+  }, [isInCrossfade, crossfadeProgress, layer]);
+  
+  // Current crossfade status display - always define this hook
+  const renderCrossfadeStatus = useCallback(() => {
+    if (!isInCrossfade) return null;
+    
+    const progress = getProgressPercent();
+    
+    if (activeCrossfades[layer].isLoading) {
+      return <span className={styles.crossfadeStatus}>Loading...</span>;
+    }
+    
+    return <span className={styles.crossfadeStatus}>Transition ({progress}%)</span>;
+  }, [isInCrossfade, activeCrossfades, layer, getProgressPercent]);
+  
+  // Calculate z-index for proper stacking - always define this hook
+  const getZIndex = useCallback(() => {
+    // Use a base z-index that's higher than other UI elements
+    const baseZIndex = 1000;
+    
+    // Add layer-specific offset
+    const layerOffset = {
+      'drone': 40,
+      'melody': 30,
+      'rhythm': 20,
+      'nature': 10
+    }[layer] || 0;
+    
+    return baseZIndex + layerOffset;
+  }, [layer]);
   
   // Handle click outside the dropdown
   useEffect(() => {
@@ -101,76 +168,11 @@ const LayerDropdown = ({ layer }) => {
     };
   }, [isExpanded]);
   
-  // Get active track name
-  const getActiveTrackName = useCallback(() => {
-    if (!activeAudio[layer] || !audioLibrary[layer]) return 'Default';
-    
-    const activeTrack = audioLibrary[layer].find(t => t.id === activeAudio[layer]);
-    return activeTrack ? activeTrack.name : 'Default';
-  }, [activeAudio, audioLibrary, layer]);
-  
-  // Handle track selection
-  const handleTrackSelect = useCallback((e, trackId) => {
-    e.stopPropagation(); // Prevent event bubbling
-    e.preventDefault();
-    
-    // Don't allow selection during active crossfade
-    if (activeCrossfades && activeCrossfades[layer]) {
-      console.log(`Crossfade already in progress for ${layer}`);
-      return;
-    }
-    
-    // Skip if already selected
-    if (trackId === activeAudio[layer]) {
-      setIsExpanded(false);
-      return;
-    }
-    
-    // Perform crossfade
-    crossfadeTo(layer, trackId, 2000);
-    
-    // Close the dropdown
-    setIsExpanded(false);
-  }, [activeCrossfades, layer, activeAudio, crossfadeTo]);
-  
-  // Check if the layer is currently in a crossfade
-  const isInCrossfade = activeCrossfades && activeCrossfades[layer];
-  
-  // Get progress percentage for display
-  const getProgressPercent = useCallback(() => {
-    if (!isInCrossfade) return 0;
-    return Math.floor((crossfadeProgress[layer] || 0) * 100);
-  }, [isInCrossfade, crossfadeProgress, layer]);
-  
-  // Current crossfade status display
-  const renderCrossfadeStatus = useCallback(() => {
-    if (!isInCrossfade) return null;
-    
-    const progress = getProgressPercent();
-    
-    if (activeCrossfades[layer].isLoading) {
-      return <span className={styles.crossfadeStatus}>Loading...</span>;
-    }
-    
-    return <span className={styles.crossfadeStatus}>Transition ({progress}%)</span>;
-  }, [isInCrossfade, activeCrossfades, layer, getProgressPercent]);
-  
-  // Calculate z-index for proper stacking
-  const getZIndex = useCallback(() => {
-    // Use a base z-index that's higher than other UI elements
-    const baseZIndex = 1000;
-    
-    // Add layer-specific offset
-    const layerOffset = {
-      'drone': 40,
-      'melody': 30,
-      'rhythm': 20,
-      'nature': 10
-    }[layer] || 0;
-    
-    return baseZIndex + layerOffset;
-  }, [layer]);
-  
+  // If no tracks or only one track, don't render the dropdown
+  if (!hasMultipleTracks) {
+    return null;
+  }
+
   return (
     <div 
       className={styles.dropdownContainer} 
