@@ -1,6 +1,6 @@
 // src/components/audio/SessionTimeline.js
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useAudio } from '../../contexts/AudioContext';
+import { useAudio } from '../../hooks/useAudio';
 import PhaseMarker from './PhaseMarker';
 import styles from '../../styles/components/SessionTimeline.module.css';
 

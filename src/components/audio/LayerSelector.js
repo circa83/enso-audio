@@ -1,6 +1,6 @@
 // src/components/audio/LayerSelector.js
 import React, { useState } from 'react';
-import { useAudio } from '../contexts/AudioContext';
+import { useAudio } from '../hooks/useAudio';
 import styles from '../../styles/components/LayerSelector.module.css';
 
 const LayerSelector = ({ layer }) => {

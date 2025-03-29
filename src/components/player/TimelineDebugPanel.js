@@ -1,6 +1,6 @@
 // src/components/audio/TimelineDebugPanel.js
 import React, { useState, useEffect } from 'react';
-import { useAudio } from '../../contexts/AudioContext';
+import { useAudio } from '../../hooks/useAudio';
 import styles from '../../styles/components/TimelineDebugPanel.module.css';
 
 const TimelineDebugPanel = ({ enabled = false }) => {

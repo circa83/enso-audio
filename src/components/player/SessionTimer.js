@@ -1,6 +1,6 @@
 // src/components/audio/SessionTimer.js
 import React, { useState, useEffect } from 'react';
-import { useAudio } from '../../contexts/AudioContext';
+import { useAudio } from '../../hooks/useAudio';
 import { formatTime } from '../../utils/formatTime';
 import styles from '../../styles/components/SessionTimer.module.css';
 

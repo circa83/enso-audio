@@ -1,7 +1,7 @@
 // src/components/audio/LayerControls.js
-import React, { memo } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import LayerControl from './LayerControl';
-import { useLayerControls } from '../../hooks/useAudio';
+import { useAudio } from '../../hooks/useAudio';
 import styles from '../../styles/components/LayerControls.module.css';
 
 /**
@@ -9,12 +9,26 @@ import styles from '../../styles/components/LayerControls.module.css';
  * Manages the set of layer volume sliders and dropdown selectors
  */
 const LayerControls = () => {
-  // Use the specialized hook instead of the full context
-  const { LAYERS, volumes, setVolume } = useLayerControls();
+  // Use the main hook instead of the specialized hook for now
+  const { LAYERS, volumes, setVolume } = useAudio();
+  const [layerIds, setLayerIds] = useState([]);
+  
+  // Safely initialize layer IDs once LAYERS is available
+  useEffect(() => {
+    if (LAYERS && typeof LAYERS === 'object') {
+      setLayerIds(Object.values(LAYERS));
+    }
+  }, [LAYERS]);
+
+  // Guard against missing LAYERS object
+  if (!LAYERS || typeof LAYERS !== 'object') {
+    console.error('LAYERS object is undefined or not an object in LayerControls');
+    return <div className={styles.layerControlsContainer}>Loading layer controls...</div>;
+  }
   
   return (
     <div className={styles.layerControlsContainer}>
-      {Object.values(LAYERS).map(layer => {
+      {layerIds.map(layer => {
         const layerId = layer.toLowerCase();
         return (
           <LayerControl

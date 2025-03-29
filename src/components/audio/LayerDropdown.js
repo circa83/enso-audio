@@ -10,15 +10,16 @@ import styles from '../../styles/components/LayerDropdown.module.css';
  * @param {string} props.layer - Audio layer ID (e.g., 'drone', 'melody')
  */
 const LayerDropdown = ({ layer }) => {
+  // Safely provide defaults for all potentially undefined values
   const { 
-    audioLibrary, 
-    activeAudio, 
+    audioLibrary = {}, 
+    activeAudio = {}, 
     crossfadeTo,
-    activeCrossfades,
-    crossfadeProgress,
-    preloadProgress,
-    LAYERS
-  } = useLayerControls();
+    activeCrossfades = {},
+    crossfadeProgress = {},
+    preloadProgress = {},
+    LAYERS = {}
+  } = useLayerControls() || {}; // Also check if useLayerControls returns undefined
   
   // Component state
   const [isExpanded, setIsExpanded] = useState(false);
@@ -62,16 +63,23 @@ const LayerDropdown = ({ layer }) => {
     setIsExpanded(prev => !prev);
   }, [isExpanded, updateMenuPosition]);
   
-  // Get active track name - always define this hook
+  // Get active track name - with proper null checks
   const getActiveTrackName = useCallback(() => {
-    if (!activeAudio[layer] || !audioLibrary[layer]) return 'Default';
+    if (!activeAudio || !audioLibrary || !layer || !audioLibrary[layer]) {
+      return 'Default';
+    }
     
-    const activeTrack = audioLibrary[layer].find(t => t.id === activeAudio[layer]);
+    const activeTrackId = activeAudio[layer];
+    if (!activeTrackId) return 'Default';
+    
+    const activeTrack = audioLibrary[layer].find(t => t.id === activeTrackId);
     return activeTrack ? activeTrack.name : 'Default';
   }, [activeAudio, audioLibrary, layer]);
   
-  // Handle track selection - always define this hook
-  const handleTrackSelect = useCallback((e, trackId) => {
+   // Handle track selection - with proper null checks
+   const handleTrackSelect = useCallback((e, trackId) => {
+    if (!e || !trackId || !crossfadeTo) return;
+    
     e.stopPropagation(); // Prevent event bubbling
     e.preventDefault();
     
@@ -82,7 +90,7 @@ const LayerDropdown = ({ layer }) => {
     }
     
     // Skip if already selected
-    if (trackId === activeAudio[layer]) {
+    if (activeAudio && activeAudio[layer] === trackId) {
       setIsExpanded(false);
       return;
     }

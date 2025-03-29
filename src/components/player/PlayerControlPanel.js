@@ -29,7 +29,7 @@ const PlayerControlPanel = () => {
   
   // Track if we have audio tracks loaded
   useEffect(() => {
-    const hasAudioTracks = Object.keys(activeAudio).length > 0;
+    const hasAudioTracks = activeAudio && Object.keys(activeAudio).length > 0;
     setIsInitialized(hasAudioTracks);
     
     if (!hasAudioTracks) {
@@ -42,13 +42,13 @@ const PlayerControlPanel = () => {
   // Check for empty tracks in active audio
   useEffect(() => {
     // This helps diagnose why no sound is playing
-    if (isPlaying && Object.keys(activeAudio).length === 0) {
+    if (isPlaying && activeAudio && Object.keys(activeAudio).length === 0) {
       console.warn('Playing state is true but no active audio tracks are loaded');
       setErrorMessage('No audio tracks loaded. Please reload the page.');
       return;
     }
     
-    if (isPlaying) {
+    if (isPlaying && volumes) {
       // Log volumes for debugging
       const allZero = Object.values(volumes).every(vol => vol === 0);
       if (allZero) {
