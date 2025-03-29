@@ -13,16 +13,19 @@ const LayerControls = () => {
   const { LAYERS, volumes, setVolume } = useLayerControls();
   
   return (
-    <div className={styles.layerControlsContent}>
-      {Object.values(LAYERS).map(layer => (
-        <LayerControl
-          key={layer}
-          label={layer.charAt(0).toUpperCase() + layer.slice(1)}
-          value={volumes[layer.toLowerCase()]}
-          onChange={(value) => setVolume(layer.toLowerCase(), value)}
-          layer={layer.toLowerCase()}
-        />
-      ))}
+    <div className={styles.layerControlsContainer}>
+      {Object.values(LAYERS).map(layer => {
+        const layerId = layer.toLowerCase();
+        return (
+          <LayerControl
+            key={layerId}
+            label={layer.charAt(0).toUpperCase() + layer.slice(1)}
+            value={volumes[layerId] || 0}
+            onChange={(value) => setVolume(layerId, value)}
+            layer={layerId}
+          />
+        );
+      })}
     </div>
   );
 };

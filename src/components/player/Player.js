@@ -1,15 +1,19 @@
-// src/components/Player.js
-import React, { useState, useEffect, useCallback, memo, useContext } from 'react';
+// src/components/player/Player.js
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import { useAudio } from '../../contexts/AudioContext';
+
+// Import components
 import CollapsibleSection from '../common/CollapsibleSection';
 import LayerControls from '../audio/LayerControls';
 import SessionTimer from './SessionTimer';
-import SessionTimeline from '../player/SessionTimeline';
+import SessionTimeline from './SessionTimeline';
 import SessionSettings from './SessionSettings';
-import PlayerControlPanel from '../player/PlayerControlPanel';
+import PlayerControlPanel from './PlayerControlPanel';
 import TimelineDebugPanel from './TimelineDebugPanel';
-import PresetManager from '../../services/storage/PresetManager';
 import JourneyGuide from '../audio/JourneyGuide';
+import PresetManager from '../../services/storage/PresetManager';
+
+// Import styles
 import styles from '../../styles/pages/Player.module.css';
 
 /**
@@ -17,11 +21,8 @@ import styles from '../../styles/pages/Player.module.css';
  * Handles session configuration and provides access to all audio controls
  */
 const Player = () => {
-  // Get timeline-related state from the audio context
-  const { 
-    //registerPresetStateProvider,
-    //updateTimelinePhases
- } = useContext(AudioContext);
+  // Get context methods for preset state management
+  const { registerPresetStateProvider } = useAudio();
   
   // Local state for session configuration
   const [sessionDuration, setSessionDuration] = useState(60 * 60 * 1000); // Default 1 hour
@@ -31,39 +32,39 @@ const Player = () => {
   
   // Register our session settings with the preset system
   useEffect(() => {
-    if (registerPresetStateProvider) {
-      const getSessionState = () => {
-        return {
-          timelineEnabled,
-          sessionDuration,
-          transitionDuration
-        };
+    if (!registerPresetStateProvider) return;
+    
+    const getSessionState = () => {
+      return {
+        timelineEnabled,
+        sessionDuration,
+        transitionDuration
       };
-      
-      // Register the state provider function
-      registerPresetStateProvider('sessionSettings', getSessionState);
-      
-      // Cleanup on component unmount
-      return () => registerPresetStateProvider('sessionSettings', null);
-    }
+    };
+    
+    // Register the state provider function
+    registerPresetStateProvider('sessionSettings', getSessionState);
+    
+    // Cleanup on component unmount
+    return () => registerPresetStateProvider('sessionSettings', null);
   }, [registerPresetStateProvider, timelineEnabled, sessionDuration, transitionDuration]);
   
   // Listen for settings updates from preset loading
   useEffect(() => {
     const handleSessionSettingsUpdate = (event) => {
-      if (event.detail) {
-        // Update session settings
-        if (event.detail.timelineEnabled !== undefined) {
-          setTimelineEnabled(event.detail.timelineEnabled);
-        }
-        
-        if (event.detail.sessionDuration) {
-          setSessionDuration(event.detail.sessionDuration);
-        }
-        
-        if (event.detail.transitionDuration) {
-          setTransitionDuration(event.detail.transitionDuration);
-        }
+      if (!event.detail) return;
+      
+      // Update session settings
+      if (event.detail.timelineEnabled !== undefined) {
+        setTimelineEnabled(event.detail.timelineEnabled);
+      }
+      
+      if (event.detail.sessionDuration) {
+        setSessionDuration(event.detail.sessionDuration);
+      }
+      
+      if (event.detail.transitionDuration) {
+        setTransitionDuration(event.detail.transitionDuration);
       }
     };
     
@@ -91,11 +92,13 @@ const Player = () => {
   
   // Memoized render for session timeline content
   const renderSessionTimeline = useCallback(() => {
-    if (!timelineEnabled) return (
-      <div className={styles.timelineDisabled}>
-        Timeline is currently disabled. Enable it in Session Settings.
-      </div>
-    );
+    if (!timelineEnabled) {
+      return (
+        <div className={styles.timelineDisabled}>
+          Timeline is currently disabled. Enable it in Session Settings.
+        </div>
+      );
+    }
     
     return (
       <SessionTimeline 
@@ -143,9 +146,11 @@ const Player = () => {
       {/* Collapsible Section for Audio Layers */}
       <CollapsibleSection 
         title="Audio Layers" 
-        initialExpanded={false}
+        initialExpanded={true}
       >
-        <LayerControls />
+        <div className={styles.layerControlsContent}>
+          <LayerControls />
+        </div>
       </CollapsibleSection>
       
       {/* Collapsible Section for Session Settings */}
@@ -173,9 +178,11 @@ const Player = () => {
       {/* Debug Panel - only visible when toggled */}
       <TimelineDebugPanel enabled={showDebugPanel} />
       
-      <div className={styles.debugNote}>
-        Press Ctrl+Shift+D to toggle debug panel
-      </div>
+      {showDebugPanel && (
+        <div className={styles.debugNote}>
+          Press Ctrl+Shift+D to toggle debug panel
+        </div>
+      )}
     </div>
   );
 };

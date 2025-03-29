@@ -1,10 +1,10 @@
-// src/components/audio/ImprovedLayerControl.js
+// src/components/audio/LayerControl.js
 import React, { memo, useCallback } from 'react';
-import ImprovedLayerDropdown from './LayerDropdown';
+import LayerDropdown from './LayerDropdown'; 
 import styles from '../../styles/components/LayerControl.module.css';
 
 /**
- * ImprovedLayerControl - Enhanced control for adjusting audio layer volume
+ * LayerControl - Component for individual audio layer volume control
  * 
  * @param {Object} props - Component props
  * @param {string} props.label - Display label for the control
@@ -31,7 +31,7 @@ const LayerControl = ({ label, value, onChange, layer }) => {
         >
           {label}
         </label>
-        <ImprovedLayerDropdown layer={layer} />
+        <LayerDropdown layer={layer} />
       </div>
       
       <input 

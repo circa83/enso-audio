@@ -1,15 +1,15 @@
-// src/components/audio/ImprovedLayerDropdown.js
+// src/components/audio/LayerDropdown.js
 import React, { useState, useRef, useEffect, memo, useCallback } from 'react';
-import { useAudio } from '../../contexts/AudioContext';
+import { useLayerControls } from '../../hooks/useAudio';
 import styles from '../../styles/components/LayerDropdown.module.css';
 
 /**
- * ImprovedLayerDropdown - Enhanced dropdown for selecting audio tracks for a layer
+ * LayerDropdown - Dropdown for selecting audio tracks for a layer
  * 
  * @param {Object} props - Component props
  * @param {string} props.layer - Audio layer ID (e.g., 'drone', 'melody')
  */
-const ImprovedLayerDropdown = ({ layer }) => {
+const LayerDropdown = ({ layer }) => {
   const { 
     audioLibrary, 
     activeAudio, 
@@ -17,8 +17,8 @@ const ImprovedLayerDropdown = ({ layer }) => {
     activeCrossfades,
     crossfadeProgress,
     preloadProgress,
-    isPlaying
-  } = useAudio();
+    LAYERS
+  } = useLayerControls();
   
   // Component state
   const [isExpanded, setIsExpanded] = useState(false);
@@ -30,7 +30,8 @@ const ImprovedLayerDropdown = ({ layer }) => {
   const menuRef = useRef(null);
   
   // Check if there are multiple tracks available for this layer
-  const hasMultipleTracks = audioLibrary[layer]?.length > 1;
+  const layerTracks = audioLibrary[layer] || [];
+  const hasMultipleTracks = layerTracks.length > 1;
   
   // If no tracks or only one track, don't render the dropdown
   if (!hasMultipleTracks) {
@@ -125,20 +126,36 @@ const ImprovedLayerDropdown = ({ layer }) => {
       return;
     }
     
-    console.log(`Selecting track ${trackId} for ${layer}`);
-    
-    // Perform crossfade with appropriate duration based on playback state
-    const fadeDuration = isPlaying ? 2000 : 200;
-    crossfadeTo(layer, trackId, fadeDuration);
+    // Perform crossfade
+    crossfadeTo(layer, trackId, 2000);
     
     // Close the dropdown
     setIsExpanded(false);
-  }, [activeCrossfades, layer, activeAudio, isPlaying, crossfadeTo]);
+  }, [activeCrossfades, layer, activeAudio, crossfadeTo]);
   
   // Check if the layer is currently in a crossfade
   const isInCrossfade = activeCrossfades && activeCrossfades[layer];
   
-  // Calculate z-index based on layer name
+  // Get progress percentage for display
+  const getProgressPercent = useCallback(() => {
+    if (!isInCrossfade) return 0;
+    return Math.floor((crossfadeProgress[layer] || 0) * 100);
+  }, [isInCrossfade, crossfadeProgress, layer]);
+  
+  // Current crossfade status display
+  const renderCrossfadeStatus = useCallback(() => {
+    if (!isInCrossfade) return null;
+    
+    const progress = getProgressPercent();
+    
+    if (activeCrossfades[layer].isLoading) {
+      return <span className={styles.crossfadeStatus}>Loading...</span>;
+    }
+    
+    return <span className={styles.crossfadeStatus}>Transition ({progress}%)</span>;
+  }, [isInCrossfade, activeCrossfades, layer, getProgressPercent]);
+  
+  // Calculate z-index for proper stacking
   const getZIndex = useCallback(() => {
     // Use a base z-index that's higher than other UI elements
     const baseZIndex = 1000;
@@ -153,31 +170,6 @@ const ImprovedLayerDropdown = ({ layer }) => {
     
     return baseZIndex + layerOffset;
   }, [layer]);
-  
-  // Calculate menu z-index - always one less than the dropdown
-  const menuZIndex = getZIndex() - 1;
-  
-  // Get progress percentage for display
-  const getProgressPercent = useCallback(() => {
-    if (!isInCrossfade) return 0;
-    return Math.floor((crossfadeProgress[layer] || 0) * 100);
-  }, [isInCrossfade, crossfadeProgress, layer]);
-  
-  // Determine if there are tracks available to select
-  const hasTracks = audioLibrary[layer] && audioLibrary[layer].length > 0;
-  
-  // Current crossfade status display
-  const renderCrossfadeStatus = useCallback(() => {
-    if (!isInCrossfade) return null;
-    
-    const progress = getProgressPercent();
-    
-    if (activeCrossfades[layer].isLoading) {
-      return <span className={styles.crossfadeStatus}>Loading...</span>;
-    }
-    
-    return <span className={styles.crossfadeStatus}>Transition ({progress}%)</span>;
-  }, [isInCrossfade, activeCrossfades, layer, getProgressPercent]);
   
   return (
     <div 
@@ -200,23 +192,19 @@ const ImprovedLayerDropdown = ({ layer }) => {
         <span className={styles.arrowIcon}>▼</span>
       </button>
       
-      {isExpanded && hasTracks && (
+      {isExpanded && (
         <>
           {/* Semi-transparent overlay to capture clicks outside menu */}
           <div 
             className={styles.menuOverlay} 
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsExpanded(false);
-            }}
-            style={{ zIndex: menuZIndex }}
+            onClick={() => setIsExpanded(false)}
+            style={{ zIndex: getZIndex() - 1 }}
           />
           
           {/* Dropdown menu */}
           <ul 
             className={styles.dropdownMenu}
             ref={menuRef}
-            onClick={(e) => e.stopPropagation()} // Prevent clicks from reaching through
             style={{
               top: `${menuPosition.top}px`,
               left: `${menuPosition.left}px`,
@@ -247,9 +235,9 @@ const ImprovedLayerDropdown = ({ layer }) => {
                   <span className={styles.trackName}>{track.name}</span>
                   {isActive && <span className={styles.activeIndicator}>✓</span>}
                   {isPreloading && (
-                    <div className={styles.preloadingIndicator}>
-                      <span>{preloadProgress[track.id]}%</span>
-                    </div>
+                    <span className={styles.preloadingIndicator}>
+                      {preloadProgress[track.id]}%
+                    </span>
                   )}
                 </li>
               );
@@ -262,4 +250,4 @@ const ImprovedLayerDropdown = ({ layer }) => {
 };
 
 // Use memo to prevent unnecessary re-renders
-export default memo(ImprovedLayerDropdown);
+export default memo(LayerDropdown);

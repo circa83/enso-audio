@@ -1,21 +1,23 @@
 // src/contexts/AudioContext.js
-import React, { createContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { getAudioCore, createAudioCore } from '../services/audio/AudioCoreFactory';
+import React, { createContext, useState, useEffect, useContext, useMemo, useCallback } from 'react';
+
+// Import service factories
+import { getAudioCore } from '../services/audio/AudioCoreFactory';
 import { getBufferManager } from '../services/audio/BufferManagerFactory';
 import { getCrossfadeEngine } from '../services/audio/CrossfadeEngineFactory';
 import { getVolumeController } from '../services/audio/VolumeControllerFactory';
 import { getTimelineEngine } from '../services/audio/TimelineEngineFactory';
 import { getPresetStorage } from '../services/storage/PresetStorage';
 
-// Define our audio layers
-const LAYERS = {
+// Constants
+export const LAYERS = {
   DRONE: 'drone',
   MELODY: 'melody',
   RHYTHM: 'rhythm',
   NATURE: 'nature'
 };
 
-// Default audio files paths
+// Default audio tracks
 const DEFAULT_AUDIO = {
   [LAYERS.DRONE]: '/samples/default/drone.mp3',
   [LAYERS.MELODY]: '/samples/default/melody.mp3',
@@ -26,57 +28,77 @@ const DEFAULT_AUDIO = {
 // Create the context
 const AudioContext = createContext(null);
 
+/**
+ * AudioProvider - Main provider for audio functionality
+ * Manages audio services and exposes controlled interface to components
+ */
 export const AudioProvider = ({ children }) => {
-  // Service instances
-  const [audioCore, setAudioCore] = useState(null);
+  // Service instances (lazy initialized by factories)
+  const [audioCore] = useState(() => getAudioCore());
   const [bufferManager, setBufferManager] = useState(null);
-  const [crossfadeEngine, setCrossfadeEngine] = useState(null);
   const [volumeController, setVolumeController] = useState(null);
+  const [crossfadeEngine, setCrossfadeEngine] = useState(null);
   const [timelineEngine, setTimelineEngine] = useState(null);
   const [presetStorage, setPresetStorage] = useState(null);
   
-  // State
+  // Initialization state
+  const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [isAudioActivated, setIsAudioActivated] = useState(false);
+  
+  // Audio state
   const [isPlaying, setIsPlaying] = useState(false);
-  const [volumes, setVolumes] = useState({}); 
+  const [volumes, setVolumes] = useState({
+    [LAYERS.DRONE.toLowerCase()]: 0.25,
+    [LAYERS.MELODY.toLowerCase()]: 0.0,
+    [LAYERS.RHYTHM.toLowerCase()]: 0.0,
+    [LAYERS.NATURE.toLowerCase()]: 0.0
+  });
+  const [masterVolume, setMasterVolume] = useState(0.8);
   const [activeAudio, setActiveAudio] = useState({});
   const [audioLibrary, setAudioLibrary] = useState({});
   const [hasSwitchableAudio, setHasSwitchableAudio] = useState(false);
-  const [masterVolume, setMasterVolume] = useState(0.8);
-  const [sessionStartTime, setSessionStartTime] = useState(null);
   
   // Tracking states
+  const [sessionStartTime, setSessionStartTime] = useState(null);
   const [crossfadeProgress, setCrossfadeProgress] = useState({});
   const [activeCrossfades, setActiveCrossfades] = useState({});
   const [preloadProgress, setPreloadProgress] = useState({});
-  const [timelinePhases, setTimelinePhases] = useState([]);
   
-  // Initialize services
+  // Timeline state
+  const [timelinePhases, setTimelinePhases] = useState([]);
+  const [presetStateProviders, setPresetStateProviders] = useState({});
+
+  // Initialize audio core and services
   useEffect(() => {
-    const initializeServices = async () => {
+    const initializeAudio = async () => {
       try {
         setLoadingProgress(10);
         
-        // Create AudioCore
-        const core = createAudioCore();
-        await core.initialize();
-        setAudioCore(core);
+        // Initialize audio core
+        const initialized = await audioCore.initialize();
+        
+        if (!initialized) {
+          console.error('Failed to initialize AudioCore');
+          setIsLoading(false);
+          return;
+        }
         
         setLoadingProgress(20);
         
-        // Initialize other services once AudioCore is ready
-        const bufferMgr = getBufferManager(core.audioContext);
+        // Initialize services with the audio context
+        const bufferMgr = getBufferManager(audioCore.audioContext);
         setBufferManager(bufferMgr);
         
         setLoadingProgress(30);
         
-        const volumeCtrl = getVolumeController(core.audioContext);
+        const volumeCtrl = getVolumeController(audioCore.audioContext);
         setVolumeController(volumeCtrl);
         
         setLoadingProgress(40);
         
-        const crossfadeEng = getCrossfadeEngine(core.audioContext);
+        const crossfadeEng = getCrossfadeEngine(audioCore.audioContext);
         setCrossfadeEngine(crossfadeEng);
         
         setLoadingProgress(50);
@@ -90,124 +112,122 @@ export const AudioProvider = ({ children }) => {
         setPresetStorage(presetStore);
         
         setLoadingProgress(70);
-
-        // Register gain nodes with volume controller
-        Object.values(LAYERS).forEach(layer => {
-          const layerId = layer.toLowerCase();
-          if (core.gainNodes[layerId]) {
-            volumeCtrl.registerGainNode(layerId, core.gainNodes[layerId]);
-          }
-        });
         
-        // Register master gain node
-        if (core.masterGain) {
-          volumeCtrl.registerMasterGainNode(core.masterGain);
-        }
+        // Connect services
+        connectServices(audioCore, volumeCtrl);
         
         setLoadingProgress(80);
         
-        // Set initial volume state
-        const initialVolumes = {
-          [LAYERS.DRONE]: 0.25,
-          [LAYERS.MELODY]: 0.0,
-          [LAYERS.RHYTHM]: 0.0,
-          [LAYERS.NATURE]: 0.0
-        };
-        
-        // Apply initial volumes
-        Object.entries(initialVolumes).forEach(([layer, volume]) => {
-          volumeCtrl.setLayerVolume(layer, volume);
-        });
-        setVolumes(initialVolumes);
+        // Set up initial audio library
+        await setupAudioLibrary();
         
         setLoadingProgress(90);
         
-        // Set up basic library
-        const basicLibrary = {};
-        Object.values(LAYERS).forEach(layer => {
-          basicLibrary[layer] = [{
-            id: `${layer}1`,
-            name: `${layer.charAt(0).toUpperCase() + layer.slice(1)}`,
-            path: DEFAULT_AUDIO[layer]
-          }];
-        });
-        setAudioLibrary(basicLibrary);
+        // Initialize with default tracks
+        await initializeDefaultTracks();
         
-        // Initialize with default audio
-        await initializeDefaultAudio(basicLibrary, core);
+        setLoadingProgress(100);
+        setIsLoading(false);
+        setIsInitialized(true);
         
         // Try to load variation files in background
         setTimeout(() => tryLoadVariationFiles(), 1000);
-        
       } catch (error) {
-        console.error("Error initializing audio services:", error);
-        // Force loading to complete anyway so UI doesn't get stuck
-        setLoadingProgress(100);
+        console.error('Error initializing audio services:', error);
         setIsLoading(false);
       }
     };
     
-    initializeServices();
+    if (!isInitialized) {
+      initializeAudio();
+    }
     
-    // Cleanup function
     return () => {
+      // Cleanup function
       if (audioCore) {
         audioCore.cleanup();
       }
-      
-      if (volumeController) {
-        volumeController.cleanup();
-      }
-      
-      if (crossfadeEngine) {
-        crossfadeEngine.cleanup();
-      }
     };
-  }, []);
+  }, [audioCore, isInitialized]);
   
-  // Initialize default audio elements
-  const initializeDefaultAudio = async (library, core) => {
-    const totalFiles = Object.values(LAYERS).length;
-    let loadedFilesCount = 0;
+  /**
+   * Connect audio services together
+   */
+  const connectServices = (audioCore, volumeCtrl) => {
+    // Register gain nodes with volume controller
+    Object.values(LAYERS).forEach(layer => {
+      const layerId = layer.toLowerCase();
+      if (audioCore.gainNodes[layerId]) {
+        volumeCtrl.registerGainNode(layerId, audioCore.gainNodes[layerId]);
+      }
+    });
+    
+    // Register master gain node
+    if (audioCore.masterGain) {
+      volumeCtrl.registerMasterGainNode(audioCore.masterGain);
+    }
+    
+    // Initialize volume values
+    Object.values(LAYERS).forEach(layer => {
+      const layerId = layer.toLowerCase();
+      volumeCtrl.setLayerVolume(layerId, volumes[layerId] || 0);
+    });
+  };
+  
+  /**
+   * Set up basic audio library structure
+   */
+  const setupAudioLibrary = async () => {
+    const basicLibrary = {};
+    
+    Object.values(LAYERS).forEach(layer => {
+      const layerId = layer.toLowerCase();
+      basicLibrary[layerId] = [{
+        id: `${layerId}1`,
+        name: `${layer.charAt(0).toUpperCase() + layer.slice(1)}`,
+        path: DEFAULT_AUDIO[layer]
+      }];
+    });
+    
+    setAudioLibrary(basicLibrary);
+  };
+  
+  /**
+   * Initialize default audio tracks
+   */
+  const initializeDefaultTracks = async () => {
     const newActiveAudio = {};
     
     // For each layer, create and load the default audio element
     for (const layer of Object.values(LAYERS)) {
       try {
-        const defaultTrack = library[layer][0];
+        const layerId = layer.toLowerCase();
+        const defaultTrack = audioLibrary[layerId]?.[0];
         
-        // Create audio element through AudioCore
-        await core.createAudioElement(
-          layer, 
-          defaultTrack.id, 
-          defaultTrack.path, 
-          volumes[layer] || 0
-        );
-        
-        // Set as active audio for this layer
-        newActiveAudio[layer] = defaultTrack.id;
-        
-        // Update progress
-        loadedFilesCount++;
-        const progress = Math.round((loadedFilesCount / totalFiles) * 20) + 80;
-        setLoadingProgress(progress);
-        
+        if (defaultTrack) {
+          // Create audio element through AudioCore
+          await audioCore.createAudioElement(
+            layerId, 
+            defaultTrack.id, 
+            defaultTrack.path, 
+            volumes[layerId] || 0
+          );
+          
+          // Set as active audio for this layer
+          newActiveAudio[layerId] = defaultTrack.id;
+        }
       } catch (error) {
         console.error(`Error initializing audio for layer ${layer}:`, error);
-        // Increment progress anyway to avoid getting stuck
-        loadedFilesCount++;
-        const progress = Math.round((loadedFilesCount / totalFiles) * 20) + 80;
-        setLoadingProgress(progress);
       }
     }
     
     // Update state with loaded audio
     setActiveAudio(newActiveAudio);
-    setIsLoading(false);
-    setLoadingProgress(100);
   };
   
-  // Try to load variation files in background
+  /**
+   * Try to load variation files in background
+   */
   const tryLoadVariationFiles = async () => {
     try {
       // Check if variation files exist
@@ -223,12 +243,13 @@ export const AudioProvider = ({ children }) => {
           
           // Add variations for each layer
           for (const layer of Object.values(LAYERS)) {
-            extendedLibrary[layer] = [
-              ...extendedLibrary[layer],
+            const layerId = layer.toLowerCase();
+            extendedLibrary[layerId] = [
+              ...extendedLibrary[layerId],
               ...[1, 2, 3].map(i => ({
-                id: `${layer}_variation_${i}`,
+                id: `${layerId}_variation_${i}`,
                 name: `${layer.charAt(0).toUpperCase() + layer.slice(1)} Variation ${i}`,
-                path: `/samples/${layer}/${layer}_0${i}.mp3`
+                path: `/samples/${layerId}/${layerId}_0${i}.mp3`
               }))
             ];
           }
@@ -241,9 +262,32 @@ export const AudioProvider = ({ children }) => {
     }
   };
   
-  // Start session
+  /**
+   * Activate audio - call after user interaction to initialize audio context
+   * Required by browsers to enable audio playback
+   */
+  const activateAudio = useCallback(async () => {
+    if (!audioCore || isAudioActivated) return false;
+    
+    try {
+      // Resume audio context (browser policy requires user interaction)
+      if (audioCore.audioContext && audioCore.audioContext.state === 'suspended') {
+        await audioCore.audioContext.resume();
+      }
+      
+      setIsAudioActivated(true);
+      return true;
+    } catch (error) {
+      console.error('Error activating audio:', error);
+      return false;
+    }
+  }, [audioCore, isAudioActivated]);
+  
+  /**
+   * Start audio session
+   */
   const startSession = useCallback(() => {
-    if (!audioCore || isPlaying) return;
+    if (!audioCore || isPlaying || !isInitialized) return false;
     
     try {
       // Start playback
@@ -251,7 +295,7 @@ export const AudioProvider = ({ children }) => {
       setIsPlaying(true);
       setSessionStartTime(Date.now());
       
-      // Start timeline if enabled
+      // Start timeline if available and enabled
       if (timelineEngine && timelineEngine.isTimelineEnabled()) {
         timelineEngine.start();
       }
@@ -262,11 +306,13 @@ export const AudioProvider = ({ children }) => {
       setIsPlaying(false);
       return false;
     }
-  }, [audioCore, isPlaying, activeAudio, volumes, timelineEngine]);
+  }, [audioCore, activeAudio, volumes, isPlaying, isInitialized, timelineEngine]);
   
-  // Pause session
+  /**
+   * Pause audio session
+   */
   const pauseSession = useCallback(() => {
-    if (!audioCore || !isPlaying) return;
+    if (!audioCore || !isPlaying) return false;
     
     try {
       // Pause all audio
@@ -285,9 +331,19 @@ export const AudioProvider = ({ children }) => {
     }
   }, [audioCore, isPlaying, timelineEngine]);
   
-  // Update volume for a layer
+  /**
+   * Get elapsed session time
+   */
+  const getSessionTime = useCallback(() => {
+    if (!audioCore) return 0;
+    return audioCore.getSessionTime();
+  }, [audioCore]);
+  
+  /**
+   * Set volume for a specific layer
+   */
   const setVolume = useCallback((layer, value) => {
-    if (!volumeController) return;
+    if (!volumeController) return false;
     
     // Update volume in controller
     volumeController.setLayerVolume(layer, value);
@@ -297,21 +353,29 @@ export const AudioProvider = ({ children }) => {
       ...prev,
       [layer]: value
     }));
+    
+    return true;
   }, [volumeController]);
   
-  // Set master volume
+  /**
+   * Set master volume
+   */
   const setMasterVolumeLevel = useCallback((value) => {
-    if (!volumeController) return;
+    if (!volumeController) return false;
     
     // Update master volume in controller
     volumeController.setMasterVolume(value);
     
     // Update state
     setMasterVolume(value);
+    
+    return true;
   }, [volumeController]);
   
-  // Enhanced crossfade function
-  const enhancedCrossfadeTo = useCallback(async (layer, newTrackId, fadeDuration = 4000) => {
+  /**
+   * Crossfade to a new audio track for a layer
+   */
+  const crossfadeTo = useCallback(async (layer, newTrackId, fadeDuration = 4000) => {
     if (!audioCore || !crossfadeEngine || !bufferManager) return false;
     
     // Get current track ID
@@ -324,7 +388,7 @@ export const AudioProvider = ({ children }) => {
     if (!isPlaying) {
       try {
         // Find track in library
-        const track = audioLibrary[layer].find(t => t.id === newTrackId);
+        const track = audioLibrary[layer]?.find(t => t.id === newTrackId);
         if (!track) return false;
         
         // Check if we already have this track loaded
@@ -362,7 +426,7 @@ export const AudioProvider = ({ children }) => {
     
     try {
       // Find track in library
-      const track = audioLibrary[layer].find(t => t.id === newTrackId);
+      const track = audioLibrary[layer]?.find(t => t.id === newTrackId);
       if (!track) throw new Error(`Track ${newTrackId} not found`);
       
       // Create the new track if needed
@@ -426,11 +490,15 @@ export const AudioProvider = ({ children }) => {
         });
       };
       
+      // Get source and target audio elements
+      const sourceElement = audioCore.getAudioElement(layer, currentTrackId);
+      const targetElement = audioCore.getAudioElement(layer, newTrackId);
+      
       // Start crossfade
       const result = await crossfadeEngine.startCrossfade(
         layer,
-        { element: audioCore.getAudioElement(layer, currentTrackId) },
-        { element: audioCore.getAudioElement(layer, newTrackId) },
+        { element: sourceElement, source: { connect: () => {} }, gain: {} }, // Simplified for interface
+        { element: targetElement, source: { connect: () => {} }, gain: {} }, // Simplified for interface
         fadeDuration,
         volumes[layer],
         onProgress,
@@ -451,20 +519,75 @@ export const AudioProvider = ({ children }) => {
     }
   }, [audioCore, crossfadeEngine, bufferManager, activeAudio, audioLibrary, volumes, isPlaying, activeCrossfades]);
   
-  // Get elapsed session time
-  const getSessionTime = useCallback(() => {
-    if (!audioCore) return 0;
-    return audioCore.getSessionTime();
-  }, [audioCore]);
+  /**
+   * Preload an audio track without playing it
+   */
+  const preloadAudio = useCallback(async (layer, trackId) => {
+    if (!bufferManager || !audioCore) return false;
+    
+    try {
+      // Find track in library
+      const track = audioLibrary[layer]?.find(t => t.id === trackId);
+      if (!track) return false;
+      
+      // Skip if already loaded
+      if (audioCore.isTrackLoaded(layer, trackId)) return true;
+      
+      // Start tracking preload progress
+      setPreloadProgress(prev => ({
+        ...prev,
+        [trackId]: 0
+      }));
+      
+      // Create audio element
+      const result = await audioCore.createAudioElement(
+        layer, 
+        trackId, 
+        track.path, 
+        0, // Initial volume 0
+        (progress) => {
+          // Update preload progress
+          setPreloadProgress(prev => ({
+            ...prev,
+            [trackId]: progress
+          }));
+        }
+      );
+      
+      // Clear preload progress when complete
+      setPreloadProgress(prev => {
+        const newState = {...prev};
+        delete newState[trackId];
+        return newState;
+      });
+      
+      return !!result;
+    } catch (error) {
+      console.error(`Error preloading audio: ${error.message}`);
+      
+      // Clear preload progress on error
+      setPreloadProgress(prev => {
+        const newState = {...prev};
+        delete newState[trackId];
+        return newState;
+      });
+      
+      return false;
+    }
+  }, [audioCore, bufferManager, audioLibrary]);
   
-  // Reset timeline event index
+  /**
+   * Reset timeline event index
+   */
   const resetTimelineEventIndex = useCallback(() => {
     if (timelineEngine) {
       timelineEngine.resetTimelineEventIndex();
     }
   }, [timelineEngine]);
   
-  // Update timeline phases
+  /**
+   * Update timeline phases
+   */
   const updateTimelinePhases = useCallback((phases) => {
     if (!phases || !Array.isArray(phases)) return;
     
@@ -473,24 +596,62 @@ export const AudioProvider = ({ children }) => {
     if (timelineEngine) {
       timelineEngine.setPhases(phases);
     }
+    
+    // Dispatch event for other components
+    window.dispatchEvent(new CustomEvent('timeline-update', { 
+      detail: { phases }
+    }));
   }, [timelineEngine]);
   
-  // Save preset
+  /**
+   * Register a state provider for presets
+   */
+  const registerPresetStateProvider = useCallback((key, providerFn) => {
+    if (!key) return;
+    
+    if (providerFn) {
+      // Add or update provider
+      setPresetStateProviders(prev => ({
+        ...prev,
+        [key]: providerFn
+      }));
+    } else {
+      // Remove provider if null function
+      setPresetStateProviders(prev => {
+        const newProviders = {...prev};
+        delete newProviders[key];
+        return newProviders;
+      });
+    }
+  }, []);
+  
+  /**
+   * Save current preset
+   */
   const savePreset = useCallback((name) => {
     if (!presetStorage || !name || name.trim() === '') return false;
     
-    // Create the preset state data
-    const state = {
-      volumes: { ...volumes },
-      activeAudio: { ...activeAudio },
-      timelinePhases: [...timelinePhases]
-    };
+    // Collect state from all registered providers
+    const state = {};
+    
+    Object.entries(presetStateProviders).forEach(([key, providerFn]) => {
+      if (typeof providerFn === 'function') {
+        state[key] = providerFn();
+      }
+    });
+    
+    // Always save current volumes and active audio
+    state.volumes = {...volumes};
+    state.activeAudio = {...activeAudio};
+    state.timelinePhases = [...timelinePhases];
     
     // Save using the preset storage service
     return presetStorage.savePreset(name, state);
-  }, [presetStorage, volumes, activeAudio, timelinePhases]);
+  }, [presetStorage, volumes, activeAudio, timelinePhases, presetStateProviders]);
   
-  // Load preset
+  /**
+   * Load a preset
+   */
   const loadPreset = useCallback((name) => {
     if (!presetStorage) return false;
     
@@ -499,34 +660,135 @@ export const AudioProvider = ({ children }) => {
     if (!preset || !preset.state) {
       return false;
     }
-    setVolumes(preset.state.volumes);
-    setActiveAudio(preset.state.activeAudio);
-    setTimelinePhases(preset.state.timelinePhases);
+    
+    // Apply volumes if present
+    if (preset.state.volumes) {
+      setVolumes(preset.state.volumes);
+      
+      // Apply to volume controller
+      if (volumeController) {
+        Object.entries(preset.state.volumes).forEach(([layer, value]) => {
+          volumeController.setLayerVolume(layer, value);
+        });
+      }
+    }
+    
+    // Apply active audio if present
+    if (preset.state.activeAudio) {
+      setActiveAudio(preset.state.activeAudio);
+    }
+    
+    // Apply timeline phases if present
+    if (preset.state.timelinePhases) {
+      setTimelinePhases(preset.state.timelinePhases);
+      
+      // Update timeline engine
+      if (timelineEngine) {
+        timelineEngine.setPhases(preset.state.timelinePhases);
+      }
+      
+      // Dispatch event for other components
+      window.dispatchEvent(new CustomEvent('timeline-update', { 
+        detail: { phases: preset.state.timelinePhases }
+      }));
+    }
+    
+    // Dispatch events for other state providers to handle
+    Object.entries(preset.state).forEach(([key, value]) => {
+      if (key !== 'volumes' && key !== 'activeAudio' && key !== 'timelinePhases') {
+        window.dispatchEvent(new CustomEvent(`${key}-update`, { 
+          detail: value
+        }));
+      }
+    });
+    
     return true;
-  }, [presetStorage, volumes, activeAudio, timelinePhases]);
-
+  }, [presetStorage, volumeController, timelineEngine]);
+  
+  /**
+   * Delete a preset
+   */
+  const deletePreset = useCallback((name) => {
+    if (!presetStorage) return false;
+    return presetStorage.deletePreset(name);
+  }, [presetStorage]);
+  
+  /**
+   * Get all presets
+   */
+  const getPresets = useCallback(() => {
+    if (!presetStorage) return [];
+    return presetStorage.getPresets();
+  }, [presetStorage]);
+  
+  /**
+   * Export preset to JSON
+   */
+  const exportPreset = useCallback((name) => {
+    if (!presetStorage) return null;
+    return presetStorage.exportPreset(name);
+  }, [presetStorage]);
+  
+  /**
+   * Import preset from JSON
+   */
+  const importPreset = useCallback((jsonString) => {
+    if (!presetStorage) return { success: false, error: 'Preset storage not available' };
+    return presetStorage.importPreset(jsonString);
+  }, [presetStorage]);
+  
+  // Create memoized context value to reduce unnecessary renders
   const contextValue = useMemo(() => ({
+    // Audio Layer Constants
+    LAYERS,
+    
+    // State
     isLoading,
     loadingProgress,
     isPlaying,
-    startSession,
-    pauseSession,
     volumes,
-    setVolume,
     masterVolume,
-    setMasterVolumeLevel,
+    activeAudio,
     audioLibrary,
     hasSwitchableAudio,
+    isAudioActivated,
+    
+    // Timeline
     timelinePhases,
+    
+    // Tracking
+    crossfadeProgress,
+    activeCrossfades,
+    preloadProgress,
+    
+    // Methods
+    activateAudio,
+    startSession,
+    pauseSession,
     getSessionTime,
+    setVolume,
+    setMasterVolumeLevel,
+    crossfadeTo,
+    preloadAudio,
     resetTimelineEventIndex,
     updateTimelinePhases,
+    registerPresetStateProvider,
+    
+    // Preset Management
     savePreset,
     loadPreset,
-    enhancedCrossfadeTo
+    deletePreset,
+    getPresets,
+    exportPreset,
+    importPreset
   }), [
     isLoading, loadingProgress, isPlaying, volumes, masterVolume,
-    audioLibrary, hasSwitchableAudio, timelinePhases
+    activeAudio, audioLibrary, hasSwitchableAudio, isAudioActivated,
+    timelinePhases, crossfadeProgress, activeCrossfades, preloadProgress,
+    activateAudio, startSession, pauseSession, getSessionTime,
+    setVolume, setMasterVolumeLevel, crossfadeTo, preloadAudio,
+    resetTimelineEventIndex, updateTimelinePhases, registerPresetStateProvider,
+    savePreset, loadPreset, deletePreset, getPresets, exportPreset, importPreset
   ]);
 
   return (
@@ -534,6 +796,17 @@ export const AudioProvider = ({ children }) => {
       {children}
     </AudioContext.Provider>
   );
+};
+
+/**
+ * Custom hook to use the audio context
+ */
+export const useAudio = () => {
+  const context = useContext(AudioContext);
+  if (!context) {
+    throw new Error('useAudio must be used within an AudioProvider');
+  }
+  return context;
 };
 
 export default AudioContext;
