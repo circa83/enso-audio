@@ -1,30 +1,58 @@
-// src/components/audio/LayerControls.js
-import React, { memo } from 'react';
-import { useAudio } from '../../contexts/StreamingAudioContext';
-import LayerControl from './LayerControl';
-import styles from '../../styles/components/LayerControls.module.css';
+// src/components/audio/ImprovedLayerControl.js
+import React, { memo, useCallback } from 'react';
+import ImprovedLayerDropdown from './ImprovedLayerDropdown';
+import styles from '../../styles/components/LayerControl.module.css';
 
 /**
- * LayerControls - Component for managing all audio layers
- * Renders individual layer control sliders and tracks their state
+ * ImprovedLayerControl - Enhanced control for adjusting audio layer volume
+ * 
+ * @param {Object} props - Component props
+ * @param {string} props.label - Display label for the control
+ * @param {number} props.value - Current volume value (0-1)
+ * @param {Function} props.onChange - Callback for volume changes
+ * @param {string} props.layer - Audio layer ID
  */
-const LayerControls = () => {
-  const { LAYERS, volumes, setVolume } = useAudio();
+const ImprovedLayerControl = ({ label, value, onChange, layer }) => {
+  // Handle slider value change
+  const handleChange = useCallback((e) => {
+    const newValue = parseFloat(e.target.value);
+    onChange(newValue);
+  }, [onChange]);
+  
+  // Format volume percentage for display
+  const volumePercentage = Math.round(value * 100);
   
   return (
-    <div className={styles.layerControlsContent}>
-      {Object.values(LAYERS).map(layer => (
-        <LayerControl
-          key={layer}
-          label={layer.charAt(0).toUpperCase() + layer.slice(1)}
-          value={volumes[layer.toLowerCase()]}
-          onChange={(value) => setVolume(layer.toLowerCase(), value)}
-          layer={layer}
-        />
-      ))}
+    <div className={styles.layerSlider}>
+      <div className={styles.labelContainer}>
+        <label 
+          className={styles.label} 
+          htmlFor={`volume-${layer}`}
+        >
+          {label}
+        </label>
+        <ImprovedLayerDropdown layer={layer} />
+      </div>
+      
+      <input 
+        id={`volume-${layer}`}
+        type="range" 
+        min="0" 
+        max="1" 
+        step="0.01" 
+        value={value} 
+        onChange={handleChange}
+        className={styles.slider}
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow={volumePercentage}
+        aria-label={`${label} volume`}
+      />
+      
+      <span className={styles.value}>{volumePercentage}%</span>
     </div>
   );
 };
 
 // Use memo to prevent unnecessary re-renders
-export default memo(LayerControls);
+export default memo(ImprovedLayerControl);

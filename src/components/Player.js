@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, memo } from 'react';
 import { useAudio } from '../contexts/StreamingAudioContext';
 import CollapsibleSection from './common/CollapsibleSection';
-import LayerControls from './audio/LayerControls';
+import LayerControls from './audio/ImprovedLayerControls';
 import SessionTimer from './audio/SessionTimer';
 import SessionTimeline from './audio/SessionTimeline';
 import SessionSettings from './audio/SessionSettings';
