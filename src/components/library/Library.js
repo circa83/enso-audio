@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { useAudio } from '../../contexts/AudioContext';
+import { useAudio } from '../../hooks/useAudio';
 import styles from '../styles/pages/Library.module.css';
 
 // Categories for sample organization
-const CATEGORIES = ['Drones', 'Melody', 'Rhythm', 'Nature'];
+const CATEGORIES = ['Drone', 'Melody', 'Rhythm', 'Nature'];
 
 // Sample audio files for demo purpose
 const DEMO_SAMPLES = [
-  { id: 1, name: 'Deep Drone', category: 'Drones', path: '/samples/drones.mp3' },
-  { id: 2, name: 'Harmonic Drone', category: 'Drones', path: '/samples/drones_harmonic.mp3' },
+  { id: 1, name: 'Deep Drone', category: 'Drones', path: '/samples/drone.mp3' },
+  { id: 2, name: 'Harmonic Drone', category: 'Drones', path: '/samples/drone_harmonic.mp3' },
   { id: 3, name: 'Gentle Melody', category: 'Melody', path: '/samples/melody.mp3' },
   { id: 4, name: 'Evolving Melody', category: 'Melody', path: '/samples/melody_evolving.mp3' },
   { id: 5, name: 'Soft Rhythm', category: 'Rhythm', path: '/samples/rhythm.mp3' },
@@ -21,7 +21,7 @@ const Library = ({ onNavigate }) => {
   const { updateAvailableLayers } = useAudio();
   const [samples, setSamples] = useState(DEMO_SAMPLES);
   const [selectedSamples, setSelectedSamples] = useState({
-    drones: '/samples/drones.mp3',
+    drones: '/samples/drone.mp3',
     melody: '/samples/melody.mp3',
     rhythm: '/samples/rhythm.mp3',
     nature: '/samples/nature.mp3',
