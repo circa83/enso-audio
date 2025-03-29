@@ -1,7 +1,7 @@
 // src/pages/tests/audio-test.js
 import React, { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
-import { useAudio } from '../../contexts/StreamingAudioContext';
+import { useAudio } from '../contexts/AudioContext';
 import styles from '../../styles/pages/TestPage.module.css';
 
 /**

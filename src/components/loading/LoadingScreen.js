@@ -1,6 +1,6 @@
 // src/components/LoadingScreen.js
 import React, { useState, useEffect } from 'react';
-import { useAudio } from '../contexts/StreamingAudioContext';
+import { useAudio } from '../../contexts/AudioContext';
 import styles from '../styles/components/LoadingScreen.module.css';
 
 const LoadingScreen = ({ onStartSession }) => {

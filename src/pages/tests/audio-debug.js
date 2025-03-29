@@ -1,7 +1,7 @@
 // src/pages/tests/audio-debug.js
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
-import { useAudio } from '../../contexts/StreamingAudioContext';
+import { useAudio } from '../contexts/AudioContext';
 
 // Simple debugging component with minimal styling
 export default function AudioDebug() {

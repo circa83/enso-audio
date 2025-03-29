@@ -2,7 +2,7 @@
 import React from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
-import Player from '../../components/Player';
+import Player from '../../components/player/Player';
 import withAuth from '../../components/auth/ProtectedRoute';
 import styles from '../../styles/pages/DashboardPlayer.module.css';
 

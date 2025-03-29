@@ -1,6 +1,6 @@
 // src/components/audio/TapePlayerGraphic.js
 import React from 'react';
-import { useAudio } from '../../contexts/StreamingAudioContext';
+import { useAudio } from '../contexts/AudioContext';
 import styles from '../../styles/components/TapePlayerGraphic.module.css';
 
 const TapePlayerGraphic = () => {

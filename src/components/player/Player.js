@@ -1,16 +1,16 @@
 // src/components/Player.js
-import React, { useState, useEffect, useCallback, memo } from 'react';
-import { useAudio } from '../contexts/StreamingAudioContext';
-import CollapsibleSection from './common/CollapsibleSection';
-import LayerControls from './audio/LayerControls';
-import SessionTimer from './audio/SessionTimer';
-import SessionTimeline from './audio/SessionTimeline';
-import SessionSettings from './audio/SessionSettings';
-import PlayerControlPanel from './audio/PlayerControlPanel';
-import TimelineDebugPanel from './audio/TimelineDebugPanel';
-import PresetManager from './audio/PresetManager';
-import JourneyGuide from './audio/JourneyGuide';
-import styles from '../styles/pages/Player.module.css';
+import React, { useState, useEffect, useCallback, memo, useContext } from 'react';
+import { useAudio } from '../../contexts/AudioContext';
+import CollapsibleSection from '../common/CollapsibleSection';
+import LayerControls from '../audio/LayerControls';
+import SessionTimer from './SessionTimer';
+import SessionTimeline from '../player/SessionTimeline';
+import SessionSettings from './SessionSettings';
+import PlayerControlPanel from '../player/PlayerControlPanel';
+import TimelineDebugPanel from './TimelineDebugPanel';
+import PresetManager from '../../services/storage/PresetManager';
+import JourneyGuide from '../audio/JourneyGuide';
+import styles from '../../styles/pages/Player.module.css';
 
 /**
  * Player - Main component for the audio player interface
@@ -19,9 +19,9 @@ import styles from '../styles/pages/Player.module.css';
 const Player = () => {
   // Get timeline-related state from the audio context
   const { 
-    registerPresetStateProvider,
-    updateTimelinePhases
-  } = useAudio();
+    //registerPresetStateProvider,
+    //updateTimelinePhases
+ } = useContext(AudioContext);
   
   // Local state for session configuration
   const [sessionDuration, setSessionDuration] = useState(60 * 60 * 1000); // Default 1 hour

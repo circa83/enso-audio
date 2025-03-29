@@ -1,6 +1,6 @@
 // src/components/audio/PresetManager.js
 import React, { useState, useRef, useEffect } from 'react';
-import { useAudio } from '../../contexts/StreamingAudioContext';
+import { useAudio } from '../contexts/AudioContext';
 import styles from '../../styles/components/PresetManager.module.css';
 
 /**

@@ -1,6 +1,6 @@
 // src/components/audio/ImprovedAudioVisualizer.js
 import React, { useEffect, useRef, useMemo } from 'react';
-import { useAudio } from '../../contexts/StreamingAudioContext';
+import { useAudio } from '../../contexts/AudioContext';
 import styles from '../../styles/components/AudioVisualizer.module.css';
 
 /**

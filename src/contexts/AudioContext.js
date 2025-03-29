@@ -1,10 +1,11 @@
-// src/contexts/StreamingAudioContext.js
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+// src/contexts/AudioContext.js
+import React, { createContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { getAudioCore, createAudioCore } from '../services/audio/AudioCoreFactory';
 import { getBufferManager } from '../services/audio/BufferManagerFactory';
 import { getCrossfadeEngine } from '../services/audio/CrossfadeEngineFactory';
 import { getVolumeController } from '../services/audio/VolumeControllerFactory';
 import { getTimelineEngine } from '../services/audio/TimelineEngineFactory';
+import { getPresetStorage } from '../services/storage/PresetStorage';
 
 // Define our audio layers
 const LAYERS = {
@@ -23,16 +24,7 @@ const DEFAULT_AUDIO = {
 };
 
 // Create the context
-const AudioContext = createContext();
-
-// Custom hook for using the audio context
-export const useAudio = () => {
-  const context = useContext(AudioContext);
-  if (!context) {
-    throw new Error('useAudio must be used within an AudioProvider');
-  }
-  return context;
-};
+const AudioContext = createContext(null);
 
 export const AudioProvider = ({ children }) => {
   // Service instances
@@ -41,6 +33,7 @@ export const AudioProvider = ({ children }) => {
   const [crossfadeEngine, setCrossfadeEngine] = useState(null);
   const [volumeController, setVolumeController] = useState(null);
   const [timelineEngine, setTimelineEngine] = useState(null);
+  const [presetStorage, setPresetStorage] = useState(null);
   
   // State
   const [isLoading, setIsLoading] = useState(true);
@@ -59,31 +52,46 @@ export const AudioProvider = ({ children }) => {
   const [preloadProgress, setPreloadProgress] = useState({});
   const [timelinePhases, setTimelinePhases] = useState([]);
   
-  // Preset management
-  const [presets, setPresets] = useState({});
-
   // Initialize services
   useEffect(() => {
     const initializeServices = async () => {
       try {
+        setLoadingProgress(10);
+        
         // Create AudioCore
         const core = createAudioCore();
         await core.initialize();
         setAudioCore(core);
         
+        setLoadingProgress(20);
+        
         // Initialize other services once AudioCore is ready
         const bufferMgr = getBufferManager(core.audioContext);
         setBufferManager(bufferMgr);
         
+        setLoadingProgress(30);
+        
         const volumeCtrl = getVolumeController(core.audioContext);
         setVolumeController(volumeCtrl);
+        
+        setLoadingProgress(40);
         
         const crossfadeEng = getCrossfadeEngine(core.audioContext);
         setCrossfadeEngine(crossfadeEng);
         
+        setLoadingProgress(50);
+        
         const timelineEng = getTimelineEngine();
         setTimelineEngine(timelineEng);
+        
+        setLoadingProgress(60);
+        
+        const presetStore = getPresetStorage();
+        setPresetStorage(presetStore);
+        
+        setLoadingProgress(70);
 
+        // Register gain nodes with volume controller
         Object.values(LAYERS).forEach(layer => {
           const layerId = layer.toLowerCase();
           if (core.gainNodes[layerId]) {
@@ -96,7 +104,7 @@ export const AudioProvider = ({ children }) => {
           volumeCtrl.registerMasterGainNode(core.masterGain);
         }
         
-        setVolumeController(volumeCtrl);
+        setLoadingProgress(80);
         
         // Set initial volume state
         const initialVolumes = {
@@ -105,11 +113,14 @@ export const AudioProvider = ({ children }) => {
           [LAYERS.RHYTHM]: 0.0,
           [LAYERS.NATURE]: 0.0
         };
-         // Apply initial volumes
-      Object.entries(initialVolumes).forEach(([layer, volume]) => {
-        volumeCtrl.setLayerVolume(layer, volume);
-      });
+        
+        // Apply initial volumes
+        Object.entries(initialVolumes).forEach(([layer, volume]) => {
+          volumeCtrl.setLayerVolume(layer, volume);
+        });
         setVolumes(initialVolumes);
+        
+        setLoadingProgress(90);
         
         // Set up basic library
         const basicLibrary = {};
@@ -128,16 +139,6 @@ export const AudioProvider = ({ children }) => {
         // Try to load variation files in background
         setTimeout(() => tryLoadVariationFiles(), 1000);
         
-        // Load presets if available
-        try {
-          const savedPresets = localStorage.getItem('ensoAudioPresets');
-          if (savedPresets) {
-            setPresets(JSON.parse(savedPresets));
-          }
-        } catch (e) {
-          console.warn('Failed to load presets:', e);
-        }
-        
       } catch (error) {
         console.error("Error initializing audio services:", error);
         // Force loading to complete anyway so UI doesn't get stuck
@@ -153,13 +154,19 @@ export const AudioProvider = ({ children }) => {
       if (audioCore) {
         audioCore.cleanup();
       }
+      
+      if (volumeController) {
+        volumeController.cleanup();
+      }
+      
+      if (crossfadeEngine) {
+        crossfadeEngine.cleanup();
+      }
     };
   }, []);
   
   // Initialize default audio elements
   const initializeDefaultAudio = async (library, core) => {
-    setLoadingProgress(20);
-    
     const totalFiles = Object.values(LAYERS).length;
     let loadedFilesCount = 0;
     const newActiveAudio = {};
@@ -182,14 +189,14 @@ export const AudioProvider = ({ children }) => {
         
         // Update progress
         loadedFilesCount++;
-        const progress = Math.round((loadedFilesCount / totalFiles) * 80) + 20;
+        const progress = Math.round((loadedFilesCount / totalFiles) * 20) + 80;
         setLoadingProgress(progress);
         
       } catch (error) {
         console.error(`Error initializing audio for layer ${layer}:`, error);
         // Increment progress anyway to avoid getting stuck
         loadedFilesCount++;
-        const progress = Math.round((loadedFilesCount / totalFiles) * 80) + 20;
+        const progress = Math.round((loadedFilesCount / totalFiles) * 20) + 80;
         setLoadingProgress(progress);
       }
     }
@@ -281,8 +288,7 @@ export const AudioProvider = ({ children }) => {
   // Update volume for a layer
   const setVolume = useCallback((layer, value) => {
     if (!volumeController) return;
-    // Log for debugging
-  console.log(`Setting ${layer} volume to ${value}`);
+    
     // Update volume in controller
     volumeController.setLayerVolume(layer, value);
     
@@ -297,9 +303,6 @@ export const AudioProvider = ({ children }) => {
   const setMasterVolumeLevel = useCallback((value) => {
     if (!volumeController) return;
     
-     // Log for debugging
-  console.log(`Setting master volume to ${value}`);
-  
     // Update master volume in controller
     volumeController.setMasterVolume(value);
     
@@ -474,165 +477,60 @@ export const AudioProvider = ({ children }) => {
   
   // Save preset
   const savePreset = useCallback((name) => {
-    if (!name || name.trim() === '') return false;
+    if (!presetStorage || !name || name.trim() === '') return false;
     
-    // Create the preset with state data
-    const preset = {
-      name,
-      date: new Date().toISOString(),
-      state: {
-        volumes: { ...volumes },
-        activeAudio: { ...activeAudio },
-        timelinePhases: [...timelinePhases]
-      }
+    // Create the preset state data
+    const state = {
+      volumes: { ...volumes },
+      activeAudio: { ...activeAudio },
+      timelinePhases: [...timelinePhases]
     };
     
-    setPresets(prev => {
-      const newPresets = {
-        ...prev,
-        [name]: preset
-      };
-      
-      // Store in localStorage
-      try {
-        localStorage.setItem('ensoAudioPresets', JSON.stringify(newPresets));
-      } catch (e) {
-        console.warn('Could not save presets to localStorage:', e);
-      }
-      
-      return newPresets;
-    });
-    
-    return true;
-  }, [volumes, activeAudio, timelinePhases]);
+    // Save using the preset storage service
+    return presetStorage.savePreset(name, state);
+  }, [presetStorage, volumes, activeAudio, timelinePhases]);
   
   // Load preset
   const loadPreset = useCallback((name) => {
-    const preset = presets[name];
-    if (!preset) return false;
+    if (!presetStorage) return false;
     
-    // Apply volumes
-    if (preset.state.volumes) {
-      Object.entries(preset.state.volumes).forEach(([layer, vol]) => {
-        setVolume(layer, vol);
-      });
+    // Load the preset data
+    const preset = presetStorage.loadPreset(name);
+    if (!preset || !preset.state) {
+      return false;
     }
-    
-    // Apply tracks
-    if (preset.state.activeAudio) {
-      Object.entries(preset.state.activeAudio).forEach(([layer, trackId]) => {
-        enhancedCrossfadeTo(layer, trackId, 0);
-      });
-    }
-    
-    // Apply timeline phases
-    if (preset.state.timelinePhases && preset.state.timelinePhases.length > 0) {
-      updateTimelinePhases(preset.state.timelinePhases);
-      
-      // Dispatch event to notify timeline component
-      if (typeof window !== 'undefined') {
-        const event = new CustomEvent('timeline-update', { 
-          detail: { phases: preset.state.timelinePhases } 
-        });
-        window.dispatchEvent(event);
-      }
-    }
-    
+    setVolumes(preset.state.volumes);
+    setActiveAudio(preset.state.activeAudio);
+    setTimelinePhases(preset.state.timelinePhases);
     return true;
-  }, [presets, setVolume, enhancedCrossfadeTo, updateTimelinePhases]);
-  
-  // Delete preset
-  const deletePreset = useCallback((name) => {
-    setPresets(prev => {
-      const newPresets = { ...prev };
-      delete newPresets[name];
-      
-      // Update localStorage
-      try {
-        localStorage.setItem('ensoAudioPresets', JSON.stringify(newPresets));
-      } catch (e) {
-        console.warn('Could not update presets in localStorage:', e);
-      }
-      
-      return newPresets;
-    });
-    
-    return true;
-  }, []);
-  
-  // Get all available presets
-  const getPresets = useCallback(() => {
-    return Object.values(presets).sort((a, b) => 
-      new Date(b.date) - new Date(a.date)
-    );
-  }, [presets]);
+  }, [presetStorage, volumes, activeAudio, timelinePhases]);
 
-  // Context value
-  const value = useMemo(() => ({
-    // Audio state
+  const contextValue = useMemo(() => ({
     isLoading,
     loadingProgress,
     isPlaying,
-    volumes,
-    activeAudio,
-    audioLibrary,
-    hasSwitchableAudio,
-    crossfadeProgress,
-    activeCrossfades,
-    preloadProgress,
-    masterVolume,
-    
-    // Audio controls
-    setVolume,
-    setMasterVolumeLevel,
     startSession,
     pauseSession,
-    crossfadeTo: enhancedCrossfadeTo,
-    preloadAudio: enhancedCrossfadeTo,
-    getSessionTime,
-    
-    // Timeline functions
-    updateTimelinePhases,
-    resetTimelineEventIndex,
+    volumes,
+    setVolume,
+    masterVolume,
+    setMasterVolumeLevel,
+    audioLibrary,
+    hasSwitchableAudio,
     timelinePhases,
-    
-    // Preset management
+    getSessionTime,
+    resetTimelineEventIndex,
+    updateTimelinePhases,
     savePreset,
     loadPreset,
-    deletePreset,
-    getPresets,
-    
-    // Constants
-    LAYERS
+    enhancedCrossfadeTo
   }), [
-    isLoading,
-    loadingProgress,
-    isPlaying,
-    volumes,
-    activeAudio,
-    audioLibrary,
-    hasSwitchableAudio,
-    crossfadeProgress,
-    activeCrossfades,
-    preloadProgress,
-    masterVolume,
-    setVolume,
-    setMasterVolumeLevel,
-    startSession,
-    pauseSession,
-    enhancedCrossfadeTo,
-    getSessionTime,
-    updateTimelinePhases,
-    resetTimelineEventIndex,
-    timelinePhases,
-    savePreset,
-    loadPreset,
-    deletePreset,
-    getPresets
+    isLoading, loadingProgress, isPlaying, volumes, masterVolume,
+    audioLibrary, hasSwitchableAudio, timelinePhases
   ]);
 
   return (
-    <AudioContext.Provider value={value}>
+    <AudioContext.Provider value={contextValue}>
       {children}
     </AudioContext.Provider>
   );

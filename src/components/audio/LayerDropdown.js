@@ -1,6 +1,6 @@
 // src/components/audio/ImprovedLayerDropdown.js
 import React, { useState, useRef, useEffect, memo, useCallback } from 'react';
-import { useAudio } from '../../contexts/StreamingAudioContext';
+import { useAudio } from '../../contexts/AudioContext';
 import styles from '../../styles/components/LayerDropdown.module.css';
 
 /**

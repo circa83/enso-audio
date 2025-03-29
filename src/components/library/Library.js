@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAudio } from '../contexts/StreamingAudioContext';
+import { useAudio } from '../../contexts/AudioContext';
 import styles from '../styles/pages/Library.module.css';
 
 // Categories for sample organization

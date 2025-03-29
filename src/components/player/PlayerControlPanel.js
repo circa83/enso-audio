@@ -1,8 +1,8 @@
 // src/components/audio/ImprovedPlayerControlPanel.js
 import React, { memo, useCallback } from 'react';
-import { useAudio } from '../../contexts/StreamingAudioContext';
-import AudioVisualizer from './AudioVisualizer';
-import MasterVolumeControl from './MasterVolumeControl';
+import { useAudio } from '../../contexts/AudioContext';
+import AudioVisualizer from '../audio/AudioVisualizer';
+import MasterVolumeControl from '../audio/MasterVolumeControl';
 import styles from '../../styles/components/PlayerControlPanel.module.css';
 
 /**

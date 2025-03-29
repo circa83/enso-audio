@@ -1,7 +1,7 @@
 // src/pages/tests/crossfade-test.js
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
-import { useAudio } from '../../contexts/StreamingAudioContext';
+import { useAudio } from '../contexts/AudioContext';
 
 export default function CrossfadeTest() {
   const { 
