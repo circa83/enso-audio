@@ -9,6 +9,43 @@ import { getVolumeController } from '../services/audio/VolumeControllerFactory';
 import { getTimelineEngine } from '../services/audio/TimelineEngineFactory';
 import { getPresetStorage } from '../services/storage/PresetStorage';
 
+/* Helper function to safely resume an AudioContext
+ * @param {AudioContext} context - The audio context to resume
+ * @returns {Promise<boolean>} Success status
+ */
+const safelyResumeAudioContext = async (context) => {
+  if (!context) return false;
+  
+  try {
+    // Check if context needs resuming
+    if (context.state === 'suspended') {
+      console.log('Resuming suspended audio context');
+      
+      // Try to resume the context
+      await context.resume();
+      
+      // Verify it actually resumed
+      if (context.state === 'running') {
+        console.log('Audio context successfully resumed');
+        return true;
+      } else {
+        console.warn(`Audio context still in ${context.state} state after resume attempt`);
+        return false;
+      }
+    } else if (context.state === 'running') {
+      console.log('Audio context already running');
+      return true;
+    } else {
+      console.warn(`Audio context in unexpected state: ${context.state}`);
+      return false;
+    }
+  } catch (error) {
+    console.error('Error resuming audio context:', error);
+    return false;
+  }
+};
+
+
 // Constants
 export const LAYERS = {
   DRONE: 'drone',

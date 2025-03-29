@@ -1,69 +1,103 @@
 /* src/styles/components/PlayerControlPanel.module.css */
 .playerControlPanel {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin: 30px 0;
-    padding: 30px;
-    background-color: #1c1c1c;
-    border: 1px solid #333;
-    width: 100%;
-    box-sizing: border-box;
-  }
-  
-  .visualizerSection {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    margin-bottom: 30px;
-  }
-  
-  .controlsSection {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 30px 0;
+  padding: 30px;
+  background-color: #1c1c1c;
+  border: 1px solid #333;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.visualizerSection {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 30px;
+}
+
+.controlsSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.playButton {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background-color: transparent;
+  border: 1px solid #ffffff;
+  color: #ffffff;
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 0.8rem;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+  margin-bottom: 25px;
+  position: relative;
+}
+
+.playButton:hover {
+  background-color: #ffffff;
+  color: #111111;
+}
+
+.playButton.playing {
+  background-color: #ffffff;
+  color: #111111;
+}
+
+.playButton.activating {
+  opacity: 0.7;
+  cursor: wait;
+  border-color: #888;
+  color: #888;
+  animation: pulse 1.5s infinite;
+}
+
+/* Pulse animation for activating state */
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.7; }
+}
+
+/* Error message styling */
+.errorMessage {
+  color: #ff6b6b;
+  font-size: 0.8rem;
+  margin: -15px 0 15px 0;
+  padding: 8px 12px;
+  background-color: rgba(255, 107, 107, 0.1);
+  border-left: 2px solid #ff6b6b;
+  max-width: 80%;
+  text-align: center;
+  font-family: 'Archivo', sans-serif;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .playerControlPanel {
+    padding: 20px;
   }
   
   .playButton {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    background-color: transparent;
-    border: 1px solid #ffffff;
-    color: #ffffff;
-    font-family: 'Archivo', sans-serif;
-    font-weight: 200;
-    font-size: 0.8rem;
-    letter-spacing: 1px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-transform: uppercase;
-    margin-bottom: 25px;
+    width: 50px;
+    height: 50px;
+    font-size: 0.7rem;
   }
   
-  .playButton:hover {
-    background-color: #ffffff;
-    color: #111111;
+  .errorMessage {
+    font-size: 0.7rem;
+    max-width: 100%;
   }
-  
-  .playButton.playing {
-    background-color: #ffffff;
-    color: #111111;
-  }
-  
-  /* Responsive adjustments */
-  @media (max-width: 768px) {
-    .playerControlPanel {
-      padding: 20px;
-    }
-    
-    .playButton {
-      width: 50px;
-      height: 50px;
-      font-size: 0.7rem;
-    }
-  }
+}

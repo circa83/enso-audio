@@ -1,3 +1,5 @@
+// src/services/audio/AudioCore.js - Updated with fixes
+
 /**
  * AudioCore.js
  * 
@@ -21,6 +23,7 @@ class AudioCore {
     this.masterGain = null;
     this.gainNodes = {};
     this.audioElements = {};
+    this.sourceNodes = {}; // Added to track source nodes
     this.masterVolume = 0.8; // Default to 80%
     this.isPlaying = false;
     this.sessionStartTime = null;
@@ -28,9 +31,38 @@ class AudioCore {
     
     // Initialize empty structures for each layer
     Object.values(LAYERS).forEach(layer => {
-      this.audioElements[layer] = {};
-      this.gainNodes[layer] = null;
+      const layerId = layer.toLowerCase();
+      this.audioElements[layerId] = {};
+      this.gainNodes[layerId] = null;
+      this.sourceNodes[layerId] = {};  // Initialize sourceNodes structure
     });
+    
+    // Debug flag for logging
+    this.debug = false;
+  }
+
+  /**
+   * Enable/disable debug logging
+   * @param {boolean} enabled - Whether to enable logging
+   */
+  setDebug(enabled) {
+    this.debug = enabled;
+  }
+
+  /**
+   * Log debug information if debug is enabled
+   * @param {string} message - Message to log
+   * @param {*} data - Optional data to log
+   * @private
+   */
+  log(message, data) {
+    if (this.debug) {
+      if (data) {
+        console.log(`[AudioCore] ${message}`, data);
+      } else {
+        console.log(`[AudioCore] ${message}`);
+      }
+    }
   }
 
   /**
@@ -49,17 +81,21 @@ class AudioCore {
       }
       
       this.audioContext = new AudioContextClass();
+      this.log('AudioContext created', this.audioContext);
       
       // Create master gain node
       this.masterGain = this.audioContext.createGain();
       this.masterGain.gain.value = this.masterVolume;
       this.masterGain.connect(this.audioContext.destination);
+      this.log('Master gain node created and connected');
       
       // Create gain nodes for each layer
       Object.values(LAYERS).forEach(layer => {
+        const layerId = layer.toLowerCase();
         const gainNode = this.audioContext.createGain();
         gainNode.connect(this.masterGain);
-        this.gainNodes[layer] = gainNode;
+        this.gainNodes[layerId] = gainNode;
+        this.log(`Created gain node for ${layerId}`);
       });
       
       return true;
@@ -78,7 +114,9 @@ class AudioCore {
    * @returns {Promise<Object|null>} The created audio element and source or null if failed
    */
   async createAudioElement(layer, trackId, sourcePath, initialVolume = 0) {
-    if (!this.audioContext || !this.gainNodes[layer]) {
+    const layerId = layer.toLowerCase();
+    
+    if (!this.audioContext || !this.gainNodes[layerId]) {
       console.error('Audio context not initialized or invalid layer');
       return null;
     }
@@ -88,22 +126,28 @@ class AudioCore {
       const audioElement = new Audio();
       audioElement.preload = 'auto';
       audioElement.loop = true;
+      audioElement.crossOrigin = 'anonymous'; // Enable CORS if needed
       audioElement.src = sourcePath;
+      
+      this.log(`Creating audio element for ${layerId}/${trackId}`, sourcePath);
       
       // Create a promise to track loading
       const loadPromise = new Promise((resolve, reject) => {
         const loadHandler = () => {
+          this.log(`Audio loaded for ${layerId}/${trackId}`);
           resolve(true);
         };
         
         audioElement.addEventListener('canplaythrough', loadHandler, { once: true });
         
         audioElement.addEventListener('error', (e) => {
+          console.error(`Error loading audio ${layerId}/${trackId}:`, e);
           reject(new Error(`Error loading audio: ${e.message || 'unknown error'}`));
         }, { once: true });
         
         // Set a timeout to avoid hanging
         setTimeout(() => {
+          this.log(`Timeout reached for ${layerId}/${trackId}, continuing anyway`);
           resolve(true); // Resolve anyway after timeout to prevent hanging
         }, 10000);
       });
@@ -116,15 +160,20 @@ class AudioCore {
       
       // Create media element source
       const source = this.audioContext.createMediaElementSource(audioElement);
-      source.connect(this.gainNodes[layer]);
+      source.connect(this.gainNodes[layerId]);
       
-      // Store the audio element
-      this.audioElements[layer][trackId] = {
+      this.log(`Connected audio source for ${layerId}/${trackId} to gain node`);
+      
+      // Store the audio element and source node
+      this.audioElements[layerId][trackId] = {
         element: audioElement,
         source: source,
         isActive: false,
         track: { id: trackId, path: sourcePath }
       };
+      
+      // Store source node reference
+      this.sourceNodes[layerId][trackId] = source;
       
       return {
         element: audioElement,
@@ -132,9 +181,20 @@ class AudioCore {
         track: { id: trackId, path: sourcePath }
       };
     } catch (error) {
-      console.error(`Error creating audio element for ${trackId}:`, error);
+      console.error(`Error creating audio element for ${layerId}/${trackId}:`, error);
       return null;
     }
+  }
+
+  /**
+   * Get an audio element for a layer and track
+   * @param {string} layer - The audio layer
+   * @param {string} trackId - The track ID
+   * @returns {HTMLAudioElement|null} The audio element or null if not found
+   */
+  getAudioElement(layer, trackId) {
+    const layerId = layer.toLowerCase();
+    return this.audioElements[layerId]?.[trackId]?.element || null;
   }
 
   /**
@@ -158,6 +218,8 @@ class AudioCore {
       // Fallback if no audio context
       this.masterGain.gain.value = volume;
     }
+    
+    this.log(`Master volume set to ${volume}`);
   }
 
   /**
@@ -166,21 +228,24 @@ class AudioCore {
    * @param {number} level - Volume level (0-1)
    */
   setLayerVolume(layer, level) {
-    if (!this.gainNodes[layer]) return;
+    const layerId = layer.toLowerCase();
+    if (!this.gainNodes[layerId]) return;
     
     // Clamp volume between 0 and 1
     const volume = Math.max(0, Math.min(1, level));
     
     // Apply to gain node with smoothing
-    if (this.audioContext && this.gainNodes[layer].gain) {
+    if (this.audioContext && this.gainNodes[layerId].gain) {
       const now = this.audioContext.currentTime;
-      this.gainNodes[layer].gain.cancelScheduledValues(now);
-      this.gainNodes[layer].gain.setValueAtTime(this.gainNodes[layer].gain.value, now);
-      this.gainNodes[layer].gain.linearRampToValueAtTime(volume, now + 0.05);
+      this.gainNodes[layerId].gain.cancelScheduledValues(now);
+      this.gainNodes[layerId].gain.setValueAtTime(this.gainNodes[layerId].gain.value, now);
+      this.gainNodes[layerId].gain.linearRampToValueAtTime(volume, now + 0.05);
     } else {
       // Fallback
-      this.gainNodes[layer].gain.value = volume;
+      this.gainNodes[layerId].gain.value = volume;
     }
+    
+    this.log(`Volume for ${layerId} set to ${volume}`);
   }
 
   /**
@@ -197,8 +262,9 @@ class AudioCore {
    * @returns {number} Volume level (0-1)
    */
   getLayerVolume(layer) {
-    if (!this.gainNodes[layer]) return 0;
-    return this.gainNodes[layer].gain.value;
+    const layerId = layer.toLowerCase();
+    if (!this.gainNodes[layerId]) return 0;
+    return this.gainNodes[layerId].gain.value;
   }
 
   /**
@@ -208,13 +274,22 @@ class AudioCore {
    * @returns {Promise<boolean>} Success status
    */
   async startPlayback(activeElements, volumes) {
-    if (!this.audioContext) return false;
+    if (!this.audioContext) {
+      console.error('Audio context not initialized');
+      return false;
+    }
     
     try {
+      this.log('Starting playback', { activeElements, volumes });
+      
       // Resume audio context if suspended
       if (this.audioContext.state === 'suspended') {
+        this.log('Resuming suspended audio context');
         await this.audioContext.resume();
       }
+      
+      // Log the audio context state
+      this.log(`Audio context state: ${this.audioContext.state}`);
       
       // Set volumes for each layer
       Object.entries(volumes).forEach(([layer, volume]) => {
@@ -225,17 +300,39 @@ class AudioCore {
       const playPromises = [];
       
       Object.entries(activeElements).forEach(([layer, trackId]) => {
-        if (!trackId) return;
+        if (!trackId) {
+          this.log(`No track ID for layer ${layer}, skipping`);
+          return;
+        }
         
-        const track = this.audioElements[layer][trackId];
-        if (!track || !track.element) return;
+        const layerId = layer.toLowerCase();
+        const track = this.audioElements[layerId][trackId];
+        
+        if (!track || !track.element) {
+          this.log(`No track found for ${layerId}/${trackId}`);
+          return;
+        }
+        
+        this.log(`Starting playback of ${layerId}/${trackId}`);
         
         // Reset to beginning of track
         track.element.currentTime = 0;
         
+        // Make sure the source is properly connected
+        if (track.source && !track.isActive) {
+          // Reconnect if needed
+          try {
+            track.source.disconnect();
+          } catch (e) {
+            // Ignore disconnection errors
+          }
+          track.source.connect(this.gainNodes[layerId]);
+          track.isActive = true;
+        }
+        
         // Start playback
         const playPromise = track.element.play().catch(error => {
-          console.error(`Error playing ${layer}:`, error);
+          console.error(`Error playing ${layerId}/${trackId}:`, error);
           return null;
         });
         
@@ -254,6 +351,7 @@ class AudioCore {
         this.onStateChange({ isPlaying: true });
       }
       
+      this.log('Playback started successfully');
       return true;
     } catch (error) {
       console.error('Error starting playback:', error);
@@ -267,11 +365,15 @@ class AudioCore {
    */
   pausePlayback() {
     try {
+      this.log('Pausing playback');
+      
       // Pause all audio elements
       Object.values(LAYERS).forEach(layer => {
-        Object.values(this.audioElements[layer]).forEach(track => {
+        const layerId = layer.toLowerCase();
+        Object.values(this.audioElements[layerId]).forEach(track => {
           if (track && track.element) {
             track.element.pause();
+            this.log(`Paused ${layerId}/${track.track.id}`);
           }
         });
       });
@@ -284,6 +386,7 @@ class AudioCore {
         this.onStateChange({ isPlaying: false });
       }
       
+      this.log('Playback paused successfully');
       return true;
     } catch (error) {
       console.error('Error pausing playback:', error);
@@ -312,16 +415,23 @@ class AudioCore {
    * Clean up audio resources
    */
   cleanup() {
+    this.log('Cleaning up audio resources');
+    
     // Pause all audio elements
     this.pausePlayback();
     
     // Disconnect all nodes
     Object.values(LAYERS).forEach(layer => {
-      if (this.gainNodes[layer]) {
-        this.gainNodes[layer].disconnect();
+      const layerId = layer.toLowerCase();
+      if (this.gainNodes[layerId]) {
+        try {
+          this.gainNodes[layerId].disconnect();
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
       }
       
-      Object.values(this.audioElements[layer]).forEach(track => {
+      Object.values(this.audioElements[layerId]).forEach(track => {
         if (track && track.source) {
           try {
             track.source.disconnect();
@@ -334,7 +444,11 @@ class AudioCore {
     
     // Disconnect master gain
     if (this.masterGain) {
-      this.masterGain.disconnect();
+      try {
+        this.masterGain.disconnect();
+      } catch (e) {
+        // Ignore errors during cleanup
+      }
     }
     
     // Close audio context
@@ -353,12 +467,17 @@ class AudioCore {
     this.masterGain = null;
     this.gainNodes = {};
     this.audioElements = {};
+    this.sourceNodes = {};
     
     // Initialize empty structures for each layer
     Object.values(LAYERS).forEach(layer => {
-      this.audioElements[layer] = {};
-      this.gainNodes[layer] = null;
+      const layerId = layer.toLowerCase();
+      this.audioElements[layerId] = {};
+      this.gainNodes[layerId] = null;
+      this.sourceNodes[layerId] = {};
     });
+    
+    this.log('Cleanup complete');
   }
 
   /**
@@ -368,10 +487,11 @@ class AudioCore {
    * @returns {boolean} Whether the track is loaded
    */
   isTrackLoaded(layer, trackId) {
+    const layerId = layer.toLowerCase();
     return !!(
-      this.audioElements[layer] && 
-      this.audioElements[layer][trackId] && 
-      this.audioElements[layer][trackId].element
+      this.audioElements[layerId] && 
+      this.audioElements[layerId][trackId] && 
+      this.audioElements[layerId][trackId].element
     );
   }
 
