@@ -1,8 +1,12 @@
-// src/components/audio/AudioVisualizer.js
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+// src/components/audio/ImprovedAudioVisualizer.js
+import React, { useEffect, useRef, useMemo } from 'react';
 import { useAudio } from '../../contexts/StreamingAudioContext';
 import styles from '../../styles/components/AudioVisualizer.module.css';
 
+/**
+ * AudioVisualizer - Visual representation of the audio playback
+ * Displays reactive circular visualizations based on audio layers
+ */
 const AudioVisualizer = () => {
   const { 
     isPlaying, 
@@ -12,42 +16,22 @@ const AudioVisualizer = () => {
   
   const visualizerRef = useRef(null);
   const animationFrameRef = useRef(null);
-  const analyzerRef = useRef(null);
-  const audioContextRef = useRef(null);
   
-  // Function to create audio analyzer if it doesn't exist
-  const createAnalyzer = useCallback(() => {
-    // Only create analyzer if we're playing and don't already have one
-    if (isPlaying && !analyzerRef.current && window.AudioContext) {
-      try {
-        // Create audio context
-        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-        
-        // Create analyzer
-        analyzerRef.current = audioContextRef.current.createAnalyser();
-        analyzerRef.current.fftSize = 64;
-        analyzerRef.current.smoothingTimeConstant = 0.8;
-        
-        console.log('Audio analyzer created for visualization');
-      } catch (error) {
-        console.error('Failed to create audio analyzer:', error);
-      }
-    }
-  }, [isPlaying]);
+  // Group layers by frequency range for visualization
+  const frequencyRanges = useMemo(() => ({
+    bass: [LAYERS.DRONE, LAYERS.RHYTHM],
+    mid: [LAYERS.MELODY],
+    high: [LAYERS.NATURE]
+  }), [LAYERS]);
   
-  // Set up animation loop based on playing state
+  // Animation effect for visualization
   useEffect(() => {
-    // Create analyzer if needed
-    createAnalyzer();
-    
-    // Function to simulate audio reactivity
-    const updateVisualization = () => {
-      if (!visualizerRef.current) return;
-      
+    // Function to calculate intensity values with randomness
+    const calculateIntensities = () => {
       // Maps layers to frequency bands for visualization
-      const bassLayers = [LAYERS.DRONE, LAYERS.RHYTHM];
-      const midLayers = [LAYERS.MELODY];
-      const highLayers = [LAYERS.NATURE];
+      const bassLayers = frequencyRanges.bass;
+      const midLayers = frequencyRanges.mid;
+      const highLayers = frequencyRanges.high;
       
       // Get average volumes for each frequency range
       const bassVolume = bassLayers.reduce((sum, layer) => 
@@ -66,36 +50,47 @@ const AudioVisualizer = () => {
         return Math.min(1, value + (Math.random() * 0.5 * value));
       };
       
-      // Calculate intensity values with randomness
-      const bassIntensity = addRandomness(bassVolume);
-      const midIntensity = addRandomness(midVolume);
-      const highIntensity = addRandomness(highVolume);
+      return {
+        bassIntensity: addRandomness(bassVolume),
+        midIntensity: addRandomness(midVolume),
+        highIntensity: addRandomness(highVolume)
+      };
+    };
+    
+    // Animation function
+    const updateVisualization = () => {
+      if (!visualizerRef.current) return;
       
-      // Update CSS variables for animation
-      document.documentElement.style.setProperty('--bass-intensity', bassIntensity);
-      document.documentElement.style.setProperty('--mid-intensity', midIntensity);
-      document.documentElement.style.setProperty('--high-intensity', highIntensity);
-      
-      // Continue animation if playing
       if (isPlaying) {
+        // Calculate new intensities
+        const { bassIntensity, midIntensity, highIntensity } = calculateIntensities();
+        
+        // Update CSS variables for animation
+        document.documentElement.style.setProperty('--bass-intensity', bassIntensity);
+        document.documentElement.style.setProperty('--mid-intensity', midIntensity);
+        document.documentElement.style.setProperty('--high-intensity', highIntensity);
+        
+        // Continue animation
         animationFrameRef.current = requestAnimationFrame(updateVisualization);
+      } else {
+        // Reset visualization when not playing
+        document.documentElement.style.setProperty('--bass-intensity', 0);
+        document.documentElement.style.setProperty('--mid-intensity', 0);
+        document.documentElement.style.setProperty('--high-intensity', 0);
       }
     };
     
+    // Start or stop animation based on playing state
     if (isPlaying) {
-      // Start visualization loop
       updateVisualization();
-    } else {
-      // Reset visualization when not playing
+    } else if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+      
+      // Reset visualizer
       document.documentElement.style.setProperty('--bass-intensity', 0);
       document.documentElement.style.setProperty('--mid-intensity', 0);
       document.documentElement.style.setProperty('--high-intensity', 0);
-      
-      // Cancel animation loop
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = null;
-      }
     }
     
     // Cleanup function
@@ -105,25 +100,11 @@ const AudioVisualizer = () => {
         animationFrameRef.current = null;
       }
     };
-  }, [isPlaying, volumes, LAYERS, createAnalyzer]);
-  
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      if (audioContextRef.current) {
-        audioContextRef.current.close().catch(err => {
-          console.error('Error closing audio context:', err);
-        });
-      }
-    };
-  }, []);
+  }, [isPlaying, volumes, frequencyRanges]);
   
   return (
     <div className={styles.visualizerContainer} ref={visualizerRef}>
-      <div className={styles.audioVisualizer}>
+      <div className={styles.audioVisualizer} aria-label="Audio visualizer">
         <div className={`${styles.circle} ${styles.bass}`}></div>
         <div className={`${styles.circle} ${styles.mid}`}></div>
         <div className={`${styles.circle} ${styles.high}`}></div>
@@ -133,4 +114,4 @@ const AudioVisualizer = () => {
   );
 };
 
-export default AudioVisualizer;
+export default React.memo(AudioVisualizer);

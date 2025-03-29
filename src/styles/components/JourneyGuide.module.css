@@ -1,0 +1,68 @@
+/* src/styles/components/JourneyGuide.module.css */
+.journeyGuide {
+    margin: 40px 0 20px;
+    padding: 25px;
+    background-color: #1c1c1c;
+    border: 1px solid #333;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .journeyGuide h3 {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 1rem;
+    color: #aaaaaa;
+    margin-bottom: 15px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    text-align: center;
+  }
+  
+  .journeyPhases {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  
+  .journeyPhase {
+    flex: 1;
+    min-width: 120px;
+    padding: 12px;
+    background-color: #191919;
+    border-left: 2px solid #333;
+    transition: background-color 0.2s ease;
+  }
+  
+  .journeyPhase:hover {
+    background-color: #222222;
+  }
+  
+  .journeyPhase h4 {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 300;
+    font-size: 0.85rem;
+    color: #ffffff;
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+  }
+  
+  .journeyPhase p {
+    font-size: 0.75rem;
+    color: #aaaaaa;
+    line-height: 1.4;
+  }
+  
+  /* Responsive styles */
+  @media (max-width: 768px) {
+    .journeyGuide {
+      padding: 20px;
+      margin: 30px 0 15px;
+    }
+    
+    .journeyPhases {
+      flex-direction: column;
+      gap: 15px;
+    }
+  }

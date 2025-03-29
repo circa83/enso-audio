@@ -1,0 +1,11 @@
+/* src/styles/components/LayerControls.module.css */
+.layerControlsContent {
+    padding: 10px 0;
+  }
+  
+  /* Media queries for responsive layout */
+  @media (max-width: 768px) {
+    .layerControlsContent {
+      padding: 5px 0;
+    }
+  }
