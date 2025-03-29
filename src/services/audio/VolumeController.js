@@ -30,6 +30,9 @@ const DEFAULT_VOLUMES = {
       // Default transition settings
       this.defaultTransitionDuration = 500; // in milliseconds
       this.useExponentialFade = true; // Use exponential or linear transitions
+  
+      // Debug flag
+      this.debug = false;
     }
     
     /**
@@ -37,6 +40,7 @@ const DEFAULT_VOLUMES = {
      * @param {AudioContext} audioContext - Web Audio API context
      */
     setAudioContext(audioContext) {
+      if (this.debug) console.log('VolumeController: Setting audio context', audioContext);
       this.audioContext = audioContext;
     }
     
@@ -50,6 +54,8 @@ const DEFAULT_VOLUMES = {
         console.error(`Invalid gain node for layer ${layerId}`);
         return;
       }
+      
+      if (this.debug) console.log(`VolumeController: Registering gain node for ${layerId}`, gainNode);
       
       // Store the gain node
       this.gainNodes.set(layerId, gainNode);
@@ -68,6 +74,8 @@ const DEFAULT_VOLUMES = {
         console.error('Invalid master gain node');
         return;
       }
+      
+      if (this.debug) console.log('VolumeController: Registering master gain node', gainNode);
       
       this.masterGainNode = gainNode;
       
@@ -89,10 +97,13 @@ const DEFAULT_VOLUMES = {
       // Store the volume value
       this.volumes[layerId] = volume;
       
+      if (this.debug) console.log(`VolumeController: Setting ${layerId} volume to ${volume}`);
+      
       // Get the gain node
       const gainNode = this.gainNodes.get(layerId);
       if (!gainNode) {
         // Still store the volume even if we don't have a gain node yet
+        if (this.debug) console.log(`VolumeController: No gain node found for ${layerId}, storing volume state only`);
         return false;
       }
       
@@ -129,8 +140,11 @@ const DEFAULT_VOLUMES = {
       // Store the volume value
       this.masterVolume = volume;
       
+      if (this.debug) console.log(`VolumeController: Setting master volume to ${volume}`);
+      
       // Check if we have a master gain node
       if (!this.masterGainNode) {
+        if (this.debug) console.log('VolumeController: No master gain node found, storing volume state only');
         return false;
       }
       
@@ -164,38 +178,48 @@ const DEFAULT_VOLUMES = {
     applyVolumeTransition(audioParam, targetValue, duration) {
       if (!this.audioContext) {
         // If no audio context, just set the value directly
+        if (this.debug) console.log('VolumeController: No audio context, setting value directly', targetValue);
         audioParam.value = targetValue;
         return;
       }
       
       // For very short durations, just set the value immediately
       if (duration < 10) {
+        if (this.debug) console.log('VolumeController: Short duration, setting value directly', targetValue);
         audioParam.value = targetValue;
         return;
       }
       
-      const now = this.audioContext.currentTime;
-      const durationSeconds = duration / 1000;
-      
-      // Cancel any scheduled changes
-      audioParam.cancelScheduledValues(now);
-      
-      // Start from current value
-      audioParam.setValueAtTime(audioParam.value, now);
-      
-      // Apply transition based on settings
-      if (this.useExponentialFade && targetValue > 0.0001) { 
-        // For exponential fades, target must be > 0
-        audioParam.exponentialRampToValueAtTime(
-          Math.max(0.0001, targetValue), // Ensure minimum value for exponential ramp
-          now + durationSeconds
-        );
-      } else {
-        // Linear fade for zero targets or when exponential not preferred
-        audioParam.linearRampToValueAtTime(
-          targetValue,
-          now + durationSeconds
-        );
+      try {
+        const now = this.audioContext.currentTime;
+        const durationSeconds = duration / 1000;
+        
+        if (this.debug) console.log(`VolumeController: Applying volume transition to ${targetValue} over ${durationSeconds}s`);
+        
+        // Cancel any scheduled changes
+        audioParam.cancelScheduledValues(now);
+        
+        // Start from current value
+        audioParam.setValueAtTime(audioParam.value, now);
+        
+        // Apply transition based on settings
+        if (this.useExponentialFade && targetValue > 0.0001) { 
+          // For exponential fades, target must be > 0
+          audioParam.exponentialRampToValueAtTime(
+            Math.max(0.0001, targetValue), // Ensure minimum value for exponential ramp
+            now + durationSeconds
+          );
+        } else {
+          // Linear fade for zero targets or when exponential not preferred
+          audioParam.linearRampToValueAtTime(
+            targetValue,
+            now + durationSeconds
+          );
+        }
+      } catch (error) {
+        console.error('Error applying volume transition:', error);
+        // Fallback: set value directly
+        audioParam.value = targetValue;
       }
     }
     
@@ -418,6 +442,14 @@ const DEFAULT_VOLUMES = {
     }
     
     /**
+     * Enable or disable debug logging
+     * @param {boolean} enabled - Whether to enable debug logging
+     */
+    setDebug(enabled) {
+      this.debug = enabled;
+    }
+    
+    /**
      * Add an event listener
      * @param {string} event - Event name ('volumeChange', 'masterVolumeChange')
      * @param {Function} listener - Event listener
@@ -484,20 +516,30 @@ const DEFAULT_VOLUMES = {
       // Reset all volumes to default immediately
       for (const gainNode of this.gainNodes.values()) {
         if (gainNode && gainNode.gain) {
-          gainNode.gain.cancelScheduledValues(0);
-          gainNode.gain.value = 0;
+          try {
+            gainNode.gain.cancelScheduledValues(0);
+            gainNode.gain.value = 0;
+          } catch (error) {
+            console.error('Error resetting gain node:', error);
+          }
         }
       }
       
       // Reset master volume
       if (this.masterGainNode && this.masterGainNode.gain) {
-        this.masterGainNode.gain.cancelScheduledValues(0);
-        this.masterGainNode.gain.value = 0.8; // Default
+        try {
+          this.masterGainNode.gain.cancelScheduledValues(0);
+          this.masterGainNode.gain.value = 0.8; // Default
+        } catch (error) {
+          console.error('Error resetting master gain node:', error);
+        }
       }
       
       // Clear gain node references
       this.gainNodes.clear();
       this.masterGainNode = null;
+  
+      if (this.debug) console.log('VolumeController: Cleanup complete');
     }
   }
   

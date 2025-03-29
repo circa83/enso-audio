@@ -1,6 +1,6 @@
 // src/components/audio/ImprovedLayerControl.js
 import React, { memo, useCallback } from 'react';
-import ImprovedLayerDropdown from './ImprovedLayerDropdown';
+import ImprovedLayerDropdown from './LayerDropdown';
 import styles from '../../styles/components/LayerControl.module.css';
 
 /**
@@ -12,7 +12,7 @@ import styles from '../../styles/components/LayerControl.module.css';
  * @param {Function} props.onChange - Callback for volume changes
  * @param {string} props.layer - Audio layer ID
  */
-const ImprovedLayerControl = ({ label, value, onChange, layer }) => {
+const LayerControl = ({ label, value, onChange, layer }) => {
   // Handle slider value change
   const handleChange = useCallback((e) => {
     const newValue = parseFloat(e.target.value);
@@ -55,4 +55,4 @@ const ImprovedLayerControl = ({ label, value, onChange, layer }) => {
 };
 
 // Use memo to prevent unnecessary re-renders
-export default memo(ImprovedLayerControl);
+export default memo(LayerControl);

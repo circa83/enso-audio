@@ -83,6 +83,20 @@ export const AudioProvider = ({ children }) => {
         
         const timelineEng = getTimelineEngine();
         setTimelineEngine(timelineEng);
+
+        Object.values(LAYERS).forEach(layer => {
+          const layerId = layer.toLowerCase();
+          if (core.gainNodes[layerId]) {
+            volumeCtrl.registerGainNode(layerId, core.gainNodes[layerId]);
+          }
+        });
+        
+        // Register master gain node
+        if (core.masterGain) {
+          volumeCtrl.registerMasterGainNode(core.masterGain);
+        }
+        
+        setVolumeController(volumeCtrl);
         
         // Set initial volume state
         const initialVolumes = {
@@ -91,6 +105,10 @@ export const AudioProvider = ({ children }) => {
           [LAYERS.RHYTHM]: 0.0,
           [LAYERS.NATURE]: 0.0
         };
+         // Apply initial volumes
+      Object.entries(initialVolumes).forEach(([layer, volume]) => {
+        volumeCtrl.setLayerVolume(layer, volume);
+      });
         setVolumes(initialVolumes);
         
         // Set up basic library
@@ -263,7 +281,8 @@ export const AudioProvider = ({ children }) => {
   // Update volume for a layer
   const setVolume = useCallback((layer, value) => {
     if (!volumeController) return;
-    
+    // Log for debugging
+  console.log(`Setting ${layer} volume to ${value}`);
     // Update volume in controller
     volumeController.setLayerVolume(layer, value);
     
@@ -278,6 +297,9 @@ export const AudioProvider = ({ children }) => {
   const setMasterVolumeLevel = useCallback((value) => {
     if (!volumeController) return;
     
+     // Log for debugging
+  console.log(`Setting master volume to ${value}`);
+  
     // Update master volume in controller
     volumeController.setMasterVolume(value);
     

@@ -1,14 +1,14 @@
 // src/components/audio/ImprovedLayerControls.js
 import React, { memo } from 'react';
 import { useAudio } from '../../contexts/StreamingAudioContext';
-import ImprovedLayerControl from './ImprovedLayerControl';
+import ImprovedLayerControl from './LayerControl';
 import styles from '../../styles/components/LayerControls.module.css';
 
 /**
  * ImprovedLayerControls - Container for all audio layer controls
  * Manages the set of layer volume sliders and dropdown selectors
  */
-const ImprovedLayerControls = () => {
+const LayerControls = () => {
   const { LAYERS, volumes, setVolume } = useAudio();
   
   return (
@@ -27,4 +27,4 @@ const ImprovedLayerControls = () => {
 };
 
 // Use memo to prevent unnecessary re-renders
-export default memo(ImprovedLayerControls);
+export default memo(LayerControls);
