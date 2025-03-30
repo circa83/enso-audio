@@ -1,0 +1,457 @@
+/* src/styles/pages/MasterDebugPanel.module.css */
+.testContainer {
+    max-width: 1200px;
+    margin: 30px auto;
+    padding: 30px;
+    background-color: #181818;
+    border-radius: 2px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    color: #eaeaea;
+    font-family: 'Archivo', sans-serif;
+  }
+  
+  .testTitle {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 100;
+    font-size: 2rem;
+    color: #ffffff;
+    margin-bottom: 30px;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    text-align: center;
+  }
+  
+  .sectionTitle {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 1rem;
+    color: #aaaaaa;
+    margin-bottom: 20px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  
+  .loadingInfo {
+    text-align: center;
+    padding: 40px;
+  }
+  
+  .loadingInfo h2 {
+    font-weight: 300;
+    font-size: 1.2rem;
+    margin-bottom: 10px;
+  }
+  
+  .loadingInfo p {
+    color: #aaaaaa;
+    font-size: 0.9rem;
+  }
+  
+  .sectionNav {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 30px;
+    padding: 10px;
+    background-color: #1c1c1c;
+    border: 1px solid #333;
+  }
+  
+  .sectionButton {
+    background-color: transparent;
+    border: 1px solid #333;
+    color: #aaaaaa;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.8rem;
+    padding: 8px 15px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  
+  .sectionButton:hover {
+    border-color: #555;
+    color: #ffffff;
+  }
+  
+  .sectionButton.activeSection {
+    background-color: #252525;
+    border-color: #ffffff;
+    color: #ffffff;
+  }
+  
+  .testContent {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  
+  .testControls {
+    padding: 20px;
+    background-color: #1c1c1c;
+    border: 1px solid #333;
+  }
+  
+  .testButtons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  
+  .testButton {
+    background-color: transparent;
+    border: 1px solid #333;
+    color: #aaaaaa;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.8rem;
+    padding: 12px 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  
+  .testButton:hover:not(:disabled) {
+    border-color: #ffffff;
+    color: #ffffff;
+  }
+  
+  .testButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .testButton.primary {
+    grid-column: span 2;
+    border-color: #444;
+    background-color: #252525;
+    color: #ffffff;
+  }
+  
+  .testButton.primary:hover {
+    background-color: #333;
+  }
+  
+  .testSettings {
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #222;
+    border-left: 2px solid #333;
+  }
+  
+  .testSettings h3 {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 300;
+    font-size: 0.9rem;
+    color: #ffffff;
+    margin-bottom: 15px;
+  }
+  
+  .settingControl {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  
+  .settingControl label {
+    width: 180px;
+    font-size: 0.8rem;
+    color: #aaaaaa;
+  }
+  
+  .settingControl input {
+    flex-grow: 1;
+    background-color: #333;
+    height: 3px;
+    border: none;
+    outline: none;
+    -webkit-appearance: none;
+  }
+  
+  .settingControl input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    background: #ffffff;
+    cursor: pointer;
+  }
+  
+  .settingControl span {
+    width: 60px;
+    text-align: right;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+  }
+  
+  .playbackStatus {
+    padding: 15px;
+    background-color: #222;
+    border-left: 2px solid #333;
+    margin-bottom: 20px;
+  }
+  
+  .playbackStatus h3, .playbackStatus h4 {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 300;
+    font-size: 0.9rem;
+    color: #ffffff;
+    margin-bottom: 15px;
+  }
+  
+  .playbackStatus p {
+    font-size: 0.85rem;
+    margin-bottom: 10px;
+  }
+  
+  .layerInfo {
+    margin-top: 15px;
+  }
+  
+  .layerInfo h4, .timelineInfo h4, .testResults h4 {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 300;
+    font-size: 0.85rem;
+    color: #ffffff;
+    margin-bottom: 8px;
+  }
+  
+  .layerInfo ul {
+    list-style: none;
+    padding-left: 5px;
+  }
+  
+  .layerInfo li {
+    font-size: 0.8rem;
+    color: #aaaaaa;
+    margin-bottom: 5px;
+  }
+  
+  .audioControls {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+  }
+  
+  .controlButton {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: transparent;
+    border: 1px solid #ffffff;
+    color: #ffffff;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-transform: uppercase;
+  }
+  
+  .controlButton:hover {
+    background-color: #ffffff;
+    color: #111111;
+  }
+  
+  .controlButton.stop {
+    background-color: #ffffff;
+    color: #111111;
+  }
+  
+  .testOutput {
+    padding: 20px;
+    background-color: #1c1c1c;
+    border: 1px solid #333;
+  }
+  
+  .outputHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+  }
+  
+  .outputButtons {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .clearButton, .copyButton {
+    background-color: transparent;
+    border: 1px solid #333;
+    color: #aaaaaa;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.7rem;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .clearButton:hover, .copyButton:hover {
+    border-color: #aaaaaa;
+    color: #ffffff;
+  }
+  
+  .copyButton {
+    border-color: #444;
+    color: #bbbbbb;
+  }
+  
+  .logMessages {
+    max-height: 500px;
+    overflow-y: auto;
+    padding: 10px;
+    background-color: #111;
+    border: 1px solid #333;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+  }
+  
+  .noLogs {
+    color: #555;
+    font-style: italic;
+    padding: 10px;
+    text-align: center;
+  }
+  
+  .logEntry {
+    margin-bottom: 5px;
+    padding: 3px 0;
+    display: flex;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  
+  .timestamp {
+    color: #555;
+    margin-right: 10px;
+    flex-shrink: 0;
+  }
+  
+  .message {
+    flex-grow: 1;
+  }
+  
+  .logEntry.info .message {
+    color: #aaa;
+  }
+  
+  .logEntry.test .message {
+    color: #7986cb; /* Light blue */
+  }
+  
+  .logEntry.success .message {
+    color: #66bb6a; /* Green */
+  }
+  
+  .logEntry.error .message {
+    color: #ef5350; /* Red */
+  }
+  
+  .logEntry.warning .message {
+    color: #ffca28; /* Yellow */
+  }
+  
+  /* Volume controls */
+  .masterVolume, .layerVolumes {
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #222;
+    border-left: 2px solid #333;
+  }
+  
+  .masterVolume h4, .layerVolumes h4 {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 300;
+    font-size: 0.85rem;
+    color: #ffffff;
+    margin-bottom: 15px;
+  }
+  
+  .volumeControl {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  
+  .volumeControl label {
+    width: 80px;
+    font-size: 0.8rem;
+    color: #aaaaaa;
+    text-transform: capitalize;
+  }
+  
+  .volumeControl input {
+    flex-grow: 1;
+    background-color: #333;
+    height: 3px;
+    border: none;
+    outline: none;
+    -webkit-appearance: none;
+  }
+  
+  .volumeControl input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    background: #ffffff;
+    cursor: pointer;
+  }
+  
+  .volumeControl span {
+    width: 40px;
+    text-align: right;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+  }
+  
+  /* Timeline related styles */
+  .phaseMarkers {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: #1a1a1a;
+    border: 1px solid #333;
+  }
+  
+  .timelineInfo {
+    margin-top: 15px;
+  }
+  
+  /* Responsive styles */
+  @media (max-width: 1024px) {
+    .testContainer {
+      padding: 20px;
+      margin: 15px;
+    }
+    
+    .testContent {
+      grid-template-columns: 1fr;
+    }
+    
+    .testTitle {
+      font-size: 1.5rem;
+    }
+  }
+  
+  @media (max-width: 600px) {
+    .testButtons {
+      grid-template-columns: 1fr;
+    }
+    
+    .testButton.primary {
+      grid-column: auto;
+    }
+    
+    .sectionNav {
+      flex-direction: column;
+    }
+  }
