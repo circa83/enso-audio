@@ -1,10 +1,9 @@
 // src/contexts/StreamingAudioContext.js
-// src/contexts/StreamingAudioContext.js
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AudioCore from '../services/audio/AudioCore';
 import BufferManager from '../services/audio/BufferManager';
 import CrossfadeEngine from '../services/audio/CrossfadeEngine';
-
+import VolumeController from '../services/audio/VolumeController';
 
 // Define our audio layers
 const LAYERS = {
@@ -39,6 +38,7 @@ export const AudioProvider = ({ children }) => {
   const audioCoreRef = useRef(null);
   const bufferManagerRef = useRef(null);
   const crossfadeEngineRef = useRef(null);
+  const volumeControllerRef = useRef(null);
   
   // Loading state
   const [isLoading, setIsLoading] = useState(true);
@@ -46,9 +46,6 @@ export const AudioProvider = ({ children }) => {
   
   // Track currently active audio elements for each layer
   const [activeAudio, setActiveAudio] = useState({});
-  
-  // Store gain nodes for each layer
-  const [gainNodes, setGainNodes] = useState({});
   
   // Master volume control
   const [masterVolume, setMasterVolume] = useState(0.8);
@@ -69,7 +66,7 @@ export const AudioProvider = ({ children }) => {
     [LAYERS.NATURE]: {}
   });
   
-  // Volume levels for each layer (0-1)
+  // Volume levels for each layer (0-1) - Now managed by VolumeController
   const [volumes, setVolumes] = useState({
     [LAYERS.DRONE]: 0.25,
     [LAYERS.MELODY]: 0.0,
@@ -143,6 +140,16 @@ export const AudioProvider = ({ children }) => {
             });
           }
           
+          // Initialize VolumeController
+          if (!volumeControllerRef.current && audioCoreRef.current.getContext()) {
+            console.log('Creating new VolumeController instance');
+            volumeControllerRef.current = new VolumeController({
+              audioContext: audioCoreRef.current.getContext(),
+              initialVolumes: volumes,
+              enableLogging: true
+            });
+          }
+          
           // Initialize CrossfadeEngine after AudioCore is ready
           if (!crossfadeEngineRef.current && audioCoreRef.current.getContext() && audioCoreRef.current.getMasterGain()) {
             console.log('Creating new CrossfadeEngine instance');
@@ -208,11 +215,18 @@ export const AudioProvider = ({ children }) => {
         crossfadeEngineRef.current.dispose();
         crossfadeEngineRef.current = null;
       }
+      
+      // Clean up VolumeController
+      if (volumeControllerRef.current) {
+        volumeControllerRef.current.dispose();
+        volumeControllerRef.current = null;
+      }
     };
   }, []);
 
+  // Update master volume in AudioCore when masterVolume state changes
   useEffect(() => {
-    if(audioCoreRef.current) {
+    if (audioCoreRef.current) {
       audioCoreRef.current.setMasterVolume(masterVolume);
     }
   }, [masterVolume]);
@@ -255,7 +269,7 @@ export const AudioProvider = ({ children }) => {
 
   // Initialize audio elements with default tracks
   const initializeDefaultAudio = async () => {
-    if (!audioCoreRef.current || !bufferManagerRef.current) {
+    if (!audioCoreRef.current || !bufferManagerRef.current || !volumeControllerRef.current) {
       console.error('Cannot initialize audio, services not ready');
       return false;
     }
@@ -289,15 +303,6 @@ export const AudioProvider = ({ children }) => {
     
     // Update progress to show we're starting to load
     setLoadingProgress(20);
-    
-    // Create gain nodes for each layer
-    const nodes = {};
-    Object.values(LAYERS).forEach(layer => {
-      nodes[layer] = audioCtx.createGain();
-      // Connect to master gain
-      nodes[layer].connect(masterGain);
-    });
-    setGainNodes(nodes);
     
     // For each layer, create and load the default audio element
     for (const layer of Object.values(LAYERS)) {
@@ -355,15 +360,17 @@ export const AudioProvider = ({ children }) => {
         
         // Create media element source
         const source = audioCtx.createMediaElementSource(audioElement);
-        source.connect(nodes[layer]);
+        
+        // Connect source to volume controller
+        // This replaces the direct connection to gain nodes
+        volumeControllerRef.current.connectToLayer(layer, source, masterGain);
         
         // Store the audio element and its source
         newAudioElements[layer][defaultTrack.id] = {
           element: audioElement,
           source: source,
           track: defaultTrack,
-          isActive: true,
-          gain: volumes[layer] // Start with default volume
+          isActive: true
         };
         
         // Set as active audio for this layer
@@ -441,11 +448,6 @@ export const AudioProvider = ({ children }) => {
         if (track && track.element) {
           console.log(`Playing audio for ${layer}`);
           
-          // Set correct volume
-          if (gainNodes[layer]) {
-            gainNodes[layer].gain.value = volumes[layer];
-          }
-          
           // Play and collect the promise
           try {
             const playPromise = track.element.play();
@@ -498,7 +500,7 @@ export const AudioProvider = ({ children }) => {
       // Reset state if we hit an error
       updatePlayingState(false);
     }
-  }, [audioElements, activeAudio, gainNodes, volumes, updatePlayingState]);
+  }, [audioElements, activeAudio, updatePlayingState]);
 
   // Pause/Stop session
   const pauseSession = useCallback(() => {
@@ -568,29 +570,29 @@ export const AudioProvider = ({ children }) => {
     }
   }, [activeAudio, audioElements, updatePlayingState]);
 
-  // Update volume for a layer
+  // Update volume for a layer - Now uses VolumeController
   const setVolume = useCallback((layer, value) => {
-    if (!gainNodes[layer]) return;
+    if (!volumeControllerRef.current) return;
     
-    // Update volume state
+    // Update our local state for UI
     setVolumes(prev => ({
       ...prev,
       [layer]: value
     }));
     
-    // Apply to main gain node
-    gainNodes[layer].gain.value = value;
+    // Apply volume using the VolumeController
+    volumeControllerRef.current.setVolume(layer, value);
     
     // If there's an active crossfade for this layer, update its volume too
     if (crossfadeEngineRef.current && crossfadeEngineRef.current.isActive(layer)) {
       crossfadeEngineRef.current.adjustCrossfadeVolume(layer, value);
     }
-  }, [gainNodes]);
+  }, []);
 
   // Preload audio using BufferManager
   const preloadAudio = useCallback(async (layer, trackId) => {
-    if (!bufferManagerRef.current || !gainNodes[layer]) {
-      console.error("Cannot preload: missing BufferManager or gain node");
+    if (!bufferManagerRef.current) {
+      console.error("Cannot preload: missing BufferManager");
       return false;
     }
 
@@ -638,14 +640,14 @@ export const AudioProvider = ({ children }) => {
       
       return false;
     }
-  }, [audioLibrary, gainNodes]);
+  }, [audioLibrary]);
 
   // Enhanced crossfade function using CrossfadeEngine service
   const enhancedCrossfadeTo = useCallback(async (layer, newTrackId, fadeDuration = 4000) => {
     console.log(`🎵 Starting crossfade process for ${layer}: ${newTrackId}`);
     
     // Verify we have what we need
-    if (!audioCoreRef.current || !gainNodes[layer] || !crossfadeEngineRef.current) {
+    if (!audioCoreRef.current || !volumeControllerRef.current || !crossfadeEngineRef.current) {
       console.error("Cannot crossfade: missing required services");
       return false;
     }
@@ -687,7 +689,9 @@ export const AudioProvider = ({ children }) => {
           
           // Create source node
           const source = audioCtx.createMediaElementSource(audioElement);
-          source.connect(gainNodes[layer]);
+          
+          // Connect to VolumeController instead of direct gain node
+          volumeControllerRef.current.connectToLayer(layer, source, masterGain);
           
           // Store the new track
           trackElements = {
@@ -778,7 +782,9 @@ export const AudioProvider = ({ children }) => {
         
         // Create the source node after loading
         const source = audioCtx.createMediaElementSource(audioElement);
-        source.connect(gainNodes[layer]);
+        
+        // Connect to VolumeController instead of direct gain node
+        volumeControllerRef.current.connectToLayer(layer, source, masterGain);
         
         // Create the track elements
         newTrackElements = {
@@ -821,6 +827,9 @@ export const AudioProvider = ({ children }) => {
     // Get the current track
     const currentTrack = audioElements[layer][currentTrackId];
     
+    // Get the current volume for the layer from VolumeController
+    const currentVolume = volumeControllerRef.current.getVolume(layer);
+    
     // Prepare crossfade options
     const crossfadeOptions = {
       layer,
@@ -828,7 +837,7 @@ export const AudioProvider = ({ children }) => {
       sourceElement: currentTrack.element,
       targetNode: newTrackElements.source,
       targetElement: newTrackElements.element,
-      currentVolume: volumes[layer],
+      currentVolume: currentVolume, // Use volume from VolumeController
       duration: fadeDuration,
       syncPosition: true,
       metadata: {
@@ -900,412 +909,410 @@ export const AudioProvider = ({ children }) => {
   }, [
     audioLibrary, 
     activeAudio, 
-    volumes, 
     audioElements, 
     isPlayingRef, 
-    gainNodes, 
     preloadAudio
   ]);
 
-  // Calculate elapsed session time
-  const getSessionTime = useCallback(() => {
-    if (!sessionStartTime) return 0;
-    return isPlayingRef.current ? Date.now() - sessionStartTime : 0;
-  }, [sessionStartTime]);
+ // Calculate elapsed session time
+ const getSessionTime = useCallback(() => {
+  if (!sessionStartTime) return 0;
+  return isPlayingRef.current ? Date.now() - sessionStartTime : 0;
+}, [sessionStartTime]);
 
-  // Timeline event handling 
-  const resetTimelineEventIndex = useCallback(() => {
-    setNextEventIndex(0);
-  }, []);
+// Timeline event handling 
+const resetTimelineEventIndex = useCallback(() => {
+  setNextEventIndex(0);
+}, []);
 
-  // Add function to register a timeline event
-  const registerTimelineEvent = useCallback((event) => {
-    setTimelineEvents(prev => {
-      // Add the new event and sort by time
-      const updatedEvents = [...prev, event].sort((a, b) => a.time - b.time);
-      return updatedEvents;
-    });
-  }, []);
+// Add function to register a timeline event
+const registerTimelineEvent = useCallback((event) => {
+  setTimelineEvents(prev => {
+    // Add the new event and sort by time
+    const updatedEvents = [...prev, event].sort((a, b) => a.time - b.time);
+    return updatedEvents;
+  });
+}, []);
 
-  // Add function to clear timeline events
-  const clearTimelineEvents = useCallback(() => {
-    setTimelineEvents([]);
-    setNextEventIndex(0);
-  }, []);
+// Add function to clear timeline events
+const clearTimelineEvents = useCallback(() => {
+  setTimelineEvents([]);
+  setNextEventIndex(0);
+}, []);
 
-  // Timeline event handling effect
-  useEffect(() => {
-    if (isPlaying && timelineEvents.length > 0) {
-      // Start checking for timeline events
-      timelineCheckInterval.current = setInterval(() => {
-        const currentTime = getSessionTime();
+// Timeline event handling effect
+useEffect(() => {
+  if (isPlaying && timelineEvents.length > 0) {
+    // Start checking for timeline events
+    timelineCheckInterval.current = setInterval(() => {
+      const currentTime = getSessionTime();
+      
+      // Check if we need to trigger the next event
+      if (nextEventIndex < timelineEvents.length) {
+        const nextEvent = timelineEvents[nextEventIndex];
         
-        // Check if we need to trigger the next event
-        if (nextEventIndex < timelineEvents.length) {
-          const nextEvent = timelineEvents[nextEventIndex];
+        if (currentTime >= nextEvent.time) {
+          console.log(`Triggering timeline event: ${nextEvent.name}`);
           
-          if (currentTime >= nextEvent.time) {
-            console.log(`Triggering timeline event: ${nextEvent.name}`);
-            
-            // Execute the event action
-            if (nextEvent.action === 'crossfade' && nextEvent.layerSettings) {
-              // Handle crossfade events
-              Object.entries(nextEvent.layerSettings).forEach(([layer, settings]) => {
-                if (settings.trackId) {
-                  enhancedCrossfadeTo(layer, settings.trackId, settings.duration || 4000);
-                }
-                
-                if (settings.volume !== undefined) {
-                  setVolume(layer, settings.volume);
-                }
-              });
-            }
-            
-            // Move to the next event
-            setNextEventIndex(nextEventIndex + 1);
+          // Execute the event action
+          if (nextEvent.action === 'crossfade' && nextEvent.layerSettings) {
+            // Handle crossfade events
+            Object.entries(nextEvent.layerSettings).forEach(([layer, settings]) => {
+              if (settings.trackId) {
+                enhancedCrossfadeTo(layer, settings.trackId, settings.duration || 4000);
+              }
+              
+              if (settings.volume !== undefined) {
+                setVolume(layer, settings.volume);
+              }
+            });
           }
+          
+          // Move to the next event
+          setNextEventIndex(nextEventIndex + 1);
         }
-      }, 1000); // Check every second
-    } else {
-      // Clear interval when not playing
-      if (timelineCheckInterval.current) {
-        clearInterval(timelineCheckInterval.current);
       }
+    }, 1000); // Check every second
+  } else {
+    // Clear interval when not playing
+    if (timelineCheckInterval.current) {
+      clearInterval(timelineCheckInterval.current);
     }
-    
-    return () => {
-      if (timelineCheckInterval.current) {
-        clearInterval(timelineCheckInterval.current);
+  }
+  
+  return () => {
+    if (timelineCheckInterval.current) {
+      clearInterval(timelineCheckInterval.current);
+    }
+  };
+}, [isPlaying, timelineEvents, nextEventIndex, getSessionTime, enhancedCrossfadeTo, setVolume]);
+
+// Function to update timeline phases (called from SessionTimeline)
+const updateTimelinePhases = useCallback((phases) => {
+  if (!phases || !Array.isArray(phases)) return;
+  setTimelinePhases(phases);
+}, []);
+
+// Function to register state providers for different components
+const registerPresetStateProvider = useCallback((key, providerFn) => {
+  if (!key) return;
+  
+  if (providerFn === null) {
+    // Unregister provider
+    delete stateProviders.current[key];
+  } else {
+    // Register provider
+    stateProviders.current[key] = providerFn;
+  }
+}, []);
+
+// Save current state as a preset
+const savePreset = useCallback((name) => {
+  if (!name || name.trim() === '') return false;
+  
+  // Collect state from all registered providers
+  const componentStates = {};
+  Object.entries(stateProviders.current).forEach(([key, providerFn]) => {
+    try {
+      const state = providerFn();
+      if (state) {
+        componentStates[key] = state;
       }
+    } catch (error) {
+      console.error(`Error getting state from provider ${key}:`, error);
+    }
+  });
+  
+  // Create the preset with all state data
+  const preset = {
+    name,
+    date: new Date().toISOString(),
+    state: {
+      volumes: { ...volumes },
+      activeAudio: { ...activeAudio },
+      timelineEvents: [...timelineEvents],
+      components: componentStates,
+      timelinePhases: [...timelinePhases]
+    }
+  };
+  
+  setPresets(prev => {
+    const newPresets = {
+      ...prev,
+      [name]: preset
     };
-  }, [isPlaying, timelineEvents, nextEventIndex, getSessionTime, enhancedCrossfadeTo, setVolume]);
-
-  // Function to update timeline phases (called from SessionTimeline)
-  const updateTimelinePhases = useCallback((phases) => {
-    if (!phases || !Array.isArray(phases)) return;
-    setTimelinePhases(phases);
-  }, []);
-
-  // Function to register state providers for different components
-  const registerPresetStateProvider = useCallback((key, providerFn) => {
-    if (!key) return;
     
-    if (providerFn === null) {
-      // Unregister provider
-      delete stateProviders.current[key];
-    } else {
-      // Register provider
-      stateProviders.current[key] = providerFn;
+    // Store in localStorage
+    try {
+      localStorage.setItem('ensoAudioPresets', JSON.stringify(newPresets));
+    } catch (e) {
+      console.warn('Could not save presets to localStorage:', e);
     }
-  }, []);
-
-  // Save current state as a preset
-  const savePreset = useCallback((name) => {
-    if (!name || name.trim() === '') return false;
     
-    // Collect state from all registered providers
-    const componentStates = {};
-    Object.entries(stateProviders.current).forEach(([key, providerFn]) => {
-      try {
-        const state = providerFn();
-        if (state) {
-          componentStates[key] = state;
-        }
-      } catch (error) {
-        console.error(`Error getting state from provider ${key}:`, error);
+    return newPresets;
+  });
+  
+  return true;
+}, [volumes, activeAudio, timelineEvents, timelinePhases]);
+
+// Load a saved preset
+const loadPreset = useCallback((name) => {
+  const preset = presets[name];
+  if (!preset) return false;
+  
+  // Apply the preset state
+  if (preset.state.volumes) {
+    Object.entries(preset.state.volumes).forEach(([layer, vol]) => {
+      setVolume(layer, vol);
+    });
+  }
+  
+  if (preset.state.activeAudio) {
+    // Load all track changes without crossfade (immediate)
+    Object.entries(preset.state.activeAudio).forEach(([layer, trackId]) => {
+      enhancedCrossfadeTo(layer, trackId, 0);
+    });
+  }
+  
+  if (preset.state.timelineEvents) {
+    setTimelineEvents(preset.state.timelineEvents);
+    setNextEventIndex(0);
+  }
+  
+  // Apply timeline phases if they exist
+  if (preset.state.timelinePhases && preset.state.timelinePhases.length > 0) {
+    setTimelinePhases(preset.state.timelinePhases);
+    
+    // Dispatch event to notify the timeline component
+    if (typeof window !== 'undefined') {
+      const event = new CustomEvent('timeline-update', { 
+        detail: { 
+          phases: preset.state.timelinePhases,
+          sessionDuration: preset.state.components?.timeline?.sessionDuration
+        } 
+      });
+      window.dispatchEvent(event);
+    }
+  }
+  
+  // Apply component-specific states
+  if (preset.state.components) {
+    Object.entries(preset.state.components).forEach(([componentKey, state]) => {
+      // Dispatch custom events for each component to handle its own state
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent(`${componentKey}-update`, { detail: state });
+        window.dispatchEvent(event);
       }
     });
+  }
+  
+  return true;
+}, [presets, setVolume, enhancedCrossfadeTo]);
+
+// Delete a preset
+const deletePreset = useCallback((name) => {
+  setPresets(prev => {
+    const newPresets = { ...prev };
+    delete newPresets[name];
     
-    // Create the preset with all state data
-    const preset = {
-      name,
-      date: new Date().toISOString(),
-      state: {
-        volumes: { ...volumes },
-        activeAudio: { ...activeAudio },
-        timelineEvents: [...timelineEvents],
-        components: componentStates,
-        timelinePhases: [...timelinePhases]
-      }
-    };
+    // Update localStorage
+    try {
+      localStorage.setItem('ensoAudioPresets', JSON.stringify(newPresets));
+    } catch (e) {
+      console.warn('Could not update presets in localStorage:', e);
+    }
     
+    return newPresets;
+  });
+  
+  return true;
+}, []);
+
+// Get all available presets
+const getPresets = useCallback(() => {
+  return Object.values(presets).sort((a, b) => 
+    new Date(b.date) - new Date(a.date)
+  );
+}, [presets]);
+
+// Export a preset to a JSON string
+const exportPreset = useCallback((name) => {
+  const preset = presets[name];
+  if (!preset) return null;
+  
+  return JSON.stringify(preset);
+}, [presets]);
+
+// Import a preset from a JSON string
+const importPreset = useCallback((jsonString) => {
+  try {
+    const preset = JSON.parse(jsonString);
+    
+    // Validate the preset format
+    if (!preset.name || !preset.state) {
+      return { success: false, error: 'Invalid preset format' };
+    }
+    
+    // Add to presets
     setPresets(prev => {
       const newPresets = {
         ...prev,
-        [name]: preset
-      };
-      
-      // Store in localStorage
-      try {
-        localStorage.setItem('ensoAudioPresets', JSON.stringify(newPresets));
-      } catch (e) {
-        console.warn('Could not save presets to localStorage:', e);
-      }
-      
-      return newPresets;
-    });
-    
-    return true;
-  }, [volumes, activeAudio, timelineEvents, timelinePhases]);
-  
-  // Load a saved preset
-  const loadPreset = useCallback((name) => {
-    const preset = presets[name];
-    if (!preset) return false;
-    
-    // Apply the preset state
-    if (preset.state.volumes) {
-      Object.entries(preset.state.volumes).forEach(([layer, vol]) => {
-        setVolume(layer, vol);
-      });
-    }
-    
-    if (preset.state.activeAudio) {
-      // Load all track changes without crossfade (immediate)
-      Object.entries(preset.state.activeAudio).forEach(([layer, trackId]) => {
-        enhancedCrossfadeTo(layer, trackId, 0);
-      });
-    }
-    
-    if (preset.state.timelineEvents) {
-      setTimelineEvents(preset.state.timelineEvents);
-      setNextEventIndex(0);
-    }
-    
-    // Apply timeline phases if they exist
-    if (preset.state.timelinePhases && preset.state.timelinePhases.length > 0) {
-      setTimelinePhases(preset.state.timelinePhases);
-      
-      // Dispatch event to notify the timeline component
-      if (typeof window !== 'undefined') {
-        const event = new CustomEvent('timeline-update', { 
-          detail: { 
-            phases: preset.state.timelinePhases,
-            sessionDuration: preset.state.components?.timeline?.sessionDuration
-          } 
-        });
-        window.dispatchEvent(event);
-      }
-    }
-    
-    // Apply component-specific states
-    if (preset.state.components) {
-      Object.entries(preset.state.components).forEach(([componentKey, state]) => {
-        // Dispatch custom events for each component to handle its own state
-        if (typeof window !== 'undefined') {
-          const event = new CustomEvent(`${componentKey}-update`, { detail: state });
-          window.dispatchEvent(event);
+        [preset.name]: {
+          ...preset,
+          date: new Date().toISOString() // Update the date
         }
-      });
-    }
-    
-    return true;
-  }, [presets, setVolume, enhancedCrossfadeTo]);
-  
-  // Delete a preset
-  const deletePreset = useCallback((name) => {
-    setPresets(prev => {
-      const newPresets = { ...prev };
-      delete newPresets[name];
+      };
       
       // Update localStorage
       try {
         localStorage.setItem('ensoAudioPresets', JSON.stringify(newPresets));
       } catch (e) {
-        console.warn('Could not update presets in localStorage:', e);
+        console.warn('Could not save imported preset to localStorage:', e);
       }
       
       return newPresets;
     });
     
-    return true;
-  }, []);
-  
-  // Get all available presets
-  const getPresets = useCallback(() => {
-    return Object.values(presets).sort((a, b) => 
-      new Date(b.date) - new Date(a.date)
-    );
-  }, [presets]);
-  
-  // Export a preset to a JSON string
-  const exportPreset = useCallback((name) => {
-    const preset = presets[name];
-    if (!preset) return null;
-    
-    return JSON.stringify(preset);
-  }, [presets]);
-  
-  // Import a preset from a JSON string
-  const importPreset = useCallback((jsonString) => {
-    try {
-      const preset = JSON.parse(jsonString);
-      
-      // Validate the preset format
-      if (!preset.name || !preset.state) {
-        return { success: false, error: 'Invalid preset format' };
-      }
-      
-      // Add to presets
-      setPresets(prev => {
-        const newPresets = {
-          ...prev,
-          [preset.name]: {
-            ...preset,
-            date: new Date().toISOString() // Update the date
-          }
-        };
-        
-        // Update localStorage
-        try {
-          localStorage.setItem('ensoAudioPresets', JSON.stringify(newPresets));
-        } catch (e) {
-          console.warn('Could not save imported preset to localStorage:', e);
-        }
-        
-        return newPresets;
-      });
-      
-      return { success: true, name: preset.name };
-    } catch (e) {
-      return { success: false, error: `Error importing preset: ${e.message}` };
-    }
-  }, []);
+    return { success: true, name: preset.name };
+  } catch (e) {
+    return { success: false, error: `Error importing preset: ${e.message}` };
+  }
+}, []);
 
-  // Test function for crossfade
-  const testCrossfade = useCallback(async () => {
-    if (!hasSwitchableAudio) {
-      console.log("Switchable audio not available for testing");
-      return false;
-    }
+// Test function for crossfade
+const testCrossfade = useCallback(async () => {
+  if (!hasSwitchableAudio) {
+    console.log("Switchable audio not available for testing");
+    return false;
+  }
+  
+  // First start playback if not already playing
+  if (!isPlayingRef.current) {
+    await startSession();
+    // Wait for playback to stabilize
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  
+  // Test each layer
+  for (const layer of Object.values(LAYERS)) {
+    const tracks = audioLibrary[layer];
+    if (!Array.isArray(tracks) || tracks.length < 2) continue;
     
-    // First start playback if not already playing
-    if (!isPlayingRef.current) {
-      await startSession();
-      // Wait for playback to stabilize
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
+    // Get current track ID
+    const currentTrackId = activeAudio[layer];
     
-    // Test each layer
-    for (const layer of Object.values(LAYERS)) {
-      const tracks = audioLibrary[layer];
-      if (!Array.isArray(tracks) || tracks.length < 2) continue;
-      
-      // Get current track ID
-      const currentTrackId = activeAudio[layer];
-      
-      // Find a different track to test
-      const nextTrack = tracks.find(t => t.id !== currentTrackId);
-      if (!nextTrack) continue;
-      
-      console.log(`Testing crossfade for ${layer}: ${currentTrackId} -> ${nextTrack.id}`);
-      
-      // Perform crossfade
-      await enhancedCrossfadeTo(layer, nextTrack.id, 3000);
-      
-      // Wait for crossfade to complete
-      await new Promise(resolve => setTimeout(resolve, 3500));
-      
-      // Crossfade back
-      console.log(`Crossfading back: ${nextTrack.id} -> ${currentTrackId}`);
-      await enhancedCrossfadeTo(layer, currentTrackId, 3000);
-      
-      // Wait between layer tests
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    }
+    // Find a different track to test
+    const nextTrack = tracks.find(t => t.id !== currentTrackId);
+    if (!nextTrack) continue;
     
-    console.log("Crossfade test complete");
-    return true;
-  }, [audioLibrary, activeAudio, hasSwitchableAudio, startSession, enhancedCrossfadeTo, isPlayingRef]);
+    console.log(`Testing crossfade for ${layer}: ${currentTrackId} -> ${nextTrack.id}`);
+    
+    // Perform crossfade
+    await enhancedCrossfadeTo(layer, nextTrack.id, 3000);
+    
+    // Wait for crossfade to complete
+    await new Promise(resolve => setTimeout(resolve, 3500));
+    
+    // Crossfade back
+    console.log(`Crossfading back: ${nextTrack.id} -> ${currentTrackId}`);
+    await enhancedCrossfadeTo(layer, currentTrackId, 3000);
+    
+    // Wait between layer tests
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+  
+  console.log("Crossfade test complete");
+  return true;
+}, [audioLibrary, activeAudio, hasSwitchableAudio, startSession, enhancedCrossfadeTo, isPlayingRef]);
 
-  // Create the context value with all the functionality
-  const contextValue = useMemo(() => ({
-    // Audio state
-    isLoading,
-    loadingProgress,
-    isPlaying,
-    volumes,
-    activeAudio,
-    audioLibrary,
-    hasSwitchableAudio,
-    crossfadeProgress,
-    activeCrossfades,
-    preloadProgress,
-    
-    // Master volume
-    masterVolume,
-    setMasterVolumeLevel,
-    
-    // Audio controls
-    setVolume,
-    startSession,
-    pauseSession,
-    crossfadeTo: enhancedCrossfadeTo, 
-    preloadAudio,
-    getSessionTime,
-    testCrossfade,
-    
-    // Timeline event functions
-    timelineEvents,
-    registerTimelineEvent,
-    clearTimelineEvents,
-    resetTimelineEventIndex,
-    
-    // Timeline phase functions
-    updateTimelinePhases,
-    registerPresetStateProvider,
-    timelinePhases,
-    
-    // Preset management
-    savePreset,
-    loadPreset,
-    deletePreset,
-    getPresets,
-    exportPreset,
-    importPreset,
-    
-    // Constants
-    LAYERS
-  }), [
-    isLoading, 
-    loadingProgress, 
-    isPlaying, 
-    volumes, 
-    activeAudio, 
-    audioLibrary,
-    hasSwitchableAudio,
-    crossfadeProgress, 
-    activeCrossfades,
-    preloadProgress,
-    masterVolume,
-    setMasterVolumeLevel,
-    setVolume, 
-    startSession, 
-    pauseSession, 
-    enhancedCrossfadeTo,
-    preloadAudio,
-    getSessionTime,
-    testCrossfade,
-    timelineEvents,
-    registerTimelineEvent,
-    clearTimelineEvents,
-    resetTimelineEventIndex,
-    updateTimelinePhases,
-    registerPresetStateProvider,
-    timelinePhases,
-    savePreset,
-    loadPreset,
-    deletePreset,
-    getPresets,
-    exportPreset,
-    importPreset
-  ]);
+// Create the context value with all the functionality
+const contextValue = useMemo(() => ({
+  // Audio state
+  isLoading,
+  loadingProgress,
+  isPlaying,
+  volumes,
+  activeAudio,
+  audioLibrary,
+  hasSwitchableAudio,
+  crossfadeProgress,
+  activeCrossfades,
+  preloadProgress,
+  
+  // Master volume
+  masterVolume,
+  setMasterVolumeLevel,
+  
+  // Audio controls
+  setVolume,
+  startSession,
+  pauseSession,
+  crossfadeTo: enhancedCrossfadeTo, 
+  preloadAudio,
+  getSessionTime,
+  testCrossfade,
+  
+  // Timeline event functions
+  timelineEvents,
+  registerTimelineEvent,
+  clearTimelineEvents,
+  resetTimelineEventIndex,
+  
+  // Timeline phase functions
+  updateTimelinePhases,
+  registerPresetStateProvider,
+  timelinePhases,
+  
+  // Preset management
+  savePreset,
+  loadPreset,
+  deletePreset,
+  getPresets,
+  exportPreset,
+  importPreset,
+  
+  // Constants
+  LAYERS
+}), [
+  isLoading, 
+  loadingProgress, 
+  isPlaying, 
+  volumes, 
+  activeAudio, 
+  audioLibrary,
+  hasSwitchableAudio,
+  crossfadeProgress, 
+  activeCrossfades,
+  preloadProgress,
+  masterVolume,
+  setMasterVolumeLevel,
+  setVolume, 
+  startSession, 
+  pauseSession, 
+  enhancedCrossfadeTo,
+  preloadAudio,
+  getSessionTime,
+  testCrossfade,
+  timelineEvents,
+  registerTimelineEvent,
+  clearTimelineEvents,
+  resetTimelineEventIndex,
+  updateTimelinePhases,
+  registerPresetStateProvider,
+  timelinePhases,
+  savePreset,
+  loadPreset,
+  deletePreset,
+  getPresets,
+  exportPreset,
+  importPreset
+]);
 
-  return (
-    <AudioContext.Provider value={contextValue}>
-      {children}
-    </AudioContext.Provider>
-  );
+return (
+  <AudioContext.Provider value={contextValue}>
+    {children}
+  </AudioContext.Provider>
+);
 };
 
 export default AudioContext;
