@@ -1,5 +1,6 @@
-// src/contexts/StreamingAudioContext.js - Extended with preset and master volume functionality
+// src/contexts/StreamingAudioContext.js
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import AudioCore from '../services/audio/AudioCore'; // Import AudioCore service
 
 // Define our audio layers
 const LAYERS = {
@@ -9,7 +10,7 @@ const LAYERS = {
   NATURE: 'nature'
 };
 
-// Default audio files for each layer - using the new default folder structure
+// Default audio files for each layer
 const DEFAULT_AUDIO = {
   [LAYERS.DRONE]: '/samples/default/drone.mp3',
   [LAYERS.MELODY]: '/samples/default/melody.mp3',
@@ -30,8 +31,8 @@ export const useAudio = () => {
 };
 
 export const AudioProvider = ({ children }) => {
-  // Web Audio API context
-  const [audioCtx, setAudioCtx] = useState(null);
+  // Create an AudioCore instance
+  const audioCoreRef = useRef(null);
   
   // Loading state
   const [isLoading, setIsLoading] = useState(true);
@@ -43,9 +44,8 @@ export const AudioProvider = ({ children }) => {
   // Store gain nodes for each layer
   const [gainNodes, setGainNodes] = useState({});
   
-  // Master volume control - NEW
-  const [masterVolume, setMasterVolume] = useState(0.8); // Default to 80%
-  const masterGainRef = useRef(null);
+  // Master volume control
+  const [masterVolume, setMasterVolume] = useState(0.8);
   
   // Store all audio elements (active and preloaded)
   const [audioElements, setAudioElements] = useState({
@@ -59,8 +59,8 @@ export const AudioProvider = ({ children }) => {
   const [audioLibrary, setAudioLibrary] = useState({
     [LAYERS.DRONE]: [],
     [LAYERS.MELODY]: [],
-    [LAYERS.RHYTHM]: [],
-    [LAYERS.NATURE]: []
+    [LAYERS.RHYTHM]: {},
+    [LAYERS.NATURE]: {}
   });
   
   // Volume levels for each layer (0-1)
@@ -104,54 +104,37 @@ export const AudioProvider = ({ children }) => {
   // Presets storage
   const [presets, setPresets] = useState({});
   
-  // NEW: Timeline phases tracking for presets
+  // Timeline phases tracking for presets
   const [timelinePhases, setTimelinePhases] = useState([]);
   
-  // NEW: State providers for different components
+  // State providers for different components
   const stateProviders = useRef({});
   
-  // Initialize the Web Audio API context
+  // Initialize the AudioCore service
   useEffect(() => {
-    const initAudioContext = async () => {
+    const initAudioCore = async () => {
       if (typeof window !== 'undefined') {
         try {
-          // Create new AudioContext
-          const ctx = new (window.AudioContext || window.webkitAudioContext)();
-          setAudioCtx(ctx);
+          // Initialize AudioCore if it doesn't exist
+          if (!audioCoreRef.current) {
+            console.log('Creating new AudioCore instance');
+            audioCoreRef.current = new AudioCore({ 
+              initialVolume: masterVolume,
+              autoResume: true
+            });
+          }
           
-          // Create master gain node - NEW
-          const masterGain = ctx.createGain();
-          masterGain.gain.value = masterVolume;
-          masterGain.connect(ctx.destination);
-          masterGainRef.current = masterGain;
+          // Initialize AudioCore
+          const success = await audioCoreRef.current.initialize();
+          if (!success) {
+            throw new Error('Failed to initialize AudioCore');
+          }
           
-          // Create gain nodes for each layer
-          const nodes = {};
-          Object.values(LAYERS).forEach(layer => {
-            nodes[layer] = ctx.createGain();
-            // Connect to master gain instead of directly to destination - CHANGED
-            nodes[layer].connect(masterGain);
-          });
-          setGainNodes(nodes);
-          
-          // Initialize audio library with basic version
-          const basicLibrary = {};
-          
-          Object.values(LAYERS).forEach(layer => {
-            basicLibrary[layer] = [{
-              id: `${layer}1`,
-              name: `${layer.charAt(0).toUpperCase() + layer.slice(1)}`,
-              path: DEFAULT_AUDIO[layer]
-            }];
-          });
-          
-          setAudioLibrary(basicLibrary);
-          
-          // Force progress update
+          // Update loading progress
           setLoadingProgress(10);
           
-          // Initialize with default audio (this always works)
-          await initializeDefaultAudio(basicLibrary, ctx, nodes);
+          // Initialize with default audio
+          await initializeDefaultAudio();
           
           // Check if variation files available (in background)
           tryLoadVariationFiles();
@@ -167,7 +150,7 @@ export const AudioProvider = ({ children }) => {
           }
           
         } catch (error) {
-          console.error("Error initializing audio context:", error);
+          console.error("Error initializing audio system:", error);
           // Force loading to complete anyway so UI doesn't get stuck
           setLoadingProgress(100);
           setIsLoading(false);
@@ -175,17 +158,18 @@ export const AudioProvider = ({ children }) => {
       }
     };
     
-    initAudioContext();
+    initAudioCore();
     
     return () => {
-      // Cleanup function to close audio context when component unmounts
-      if (audioCtx) {
-        audioCtx.close();
+      // Clean up AudioCore
+      if (audioCoreRef.current) {
+        audioCoreRef.current.cleanup();
+        audioCoreRef.current = null;
       }
     };
   }, []);
-  
-  // Try to load variation files in background (don't block main loading)
+
+  // Try to load variation files in background
   const tryLoadVariationFiles = () => {
     setTimeout(async () => {
       try {
@@ -200,45 +184,17 @@ export const AudioProvider = ({ children }) => {
           setAudioLibrary(prev => {
             const extendedLibrary = { ...prev };
             
-            // Add drone variations
-            extendedLibrary[LAYERS.DRONE] = [
-              ...extendedLibrary[LAYERS.DRONE],
-              ...[1, 2, 3].map(i => ({
-                id: `drone_variation_${i}`,
-                name: `Drone Variation ${i}`,
-                path: `/samples/drone/drone_0${i}.mp3`
-              }))
-            ];
-            
-            // Add melody variations
-            extendedLibrary[LAYERS.MELODY] = [
-              ...extendedLibrary[LAYERS.MELODY],
-              ...[1, 2, 3].map(i => ({
-                id: `melody_variation_${i}`,
-                name: `Melody Variation ${i}`,
-                path: `/samples/melody/melody_0${i}.mp3`
-              }))
-            ];
-            
-            // Add rhythm variations
-            extendedLibrary[LAYERS.RHYTHM] = [
-              ...extendedLibrary[LAYERS.RHYTHM],
-              ...[1, 2, 3].map(i => ({
-                id: `rhythm_variation_${i}`,
-                name: `Rhythm Variation ${i}`,
-                path: `/samples/rhythm/rhythm_0${i}.mp3`
-              }))
-            ];
-            
-            // Add nature variations
-            extendedLibrary[LAYERS.NATURE] = [
-              ...extendedLibrary[LAYERS.NATURE],
-              ...[1, 2, 3].map(i => ({
-                id: `nature_variation_${i}`,
-                name: `Nature Variation ${i}`,
-                path: `/samples/nature/nature_0${i}.mp3`
-              }))
-            ];
+            // Add variations for all layers
+            Object.values(LAYERS).forEach(layer => {
+              extendedLibrary[layer] = [
+                ...(Array.isArray(extendedLibrary[layer]) ? extendedLibrary[layer] : []),
+                ...[1, 2, 3].map(i => ({
+                  id: `${layer}_variation_${i}`,
+                  name: `${layer.charAt(0).toUpperCase() + layer.slice(1)} Variation ${i}`,
+                  path: `/samples/${layer}/${layer}_0${i}.mp3`
+                }))
+              ];
+            });
             
             return extendedLibrary;
           });
@@ -250,8 +206,14 @@ export const AudioProvider = ({ children }) => {
   };
 
   // Initialize audio elements with default tracks
-  const initializeDefaultAudio = async (library, ctx, nodes) => {
-    if (!ctx) return;
+  const initializeDefaultAudio = async () => {
+    if (!audioCoreRef.current || !audioCoreRef.current.getContext()) {
+      console.error('Cannot initialize audio, AudioCore not ready');
+      return false;
+    }
+
+    const audioCtx = audioCoreRef.current.getContext();
+    const masterGain = audioCoreRef.current.getMasterGain();
     
     const totalFiles = Object.values(LAYERS).length;
     let loadedFilesCount = 0;
@@ -264,13 +226,35 @@ export const AudioProvider = ({ children }) => {
       [LAYERS.NATURE]: {}
     };
     
+    // Build initial basic library
+    const basicLibrary = {};
+    Object.values(LAYERS).forEach(layer => {
+      basicLibrary[layer] = [{
+        id: `${layer}1`,
+        name: `${layer.charAt(0).toUpperCase() + layer.slice(1)}`,
+        path: DEFAULT_AUDIO[layer]
+      }];
+    });
+    
+    // Update audio library state
+    setAudioLibrary(basicLibrary);
+    
     // Update progress to show we're starting to load
     setLoadingProgress(20);
+    
+    // Create gain nodes for each layer
+    const nodes = {};
+    Object.values(LAYERS).forEach(layer => {
+      nodes[layer] = audioCtx.createGain();
+      // Connect to master gain
+      nodes[layer].connect(masterGain);
+    });
+    setGainNodes(nodes);
     
     // For each layer, create and load the default audio element
     for (const layer of Object.values(LAYERS)) {
       // Always use the first track as default
-      const defaultTrack = library[layer][0];
+      const defaultTrack = basicLibrary[layer][0];
       
       try {
         // Create new audio element
@@ -322,7 +306,7 @@ export const AudioProvider = ({ children }) => {
         audioElement.load(); // Start loading
         
         // Create media element source
-        const source = ctx.createMediaElementSource(audioElement);
+        const source = audioCtx.createMediaElementSource(audioElement);
         source.connect(nodes[layer]);
         
         // Store the audio element and its source
@@ -355,7 +339,17 @@ export const AudioProvider = ({ children }) => {
     setIsLoading(false);
     setLoadingProgress(100);
     console.log("All audio loaded successfully");
+    
+    return true;
   };
+
+  // Update master volume using AudioCore
+  const setMasterVolumeLevel = useCallback((value) => {
+    if (!audioCoreRef.current) return;
+    
+    setMasterVolume(value);
+    audioCoreRef.current.setMasterVolume(value);
+  }, []);
 
   // Function to safely set playing state
   const updatePlayingState = useCallback((newState) => {
@@ -369,20 +363,18 @@ export const AudioProvider = ({ children }) => {
   // Start the session
   const startSession = useCallback(() => {
     // Use ref for current state check to avoid race conditions
-    if (!audioCtx || isPlayingRef.current) {
-      console.log("Can't start: context missing or already playing");
+    if (!audioCoreRef.current || isPlayingRef.current) {
+      console.log("Can't start: AudioCore missing or already playing");
       return;
     }
     
     try {
       console.log("Starting session...");
       
-      // Resume audio context if suspended
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume().catch(err => {
-          console.error('Error resuming audio context:', err);
-        });
-      }
+      // Resume AudioCore
+      audioCoreRef.current.resume().catch(err => {
+        console.error('Error resuming audio context:', err);
+      });
       
       // Make sure all audio elements are reset to beginning
       Object.entries(activeAudio).forEach(([layer, trackId]) => {
@@ -458,9 +450,9 @@ export const AudioProvider = ({ children }) => {
       // Reset state if we hit an error
       updatePlayingState(false);
     }
-  }, [audioCtx, audioElements, activeAudio, gainNodes, volumes, updatePlayingState]);
+  }, [audioElements, activeAudio, gainNodes, volumes, updatePlayingState]);
 
-  // Pause/Stop session function that stops ALL audio, including crossfades
+  // Pause/Stop session
   const pauseSession = useCallback(() => {
     // Use ref for current state check to avoid race conditions
     if (!isPlayingRef.current && Object.keys(activeCrossfadeNodes.current).length === 0) {
@@ -572,6 +564,13 @@ export const AudioProvider = ({ children }) => {
       
       console.log(`Paused ${pauseCount} of ${totalTracks} tracks`);
       
+      // Suspend the AudioCore context
+      if (audioCoreRef.current) {
+        audioCoreRef.current.suspend().catch(err => {
+          console.warn('Error suspending audio context:', err);
+        });
+      }
+      
       // Update state immediately
       updatePlayingState(false);
       
@@ -589,15 +588,7 @@ export const AudioProvider = ({ children }) => {
     }
   }, [activeAudio, audioElements, updatePlayingState, activeCrossfades, gainNodes]);
 
-  // Update master volume for overall output - NEW
-  const setMasterVolumeLevel = useCallback((value) => {
-    if (!masterGainRef.current) return;
-    
-    setMasterVolume(value);
-    masterGainRef.current.gain.value = value;
-  }, []);
-
-  // Update volume for a layer - IMPROVED to handle volume during crossfades
+  // Update volume for a layer
   const setVolume = useCallback((layer, value) => {
     if (!gainNodes[layer]) return;
     
@@ -629,16 +620,18 @@ export const AudioProvider = ({ children }) => {
     }
   }, [gainNodes, crossfadeProgress]);
 
-  // Enhanced crossfade function with reliable first-click support
-  // and immediate track switching when audio is stopped
+  // Enhanced crossfade function
   const enhancedCrossfadeTo = useCallback(async (layer, newTrackId, fadeDuration = 4000) => {
     console.log(`🎵 Starting crossfade process for ${layer}: ${newTrackId}`);
     
     // Verify we have what we need
-    if (!audioCtx || !gainNodes[layer]) {
-      console.error("Cannot crossfade: missing audio context or gain node");
+    if (!audioCoreRef.current || !gainNodes[layer]) {
+      console.error("Cannot crossfade: missing AudioCore or gain node");
       return false;
     }
+    
+    const audioCtx = audioCoreRef.current.getContext();
+    const masterGain = audioCoreRef.current.getMasterGain();
     
     // Get the current active track ID
     const currentTrackId = activeAudio[layer];
@@ -927,230 +920,230 @@ export const AudioProvider = ({ children }) => {
       }
     }
     
-    // Step 2: Now we have the new track elements, get the current track
-    const currentTrack = audioElements[layer]?.[currentTrackId];
+   // Step 2: Now we have the new track elements, get the current track
+  const currentTrack = audioElements[layer]?.[currentTrackId];
+  
+  // Validate both tracks
+  if (!currentTrack?.element || !currentTrack.source || 
+      !newTrackElements?.element || !newTrackElements.source) {
+    console.error(`Missing track elements for crossfade: current: ${!!currentTrack?.element}, new: ${!!newTrackElements?.element}`);
     
-    // Validate both tracks
-    if (!currentTrack?.element || !currentTrack.source || 
-        !newTrackElements?.element || !newTrackElements.source) {
-      console.error(`Missing track elements for crossfade: current: ${!!currentTrack?.element}, new: ${!!newTrackElements?.element}`);
-      
-      // Reset crossfade state
-      setActiveCrossfades(prev => ({
-        ...prev,
-        [layer]: null
-      }));
-      
-      return false;
-    }
-    
-    // Update UI - now loading is complete
+    // Reset crossfade state
     setActiveCrossfades(prev => ({
       ...prev,
-      [layer]: { 
-        ...prev[layer],
-        isLoading: false 
-      }
+      [layer]: null
     }));
     
-    // Step 3: Set up the crossfade
-    console.log(`Setting up crossfade from ${currentTrackId} to ${newTrackId}`);
+    return false;
+  }
+  
+  // Update UI - now loading is complete
+  setActiveCrossfades(prev => ({
+    ...prev,
+    [layer]: { 
+      ...prev[layer],
+      isLoading: false 
+    }
+  }));
+  
+  // Step 3: Set up the crossfade
+  console.log(`Setting up crossfade from ${currentTrackId} to ${newTrackId}`);
+  
+  // Get current volume
+  const currentVolume = volumes[layer];
+  
+  // Create gain nodes for crossfade
+  const fadeOutGain = audioCtx.createGain();
+  const fadeInGain = audioCtx.createGain();
+  
+  fadeOutGain.gain.value = currentVolume;
+  fadeInGain.gain.value = 0.001;  // Start nearly silent
+  
+  // Store nodes for cancellation and volume control
+  activeCrossfadeNodes.current[layer] = { fadeOutGain, fadeInGain };
+  
+  // Connect to master gain
+  fadeOutGain.connect(masterGain);
+  fadeInGain.connect(masterGain);
+  
+  // Disconnect and reconnect audio graphs
+  try {
+    // Disconnect current track from main gain and connect to fade out
+    currentTrack.source.disconnect();
+    currentTrack.source.connect(fadeOutGain);
     
-    // Get current volume
-    const currentVolume = volumes[layer];
+    // Connect new track to fade in
+    newTrackElements.source.disconnect();
+    newTrackElements.source.connect(fadeInGain);
+  } catch (error) {
+    console.error(`Error connecting audio graph: ${error.message}`);
     
-    // Create gain nodes for crossfade
-    const fadeOutGain = audioCtx.createGain();
-    const fadeInGain = audioCtx.createGain();
-    
-    fadeOutGain.gain.value = currentVolume;
-    fadeInGain.gain.value = 0.001;  // Start nearly silent
-    
-    // Store nodes for cancellation and volume control
-    activeCrossfadeNodes.current[layer] = { fadeOutGain, fadeInGain };
-    
-    // Connect to destination (actually to master gain node) - CHANGED
-    fadeOutGain.connect(masterGainRef.current);
-    fadeInGain.connect(masterGainRef.current);
-    
-    // Disconnect and reconnect audio graphs
+    // Attempt recovery - reconnect to main gain nodes
     try {
-      // Disconnect current track from main gain and connect to fade out
       currentTrack.source.disconnect();
-      currentTrack.source.connect(fadeOutGain);
+      currentTrack.source.connect(gainNodes[layer]);
       
-      // Connect new track to fade in
       newTrackElements.source.disconnect();
-      newTrackElements.source.connect(fadeInGain);
-    } catch (error) {
-      console.error(`Error connecting audio graph: ${error.message}`);
-      
-      // Attempt recovery - reconnect to main gain nodes
-      try {
-        currentTrack.source.disconnect();
-        currentTrack.source.connect(gainNodes[layer]);
+      newTrackElements.source.connect(gainNodes[layer]);
+    } catch (e) {
+      console.error(`Recovery failed: ${e.message}`);
+    }
+    
+    // Reset crossfade state
+    setActiveCrossfades(prev => ({
+      ...prev,
+      [layer]: null
+    }));
+    
+    return false;
+  }
+  
+  // Step 4: Start playback of new track if we're playing
+  if (isPlayingRef.current) {
+    try {
+      // Set the position
+      if (newTrackElements.element.paused) {
+        const currentPosition = currentTrack.element.currentTime || 0;
+        const currentDuration = trackData.current[currentTrackId]?.duration || 
+                            currentTrack.element.duration || 300;
+        const newDuration = trackData.current[newTrackId]?.duration || 
+                          newTrackElements.element.duration || 300;
         
-        newTrackElements.source.disconnect();
-        newTrackElements.source.connect(gainNodes[layer]);
-      } catch (e) {
-        console.error(`Recovery failed: ${e.message}`);
+        // Calculate relative position
+        const relativePosition = (currentPosition / currentDuration);
+        newTrackElements.element.currentTime = relativePosition * newDuration;
+        console.log(`Matched position at ${(relativePosition * 100).toFixed(1)}% into track`);
       }
       
-      // Reset crossfade state
+      // Start playback
+      await newTrackElements.element.play()
+        .catch(e => console.error(`Error playing: ${e.message}`));
+    } catch (error) {
+      console.error(`Error starting playback: ${error.message}`);
+      
+      // Continue anyway - the crossfade might still work
+    }
+  }
+  
+  // Step 5: Schedule the gain curves
+  const now = audioCtx.currentTime;
+  const endTime = now + (fadeDuration / 1000);
+  
+  try {
+    // Schedule fade out
+    fadeOutGain.gain.setValueAtTime(currentVolume, now);
+    fadeOutGain.gain.linearRampToValueAtTime(0.001, endTime);
+    
+    // Schedule fade in
+    fadeInGain.gain.setValueAtTime(0.001, now);
+    fadeInGain.gain.linearRampToValueAtTime(currentVolume, endTime);
+    
+    console.log(`Crossfade ramps scheduled from ${now.toFixed(2)}s to ${endTime.toFixed(2)}s`);
+  } catch (error) {
+    console.error(`Error scheduling gain ramps: ${error.message}`);
+    
+    // Try recovery
+    fadeOutGain.gain.value = 0;
+    fadeInGain.gain.value = currentVolume;
+  }
+  
+  // Step 6: Update active track
+  setActiveAudio(prev => ({
+    ...prev,
+    [layer]: newTrackId
+  }));
+  
+  // Step 7: Setup progress tracking
+  const updateInterval = 100; // 100ms updates
+  const totalUpdates = fadeDuration / updateInterval;
+  let updateCount = 0;
+  
+  crossfadeTimers.current[layer] = setInterval(() => {
+    updateCount++;
+    const progress = Math.min(updateCount / totalUpdates, 1);
+    
+    // Update progress state
+    setCrossfadeProgress(prev => ({
+      ...prev,
+      [layer]: progress
+    }));
+    
+    // Update UI
+    setActiveCrossfades(prev => {
+      if (prev[layer]) {
+        return {
+          ...prev,
+          [layer]: {
+            ...prev[layer],
+            progress: progress
+          }
+        };
+      }
+      return prev;
+    });
+    
+    // When complete, clean up
+    if (updateCount >= totalUpdates) {
+      // Clear interval
+      clearInterval(crossfadeTimers.current[layer]);
+      crossfadeTimers.current[layer] = null;
+      
+      // Stop old track
+      if (isPlayingRef.current) {
+        try {
+          console.log(`Pausing old track: ${currentTrackId}`);
+          currentTrack.element.pause();
+        } catch (e) {
+          console.error(`Error pausing old track: ${e.message}`);
+        }
+      }
+      
+      // Reconnect new track to main gain
+      try {
+        console.log(`Reconnecting new track to main gain node`);
+        newTrackElements.source.disconnect();
+        newTrackElements.source.connect(gainNodes[layer]);
+        gainNodes[layer].gain.value = currentVolume;
+      } catch (error) {
+        console.error(`Error reconnecting: ${error.message}`);
+      }
+      
+      // Clean up gain nodes
+      try {
+        fadeOutGain.disconnect();
+        fadeInGain.disconnect();
+        console.log(`Temporary gain nodes cleaned up`);
+      } catch (error) {
+        console.error(`Error cleaning up: ${error.message}`);
+      }
+      
+      // Clear references
+      activeCrossfadeNodes.current[layer] = null;
+      
+      // Clear UI state
       setActiveCrossfades(prev => ({
         ...prev,
         [layer]: null
       }));
       
-      return false;
-    }
-    
-    // Step 4: Start playback of new track if we're playing
-    if (isPlayingRef.current) {
-      try {
-        // Set the position
-        if (newTrackElements.element.paused) {
-          const currentPosition = currentTrack.element.currentTime || 0;
-          const currentDuration = trackData.current[currentTrackId]?.duration || 
-                              currentTrack.element.duration || 300;
-          const newDuration = trackData.current[newTrackId]?.duration || 
-                            newTrackElements.element.duration || 300;
-          
-          // Calculate relative position
-          const relativePosition = (currentPosition / currentDuration);
-          newTrackElements.element.currentTime = relativePosition * newDuration;
-          console.log(`Matched position at ${(relativePosition * 100).toFixed(1)}% into track`);
-        }
-        
-        // Start playback
-        await newTrackElements.element.play()
-          .catch(e => console.error(`Error playing: ${e.message}`));
-      } catch (error) {
-        console.error(`Error starting playback: ${error.message}`);
-        
-        // Continue anyway - the crossfade might still work
-      }
-    }
-    
-    // Step 5: Schedule the gain curves
-    const now = audioCtx.currentTime;
-    const endTime = now + (fadeDuration / 1000);
-    
-    try {
-      // Schedule fade out
-      fadeOutGain.gain.setValueAtTime(currentVolume, now);
-      fadeOutGain.gain.linearRampToValueAtTime(0.001, endTime);
-      
-      // Schedule fade in
-      fadeInGain.gain.setValueAtTime(0.001, now);
-      fadeInGain.gain.linearRampToValueAtTime(currentVolume, endTime);
-      
-      console.log(`Crossfade ramps scheduled from ${now.toFixed(2)}s to ${endTime.toFixed(2)}s`);
-    } catch (error) {
-      console.error(`Error scheduling gain ramps: ${error.message}`);
-      
-      // Try recovery
-      fadeOutGain.gain.value = 0;
-      fadeInGain.gain.value = currentVolume;
-    }
-    
-    // Step 6: Update active track
-    setActiveAudio(prev => ({
-      ...prev,
-      [layer]: newTrackId
-    }));
-    
-    // Step 7: Setup progress tracking
-    const updateInterval = 100; // 100ms updates
-    const totalUpdates = fadeDuration / updateInterval;
-    let updateCount = 0;
-    
-    crossfadeTimers.current[layer] = setInterval(() => {
-      updateCount++;
-      const progress = Math.min(updateCount / totalUpdates, 1);
-      
-      // Update progress state
       setCrossfadeProgress(prev => ({
         ...prev,
-        [layer]: progress
+        [layer]: 0
       }));
       
-      // Update UI
-      setActiveCrossfades(prev => {
-        if (prev[layer]) {
-          return {
-            ...prev,
-            [layer]: {
-              ...prev[layer],
-              progress: progress
-            }
-          };
-        }
-        return prev;
+      // Clear preload progress
+      setPreloadProgress(prev => {
+        const newState = {...prev};
+        delete newState[newTrackId];
+        return newState;
       });
       
-      // When complete, clean up
-      if (updateCount >= totalUpdates) {
-        // Clear interval
-        clearInterval(crossfadeTimers.current[layer]);
-        crossfadeTimers.current[layer] = null;
-        
-        // Stop old track
-        if (isPlayingRef.current) {
-          try {
-            console.log(`Pausing old track: ${currentTrackId}`);
-            currentTrack.element.pause();
-          } catch (e) {
-            console.error(`Error pausing old track: ${e.message}`);
-          }
-        }
-        
-        // Reconnect new track to main gain
-        try {
-          console.log(`Reconnecting new track to main gain node`);
-          newTrackElements.source.disconnect();
-          newTrackElements.source.connect(gainNodes[layer]);
-          gainNodes[layer].gain.value = currentVolume;
-        } catch (error) {
-          console.error(`Error reconnecting: ${error.message}`);
-        }
-        
-        // Clean up gain nodes
-        try {
-          fadeOutGain.disconnect();
-          fadeInGain.disconnect();
-          console.log(`Temporary gain nodes cleaned up`);
-        } catch (error) {
-          console.error(`Error cleaning up: ${error.message}`);
-        }
-        
-        // Clear references
-        activeCrossfadeNodes.current[layer] = null;
-        
-        // Clear UI state
-        setActiveCrossfades(prev => ({
-          ...prev,
-          [layer]: null
-        }));
-        
-        setCrossfadeProgress(prev => ({
-          ...prev,
-          [layer]: 0
-        }));
-        
-        // Clear preload progress
-        setPreloadProgress(prev => {
-          const newState = {...prev};
-          delete newState[newTrackId];
-          return newState;
-        });
-        
-        console.log(`Crossfade complete for ${layer}`);
-      }
-    }, updateInterval);
-    
-    return true;
-  }, [audioCtx, gainNodes, volumes, activeAudio, audioLibrary, audioElements, isPlayingRef, masterGainRef]);
+      console.log(`Crossfade complete for ${layer}`);
+    }
+  }, updateInterval);
+  
+  return true;
+}, [audioLibrary, activeAudio, volumes, audioElements, isPlayingRef, gainNodes]);
 
   // Calculate elapsed session time
   const getSessionTime = useCallback(() => {
@@ -1158,7 +1151,7 @@ export const AudioProvider = ({ children }) => {
     return isPlayingRef.current ? Date.now() - sessionStartTime : 0;
   }, [sessionStartTime]);
 
-  // Test function for crossfade - define this AFTER all the functions it depends on
+  // Test function for crossfade
   const testCrossfade = useCallback(async () => {
     if (!hasSwitchableAudio) {
       console.log("Switchable audio not available for testing");
@@ -1175,7 +1168,7 @@ export const AudioProvider = ({ children }) => {
     // Test each layer
     for (const layer of Object.values(LAYERS)) {
       const tracks = audioLibrary[layer];
-      if (tracks.length < 2) continue;
+      if (!Array.isArray(tracks) || tracks.length < 2) continue;
       
       // Get current track ID
       const currentTrackId = activeAudio[layer];
@@ -1204,8 +1197,23 @@ export const AudioProvider = ({ children }) => {
     return true;
   }, [audioLibrary, activeAudio, hasSwitchableAudio, startSession, enhancedCrossfadeTo, isPlayingRef]);
 
-  // Add function to reset timeline event index (e.g., when restarting a session)
+  // Timeline event handling 
   const resetTimelineEventIndex = useCallback(() => {
+    setNextEventIndex(0);
+  }, []);
+
+  // Add function to register a timeline event
+  const registerTimelineEvent = useCallback((event) => {
+    setTimelineEvents(prev => {
+      // Add the new event and sort by time
+      const updatedEvents = [...prev, event].sort((a, b) => a.time - b.time);
+      return updatedEvents;
+    });
+  }, []);
+
+  // Add function to clear timeline events
+  const clearTimelineEvents = useCallback(() => {
+    setTimelineEvents([]);
     setNextEventIndex(0);
   }, []);
 
@@ -1256,29 +1264,14 @@ export const AudioProvider = ({ children }) => {
     };
   }, [isPlaying, timelineEvents, nextEventIndex, getSessionTime, enhancedCrossfadeTo, setVolume]);
 
-  // Add function to register a timeline event
-  const registerTimelineEvent = useCallback((event) => {
-    setTimelineEvents(prev => {
-      // Add the new event and sort by time
-      const updatedEvents = [...prev, event].sort((a, b) => a.time - b.time);
-      return updatedEvents;
-    });
-  }, []);
-
-  // Add function to clear timeline events
-  const clearTimelineEvents = useCallback(() => {
-    setTimelineEvents([]);
-    setNextEventIndex(0);
-  }, []);
-
-  // NEW: Function to update timeline phases (called from SessionTimeline)
+  // Function to update timeline phases (called from SessionTimeline)
   const updateTimelinePhases = useCallback((phases) => {
     if (!phases || !Array.isArray(phases)) return;
     setTimelinePhases(phases);
     console.log('Updated timeline phases in context:', phases);
   }, []);
 
-  // NEW: Function to register state providers for different components
+  // Function to register state providers for different components
   const registerPresetStateProvider = useCallback((key, providerFn) => {
     if (!key) return;
     
@@ -1291,9 +1284,7 @@ export const AudioProvider = ({ children }) => {
     }
   }, []);
 
-  // Preset Management Functions - ENHANCED FOR TIMELINE INTEGRATION
-  
-  // Save current state as a preset - ENHANCED
+  // Save current state as a preset
   const savePreset = useCallback((name) => {
     if (!name || name.trim() === '') return false;
     
@@ -1318,8 +1309,8 @@ export const AudioProvider = ({ children }) => {
         volumes: { ...volumes },
         activeAudio: { ...activeAudio },
         timelineEvents: [...timelineEvents],
-        components: componentStates,  // Include component-specific states
-        timelinePhases: [...timelinePhases] // Include timeline phases
+        components: componentStates,
+        timelinePhases: [...timelinePhases]
       }
     };
     
@@ -1344,7 +1335,7 @@ export const AudioProvider = ({ children }) => {
     return true;
   }, [volumes, activeAudio, timelineEvents, timelinePhases]);
   
-  // Load a saved preset - ENHANCED
+  // Load a saved preset
   const loadPreset = useCallback((name) => {
     const preset = presets[name];
     if (!preset) return false;
@@ -1370,7 +1361,7 @@ export const AudioProvider = ({ children }) => {
       setNextEventIndex(0);
     }
     
-    // NEW: Apply timeline phases if they exist
+    // Apply timeline phases if they exist
     if (preset.state.timelinePhases && preset.state.timelinePhases.length > 0) {
       setTimelinePhases(preset.state.timelinePhases);
       console.log('Loaded timeline phases from preset:', preset.state.timelinePhases);
@@ -1387,7 +1378,7 @@ export const AudioProvider = ({ children }) => {
       }
     }
     
-    // NEW: Apply component-specific states
+    // Apply component-specific states
     if (preset.state.components) {
       Object.entries(preset.state.components).forEach(([componentKey, state]) => {
         // Dispatch custom events for each component to handle its own state
@@ -1471,8 +1462,8 @@ export const AudioProvider = ({ children }) => {
     }
   }, []);
 
-  // Exposed context value
-  const value = useMemo(() => ({
+  // Create the context value with all the functionality
+  const contextValue = useMemo(() => ({
     // Audio state
     isLoading,
     loadingProgress,
@@ -1483,9 +1474,9 @@ export const AudioProvider = ({ children }) => {
     hasSwitchableAudio,
     crossfadeProgress,
     activeCrossfades,
-    preloadProgress, // Add preload progress for UI to show loading status
+    preloadProgress,
     
-    // NEW: Master volume
+    // Master volume
     masterVolume,
     setMasterVolumeLevel,
     
@@ -1494,7 +1485,7 @@ export const AudioProvider = ({ children }) => {
     startSession,
     pauseSession,
     crossfadeTo: enhancedCrossfadeTo,
-    preloadAudio: enhancedCrossfadeTo, // Use the same function for preloading
+    preloadAudio: enhancedCrossfadeTo,
     getSessionTime,
     testCrossfade,
     
@@ -1504,7 +1495,7 @@ export const AudioProvider = ({ children }) => {
     clearTimelineEvents,
     resetTimelineEventIndex,
     
-    // NEW: Timeline phase functions
+    // Timeline phase functions
     updateTimelinePhases,
     registerPresetStateProvider,
     timelinePhases,
@@ -1530,27 +1521,21 @@ export const AudioProvider = ({ children }) => {
     crossfadeProgress, 
     activeCrossfades,
     preloadProgress,
-    
-    // NEW: Master volume
     masterVolume,
     setMasterVolumeLevel,
-    
     setVolume, 
     startSession, 
     pauseSession, 
     enhancedCrossfadeTo,
     getSessionTime,
     testCrossfade,
-    
     timelineEvents,
     registerTimelineEvent,
     clearTimelineEvents,
     resetTimelineEventIndex,
-    
     updateTimelinePhases,
     registerPresetStateProvider,
     timelinePhases,
-    
     savePreset,
     loadPreset,
     deletePreset,
@@ -1560,7 +1545,7 @@ export const AudioProvider = ({ children }) => {
   ]);
 
   return (
-    <AudioContext.Provider value={value}>
+    <AudioContext.Provider value={contextValue}>
       {children}
     </AudioContext.Provider>
   );
