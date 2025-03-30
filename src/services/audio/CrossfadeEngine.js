@@ -345,8 +345,17 @@ class CrossfadeEngine {
         if (crossfade.targetNode) {
           try {
             crossfade.targetNode.disconnect();
-            crossfade.targetNode.connect(this.destination);
-            
+            if (crossfade.metadata && crossfade.metadata.volumeController) {
+                // If we have a volume controller reference, use it
+                crossfade.metadata.volumeController.connectToLayer(
+                  layer, 
+                  crossfade.targetNode,
+                  this.destination
+                );
+              } else {
+                // Fallback to direct connection if no volume controller is provided
+                crossfade.targetNode.connect(this.destination);
+              }
             // Set gain to the correct value
             if (crossfade.targetNode.gain) {
               crossfade.targetNode.gain.value = crossfade.currentVolume;

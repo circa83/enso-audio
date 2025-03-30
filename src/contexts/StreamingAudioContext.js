@@ -842,7 +842,8 @@ export const AudioProvider = ({ children }) => {
       syncPosition: true,
       metadata: {
         fromTrackId: currentTrackId,
-        toTrackId: newTrackId
+        toTrackId: newTrackId,
+        volumeController: volumeControllerRef.current // Pass the VolumeController reference
       }
     };
     
@@ -872,6 +873,12 @@ export const AudioProvider = ({ children }) => {
         return false;
       }
       
+      // After successful crossfade, ensure the node is properly connected to the VolumeController
+  // This is a safety measure in case the CrossfadeEngine didn't handle it correctly
+  if (volumeControllerRef.current && newTrackElements && newTrackElements.source) {
+    volumeControllerRef.current.connectToLayer(layer, newTrackElements.source, audioCoreRef.current.getMasterGain());
+  }
+  
       // Clear the crossfade UI state when complete
       setActiveCrossfades(prev => {
         const newState = {...prev};
