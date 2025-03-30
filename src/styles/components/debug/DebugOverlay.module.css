@@ -1,0 +1,462 @@
+/* src/styles/components/debug/DebugOverlay.module.css */
+.debugOverlay {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 450px;
+    background-color: rgba(24, 24, 24, 0.95);
+    border-left: 1px solid #333;
+    color: #eaeaea;
+    font-family: 'Archivo', sans-serif;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -5px 0 15px rgba(0, 0, 0, 0.5);
+    transition: transform 0.3s ease;
+    animation: slideIn 0.3s ease;
+  }
+  
+  @keyframes slideIn {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+  
+  .debugHeader {
+    padding: 15px;
+    border-bottom: 1px solid #333;
+    background-color: #121212;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  
+  .debugTitle {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 1.2rem;
+    color: #ffffff;
+    margin: 0;
+    letter-spacing: 2px;
+    flex-grow: 1;
+  }
+  
+  .closeButton {
+    background-color: transparent;
+    border: 1px solid #444;
+    color: #aaa;
+    font-family: 'Archivo', sans-serif;
+    font-size: 0.7rem;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .closeButton:hover {
+    border-color: #fff;
+    color: #fff;
+  }
+  
+  .debugContent {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 0;
+  }
+  
+  .debugFooter {
+    padding: 8px 15px;
+    border-top: 1px solid #333;
+    background-color: #121212;
+    font-size: 0.7rem;
+    color: #666;
+    display: flex;
+    justify-content: space-between;
+  }
+  
+  .keyboardShortcuts {
+    font-family: 'Space Mono', monospace;
+  }
+  
+  .sectionTabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    width: 100%;
+    margin-top: 10px;
+  }
+  
+  .tabButton {
+    background-color: #1c1c1c;
+    border: 1px solid #333;
+    color: #aaa;
+    font-family: 'Archivo', sans-serif;
+    font-size: 0.7rem;
+    flex-grow: 1;
+    padding: 8px 5px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  
+  .tabButton:hover {
+    background-color: #252525;
+    color: #fff;
+  }
+  
+  .tabButton.activeTab {
+    background-color: #252525;
+    border-color: #555;
+    color: #fff;
+  }
+  
+  /* Debug section styles */
+  .debugSection {
+    padding: 15px;
+  }
+  
+  .debugSection h3 {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.9rem;
+    color: #fff;
+    margin: 0 0 15px 0;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    border-bottom: 1px solid #333;
+    padding-bottom: 8px;
+  }
+  
+  .debugSection h4 {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.8rem;
+    color: #aaa;
+    margin: 20px 0 10px 0;
+    letter-spacing: 1px;
+  }
+  
+  .noData {
+    font-style: italic;
+    color: #666;
+    padding: 10px;
+    font-size: 0.8rem;
+    text-align: center;
+  }
+  
+  /* State section */
+  .stateGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  
+  .stateItem {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background-color: #1c1c1c;
+    border-left: 2px solid #333;
+  }
+  
+  .stateLabel {
+    font-size: 0.8rem;
+    color: #aaa;
+  }
+  
+  .stateValue {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    color: #fff;
+  }
+  
+  /* Layer visualization */
+  .layerGrid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  
+  .layerCard {
+    background-color: #1c1c1c;
+    border-left: 2px solid #333;
+    overflow: hidden;
+  }
+  
+  .layerHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.05);
+    padding: 8px 12px;
+  }
+  
+  .layerName {
+    font-size: 0.8rem;
+    color: #fff;
+    text-transform: capitalize;
+  }
+  
+  .layerVolume {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    color: #aaa;
+  }
+  
+  .layerBody {
+    padding: 10px 12px;
+  }
+  
+  .layerTrack {
+    font-size: 0.75rem;
+    color: #aaa;
+    margin-bottom: 8px;
+  }
+  
+  .layerCrossfade {
+    font-size: 0.7rem;
+    color: #ffaa00;
+    margin-top: 8px;
+  }
+  
+  /* Audio elements section */
+  .audioGrid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  
+  .audioCard {
+    background-color: #1c1c1c;
+    border-left: 2px solid #333;
+    overflow: hidden;
+  }
+  
+  .audioHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.05);
+    padding: 8px 12px;
+  }
+  
+  .audioName {
+    font-size: 0.8rem;
+    color: #fff;
+  }
+  
+  .audioState {
+    font-size: 0.7rem;
+    color: #aaa;
+  }
+  
+  .audioBody {
+    padding: 10px 12px;
+  }
+  
+  .audioDetail {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    margin-bottom: 5px;
+  }
+  
+  .detailLabel {
+    color: #888;
+  }
+  
+  .detailValue {
+    color: #ddd;
+    font-family: 'Space Mono', monospace;
+  }
+  
+  /* Crossfades section */
+  .crossfadeGrid, .preloadGrid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  
+  .crossfadeCard, .preloadCard {
+    background-color: #1c1c1c;
+    border-left: 2px solid #ffaa00;
+    overflow: hidden;
+  }
+  
+  .crossfadeHeader, .preloadHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.05);
+    padding: 8px 12px;
+  }
+  
+  .crossfadeLayer, .preloadTrack {
+    font-size: 0.8rem;
+    color: #fff;
+    text-transform: capitalize;
+  }
+  
+  .crossfadeProgress, .preloadProgress {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    color: #ffaa00;
+  }
+  
+  .crossfadeBody {
+    padding: 10px 12px;
+  }
+  
+  .crossfadeDetail {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    margin-bottom: 5px;
+  }
+  
+  .progressBar {
+    height: 4px;
+    background-color: #333;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  
+  .progressFill {
+    height: 100%;
+    background-color: #ffaa00;
+    border-radius: 2px;
+  }
+  
+  /* Timeline section */
+  .phaseGrid, .eventGrid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  
+  .phaseCard, .eventCard {
+    background-color: #1c1c1c;
+    border-left: 2px solid #8a8a8a;
+    overflow: hidden;
+  }
+  
+  .phaseHeader, .eventHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.05);
+    padding: 8px 12px;
+  }
+  
+  .phaseName, .eventName {
+    font-size: 0.8rem;
+    color: #fff;
+  }
+  
+  .phasePosition, .eventTime {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    color: #aaa;
+  }
+  
+  .phaseBody, .eventBody {
+    padding: 10px 12px;
+  }
+  
+  .phaseDetail, .eventDetail {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    margin-bottom: 5px;
+  }
+  
+  /* Log section */
+  .logControls {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 10px;
+  }
+  
+  .logButton {
+    background-color: transparent;
+    border: 1px solid #444;
+    color: #aaa;
+    font-family: 'Archivo', sans-serif;
+    font-size: 0.7rem;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .logButton:hover {
+    border-color: #fff;
+    color: #fff;
+  }
+  
+  .eventLog {
+    max-height: 500px;
+    overflow-y: auto;
+    background-color: #111;
+    border: 1px solid #333;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+  }
+  
+  .logEntry {
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+  }
+  
+  .logTime {
+    color: #555;
+    margin-right: 10px;
+    flex-shrink: 0;
+  }
+  
+  .logMessage {
+    color: #aaa;
+  }
+  
+  /* Log entry types */
+  .logEntry.playback .logMessage {
+    color: #7986cb; /* Blue */
+  }
+  
+  .logEntry.track .logMessage {
+    color: #4db6ac; /* Teal */
+  }
+  
+  .logEntry.volume .logMessage {
+    color: #aed581; /* Light green */
+  }
+  
+  .logEntry.crossfade .logMessage {
+    color: #ffb74d; /* Orange */
+  }
+  
+  .logEntry.buffer .logMessage {
+    color: #ba68c8; /* Purple */
+  }
+  
+  .logEntry.system .logMessage {
+    color: #ef5350; /* Red */
+  }
+  
+  /* Responsive design */
+  @media (max-width: 768px) {
+    .debugOverlay {
+      width: 100%;
+    }
+    
+    .stateGrid {
+      grid-template-columns: 1fr;
+    }
+  }

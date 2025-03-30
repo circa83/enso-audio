@@ -7,8 +7,10 @@ import SessionTimer from './audio/SessionTimer';
 import SessionTimeline from './audio/SessionTimeline';
 import SessionSettings from './audio/SessionSettings';
 import PlayerControlPanel from './audio/PlayerControlPanel';
-import TimelineDebugPanel from './audio/TimelineDebugPanel';
+import DebugOverlay from './debug/DebugOverlay';
 import styles from '../styles/pages/Player.module.css';
+
+
 
 const Player = () => {
   const { 
@@ -523,11 +525,13 @@ const Player = () => {
         {renderPresetsContent()}
       </CollapsibleSection>
       
+        {/* Add the debug overlay */}
+        <DebugOverlay />
+      
       {/* Session Timer */}
       <SessionTimer />
       
-      {/* Debug Panel - only visible when toggled */}
-      <TimelineDebugPanel enabled={showDebugPanel} />
+    
       
       <div className={styles.debugNote}>
         Press Ctrl+Shift+D to toggle debug panel
