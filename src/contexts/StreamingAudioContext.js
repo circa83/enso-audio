@@ -184,6 +184,12 @@ export const AudioProvider = ({ children }) => {
         bufferManagerRef.current = null;
       }
     };
+  }, []);
+
+  useEffect(() => {
+    if(audioCoreRef.current) {
+      audioCoreRef.current.setMasterVolume(masterVolume);
+    }
   }, [masterVolume]);
 
   // Try to load variation files in background
