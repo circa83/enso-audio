@@ -1,340 +1,156 @@
-// src/pages/tests/crossfade-test.js
-import React, { useState, useEffect } from 'react';
-import Head from 'next/head';
-import { useAudio } from '../../contexts/StreamingAudioContext';
+// File: src/tests/crossfade-test.js
+// This is a simple test file to verify the CrossfadeEngine integration
+// Run this in browser console after defining the test function
 
-export default function CrossfadeTest() {
-  const { 
-    LAYERS,
-    isLoading,
-    loadingProgress,
-    isPlaying,
-    volumes,
-    activeAudio,
-    audioLibrary,
-    hasSwitchableAudio,
-    startSession,
-    pauseSession,
-    enhancedCrossfadeTo,
-    testCrossfade
-  } = useAudio();
+function testCrossfadeEngineIntegration() {
+  console.log("Testing CrossfadeEngine integration...");
   
-  const [log, setLog] = useState([]);
-  const [selectedLayer, setSelectedLayer] = useState(LAYERS.DRONE);
-  const [selectedTrack, setSelectedTrack] = useState(null);
-  const [fadeDuration, setFadeDuration] = useState(2000);
-  const [isTesting, setIsTesting] = useState(false);
+  // Get the audio context from window (if it's available)
+  const audioContext = window.audioContextInstance;
   
-  // Initialize selected track when active audio changes
-  useEffect(() => {
-    if (activeAudio[selectedLayer]) {
-      setSelectedTrack(activeAudio[selectedLayer]);
-    }
-  }, [activeAudio, selectedLayer]);
-  
-  // Add log message with timestamp
-  const addLog = (message) => {
-    const timestamp = new Date().toLocaleTimeString();
-    setLog(prev => [...prev, `${timestamp}: ${message}`]);
-  };
-  
-  // Clear log
-  const clearLog = () => {
-    setLog([]);
-  };
-  
-  // Copy log to clipboard
-  const copyLog = () => {
-    navigator.clipboard.writeText(log.join('\n'))
-      .then(() => {
-        alert('Log copied to clipboard');
-      })
-      .catch(err => {
-        console.error('Failed to copy log', err);
-      });
-  };
-  
-  // Handle manual crossfade
-  const handleCrossfade = async () => {
-    if (!selectedTrack || selectedTrack === activeAudio[selectedLayer]) {
-      addLog('Please select a different track to crossfade to');
-      return;
-    }
-    
-    addLog(`Starting crossfade to ${selectedTrack}`);
-    
-    try {
-      // Start session if not playing
-      if (!isPlaying) {
-        addLog('Starting playback first');
-        startSession();
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-      
-      // Perform crossfade
-      const result = await enhancedCrossfadeTo(selectedLayer, selectedTrack, fadeDuration);
-      
-      if (result) {
-        addLog(`Crossfade to ${selectedTrack} successful`);
-      } else {
-        addLog(`Crossfade to ${selectedTrack} failed`);
-      }
-    } catch (error) {
-      addLog(`Crossfade error: ${error.message}`);
-      console.error('Crossfade error:', error);
-    }
-  };
-  
-  // Run automated crossfade test
-  const runTest = async () => {
-    setIsTesting(true);
-    addLog('Starting automated crossfade test');
-    
-    try {
-      const result = await testCrossfade();
-      
-      if (result) {
-        addLog('Automated test completed successfully');
-      } else {
-        addLog('Automated test failed');
-      }
-    } catch (error) {
-      addLog(`Test error: ${error.message}`);
-      console.error('Test error:', error);
-    } finally {
-      setIsTesting(false);
-    }
-  };
-  
-  if (isLoading) {
-    return (
-      <div style={{padding: '40px', textAlign: 'center'}}>
-        <h1>Loading Audio: {loadingProgress}%</h1>
-        <p>Please wait for audio initialization...</p>
-      </div>
-    );
+  if (!audioContext) {
+    console.error("Audio context not available. Make sure the app is initialized.");
+    return false;
   }
   
-  return (
-    <div style={{maxWidth: '1000px', margin: '20px auto', padding: '20px', backgroundColor: '#181818', color: '#eaeaea'}}>
-      <Head>
-        <title>Ensō Audio - Crossfade Test</title>
-      </Head>
+  // Step 1: Create test audio elements
+  console.log("Step 1: Creating test audio elements");
+  const audioElement1 = new Audio('/samples/default/drone.mp3');
+  const audioElement2 = new Audio('/samples/default/melody.mp3');
+  
+  audioElement1.loop = true;
+  audioElement2.loop = true;
+  
+  // Step 2: Create Web Audio API nodes
+  console.log("Step 2: Creating audio nodes");
+  let ctx, masterGain, source1, source2, crossfadeEngine;
+  
+  try {
+    // Create test context if needed
+    ctx = audioContext.getContext ? 
+      audioContext.getContext() : 
+      new (window.AudioContext || window.webkitAudioContext)();
+    
+    // Create master gain
+    masterGain = ctx.createGain();
+    masterGain.gain.value = 0.5;
+    masterGain.connect(ctx.destination);
+    
+    // Create source nodes
+    source1 = ctx.createMediaElementSource(audioElement1);
+    source2 = ctx.createMediaElementSource(audioElement2);
+    
+    // Connect sources to master initially
+    source1.connect(masterGain);
+    source2.connect(masterGain);
+    
+    console.log("Audio nodes created successfully");
+  } catch (error) {
+    console.error("Error creating audio nodes:", error);
+    return false;
+  }
+  
+  // Step 3: Create CrossfadeEngine
+  console.log("Step 3: Creating CrossfadeEngine");
+  try {
+    // Create a new CrossfadeEngine instance
+    // Note: We should import this, but for testing we'll try to get it from window
+    const CrossfadeEngine = window.CrossfadeEngine || 
+      (typeof require !== 'undefined' ? require('../services/audio/CrossfadeEngine').default : null);
+    
+    if (!CrossfadeEngine) {
+      console.error("CrossfadeEngine not found. Make sure it's properly imported.");
+      return false;
+    }
+    
+    crossfadeEngine = new CrossfadeEngine({
+      audioContext: ctx,
+      destination: masterGain,
+      enableLogging: true,
+      onProgress: (layer, progress) => {
+        console.log(`Crossfade progress for ${layer}: ${(progress * 100).toFixed(1)}%`);
+      }
+    });
+    
+    console.log("CrossfadeEngine created successfully");
+  } catch (error) {
+    console.error("Error creating CrossfadeEngine:", error);
+    return false;
+  }
+  
+  // Step 4: Start audio playback
+  console.log("Step 4: Starting audio playback");
+  try {
+    // Start the first audio element
+    const playPromise = audioElement1.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(err => {
+        console.error("Error playing audio:", err);
+      });
+    }
+  } catch (error) {
+    console.error("Error starting playback:", error);
+    // Continue anyway for testing
+  }
+  
+  // Step 5: Perform a crossfade
+  console.log("Step 5: Performing crossfade (after 2 second delay)");
+  setTimeout(() => {
+    try {
+      // Perform the crossfade
+      crossfadeEngine.crossfade({
+        layer: 'test',
+        sourceNode: source1,
+        sourceElement: audioElement1,
+        targetNode: source2,
+        targetElement: audioElement2,
+        currentVolume: 0.5,
+        duration: 3000,
+        syncPosition: false
+      }).then(success => {
+        if (success) {
+          console.log("✅ Crossfade completed successfully");
+        } else {
+          console.error("❌ Crossfade failed");
+        }
+      });
+    } catch (error) {
+      console.error("Error during crossfade:", error);
+    }
+  }, 2000);
+  
+  // Step 6: Clean up after test (after 8 seconds)
+  setTimeout(() => {
+    console.log("Step 6: Cleaning up");
+    
+    try {
+      // Stop audio
+      audioElement1.pause();
+      audioElement2.pause();
       
-      <h1 style={{textAlign: 'center', marginBottom: '30px'}}>Crossfade Test</h1>
+      // Dispose crossfade engine
+      crossfadeEngine.dispose();
       
-      <div style={{display: 'flex', gap: '20px', marginBottom: '20px'}}>
-        <button 
-          onClick={isPlaying ? pauseSession : startSession}
-          style={{
-            padding: '10px 20px',
-            background: isPlaying ? '#ff5555' : '#55aa55',
-            border: 'none',
-            color: 'white',
-            cursor: 'pointer'
-          }}
-        >
-          {isPlaying ? 'Stop' : 'Play'}
-        </button>
-        
-        <button
-          onClick={runTest}
-          disabled={isTesting || !hasSwitchableAudio}
-          style={{
-            padding: '10px 20px',
-            background: '#5555aa',
-            border: 'none',
-            color: 'white',
-            cursor: isTesting || !hasSwitchableAudio ? 'not-allowed' : 'pointer',
-            opacity: isTesting || !hasSwitchableAudio ? 0.5 : 1
-          }}
-        >
-          {isTesting ? 'Testing...' : 'Run Automatic Test'}
-        </button>
-      </div>
-      
-      {!hasSwitchableAudio && (
-        <div style={{padding: '10px', backgroundColor: '#553333', marginBottom: '20px'}}>
-          <p>No switchable audio available. Crossfading requires multiple audio tracks per layer.</p>
-        </div>
-      )}
-      
-      <div style={{display: 'flex', gap: '20px', marginBottom: '30px'}}>
-        <div style={{flex: '1', padding: '20px', backgroundColor: '#222', border: '1px solid #333'}}>
-          <h2 style={{marginBottom: '15px', fontSize: '1.2rem'}}>Manual Crossfade</h2>
-          
-          <div style={{marginBottom: '15px'}}>
-            <label style={{display: 'block', marginBottom: '5px'}}>Layer:</label>
-            <select 
-              value={selectedLayer} 
-              onChange={(e) => setSelectedLayer(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px',
-                backgroundColor: '#333',
-                color: 'white',
-                border: '1px solid #444'
-              }}
-            >
-              {Object.values(LAYERS).map(layer => (
-                <option key={layer} value={layer}>{layer.charAt(0).toUpperCase() + layer.slice(1)}</option>
-              ))}
-            </select>
-          </div>
-          
-          <div style={{marginBottom: '15px'}}>
-            <label style={{display: 'block', marginBottom: '5px'}}>Track:</label>
-            <select 
-              value={selectedTrack || ''} 
-              onChange={(e) => setSelectedTrack(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px',
-                backgroundColor: '#333',
-                color: 'white',
-                border: '1px solid #444'
-              }}
-            >
-              <option value="">Select a track</option>
-              {audioLibrary[selectedLayer]?.map(track => (
-                <option 
-                  key={track.id} 
-                  value={track.id}
-                  disabled={track.id === activeAudio[selectedLayer]}
-                >
-                  {track.name} {track.id === activeAudio[selectedLayer] ? '(Current)' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          <div style={{marginBottom: '20px'}}>
-            <label style={{display: 'block', marginBottom: '5px'}}>
-              Fade Duration: {fadeDuration}ms
-            </label>
-            <input 
-              type="range" 
-              min="500" 
-              max="5000" 
-              step="100" 
-              value={fadeDuration}
-              onChange={(e) => setFadeDuration(Number(e.target.value))}
-              style={{width: '100%'}}
-            />
-          </div>
-          
-          <button
-            onClick={handleCrossfade}
-            disabled={!selectedTrack || selectedTrack === activeAudio[selectedLayer] || isTesting}
-            style={{
-              width: '100%',
-              padding: '10px',
-              backgroundColor: '#444',
-              color: 'white',
-              border: 'none',
-              cursor: !selectedTrack || selectedTrack === activeAudio[selectedLayer] || isTesting ? 'not-allowed' : 'pointer',
-              opacity: !selectedTrack || selectedTrack === activeAudio[selectedLayer] || isTesting ? 0.5 : 1
-            }}
-          >
-            Crossfade
-          </button>
-        </div>
-        
-        <div style={{flex: '1', padding: '20px', backgroundColor: '#222', border: '1px solid #333'}}>
-          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
-            <h2 style={{fontSize: '1.2rem'}}>Status</h2>
-            <div>
-              <span style={{
-                display: 'inline-block',
-                width: '10px',
-                height: '10px',
-                borderRadius: '50%',
-                backgroundColor: isPlaying ? '#55aa55' : '#aa5555',
-                marginRight: '5px'
-              }}></span>
-              {isPlaying ? 'Playing' : 'Stopped'}
-            </div>
-          </div>
-          
-          <div style={{marginBottom: '15px'}}>
-            <h3 style={{fontSize: '1rem', marginBottom: '5px'}}>Active Tracks:</h3>
-            <ul style={{listStyleType: 'none', padding: '0'}}>
-              {Object.entries(activeAudio).map(([layer, trackId]) => {
-                const track = audioLibrary[layer]?.find(t => t.id === trackId);
-                return (
-                  <li key={layer} style={{marginBottom: '5px'}}>
-                    <strong>{layer}:</strong> {track ? track.name : 'None'} ({trackId})
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-          
-          <div>
-            <h3 style={{fontSize: '1rem', marginBottom: '5px'}}>Volume Levels:</h3>
-            <ul style={{listStyleType: 'none', padding: '0'}}>
-              {Object.entries(volumes).map(([layer, volume]) => (
-                <li key={layer} style={{marginBottom: '5px'}}>
-                  <strong>{layer}:</strong> {Math.round(volume * 100)}%
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </div>
-      
-      <div style={{padding: '20px', backgroundColor: '#222', border: '1px solid #333'}}>
-        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
-          <h2 style={{fontSize: '1.2rem'}}>Test Log</h2>
-          <div>
-            <button
-              onClick={copyLog}
-              style={{
-                padding: '5px 10px',
-                backgroundColor: '#444',
-                color: 'white',
-                border: 'none',
-                marginRight: '10px',
-                cursor: 'pointer'
-              }}
-            >
-              Copy Log
-            </button>
-            <button
-              onClick={clearLog}
-              style={{
-                padding: '5px 10px',
-                backgroundColor: '#444',
-                color: 'white',
-                border: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              Clear Log
-            </button>
-          </div>
-        </div>
-        
-        <div
-          style={{
-            height: '300px',
-            overflowY: 'auto',
-            padding: '10px',
-            backgroundColor: '#111',
-            border: '1px solid #333',
-            fontFamily: 'monospace',
-            fontSize: '14px'
-          }}
-        >
-          {log.length === 0 ? (
-            <p style={{color: '#666', fontStyle: 'italic'}}>No log entries yet.</p>
-          ) : (
-            log.map((entry, index) => (
-              <div key={index} style={{marginBottom: '5px'}}>{entry}</div>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
-  );
+      console.log("Test cleanup completed");
+    } catch (error) {
+      console.error("Error during cleanup:", error);
+    }
+    
+    console.log("CrossfadeEngine integration test completed");
+  }, 8000);
+  
+  return true;
 }
+
+// Export for use in browser or Node.js environment
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { testCrossfadeEngineIntegration };
+} else if (typeof window !== 'undefined') {
+  // Make available globally for browser testing
+  window.testCrossfadeEngineIntegration = testCrossfadeEngineIntegration;
+}
+
+// Instructions for manual testing:
+// 1. Open browser console
+// 2. Run: testCrossfadeEngineIntegration()
+// 3. Observe logs and listen for audio transition

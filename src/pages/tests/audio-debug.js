@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { useAudio } from '../../contexts/StreamingAudioContext';
+import './crossfade-test.js';
 
 // Simple debugging component with minimal styling
 export default function AudioDebug() {

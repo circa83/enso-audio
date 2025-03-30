@@ -3,6 +3,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
 import { useAudio } from '../../contexts/StreamingAudioContext';
 import styles from '../../styles/pages/TestPage.module.css';
+// At the top of the file
+import './crossfade-test.js';
 
 /**
  * AudioSystemTest - A component for testing Ensō Audio functionality

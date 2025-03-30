@@ -1,7 +1,10 @@
 // src/contexts/StreamingAudioContext.js
+// src/contexts/StreamingAudioContext.js
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AudioCore from '../services/audio/AudioCore';
 import BufferManager from '../services/audio/BufferManager';
+import CrossfadeEngine from '../services/audio/CrossfadeEngine';
+
 
 // Define our audio layers
 const LAYERS = {
@@ -35,6 +38,7 @@ export const AudioProvider = ({ children }) => {
   // Core services
   const audioCoreRef = useRef(null);
   const bufferManagerRef = useRef(null);
+  const crossfadeEngineRef = useRef(null);
   
   // Loading state
   const [isLoading, setIsLoading] = useState(true);
@@ -83,11 +87,9 @@ export const AudioProvider = ({ children }) => {
   // Add a ref to track the actual playing state to prevent race conditions
   const isPlayingRef = useRef(false);
   
-  // Crossfade state tracking for UI feedback
+  // Crossfade state tracking for UI feedback (now managed by CrossfadeEngine)
   const [crossfadeProgress, setCrossfadeProgress] = useState({});
   const [activeCrossfades, setActiveCrossfades] = useState({});
-  const crossfadeTimers = useRef({});
-  const activeCrossfadeNodes = useRef({});
   
   // Track metadata for all loaded tracks (duration, etc.)
   const trackData = useRef({});
@@ -141,6 +143,23 @@ export const AudioProvider = ({ children }) => {
             });
           }
           
+          // Initialize CrossfadeEngine after AudioCore is ready
+          if (!crossfadeEngineRef.current && audioCoreRef.current.getContext() && audioCoreRef.current.getMasterGain()) {
+            console.log('Creating new CrossfadeEngine instance');
+            crossfadeEngineRef.current = new CrossfadeEngine({
+              audioContext: audioCoreRef.current.getContext(),
+              destination: audioCoreRef.current.getMasterGain(),
+              enableLogging: true,
+              onProgress: (layer, progress) => {
+                // Update UI state with progress from CrossfadeEngine
+                setCrossfadeProgress(prev => ({
+                  ...prev,
+                  [layer]: progress
+                }));
+              }
+            });
+          }
+          
           // Update loading progress
           setLoadingProgress(10);
           
@@ -182,6 +201,12 @@ export const AudioProvider = ({ children }) => {
       if (bufferManagerRef.current) {
         bufferManagerRef.current.dispose();
         bufferManagerRef.current = null;
+      }
+      
+      // Clean up CrossfadeEngine
+      if (crossfadeEngineRef.current) {
+        crossfadeEngineRef.current.dispose();
+        crossfadeEngineRef.current = null;
       }
     };
   }, []);
@@ -478,98 +503,30 @@ export const AudioProvider = ({ children }) => {
   // Pause/Stop session
   const pauseSession = useCallback(() => {
     // Use ref for current state check to avoid race conditions
-    if (!isPlayingRef.current && Object.keys(activeCrossfadeNodes.current).length === 0) {
+    if (!isPlayingRef.current && !crossfadeEngineRef.current?.getAllActiveCrossfades()) {
       console.log("Not playing, nothing to pause");
       return;
     }
     
     try {
       console.log("Pausing session (including any active crossfades)...");
+      
+      // First, cancel any active crossfades
+      if (crossfadeEngineRef.current) {
+        crossfadeEngineRef.current.cancelAllCrossfades({
+          reconnectSource: true,
+          reconnectTarget: true
+        });
+      }
+      
+      // Clear UI state for crossfades
+      setActiveCrossfades({});
+      setCrossfadeProgress({});
+      
+      // Pause all active audio elements
       let pauseCount = 0;
       let totalTracks = 0;
       
-      // First, cancel any active crossfades
-      Object.keys(crossfadeTimers.current).forEach(layer => {
-        if (crossfadeTimers.current[layer]) {
-          console.log(`Cancelling active crossfade for ${layer}`);
-          clearInterval(crossfadeTimers.current[layer]);
-          crossfadeTimers.current[layer] = null;
-          
-          // Clean up UI state
-          setActiveCrossfades(prev => ({
-            ...prev,
-            [layer]: null
-          }));
-          
-          setCrossfadeProgress(prev => ({
-            ...prev,
-            [layer]: 0
-          }));
-        }
-      });
-      
-      // Clean up and pause all active crossfade nodes
-      Object.entries(activeCrossfadeNodes.current).forEach(([layer, nodes]) => {
-        if (nodes) {
-          try {
-            // Get the active crossfade nodes
-            const { fadeOutGain, fadeInGain } = nodes;
-            
-            // Find which tracks are connected to these nodes
-            let crossfadeSource = null;
-            let crossfadeTarget = null;
-            
-            // Check for active crossfade
-            if (activeCrossfades[layer]) {
-              crossfadeSource = activeCrossfades[layer].from;
-              crossfadeTarget = activeCrossfades[layer].to;
-            }
-            
-            // Disconnect gain nodes
-            if (fadeOutGain) fadeOutGain.disconnect();
-            if (fadeInGain) fadeInGain.disconnect();
-            
-            // Pause any audio elements connected to the crossfade
-            if (crossfadeSource && audioElements[layer][crossfadeSource]?.element) {
-              audioElements[layer][crossfadeSource].element.pause();
-              totalTracks++;
-              pauseCount++;
-              console.log(`Paused crossfade source for ${layer}: ${crossfadeSource}`);
-              
-              // Reconnect to main gain node for future use
-              try {
-                audioElements[layer][crossfadeSource].source.disconnect();
-                audioElements[layer][crossfadeSource].source.connect(gainNodes[layer]);
-              } catch (e) {
-                console.warn(`Could not reconnect source: ${e.message}`);
-              }
-            }
-            
-            if (crossfadeTarget && audioElements[layer][crossfadeTarget]?.element) {
-              audioElements[layer][crossfadeTarget].element.pause();
-              totalTracks++;
-              pauseCount++;
-              console.log(`Paused crossfade target for ${layer}: ${crossfadeTarget}`);
-              
-              // Reconnect to main gain node for future use
-              try {
-                audioElements[layer][crossfadeTarget].source.disconnect();
-                audioElements[layer][crossfadeTarget].source.connect(gainNodes[layer]);
-              } catch (e) {
-                console.warn(`Could not reconnect target: ${e.message}`);
-              }
-            }
-            
-            // Clear the crossfade nodes
-            activeCrossfadeNodes.current[layer] = null;
-            
-          } catch (e) {
-            console.error(`Error cleaning up crossfade for ${layer}: ${e.message}`);
-          }
-        }
-      });
-      
-      // Also pause all regular active audio elements
       Object.entries(activeAudio).forEach(([layer, trackId]) => {
         const track = audioElements[layer][trackId];
         if (track && track.element) {
@@ -609,7 +566,7 @@ export const AudioProvider = ({ children }) => {
       // Still try to update state even if an error occurs
       updatePlayingState(false);
     }
-  }, [activeAudio, audioElements, updatePlayingState, activeCrossfades, gainNodes]);
+  }, [activeAudio, audioElements, updatePlayingState]);
 
   // Update volume for a layer
   const setVolume = useCallback((layer, value) => {
@@ -624,24 +581,11 @@ export const AudioProvider = ({ children }) => {
     // Apply to main gain node
     gainNodes[layer].gain.value = value;
     
-    // Apply to any active crossfade nodes for this layer
-    if (activeCrossfadeNodes.current[layer]) {
-      const { fadeOutGain, fadeInGain } = activeCrossfadeNodes.current[layer];
-      
-      // Get the current progress of the crossfade
-      const progress = crossfadeProgress[layer] || 0;
-      
-      if (fadeOutGain && fadeOutGain.gain) {
-        // Adjust the fade-out gain based on crossfade progress
-        fadeOutGain.gain.value = value * (1 - progress);
-      }
-      
-      if (fadeInGain && fadeInGain.gain) {
-        // Adjust the fade-in gain based on crossfade progress
-        fadeInGain.gain.value = value * progress;
-      }
+    // If there's an active crossfade for this layer, update its volume too
+    if (crossfadeEngineRef.current && crossfadeEngineRef.current.isActive(layer)) {
+      crossfadeEngineRef.current.adjustCrossfadeVolume(layer, value);
     }
-  }, [gainNodes, crossfadeProgress]);
+  }, [gainNodes]);
 
   // Preload audio using BufferManager
   const preloadAudio = useCallback(async (layer, trackId) => {
@@ -696,13 +640,13 @@ export const AudioProvider = ({ children }) => {
     }
   }, [audioLibrary, gainNodes]);
 
-  // Enhanced crossfade function (simplified using BufferManager)
+  // Enhanced crossfade function using CrossfadeEngine service
   const enhancedCrossfadeTo = useCallback(async (layer, newTrackId, fadeDuration = 4000) => {
     console.log(`🎵 Starting crossfade process for ${layer}: ${newTrackId}`);
     
     // Verify we have what we need
-    if (!audioCoreRef.current || !gainNodes[layer]) {
-      console.error("Cannot crossfade: missing AudioCore or gain node");
+    if (!audioCoreRef.current || !gainNodes[layer] || !crossfadeEngineRef.current) {
+      console.error("Cannot crossfade: missing required services");
       return false;
     }
     
@@ -784,34 +728,9 @@ export const AudioProvider = ({ children }) => {
       }
     }
     
-    // Don't allow overlapping crossfades for the same layer
-    if (activeCrossfadeNodes.current[layer]) {
-      console.warn(`Crossfade already in progress for ${layer}, cancelling it first`);
-      
-      // Cancel existing crossfade
-      if (crossfadeTimers.current[layer]) {
-        clearInterval(crossfadeTimers.current[layer]);
-        crossfadeTimers.current[layer] = null;
-      }
-      
-      try {
-        const { fadeOutGain, fadeInGain } = activeCrossfadeNodes.current[layer];
-        fadeOutGain.disconnect();
-        fadeInGain.disconnect();
-      } catch (e) {
-        console.error(`Error cleaning up previous crossfade: ${e.message}`);
-      }
-      
-      activeCrossfadeNodes.current[layer] = null;
-      
-      // Clear UI state
-      setActiveCrossfades(prev => ({
-        ...prev,
-        [layer]: null
-      }));
-    }
+    // Start a crossfade using the CrossfadeEngine
     
-    // Update UI to show we're loading
+    // First, update UI to show we're preparing for crossfade
     setActiveCrossfades(prev => ({
       ...prev,
       [layer]: { 
@@ -902,184 +821,91 @@ export const AudioProvider = ({ children }) => {
     // Get the current track
     const currentTrack = audioElements[layer][currentTrackId];
     
-    // Create gain nodes for crossfade
-    const fadeOutGain = audioCtx.createGain();
-    const fadeInGain = audioCtx.createGain();
+    // Prepare crossfade options
+    const crossfadeOptions = {
+      layer,
+      sourceNode: currentTrack.source,
+      sourceElement: currentTrack.element,
+      targetNode: newTrackElements.source,
+      targetElement: newTrackElements.element,
+      currentVolume: volumes[layer],
+      duration: fadeDuration,
+      syncPosition: true,
+      metadata: {
+        fromTrackId: currentTrackId,
+        toTrackId: newTrackId
+      }
+    };
     
-    const currentVolume = volumes[layer];
-    fadeOutGain.gain.value = currentVolume;
-    fadeInGain.gain.value = 0.001;  // Start nearly silent
-    
-    // Store nodes for cancellation and volume control
-    activeCrossfadeNodes.current[layer] = { fadeOutGain, fadeInGain };
-    
-    // Connect to master gain
-    fadeOutGain.connect(masterGain);
-    fadeInGain.connect(masterGain);
-    
-    // Disconnect and reconnect audio graphs
     try {
-      // Disconnect current track from main gain and connect to fade out
-      currentTrack.source.disconnect();
-      currentTrack.source.connect(fadeOutGain);
+      // Update active track state - do this before the crossfade
+      // because we want UI to show new track immediately
+      setActiveAudio(prev => ({
+        ...prev,
+        [layer]: newTrackId
+      }));
       
-      // Connect new track to fade in
-      newTrackElements.source.disconnect();
-      newTrackElements.source.connect(fadeInGain);
-    } catch (error) {
-      console.error(`Error connecting audio graph: ${error.message}`);
-      // Recovery - reconnect to main gain nodes
-      try {
-        currentTrack.source.disconnect();
-        currentTrack.source.connect(gainNodes[layer]);
+      // Execute the crossfade with the CrossfadeEngine
+      const success = await crossfadeEngineRef.current.crossfade(crossfadeOptions);
+      
+      // When crossfade completes, check if successful
+      if (!success) {
+        console.error(`Crossfade failed for ${layer}`);
         
-        newTrackElements.source.disconnect();
-        newTrackElements.source.connect(gainNodes[layer]);
-      } catch (e) {
-        console.error(`Recovery failed: ${e.message}`);
+        // Even though it failed, we'll keep the new track as active
+        // but we'll clear the UI state
+        setActiveCrossfades(prev => {
+          const newState = {...prev};
+          delete newState[layer];
+          return newState;
+        });
+        
+        return false;
       }
       
-      // Reset crossfade state
-      setActiveCrossfades(prev => ({
-        ...prev,
-        [layer]: null
-      }));
+      // Clear the crossfade UI state when complete
+      setActiveCrossfades(prev => {
+        const newState = {...prev};
+        delete newState[layer];
+        return newState;
+      });
+      
+      setCrossfadeProgress(prev => {
+        const newState = {...prev};
+        delete newState[layer];
+        return newState;
+      });
+      
+      console.log(`Crossfade complete for ${layer}: ${currentTrackId} -> ${newTrackId}`);
+      return true;
+      
+    } catch (error) {
+      console.error(`Error during crossfade: ${error.message}`);
+      
+      // Clear UI state
+      setActiveCrossfades(prev => {
+        const newState = {...prev};
+        delete newState[layer];
+        return newState;
+      });
+      
+      setCrossfadeProgress(prev => {
+        const newState = {...prev};
+        delete newState[layer];
+        return newState;
+      });
       
       return false;
     }
-    
-    // Start playback of new track if we're playing
-    if (isPlayingRef.current) {
-      try {
-        // Set the position
-        if (newTrackElements.element.paused) {
-          const currentPosition = currentTrack.element.currentTime || 0;
-          const currentDuration = trackData.current[currentTrackId]?.duration || 
-                              currentTrack.element.duration || 300;
-          const newDuration = trackData.current[newTrackId]?.duration || 
-                            newTrackElements.element.duration || 300;
-          
-          // Calculate relative position
-          const relativePosition = (currentPosition / currentDuration);
-          newTrackElements.element.currentTime = relativePosition * newDuration;
-        }
-        
-        // Start playback
-        await newTrackElements.element.play()
-          .catch(e => console.error(`Error playing: ${e.message}`));
-      } catch (error) {
-        console.error(`Error starting playback: ${error.message}`);
-        // Continue anyway - the crossfade might still work
-      }
-    }
-    
-    // Schedule the gain curves
-    const now = audioCtx.currentTime;
-    const endTime = now + (fadeDuration / 1000);
-    
-    try {
-      // Schedule fade out
-      fadeOutGain.gain.setValueAtTime(currentVolume, now);
-      fadeOutGain.gain.linearRampToValueAtTime(0.001, endTime);
-      
-      // Schedule fade in
-      fadeInGain.gain.setValueAtTime(0.001, now);
-      fadeInGain.gain.linearRampToValueAtTime(currentVolume, endTime);
-    } catch (error) {
-      console.error(`Error scheduling gain ramps: ${error.message}`);
-      
-      // Try recovery
-      fadeOutGain.gain.value = 0;
-      fadeInGain.gain.value = currentVolume;
-    }
-    
-    // Update active track
-    setActiveAudio(prev => ({
-      ...prev,
-      [layer]: newTrackId
-    }));
-    
-    // Setup progress tracking
-    const updateInterval = 100; // 100ms updates
-    const totalUpdates = fadeDuration / updateInterval;
-    let updateCount = 0;
-    
-    crossfadeTimers.current[layer] = setInterval(() => {
-      updateCount++;
-      const progress = Math.min(updateCount / totalUpdates, 1);
-      
-      // Update progress state
-      setCrossfadeProgress(prev => ({
-        ...prev,
-        [layer]: progress
-      }));
-      
-      // Update UI
-      setActiveCrossfades(prev => {
-        if (prev[layer]) {
-          return {
-            ...prev,
-            [layer]: {
-              ...prev[layer],
-              progress: progress
-            }
-          };
-        }
-        return prev;
-      });
-      
-      // When complete, clean up
-      if (updateCount >= totalUpdates) {
-        // Clear interval
-        clearInterval(crossfadeTimers.current[layer]);
-        crossfadeTimers.current[layer] = null;
-        
-        // Stop old track
-        if (isPlayingRef.current) {
-          try {
-            currentTrack.element.pause();
-          } catch (e) {
-            console.error(`Error pausing old track: ${e.message}`);
-          }
-        }
-        
-        // Reconnect new track to main gain
-        try {
-          newTrackElements.source.disconnect();
-          newTrackElements.source.connect(gainNodes[layer]);
-          gainNodes[layer].gain.value = currentVolume;
-        } catch (error) {
-          console.error(`Error reconnecting: ${error.message}`);
-        }
-        
-        // Clean up gain nodes
-        try {
-          fadeOutGain.disconnect();
-          fadeInGain.disconnect();
-        } catch (error) {
-          console.error(`Error cleaning up: ${error.message}`);
-        }
-        
-        // Clear references
-        activeCrossfadeNodes.current[layer] = null;
-        
-        // Clear UI state
-        setActiveCrossfades(prev => ({
-          ...prev,
-          [layer]: null
-        }));
-        
-        setCrossfadeProgress(prev => ({
-          ...prev,
-          [layer]: 0
-        }));
-        
-        console.log(`Crossfade complete for ${layer}`);
-      }
-    }, updateInterval);
-    
-    return true;
-  }, [audioLibrary, activeAudio, volumes, audioElements, isPlayingRef, gainNodes, preloadAudio]);
+  }, [
+    audioLibrary, 
+    activeAudio, 
+    volumes, 
+    audioElements, 
+    isPlayingRef, 
+    gainNodes, 
+    preloadAudio
+  ]);
 
   // Calculate elapsed session time
   const getSessionTime = useCallback(() => {
