@@ -1,12 +1,8 @@
 // src/contexts/StreamingAudioContext.js
 // src/contexts/StreamingAudioContext.js
+// src/contexts/StreamingAudioContext.js
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import AudioCore from '../services/audio/AudioCore';
-import BufferManager from '../services/audio/BufferManager';
-import CrossfadeEngine from '../services/audio/CrossfadeEngine';
-import VolumeController from '../services/audio/VolumeController';
-import TimelineEngine from '../services/audio/TimelineEngine';
-import PresetManager from '../services/audio/PresetManager';
+import { createAudioServices, AudioCore, BufferManager, CrossfadeEngine, VolumeController, TimelineEngine, PresetManager } from '../services/audio';
 
 // Define our audio layers
 const LAYERS = {
@@ -124,222 +120,158 @@ export const AudioProvider = ({ children }) => {
   // State providers for different components
   const stateProviders = useRef({});
   
-  // Initialize the Audio Services
-  useEffect(() => {
-    const initializeAudioServices = async () => {
-      if (typeof window !== 'undefined') {
-        try {
-          // Initialize AudioCore if it doesn't exist
-          if (!audioCoreRef.current) {
-            console.log('Creating new AudioCore instance');
-            audioCoreRef.current = new AudioCore({ 
-              initialVolume: masterVolume,
-              autoResume: true
-            });
-          }
-          
-          // Initialize AudioCore
-          const success = await audioCoreRef.current.initialize();
-          if (!success) {
-            throw new Error('Failed to initialize AudioCore');
-          }
-          
-          // Initialize BufferManager after AudioCore is ready
-          if (!bufferManagerRef.current && audioCoreRef.current.getContext()) {
-            console.log('Creating new BufferManager instance');
-            bufferManagerRef.current = new BufferManager({
-              audioContext: audioCoreRef.current.getContext(),
-              enableLogging: true
-            });
-          }
-          
-          // Initialize VolumeController
-          if (!volumeControllerRef.current && audioCoreRef.current.getContext()) {
-            console.log('Creating new VolumeController instance');
-            volumeControllerRef.current = new VolumeController({
-              audioContext: audioCoreRef.current.getContext(),
-              initialVolumes: volumes,
-              enableLogging: true
-            });
-          }
-          
-          // Initialize CrossfadeEngine after AudioCore is ready
-          if (!crossfadeEngineRef.current && audioCoreRef.current.getContext() && audioCoreRef.current.getMasterGain()) {
-            console.log('Creating new CrossfadeEngine instance');
-            crossfadeEngineRef.current = new CrossfadeEngine({
-              audioContext: audioCoreRef.current.getContext(),
-              destination: audioCoreRef.current.getMasterGain(),
-              enableLogging: true,
-              onProgress: (layer, progress) => {
-                // Update UI state with progress from CrossfadeEngine
-                setCrossfadeProgress(prev => ({
-                  ...prev,
-                  [layer]: progress
-                }));
-              }
-            });
-          }
-          
-          // Initialize TimelineEngine after other services are ready
-          if (!timelineEngineRef.current) {
-            console.log('Creating new TimelineEngine instance');
-            timelineEngineRef.current = new TimelineEngine({
-              sessionDuration: sessionDuration,
-              transitionDuration: transitionDuration,
-              enableLogging: true,
+  // Inside the AudioProvider component
+// Replace the individual service initialization with the factory approach
+useEffect(() => {
+  const initializeAudioServices = async () => {
+    if (typeof window !== 'undefined') {
+      try {
+        // Initialize all services at once with proper dependencies
+        const services = await createAudioServices({
+          audioCore: { initialVolume: masterVolume, autoResume: true },
+          volumeController: { initialVolumes: volumes, enableLogging: true },
+          crossfadeEngine: { 
+            enableLogging: true,
+            onProgress: (layer, progress) => {
+              // Update UI state with progress from CrossfadeEngine
+              setCrossfadeProgress(prev => ({
+                ...prev,
+                [layer]: progress
+              }));
+            }
+          },
+          timelineEngine: {
+            sessionDuration: sessionDuration,
+            transitionDuration: transitionDuration,
+            enableLogging: true,
+            
+            // Phase change callback
+            onPhaseChange: (phaseId, phaseData) => {
+              console.log(`Phase changed to: ${phaseId}`, phaseData);
               
-              // Phase change callback
-              onPhaseChange: (phaseId, phaseData) => {
-                console.log(`Phase changed to: ${phaseId}`, phaseData);
-                
-                // Update active phase state to trigger UI updates
-                setActivePhase(phaseId);
-                
-                // Apply phase state if it exists
-                if (phaseData && phaseData.state) {
-                  // Apply audio state from the phase
-                  if (phaseData.state.volumes) {
-                    Object.entries(phaseData.state.volumes).forEach(([layer, volume]) => {
-                      setVolume(layer, volume);
-                    });
-                  }
-                  
-                  // Apply track changes if needed
-                  if (phaseData.state.activeAudio) {
-                    Object.entries(phaseData.state.activeAudio).forEach(([layer, trackId]) => {
-                      if (trackId && trackId !== activeAudio[layer]) {
-                        enhancedCrossfadeTo(layer, trackId, transitionDuration);
-                      }
-                    });
-                  }
-                }
-              },
+              // Update active phase state to trigger UI updates
+              setActivePhase(phaseId);
               
-              // Scheduled event callback
-              onScheduledEvent: (event) => {
-                console.log('Timeline event triggered:', event);
-                
-                // Handle various event types
-                if (event.action === 'crossfade' && event.data) {
-                  // Handle crossfade events
-                  const { layer, trackId, duration } = event.data;
-                  if (layer && trackId) {
-                    enhancedCrossfadeTo(layer, trackId, duration || transitionDuration);
-                  }
-                } else if (event.action === 'volume' && event.data) {
-                  // Handle volume change events
-                  const { layer, volume } = event.data;
-                  if (layer && volume !== undefined) {
+              // Apply phase state if it exists
+              if (phaseData && phaseData.state) {
+                // Apply audio state from the phase
+                if (phaseData.state.volumes) {
+                  Object.entries(phaseData.state.volumes).forEach(([layer, volume]) => {
                     setVolume(layer, volume);
-                  }
+                  });
                 }
-              },
+                
+                // Apply track changes if needed
+                if (phaseData.state.activeAudio) {
+                  Object.entries(phaseData.state.activeAudio).forEach(([layer, trackId]) => {
+                    if (trackId && trackId !== activeAudio[layer]) {
+                      enhancedCrossfadeTo(layer, trackId, transitionDuration);
+                    }
+                  });
+                }
+              }
+            },
+            
+            // Scheduled event callback
+            onScheduledEvent: (event) => {
+              console.log('Timeline event triggered:', event);
               
-              // Progress update callback
-              onProgress: (progress, elapsedTime) => {
-                // Update progress state for UI
-                setProgress(progress);
+              // Handle various event types
+              if (event.action === 'crossfade' && event.data) {
+                // Handle crossfade events
+                const { layer, trackId, duration } = event.data;
+                if (layer && trackId) {
+                  enhancedCrossfadeTo(layer, trackId, duration || transitionDuration);
+                }
+              } else if (event.action === 'volume' && event.data) {
+                // Handle volume change events
+                const { layer, volume } = event.data;
+                if (layer && volume !== undefined) {
+                  setVolume(layer, volume);
+                }
               }
-            });
-          }
-          
-          // Initialize PresetManager
-          if (!presetManagerRef.current) {
-            console.log('Creating new PresetManager instance');
+            },
             
-            // Function to get state providers for PresetManager
-            const getStateProvidersFn = () => ({ ...stateProviders.current });
-            
-            presetManagerRef.current = new PresetManager({
-              initialPresets: presets,
-              getStateProviders: getStateProvidersFn,
-              enableLogging: true,
-              onPresetChange: (updatedPresets) => {
-                // Update React state when presets change
-                setPresets(updatedPresets);
-              },
-              onPresetLoad: (presetName, presetData) => {
-                // Handle preset loading - will be implemented in loadPreset function
-                console.log(`PresetManager triggered load for preset: ${presetName}`);
-              }
-            });
-          }
-          
-          // Update loading progress
-          setLoadingProgress(10);
-          
-          // Initialize with default audio
-          await initializeDefaultAudio();
-          
-          // Check if variation files available (in background)
-          tryLoadVariationFiles();
-
-          // Load presets from localStorage if available
-          if (presetManagerRef.current) {
-            // PresetManager will handle localStorage loading in its constructor
-            // Just update our React state with any presets it found
-            setPresets(presetManagerRef.current.getAllPresets());
-          } else {
-            // Fallback to old loading method if PresetManager isn't ready
-            try {
-              const savedPresets = localStorage.getItem('ensoAudioPresets');
-              if (savedPresets) {
-                setPresets(JSON.parse(savedPresets));
-              }
-            } catch (e) {
-              console.warn('Failed to load presets from localStorage:', e);
+            // Progress update callback
+            onProgress: (progress, elapsedTime) => {
+              // Update progress state for UI
+              setProgress(progress);
+            }
+          },
+          presetManager: {
+            getStateProviders: () => ({ ...stateProviders.current }),
+            enableLogging: true,
+            onPresetChange: (updatedPresets) => {
+              // Update React state when presets change
+              setPresets(updatedPresets);
+            },
+            onPresetLoad: (presetName, presetData) => {
+              // Handle preset loading - will be implemented in loadPreset function
+              console.log(`PresetManager triggered load for preset: ${presetName}`);
             }
           }
-          
-        } catch (error) {
-          console.error("Error initializing audio system:", error);
-          // Force loading to complete anyway so UI doesn't get stuck
-          setLoadingProgress(100);
-          setIsLoading(false);
-        }
+        });
+        
+        // Store services in refs
+        audioCoreRef.current = services.audioCore;
+        bufferManagerRef.current = services.bufferManager;
+        crossfadeEngineRef.current = services.crossfadeEngine;
+        volumeControllerRef.current = services.volumeController;
+        timelineEngineRef.current = services.timelineEngine;
+        presetManagerRef.current = services.presetManager;
+        
+        // Update loading progress
+        setLoadingProgress(10);
+        
+        // Initialize with default audio
+        await initializeDefaultAudio();
+        
+        // Rest of your initialization logic...
+        
+      } catch (error) {
+        console.error("Error initializing audio system:", error);
+        // Force loading to complete anyway so UI doesn't get stuck
+        setLoadingProgress(100);
+        setIsLoading(false);
       }
-    };
+    }
+  };
+  
+  initializeAudioServices();
+  
+  return () => {
+    // Clean up all services
+    if (audioCoreRef.current) {
+      audioCoreRef.current.cleanup();
+      audioCoreRef.current = null;
+    }
     
-    initializeAudioServices();
+    if (bufferManagerRef.current) {
+      bufferManagerRef.current.dispose();
+      bufferManagerRef.current = null;
+    }
     
-    return () => {
-      // Clean up AudioCore
-      if (audioCoreRef.current) {
-        audioCoreRef.current.cleanup();
-        audioCoreRef.current = null;
-      }
-      
-      // Clean up BufferManager
-      if (bufferManagerRef.current) {
-        bufferManagerRef.current.dispose();
-        bufferManagerRef.current = null;
-      }
-      
-      // Clean up CrossfadeEngine
-      if (crossfadeEngineRef.current) {
-        crossfadeEngineRef.current.dispose();
-        crossfadeEngineRef.current = null;
-      }
-      
-      // Clean up VolumeController
-      if (volumeControllerRef.current) {
-        volumeControllerRef.current.dispose();
-        volumeControllerRef.current = null;
-      }
-      
-      // Clean up TimelineEngine
-      if (timelineEngineRef.current) {
-        timelineEngineRef.current.dispose();
-        timelineEngineRef.current = null;
-      }
-      
-      // Clean up PresetManager
-      if (presetManagerRef.current) {
-        presetManagerRef.current.dispose();
-        presetManagerRef.current = null;
-      }
-    };
-  }, []);
+    if (crossfadeEngineRef.current) {
+      crossfadeEngineRef.current.dispose();
+      crossfadeEngineRef.current = null;
+    }
+    
+    if (volumeControllerRef.current) {
+      volumeControllerRef.current.dispose();
+      volumeControllerRef.current = null;
+    }
+    
+    if (timelineEngineRef.current) {
+      timelineEngineRef.current.dispose();
+      timelineEngineRef.current = null;
+    }
+    
+    if (presetManagerRef.current) {
+      presetManagerRef.current.dispose();
+      presetManagerRef.current = null;
+    }
+  };
+}, []);
 
   // Update master volume in AudioCore when masterVolume state changes
   useEffect(() => {
