@@ -1,10 +1,12 @@
 // src/contexts/StreamingAudioContext.js
+// src/contexts/StreamingAudioContext.js
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AudioCore from '../services/audio/AudioCore';
 import BufferManager from '../services/audio/BufferManager';
 import CrossfadeEngine from '../services/audio/CrossfadeEngine';
 import VolumeController from '../services/audio/VolumeController';
 import TimelineEngine from '../services/audio/TimelineEngine';
+import PresetManager from '../services/audio/PresetManager';
 
 // Define our audio layers
 const LAYERS = {
@@ -41,6 +43,7 @@ export const AudioProvider = ({ children }) => {
   const crossfadeEngineRef = useRef(null);
   const volumeControllerRef = useRef(null);
   const timelineEngineRef = useRef(null);
+  const presetManagerRef = useRef(null);
   
   // Loading state
   const [isLoading, setIsLoading] = useState(true);
@@ -112,7 +115,7 @@ export const AudioProvider = ({ children }) => {
   // Active phase tracking
   const [activePhase, setActivePhase] = useState(null);
 
-  // Presets storage
+  // Presets storage - will be managed by PresetManager
   const [presets, setPresets] = useState({});
   
   // Timeline phases tracking for presets
@@ -240,6 +243,28 @@ export const AudioProvider = ({ children }) => {
             });
           }
           
+          // Initialize PresetManager
+          if (!presetManagerRef.current) {
+            console.log('Creating new PresetManager instance');
+            
+            // Function to get state providers for PresetManager
+            const getStateProvidersFn = () => ({ ...stateProviders.current });
+            
+            presetManagerRef.current = new PresetManager({
+              initialPresets: presets,
+              getStateProviders: getStateProvidersFn,
+              enableLogging: true,
+              onPresetChange: (updatedPresets) => {
+                // Update React state when presets change
+                setPresets(updatedPresets);
+              },
+              onPresetLoad: (presetName, presetData) => {
+                // Handle preset loading - will be implemented in loadPreset function
+                console.log(`PresetManager triggered load for preset: ${presetName}`);
+              }
+            });
+          }
+          
           // Update loading progress
           setLoadingProgress(10);
           
@@ -250,13 +275,20 @@ export const AudioProvider = ({ children }) => {
           tryLoadVariationFiles();
 
           // Load presets from localStorage if available
-          try {
-            const savedPresets = localStorage.getItem('ensoAudioPresets');
-            if (savedPresets) {
-              setPresets(JSON.parse(savedPresets));
+          if (presetManagerRef.current) {
+            // PresetManager will handle localStorage loading in its constructor
+            // Just update our React state with any presets it found
+            setPresets(presetManagerRef.current.getAllPresets());
+          } else {
+            // Fallback to old loading method if PresetManager isn't ready
+            try {
+              const savedPresets = localStorage.getItem('ensoAudioPresets');
+              if (savedPresets) {
+                setPresets(JSON.parse(savedPresets));
+              }
+            } catch (e) {
+              console.warn('Failed to load presets from localStorage:', e);
             }
-          } catch (e) {
-            console.warn('Failed to load presets from localStorage:', e);
           }
           
         } catch (error) {
@@ -299,6 +331,12 @@ export const AudioProvider = ({ children }) => {
       if (timelineEngineRef.current) {
         timelineEngineRef.current.dispose();
         timelineEngineRef.current = null;
+      }
+      
+      // Clean up PresetManager
+      if (presetManagerRef.current) {
+        presetManagerRef.current.dispose();
+        presetManagerRef.current = null;
       }
     };
   }, []);
@@ -1024,487 +1062,524 @@ export const AudioProvider = ({ children }) => {
     preloadAudio
   ]);
 
-  // Calculate elapsed session time using TimelineEngine if available
-  const getSessionTime = useCallback(() => {
-    // Use TimelineEngine if available
-    if (timelineEngineRef.current) {
-      return timelineEngineRef.current.getElapsedTime();
+ // Calculate elapsed session time using TimelineEngine if available
+ const getSessionTime = useCallback(() => {
+  // Use TimelineEngine if available
+  if (timelineEngineRef.current) {
+    return timelineEngineRef.current.getElapsedTime();
+  }
+  
+  // Fallback to original implementation
+  if (!sessionStartTime) return 0;
+  return isPlayingRef.current ? Date.now() - sessionStartTime : 0;
+}, [sessionStartTime, isPlayingRef]);
+
+// Timeline event handling 
+const resetTimelineEventIndex = useCallback(() => {
+  setNextEventIndex(0);
+}, []);
+
+// Add function to register a timeline event
+const registerTimelineEvent = useCallback((event) => {
+  setTimelineEvents(prev => {
+    // Add the new event and sort by time
+    const updatedEvents = [...prev, event].sort((a, b) => a.time - b.time);
+    return updatedEvents;
+  });
+  
+  // Add to TimelineEngine if available
+  if (timelineEngineRef.current && event) {
+    timelineEngineRef.current.addEvent(event);
+  }
+}, []);
+
+// Add function to clear timeline events
+const clearTimelineEvents = useCallback(() => {
+  setTimelineEvents([]);
+  setNextEventIndex(0);
+  
+  // Clear in TimelineEngine if available
+  if (timelineEngineRef.current) {
+    timelineEngineRef.current.clearEvents();
+  }
+}, []);
+
+// Timeline event handling effect
+useEffect(() => {
+  // Only needed if TimelineEngine is not available
+  if (timelineEngineRef.current) {
+    return; // TimelineEngine will handle events
+  }
+  
+  if (isPlaying && timelineEvents.length > 0) {
+    // Start checking for timeline events
+    timelineCheckInterval.current = setInterval(() => {
+      const currentTime = getSessionTime();
+      
+      // Check if we need to trigger the next event
+      if (nextEventIndex < timelineEvents.length) {
+        const nextEvent = timelineEvents[nextEventIndex];
+        
+        if (currentTime >= nextEvent.time) {
+          console.log(`Triggering timeline event: ${nextEvent.name}`);
+          
+          // Execute the event action
+          if (nextEvent.action === 'crossfade' && nextEvent.layerSettings) {
+            // Handle crossfade events
+            Object.entries(nextEvent.layerSettings).forEach(([layer, settings]) => {
+              if (settings.trackId) {
+                enhancedCrossfadeTo(layer, settings.trackId, settings.duration || 4000);
+              }
+              
+              if (settings.volume !== undefined) {
+                setVolume(layer, settings.volume);
+              }
+            });
+          }
+          
+          // Move to the next event
+          setNextEventIndex(nextEventIndex + 1);
+        }
+      }
+    }, 1000); // Check every second
+  } else {
+    // Clear interval when not playing
+    if (timelineCheckInterval.current) {
+      clearInterval(timelineCheckInterval.current);
+    }
+  }
+  
+  return () => {
+    if (timelineCheckInterval.current) {
+      clearInterval(timelineCheckInterval.current);
+    }
+  };
+}, [isPlaying, timelineEvents, nextEventIndex, getSessionTime, enhancedCrossfadeTo, setVolume]);
+
+// TimelineEngine-specific functions
+const seekToTime = useCallback((timeMs) => {
+  if (timelineEngineRef.current) {
+    return timelineEngineRef.current.seekTo(timeMs);
+  }
+  return false;
+}, []);
+
+const seekToPercent = useCallback((percent) => {
+  if (timelineEngineRef.current) {
+    return timelineEngineRef.current.seekToPercent(percent);
+  }
+  return false;
+}, []);
+
+// Update sessionDuration in TimelineEngine
+const setSessionDurationValue = useCallback((duration) => {
+  setSessionDuration(duration);
+  if (timelineEngineRef.current) {
+    timelineEngineRef.current.setSessionDuration(duration);
+  }
+}, []);
+
+// Update transitionDuration in TimelineEngine
+const setTransitionDurationValue = useCallback((duration) => {
+  setTransitionDuration(duration);
+  if (timelineEngineRef.current) {
+    timelineEngineRef.current.setTransitionDuration(duration);
+  }
+}, []);
+
+// Function to update timeline phases (called from SessionTimeline)
+const updateTimelinePhases = useCallback((phases) => {
+  if (!phases || !Array.isArray(phases)) return;
+  
+  // Update local state
+  setTimelinePhases(phases);
+  
+  // Update TimelineEngine if available
+  if (timelineEngineRef.current) {
+    timelineEngineRef.current.setPhases(phases);
+  }
+}, []);
+
+// Function to register state providers for different components
+const registerPresetStateProvider = useCallback((key, providerFn) => {
+  if (!key) return;
+  
+  if (providerFn === null) {
+    // Unregister provider
+    delete stateProviders.current[key];
+  } else {
+    // Register provider
+    stateProviders.current[key] = providerFn;
+  }
+}, []);
+
+// Save current state as a preset using PresetManager
+const savePreset = useCallback((name) => {
+  if (!name || name.trim() === '') return false;
+  
+  // Use PresetManager if available
+  if (presetManagerRef.current) {
+    const preset = presetManagerRef.current.savePreset(name);
+    return !!preset; // Return success status
+  }
+  
+  // Fallback to legacy implementation if PresetManager is not available
+  // Collect state from all registered providers
+  const componentStates = {};
+  Object.entries(stateProviders.current).forEach(([key, providerFn]) => {
+    try {
+      const state = providerFn();
+      if (state) {
+        componentStates[key] = state;
+      }
+    } catch (error) {
+      console.error(`Error getting state from provider ${key}:`, error);
+    }
+  });
+  
+  // Create the preset with all state data
+  const preset = {
+    name,
+    date: new Date().toISOString(),
+    state: {
+      volumes: { ...volumes },
+      activeAudio: { ...activeAudio },
+      timelineEvents: [...timelineEvents],
+      components: componentStates,
+      timelinePhases: [...timelinePhases]
+    }
+  };
+  
+  setPresets(prev => {
+    const newPresets = {
+      ...prev,
+      [name]: preset
+    };
+    
+    // Store in localStorage
+    try {
+      localStorage.setItem('ensoAudioPresets', JSON.stringify(newPresets));
+    } catch (e) {
+      console.warn('Could not save presets to localStorage:', e);
     }
     
-    // Fallback to original implementation
-    if (!sessionStartTime) return 0;
-    return isPlayingRef.current ? Date.now() - sessionStartTime : 0;
-  }, [sessionStartTime, isPlayingRef]);
+    return newPresets;
+  });
+  
+  return true;
+}, [volumes, activeAudio, timelineEvents, timelinePhases]);
 
-  // Timeline event handling 
-  const resetTimelineEventIndex = useCallback(() => {
-    setNextEventIndex(0);
-  }, []);
-
-  // Add function to register a timeline event
-  const registerTimelineEvent = useCallback((event) => {
-    setTimelineEvents(prev => {
-      // Add the new event and sort by time
-      const updatedEvents = [...prev, event].sort((a, b) => a.time - b.time);
-      return updatedEvents;
+// Load a saved preset
+const loadPreset = useCallback((name) => {
+  // Use PresetManager if available
+  if (presetManagerRef.current) {
+    return presetManagerRef.current.loadPreset(name);
+  }
+  
+  // Fallback to legacy implementation
+  const preset = presets[name];
+  if (!preset) return false;
+  
+  // Apply the preset state
+  if (preset.state.volumes) {
+    Object.entries(preset.state.volumes).forEach(([layer, vol]) => {
+      setVolume(layer, vol);
     });
-    
-    // Add to TimelineEngine if available
-    if (timelineEngineRef.current && event) {
-      timelineEngineRef.current.addEvent(event);
-    }
-  }, []);
-
-  // Add function to clear timeline events
-  const clearTimelineEvents = useCallback(() => {
-    setTimelineEvents([]);
+  }
+  
+  if (preset.state.activeAudio) {
+    // Load all track changes without crossfade (immediate)
+    Object.entries(preset.state.activeAudio).forEach(([layer, trackId]) => {
+      enhancedCrossfadeTo(layer, trackId, 0);
+    });
+  }
+  
+  if (preset.state.timelineEvents) {
+    setTimelineEvents(preset.state.timelineEvents);
     setNextEventIndex(0);
     
-    // Clear in TimelineEngine if available
+    // Update TimelineEngine with events
     if (timelineEngineRef.current) {
       timelineEngineRef.current.clearEvents();
+      preset.state.timelineEvents.forEach(event => {
+        timelineEngineRef.current.addEvent(event);
+      });
     }
-  }, []);
-
-  // Timeline event handling effect
-  useEffect(() => {
-    // Only needed if TimelineEngine is not available
+  }
+  
+  // Apply timeline phases if they exist
+  if (preset.state.timelinePhases && preset.state.timelinePhases.length > 0) {
+    setTimelinePhases(preset.state.timelinePhases);
+    
+    // Update TimelineEngine with phases
     if (timelineEngineRef.current) {
-      return; // TimelineEngine will handle events
+      timelineEngineRef.current.setPhases(preset.state.timelinePhases);
     }
     
-    if (isPlaying && timelineEvents.length > 0) {
-      // Start checking for timeline events
-      timelineCheckInterval.current = setInterval(() => {
-        const currentTime = getSessionTime();
-        
-        // Check if we need to trigger the next event
-        if (nextEventIndex < timelineEvents.length) {
-          const nextEvent = timelineEvents[nextEventIndex];
-          
-          if (currentTime >= nextEvent.time) {
-            console.log(`Triggering timeline event: ${nextEvent.name}`);
-            
-            // Execute the event action
-            if (nextEvent.action === 'crossfade' && nextEvent.layerSettings) {
-              // Handle crossfade events
-              Object.entries(nextEvent.layerSettings).forEach(([layer, settings]) => {
-                if (settings.trackId) {
-                  enhancedCrossfadeTo(layer, settings.trackId, settings.duration || 4000);
-                }
-                
-                if (settings.volume !== undefined) {
-                  setVolume(layer, settings.volume);
-                }
-              });
-            }
-            
-            // Move to the next event
-            setNextEventIndex(nextEventIndex + 1);
-          }
-        }
-      }, 1000); // Check every second
-    } else {
-      // Clear interval when not playing
-      if (timelineCheckInterval.current) {
-        clearInterval(timelineCheckInterval.current);
-      }
+    // Dispatch event to notify the timeline component
+    if (typeof window !== 'undefined') {
+      const event = new CustomEvent('timeline-update', { 
+        detail: { 
+          phases: preset.state.timelinePhases,
+          sessionDuration: preset.state.components?.sessionSettings?.sessionDuration
+        } 
+      });
+      window.dispatchEvent(event);
     }
-    
-    return () => {
-      if (timelineCheckInterval.current) {
-        clearInterval(timelineCheckInterval.current);
-      }
-    };
-  }, [isPlaying, timelineEvents, nextEventIndex, getSessionTime, enhancedCrossfadeTo, setVolume]);
-
-  // TimelineEngine-specific functions
-  const seekToTime = useCallback((timeMs) => {
-    if (timelineEngineRef.current) {
-      return timelineEngineRef.current.seekTo(timeMs);
-    }
-    return false;
-  }, []);
-
-  const seekToPercent = useCallback((percent) => {
-    if (timelineEngineRef.current) {
-      return timelineEngineRef.current.seekToPercent(percent);
-    }
-    return false;
-  }, []);
-
-  // Update sessionDuration in TimelineEngine
-  const setSessionDurationValue = useCallback((duration) => {
-    setSessionDuration(duration);
-    if (timelineEngineRef.current) {
-      timelineEngineRef.current.setSessionDuration(duration);
-    }
-  }, []);
-
-  // Update transitionDuration in TimelineEngine
-  const setTransitionDurationValue = useCallback((duration) => {
-    setTransitionDuration(duration);
-    if (timelineEngineRef.current) {
-      timelineEngineRef.current.setTransitionDuration(duration);
-    }
-  }, []);
-
-  // Function to update timeline phases (called from SessionTimeline)
-  const updateTimelinePhases = useCallback((phases) => {
-    if (!phases || !Array.isArray(phases)) return;
-    
-    // Update local state
-    setTimelinePhases(phases);
-    
-    // Update TimelineEngine if available
-    if (timelineEngineRef.current) {
-      timelineEngineRef.current.setPhases(phases);
-    }
-  }, []);
-
-  // Function to register state providers for different components
-  const registerPresetStateProvider = useCallback((key, providerFn) => {
-    if (!key) return;
-    
-    if (providerFn === null) {
-      // Unregister provider
-      delete stateProviders.current[key];
-    } else {
-      // Register provider
-      stateProviders.current[key] = providerFn;
-    }
-  }, []);
-
-  // Save current state as a preset
-  const savePreset = useCallback((name) => {
-    if (!name || name.trim() === '') return false;
-    
-    // Collect state from all registered providers
-    const componentStates = {};
-    Object.entries(stateProviders.current).forEach(([key, providerFn]) => {
-      try {
-        const state = providerFn();
-        if (state) {
-          componentStates[key] = state;
-        }
-      } catch (error) {
-        console.error(`Error getting state from provider ${key}:`, error);
+  }
+  
+  // Apply component-specific states
+  if (preset.state.components) {
+    Object.entries(preset.state.components).forEach(([componentKey, state]) => {
+      // Dispatch custom events for each component to handle its own state
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent(`${componentKey}-update`, { detail: state });
+        window.dispatchEvent(event);
       }
     });
+  }
+  
+  return true;
+}, [presets, setVolume, enhancedCrossfadeTo]);
+
+// Delete a preset
+const deletePreset = useCallback((name) => {
+  // Use PresetManager if available
+  if (presetManagerRef.current) {
+    return presetManagerRef.current.deletePreset(name);
+  }
+  
+  // Fallback to legacy implementation
+  setPresets(prev => {
+    const newPresets = { ...prev };
+    delete newPresets[name];
     
-    // Create the preset with all state data
-    const preset = {
-      name,
-      date: new Date().toISOString(),
-      state: {
-        volumes: { ...volumes },
-        activeAudio: { ...activeAudio },
-        timelineEvents: [...timelineEvents],
-        components: componentStates,
-        timelinePhases: [...timelinePhases]
-      }
-    };
+    // Update localStorage
+    try {
+      localStorage.setItem('ensoAudioPresets', JSON.stringify(newPresets));
+    } catch (e) {
+      console.warn('Could not update presets in localStorage:', e);
+    }
     
+    return newPresets;
+  });
+  
+  return true;
+}, []);
+
+// Get all available presets
+const getPresets = useCallback(() => {
+  // Use PresetManager if available
+  if (presetManagerRef.current) {
+    return presetManagerRef.current.getPresetArray('date', true);
+  }
+  
+  // Fallback to legacy implementation
+  return Object.values(presets).sort((a, b) => 
+    new Date(b.date) - new Date(a.date)
+  );
+}, [presets]);
+
+// Export a preset to a JSON string
+const exportPreset = useCallback((name) => {
+  // Use PresetManager if available
+  if (presetManagerRef.current) {
+    return presetManagerRef.current.exportPreset(name);
+  }
+  
+  // Fallback to legacy implementation
+  const preset = presets[name];
+  if (!preset) return null;
+  
+  return JSON.stringify(preset);
+}, [presets]);
+
+// Import a preset from a JSON string
+const importPreset = useCallback((jsonString) => {
+  // Use PresetManager if available
+  if (presetManagerRef.current) {
+    return presetManagerRef.current.importPreset(jsonString);
+  }
+  
+  // Fallback to legacy implementation
+  try {
+    const preset = JSON.parse(jsonString);
+    
+    // Validate the preset format
+    if (!preset.name || !preset.state) {
+      return { success: false, error: 'Invalid preset format' };
+    }
+    
+    // Add to presets
     setPresets(prev => {
       const newPresets = {
         ...prev,
-        [name]: preset
-      };
-      
-      // Store in localStorage
-      try {
-        localStorage.setItem('ensoAudioPresets', JSON.stringify(newPresets));
-      } catch (e) {
-        console.warn('Could not save presets to localStorage:', e);
-      }
-      
-      return newPresets;
-    });
-    
-    return true;
-  }, [volumes, activeAudio, timelineEvents, timelinePhases]);
-
-  // Load a saved preset
-  const loadPreset = useCallback((name) => {
-    const preset = presets[name];
-    if (!preset) return false;
-    
-    // Apply the preset state
-    if (preset.state.volumes) {
-      Object.entries(preset.state.volumes).forEach(([layer, vol]) => {
-        setVolume(layer, vol);
-      });
-    }
-    
-    if (preset.state.activeAudio) {
-      // Load all track changes without crossfade (immediate)
-      Object.entries(preset.state.activeAudio).forEach(([layer, trackId]) => {
-        enhancedCrossfadeTo(layer, trackId, 0);
-      });
-    }
-    
-    if (preset.state.timelineEvents) {
-      setTimelineEvents(preset.state.timelineEvents);
-      setNextEventIndex(0);
-      
-      // Update TimelineEngine with events
-      if (timelineEngineRef.current) {
-        timelineEngineRef.current.clearEvents();
-        preset.state.timelineEvents.forEach(event => {
-          timelineEngineRef.current.addEvent(event);
-        });
-      }
-    }
-    
-    // Apply timeline phases if they exist
-    if (preset.state.timelinePhases && preset.state.timelinePhases.length > 0) {
-      setTimelinePhases(preset.state.timelinePhases);
-      
-      // Update TimelineEngine with phases
-      if (timelineEngineRef.current) {
-        timelineEngineRef.current.setPhases(preset.state.timelinePhases);
-      }
-      
-      // Dispatch event to notify the timeline component
-      if (typeof window !== 'undefined') {
-        const event = new CustomEvent('timeline-update', { 
-          detail: { 
-            phases: preset.state.timelinePhases,
-            sessionDuration: preset.state.components?.sessionSettings?.sessionDuration
-          } 
-        });
-        window.dispatchEvent(event);
-      }
-    }
-    
-    // Apply component-specific states
-    if (preset.state.components) {
-      Object.entries(preset.state.components).forEach(([componentKey, state]) => {
-        // Dispatch custom events for each component to handle its own state
-        if (typeof window !== 'undefined') {
-          const event = new CustomEvent(`${componentKey}-update`, { detail: state });
-          window.dispatchEvent(event);
+        [preset.name]: {
+          ...preset,
+          date: new Date().toISOString() // Update the date
         }
-      });
-    }
-    
-    return true;
-  }, [presets, setVolume, enhancedCrossfadeTo]);
-
-  // Delete a preset
-  const deletePreset = useCallback((name) => {
-    setPresets(prev => {
-      const newPresets = { ...prev };
-      delete newPresets[name];
+      };
       
       // Update localStorage
       try {
         localStorage.setItem('ensoAudioPresets', JSON.stringify(newPresets));
       } catch (e) {
-        console.warn('Could not update presets in localStorage:', e);
+        console.warn('Could not save imported preset to localStorage:', e);
       }
       
       return newPresets;
     });
     
-    return true;
-  }, []);
+    return { success: true, name: preset.name };
+  } catch (e) {
+    return { success: false, error: `Error importing preset: ${e.message}` };
+  }
+}, []);
 
-  // Get all available presets
-  const getPresets = useCallback(() => {
-    return Object.values(presets).sort((a, b) => 
-      new Date(b.date) - new Date(a.date)
-    );
-  }, [presets]);
+// Test function for crossfade
+const testCrossfade = useCallback(async () => {
+  if (!hasSwitchableAudio) {
+    console.log("Switchable audio not available for testing");
+    return false;
+  }
+  
+  // First start playback if not already playing
+  if (!isPlayingRef.current) {
+    await startSession();
+    // Wait for playback to stabilize
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  
+  // Test each layer
+  for (const layer of Object.values(LAYERS)) {
+    const tracks = audioLibrary[layer];
+    if (!Array.isArray(tracks) || tracks.length < 2) continue;
+    
+    // Get current track ID
+    const currentTrackId = activeAudio[layer];
+    
+    // Find a different track to test
+    const nextTrack = tracks.find(t => t.id !== currentTrackId);
+    if (!nextTrack) continue;
+    
+    console.log(`Testing crossfade for ${layer}: ${currentTrackId} -> ${nextTrack.id}`);
+    
+    // Perform crossfade
+    await enhancedCrossfadeTo(layer, nextTrack.id, 3000);
+    
+    // Wait for crossfade to complete
+    await new Promise(resolve => setTimeout(resolve, 3500));
+    
+    // Crossfade back
+    console.log(`Crossfading back: ${nextTrack.id} -> ${currentTrackId}`);
+    await enhancedCrossfadeTo(layer, currentTrackId, 3000);
+    
+    // Wait between layer tests
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+  
+  console.log("Crossfade test complete");
+  return true;
+}, [audioLibrary, activeAudio, hasSwitchableAudio, startSession, enhancedCrossfadeTo, isPlayingRef]);
 
-  // Export a preset to a JSON string
-  const exportPreset = useCallback((name) => {
-    const preset = presets[name];
-    if (!preset) return null;
-    
-    return JSON.stringify(preset);
-  }, [presets]);
+// Create the context value with all the functionality
+const contextValue = useMemo(() => ({
+  // Audio state
+  isLoading,
+  loadingProgress,
+  isPlaying,
+  volumes,
+  activeAudio,
+  audioLibrary,
+  hasSwitchableAudio,
+  crossfadeProgress,
+  activeCrossfades,
+  preloadProgress,
+  
+  // Master volume
+  masterVolume,
+  setMasterVolumeLevel,
+  
+  // Audio controls
+  setVolume,
+  startSession,
+  pauseSession,
+  crossfadeTo: enhancedCrossfadeTo, 
+  preloadAudio,
+  getSessionTime,
+  testCrossfade,
+  
+  // Timeline event functions
+  timelineEvents,
+  registerTimelineEvent,
+  clearTimelineEvents,
+  resetTimelineEventIndex,
+  
+  // Timeline phase functions
+  updateTimelinePhases,
+  registerPresetStateProvider,
+  timelinePhases,
+  
+  // Preset management
+  savePreset,
+  loadPreset,
+  deletePreset,
+  getPresets,
+  exportPreset,
+  importPreset,
+  
+  // TimelineEngine specific functions
+  seekToTime,
+  seekToPercent,
+  setSessionDuration: setSessionDurationValue,
+  setTransitionDuration: setTransitionDurationValue,
+  
+  // Constants
+  LAYERS
+}), [
+  isLoading, 
+  loadingProgress, 
+  isPlaying, 
+  volumes, 
+  activeAudio, 
+  audioLibrary,
+  hasSwitchableAudio,
+  crossfadeProgress, 
+  activeCrossfades,
+  preloadProgress,
+  masterVolume,
+  setMasterVolumeLevel,
+  setVolume, 
+  startSession, 
+  pauseSession, 
+  enhancedCrossfadeTo,
+  preloadAudio,
+  getSessionTime,
+  testCrossfade,
+  timelineEvents,
+  registerTimelineEvent,
+  clearTimelineEvents,
+  resetTimelineEventIndex,
+  updateTimelinePhases,
+  registerPresetStateProvider,
+  timelinePhases,
+  savePreset,
+  loadPreset,
+  deletePreset,
+  getPresets,
+  exportPreset,
+  importPreset,
+  seekToTime,
+  seekToPercent,
+  setSessionDurationValue,
+  setTransitionDurationValue
+]);
 
-  // Import a preset from a JSON string
-  const importPreset = useCallback((jsonString) => {
-    try {
-      const preset = JSON.parse(jsonString);
-      
-      // Validate the preset format
-      if (!preset.name || !preset.state) {
-        return { success: false, error: 'Invalid preset format' };
-      }
-      
-      // Add to presets
-      setPresets(prev => {
-        const newPresets = {
-          ...prev,
-          [preset.name]: {
-            ...preset,
-            date: new Date().toISOString() // Update the date
-          }
-        };
-        
-        // Update localStorage
-        try {
-          localStorage.setItem('ensoAudioPresets', JSON.stringify(newPresets));
-        } catch (e) {
-          console.warn('Could not save imported preset to localStorage:', e);
-        }
-        
-        return newPresets;
-      });
-      
-      return { success: true, name: preset.name };
-    } catch (e) {
-      return { success: false, error: `Error importing preset: ${e.message}` };
-    }
-  }, []);
-
-  // Test function for crossfade
-  const testCrossfade = useCallback(async () => {
-    if (!hasSwitchableAudio) {
-      console.log("Switchable audio not available for testing");
-      return false;
-    }
-    
-    // First start playback if not already playing
-    if (!isPlayingRef.current) {
-      await startSession();
-      // Wait for playback to stabilize
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-    
-    // Test each layer
-    for (const layer of Object.values(LAYERS)) {
-      const tracks = audioLibrary[layer];
-      if (!Array.isArray(tracks) || tracks.length < 2) continue;
-      
-      // Get current track ID
-      const currentTrackId = activeAudio[layer];
-      
-      // Find a different track to test
-      const nextTrack = tracks.find(t => t.id !== currentTrackId);
-      if (!nextTrack) continue;
-      
-      console.log(`Testing crossfade for ${layer}: ${currentTrackId} -> ${nextTrack.id}`);
-      
-      // Perform crossfade
-      await enhancedCrossfadeTo(layer, nextTrack.id, 3000);
-      
-      // Wait for crossfade to complete
-      await new Promise(resolve => setTimeout(resolve, 3500));
-      
-      // Crossfade back
-      console.log(`Crossfading back: ${nextTrack.id} -> ${currentTrackId}`);
-      await enhancedCrossfadeTo(layer, currentTrackId, 3000);
-      
-      // Wait between layer tests
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    }
-    
-    console.log("Crossfade test complete");
-    return true;
-  }, [audioLibrary, activeAudio, hasSwitchableAudio, startSession, enhancedCrossfadeTo, isPlayingRef]);
-
-  // Create the context value with all the functionality
-  const contextValue = useMemo(() => ({
-    // Audio state
-    isLoading,
-    loadingProgress,
-    isPlaying,
-    volumes,
-    activeAudio,
-    audioLibrary,
-    hasSwitchableAudio,
-    crossfadeProgress,
-    activeCrossfades,
-    preloadProgress,
-    
-    // Master volume
-    masterVolume,
-    setMasterVolumeLevel,
-    
-    // Audio controls
-    setVolume,
-    startSession,
-    pauseSession,
-    crossfadeTo: enhancedCrossfadeTo, 
-    preloadAudio,
-    getSessionTime,
-    testCrossfade,
-    
-    // Timeline event functions
-    timelineEvents,
-    registerTimelineEvent,
-    clearTimelineEvents,
-    resetTimelineEventIndex,
-    
-    // Timeline phase functions
-    updateTimelinePhases,
-    registerPresetStateProvider,
-    timelinePhases,
-    
-    // Preset management
-    savePreset,
-    loadPreset,
-    deletePreset,
-    getPresets,
-    exportPreset,
-    importPreset,
-    
-    // TimelineEngine specific functions
-    seekToTime,
-    seekToPercent,
-    setSessionDuration: setSessionDurationValue,
-    setTransitionDuration: setTransitionDurationValue,
-    
-    // Constants
-    LAYERS
-  }), [
-    isLoading, 
-    loadingProgress, 
-    isPlaying, 
-    volumes, 
-    activeAudio, 
-    audioLibrary,
-    hasSwitchableAudio,
-    crossfadeProgress, 
-    activeCrossfades,
-    preloadProgress,
-    masterVolume,
-    setMasterVolumeLevel,
-    setVolume, 
-    startSession, 
-    pauseSession, 
-    enhancedCrossfadeTo,
-    preloadAudio,
-    getSessionTime,
-    testCrossfade,
-    timelineEvents,
-    registerTimelineEvent,
-    clearTimelineEvents,
-    resetTimelineEventIndex,
-    updateTimelinePhases,
-    registerPresetStateProvider,
-    timelinePhases,
-    savePreset,
-    loadPreset,
-    deletePreset,
-    getPresets,
-    exportPreset,
-    importPreset,
-    seekToTime,
-    seekToPercent,
-    setSessionDurationValue,
-    setTransitionDurationValue
-  ]);
-
-  return (
-    <AudioContext.Provider value={contextValue}>
-      {children}
-    </AudioContext.Provider>
-  );
+return (
+  <AudioContext.Provider value={contextValue}>
+    {children}
+  </AudioContext.Provider>
+);
 };
 
 export default AudioContext;
