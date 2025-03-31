@@ -22,7 +22,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: 100%;
+    width: 70%;
   }
   
   .playButton {
@@ -53,6 +53,28 @@
   .playButton.playing {
     background-color: #ffffff;
     color: #111111;
+  }
+  .imageContainer {
+    width: 100%;
+    max-width: 300px;
+    aspect-ratio: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0 auto;
+  }
+  
+  .staticImage {
+    max-width: 100%;
+    height: auto;
+    transition: opacity 0.3s ease;
+    /* Optional: Add subtle effects when audio is playing */
+    opacity: 0.8;
+  }
+  
+  /* You can add a class to change the image when playing */
+  .playing .staticImage {
+    opacity: 1;
   }
   
   /* Responsive adjustments */

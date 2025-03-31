@@ -5,8 +5,8 @@
     max-width: 300px;
     aspect-ratio: 1;
     margin: 40px auto;
-    border: 1px solid #333;
-    overflow: hidden;
+    border: 1px solid #333; 
+    overflow: hidden; 
     background-color: #1c1c1c;
     border-radius: 2px;
     box-sizing: border-box;
@@ -64,6 +64,7 @@
     height: 70%;
     border-color: #ffffff;
     opacity: 0.8;
+    box-shadow: inset 0 0 calc( (var(--bass-intensity) * 50px)) #f4cc7c;/* ;
     /* This ensures the white circle stays on top */
     z-index: 10;
   }

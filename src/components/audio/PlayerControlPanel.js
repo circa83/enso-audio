@@ -19,7 +19,14 @@ const PlayerControlPanel = () => {
   return (
     <div className={styles.playerControlPanel}>
       <div className={styles.visualizerSection}>
-        <AudioVisualizer />
+       {/* <AudioVisualizer /> */}
+       <div className={styles.imageContainer}>
+          <img 
+            src="/images/Stillness_EnsōAudio_bkcp.png" 
+            alt="Ensō circle" 
+            className={styles.staticImage}
+          />
+        </div>
       </div>
       
       <div className={styles.controlsSection}>
