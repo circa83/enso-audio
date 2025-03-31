@@ -191,9 +191,9 @@ const SessionTimeline = ({
   const DEFAULT_PRE_ONSET_STATE = {
     volumes: {
       [LAYERS.DRONE]: 0.25,
-      [LAYERS.MELODY]: 0.0,
-      [LAYERS.RHYTHM]: 0.0,
-      [LAYERS.NATURE]: 0.0
+      [LAYERS.MELODY]: 0.55,
+      [LAYERS.RHYTHM]: 0.70,
+      [LAYERS.NATURE]: 0.15
     },
     // We'll use whatever tracks are currently active
     activeAudio: {}

@@ -1,25 +1,25 @@
-// src/contexts/AudioContext.js
+// src/contexts/StreamingAudioContext.js
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createAudioServices } from '../services/audio';
 
-// Define our audio layers
-const LAYERS = {
+// Define our audio layers as a frozen object to prevent modifications
+const LAYERS = Object.freeze({
   DRONE: 'drone',
   MELODY: 'melody',
   RHYTHM: 'rhythm',
   NATURE: 'nature'
-};
+});
 
 // Default audio files for each layer
-const DEFAULT_AUDIO = {
+const DEFAULT_AUDIO = Object.freeze({
   [LAYERS.DRONE]: '/samples/default/drone.mp3',
   [LAYERS.MELODY]: '/samples/default/melody.mp3',
   [LAYERS.RHYTHM]: '/samples/default/rhythm.mp3',
   [LAYERS.NATURE]: '/samples/default/nature.mp3'
-};
+});
 
 // Create the context
-const AudioContext = createContext();
+const AudioContext = createContext(null);
 
 // Custom hook for using the audio context
 export const useAudio = () => {
@@ -31,7 +31,7 @@ export const useAudio = () => {
 };
 
 export const AudioProvider = ({ children }) => {
-  // Service references
+  // Service references - using a ref to avoid re-renders when updating services
   const serviceRef = useRef({
     audioCore: null,
     bufferManager: null,
@@ -93,13 +93,15 @@ export const AudioProvider = ({ children }) => {
   const [presets, setPresets] = useState({});
   const stateProviders = useRef({});
 
-  // Initialize services
+  // Initialize services - Only run once on mount
   useEffect(() => {
+    let isMounted = true; // For preventing state updates after unmount
+    
     const initializeServices = async () => {
       if (typeof window === 'undefined') return;
       
       try {
-        setLoadingProgress(5);
+        if (isMounted) setLoadingProgress(5);
         
         // Initialize all audio services
         const services = await createAudioServices({
@@ -112,16 +114,20 @@ export const AudioProvider = ({ children }) => {
           },
           crossfadeEngine: { 
             onProgress: (layer, progress) => {
-              setCrossfadeProgress(prev => ({
-                ...prev,
-                [layer]: progress
-              }));
+              if (isMounted) {
+                setCrossfadeProgress(prev => ({
+                  ...prev,
+                  [layer]: progress
+                }));
+              }
             }
           },
           timelineEngine: {
-            sessionDuration: sessionDuration,
-            transitionDuration: transitionDuration,
+            sessionDuration,
+            transitionDuration,
             onPhaseChange: (phaseId, phaseData) => {
+              if (!isMounted) return;
+              
               console.log(`Phase changed to: ${phaseId}`);
               setActivePhase(phaseId);
               
@@ -146,6 +152,8 @@ export const AudioProvider = ({ children }) => {
               }
             },
             onScheduledEvent: (event) => {
+              if (!isMounted) return;
+              
               console.log('Timeline event triggered:', event);
               
               if (event.action === 'crossfade' && event.data) {
@@ -155,22 +163,22 @@ export const AudioProvider = ({ children }) => {
                 }
               } else if (event.action === 'volume' && event.data) {
                 const { layer, volume } = event.data;
-                if (layer && volume !== undefined) {
+                if (layer !== undefined && volume !== undefined) {
                   handleSetVolume(layer, volume);
                 }
               }
             },
             onProgress: (progress, elapsedTime) => {
-              setProgress(progress);
+              if (isMounted) setProgress(progress);
             }
           },
           presetManager: {
             getStateProviders: () => ({ ...stateProviders.current }),
             onPresetChange: (updatedPresets) => {
-              setPresets(updatedPresets);
+              if (isMounted) setPresets(updatedPresets);
             },
             onPresetLoad: (presetName, presetData) => {
-              handleLoadPreset(presetData);
+              if (isMounted) handleLoadPreset(presetData);
             }
           }
         });
@@ -178,18 +186,20 @@ export const AudioProvider = ({ children }) => {
         // Store services in ref
         serviceRef.current = services;
         
-        setLoadingProgress(10);
+        if (isMounted) setLoadingProgress(10);
         
         // Initialize audio
-        await initializeDefaultAudio();
+        if (isMounted) await initializeDefaultAudio();
         
         // Check for variation files
-        tryLoadVariationFiles();
+        if (isMounted) tryLoadVariationFiles();
         
       } catch (error) {
         console.error("Error initializing audio system:", error);
-        setLoadingProgress(100);
-        setIsLoading(false);
+        if (isMounted) {
+          setLoadingProgress(100);
+          setIsLoading(false);
+        }
       }
     };
     
@@ -197,6 +207,8 @@ export const AudioProvider = ({ children }) => {
     
     // Cleanup function
     return () => {
+      isMounted = false;
+      
       // Clean up all services
       Object.values(serviceRef.current).forEach(service => {
         if (service && typeof service.dispose === 'function') {
@@ -204,7 +216,7 @@ export const AudioProvider = ({ children }) => {
         }
       });
     };
-  }, []);
+  }, []); // Empty dependency array - only run on mount
   
   // Update master volume when state changes
   useEffect(() => {
@@ -214,7 +226,7 @@ export const AudioProvider = ({ children }) => {
   }, [masterVolume]);
   
   // Initialize audio elements with default tracks
-  const initializeDefaultAudio = async () => {
+  const initializeDefaultAudio = useCallback(async () => {
     const { audioCore, bufferManager, volumeController } = serviceRef.current;
     if (!audioCore || !bufferManager || !volumeController) {
       console.error('Cannot initialize audio, services not ready');
@@ -330,7 +342,7 @@ export const AudioProvider = ({ children }) => {
     console.log("All audio loaded successfully");
     
     return true;
-  };
+  }, []); // No dependencies needed as we're using refs
 
   // Try to load variation files in background
   const tryLoadVariationFiles = useCallback(() => {
@@ -710,10 +722,11 @@ export const AudioProvider = ({ children }) => {
         console.error(`Track ${newTrackId} not found in library`);
         
         // Reset crossfade state
-        setActiveCrossfades(prev => ({
-          ...prev,
-          [layer]: null
-        }));
+        setActiveCrossfades(prev => {
+          const newState = {...prev};
+          delete newState[layer];
+          return newState;
+        });
         
         return false;
       }
@@ -865,9 +878,7 @@ export const AudioProvider = ({ children }) => {
     }
   }, [audioLibrary, activeAudio, handlePreloadAudio]);
 
-  // Timeline and Session Management Functions
-
-  // Get current session time
+  // Timeline functions - wrapped in useCallback
   const handleGetSessionTime = useCallback(() => {
     if (serviceRef.current.timelineEngine) {
       return serviceRef.current.timelineEngine.getElapsedTime();
@@ -875,7 +886,6 @@ export const AudioProvider = ({ children }) => {
     return 0;
   }, []);
 
-  // Reset timeline event index
   const handleResetTimelineEventIndex = useCallback(() => {
     if (serviceRef.current.timelineEngine) {
       serviceRef.current.timelineEngine.stop();
@@ -883,7 +893,6 @@ export const AudioProvider = ({ children }) => {
     }
   }, []);
 
-  // Update timeline phases
   const handleUpdateTimelinePhases = useCallback((phases) => {
     if (!phases || !Array.isArray(phases)) return;
     
@@ -894,7 +903,6 @@ export const AudioProvider = ({ children }) => {
     }
   }, []);
 
-  // Register timeline event
   const handleRegisterTimelineEvent = useCallback((event) => {
     if (!event) return false;
     
@@ -910,7 +918,6 @@ export const AudioProvider = ({ children }) => {
     return true;
   }, []);
 
-  // Clear timeline events
   const handleClearTimelineEvents = useCallback(() => {
     setTimelineEvents([]);
     
@@ -921,7 +928,6 @@ export const AudioProvider = ({ children }) => {
     return true;
   }, []);
 
-  // Set session duration
   const handleSetSessionDuration = useCallback((duration) => {
     setSessionDuration(duration);
     
@@ -932,7 +938,6 @@ export const AudioProvider = ({ children }) => {
     return true;
   }, []);
   
-  // Set transition duration
   const handleSetTransitionDuration = useCallback((duration) => {
     setTransitionDuration(duration);
     
@@ -943,7 +948,6 @@ export const AudioProvider = ({ children }) => {
     return true;
   }, []);
   
-  // Seek to specific time
   const handleSeekToTime = useCallback((timeMs) => {
     if (serviceRef.current.timelineEngine) {
       return serviceRef.current.timelineEngine.seekTo(timeMs);
@@ -951,7 +955,6 @@ export const AudioProvider = ({ children }) => {
     return false;
   }, []);
   
-  // Seek to percentage
   const handleSeekToPercent = useCallback((percent) => {
     if (serviceRef.current.timelineEngine) {
       return serviceRef.current.timelineEngine.seekToPercent(percent);
@@ -960,21 +963,23 @@ export const AudioProvider = ({ children }) => {
   }, []);
   
   // Preset Management Functions
-  
-  // Register state provider for presets
   const handleRegisterPresetStateProvider = useCallback((key, providerFn) => {
     if (!key) return;
     
     if (providerFn === null) {
       // Unregister provider
-      delete stateProviders.current[key];
+      const updatedProviders = { ...stateProviders.current };
+      delete updatedProviders[key];
+      stateProviders.current = updatedProviders;
     } else {
       // Register provider
-      stateProviders.current[key] = providerFn;
+      stateProviders.current = {
+        ...stateProviders.current,
+        [key]: providerFn
+      };
     }
   }, []);
   
-  // Save preset
   const handleSavePreset = useCallback((name) => {
     if (!name || name.trim() === '' || !serviceRef.current.presetManager) return false;
     
@@ -982,7 +987,6 @@ export const AudioProvider = ({ children }) => {
     return !!preset;
   }, []);
   
-  // Load preset
   const handleLoadPreset = useCallback((nameOrData) => {
     if (!serviceRef.current.presetManager) return false;
     
@@ -1008,35 +1012,29 @@ export const AudioProvider = ({ children }) => {
     return true;
   }, []);
   
-  // Delete preset
   const handleDeletePreset = useCallback((name) => {
     if (!serviceRef.current.presetManager) return false;
-    
     return serviceRef.current.presetManager.deletePreset(name);
   }, []);
   
-  // Get all presets
   const handleGetPresets = useCallback(() => {
     if (!serviceRef.current.presetManager) return [];
-    
     return serviceRef.current.presetManager.getPresetArray('date', true);
   }, []);
   
-  // Export preset
   const handleExportPreset = useCallback((name) => {
     if (!serviceRef.current.presetManager) return null;
-    
     return serviceRef.current.presetManager.exportPreset(name);
   }, []);
   
-  // Import preset
   const handleImportPreset = useCallback((jsonString) => {
-    if (!serviceRef.current.presetManager) return { success: false, error: 'PresetManager not available' };
-    
+    if (!serviceRef.current.presetManager) {
+      return { success: false, error: 'PresetManager not available' };
+    }
     return serviceRef.current.presetManager.importPreset(jsonString);
   }, []);
 
-  // Create the context value with all the functionality
+  // Create a memoized context value to prevent unnecessary re-renders
   const contextValue = useMemo(() => ({
     // Audio state
     isLoading,
@@ -1103,7 +1101,7 @@ export const AudioProvider = ({ children }) => {
     preloadProgress,
     masterVolume,
     
-    // Audio functions
+    // Function dependencies
     handleSetMasterVolume,
     handleSetVolume,
     handleStartSession,
@@ -1112,13 +1110,15 @@ export const AudioProvider = ({ children }) => {
     handlePreloadAudio,
     handleGetSessionTime,
     
-    // Timeline state and functions
+    // Timeline state
     timelineEvents,
     timelinePhases,
     activePhase,
     progress,
     sessionDuration,
     transitionDuration,
+    
+    // Timeline functions
     handleResetTimelineEventIndex,
     handleRegisterTimelineEvent,
     handleClearTimelineEvents,
