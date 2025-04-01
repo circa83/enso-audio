@@ -1,5 +1,5 @@
 // src/hooks/useAudio.js
-import { useContext, useCallback } from 'react';
+import { useContext, useCallback, useEffect } from 'react';
 import AudioContext from '../contexts/StreamingAudioContext';
 
 /**
@@ -14,6 +14,17 @@ export function useAudio() {
   if (!context) {
     throw new Error('useAudio must be used within an AudioProvider');
   }
+
+  /* Add debugging
+  useEffect(() => {
+    console.log('useAudio hook - Context received:', {
+      hasVolumes: !!context.volumes,
+      volumesLength: context.volumes ? Object.keys(context.volumes).length : 0,
+      hasSetVolume: !!context.setVolume,
+      isSetVolumeFunction: typeof context.setVolume === 'function'
+    });
+  }, [context]);
+*/
 
   // Extract values from context for cleaner access
   const {
@@ -73,6 +84,19 @@ export function useAudio() {
     // Constants
     LAYERS
   } = context;
+
+ // Debug volume-related functionality
+ const debugSetLayer = useCallback((layer, value) => {
+    console.log(`useAudio.setLayer called for ${layer} with value ${value}`);
+    console.log(`setVolume function present:`, !!setVolume);
+    if (setVolume) {
+      console.log(`Calling setVolume(${layer}, ${value})`);
+      setVolume(layer, value);
+    } else {
+      console.error(`setVolume function not available in context`);
+    }
+  }, [setVolume]);
+
 
   // Group related functionality for a more organized API
   

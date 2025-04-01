@@ -408,25 +408,36 @@ export const AudioProvider = ({ children }) => {
   }, []);
 
   // Set volume for a specific layer
-  const handleSetVolume = useCallback((layer, value) => {
-    if (!serviceRef.current.volumeController) 
-      console.error("Cannot set volume: VolumeController not available");
+const handleSetVolume = useCallback((layer, value) => {
+  console.log(`handleSetVolume called for ${layer}: ${value}`);
+  
+  if (!serviceRef.current.volumeController) {
+    console.error("Cannot set volume: VolumeController not available");
     return;
-    
-    // Update our local state for UI
-    setVolumes(prev => ({
+  }
+  
+  // Update our local state for UI
+  console.log(`Updating local volume state for ${layer} from`, volumes[layer], `to ${value}`);
+  
+  setVolumes(prev => {
+    const newVolumes = {
       ...prev,
       [layer]: value
-    }));
+    };
+    console.log(`New volumes state:`, newVolumes);
+    return newVolumes;
+  });
     
     // Apply volume using the VolumeController
-    serviceRef.current.volumeController.setVolume(layer, value);
-    
-    // If there's an active crossfade for this layer, update its volume too
-    if (serviceRef.current.crossfadeEngine?.isActive(layer)) {
-      serviceRef.current.crossfadeEngine.adjustCrossfadeVolume(layer, value);
-    }
-  }, []);
+  const result = serviceRef.current.volumeController.setVolume(layer, value);
+  console.log(`VolumeController.setVolume result for ${layer}: ${result}`);
+  
+  // If there's an active crossfade for this layer, update its volume too
+  if (serviceRef.current.crossfadeEngine?.isActive(layer)) {
+    const result = serviceRef.current.crossfadeEngine.adjustCrossfadeVolume(layer, value);
+    console.log(`CrossfadeEngine.adjustCrossfadeVolume result for ${layer}: ${result}`);
+  }
+}, [volumes]);
 
   // Function to safely set playing state
   const updatePlayingState = useCallback((newState) => {
@@ -1076,7 +1087,9 @@ export const AudioProvider = ({ children }) => {
   }, []);
 
   // Create a memoized context value to prevent unnecessary re-renders
-  const contextValue = useMemo(() => ({
+const contextValue = useMemo(() => {
+ // console.log("Creating memoized context value with volumes:", volumes);
+  return {
     // Audio state
     isLoading,
     loadingProgress,
@@ -1128,62 +1141,63 @@ export const AudioProvider = ({ children }) => {
     
     // Constants
     LAYERS
-  }), [
-    // Audio state
-    isLoading, 
-    loadingProgress, 
-    isPlaying, 
-    volumes, 
-    activeAudio, 
-    audioLibrary,
-    hasSwitchableAudio,
-    crossfadeProgress, 
-    activeCrossfades,
-    preloadProgress,
-    masterVolume,
-    
-    // Function dependencies
-    handleSetMasterVolume,
-    handleSetVolume,
-    handleStartSession,
-    handlePauseSession,
-    handleCrossfadeTo,
-    handlePreloadAudio,
-    handleGetSessionTime,
-    
-    // Timeline state
-    timelineEvents,
-    timelinePhases,
-    activePhase,
-    progress,
-    sessionDuration,
-    transitionDuration,
-    
-    // Timeline functions
-    handleResetTimelineEventIndex,
-    handleRegisterTimelineEvent,
-    handleClearTimelineEvents,
-    handleUpdateTimelinePhases,
-    handleSeekToTime,
-    handleSeekToPercent,
-    handleSetSessionDuration,
-    handleSetTransitionDuration,
-    
-    // Preset functions
-    handleRegisterPresetStateProvider,
-    handleSavePreset,
-    handleLoadPreset,
-    handleDeletePreset,
-    handleGetPresets,
-    handleExportPreset,
-    handleImportPreset
-  ]);
+  };
+}, [
+  // Audio state
+  isLoading, 
+  loadingProgress, 
+  isPlaying, 
+  volumes, // Make sure volumes is in dependencies
+  activeAudio, 
+  audioLibrary,
+  hasSwitchableAudio,
+  crossfadeProgress, 
+  activeCrossfades,
+  preloadProgress,
+  masterVolume,
+  
+  // Function dependencies
+  handleSetMasterVolume,
+  handleSetVolume,
+  handleStartSession,
+  handlePauseSession,
+  handleCrossfadeTo,
+  handlePreloadAudio,
+  handleGetSessionTime,
+  
+  // Timeline state
+  timelineEvents,
+  timelinePhases,
+  activePhase,
+  progress,
+  sessionDuration,
+  transitionDuration,
+  
+  // Timeline functions
+  handleResetTimelineEventIndex,
+  handleRegisterTimelineEvent,
+  handleClearTimelineEvents,
+  handleUpdateTimelinePhases,
+  handleSeekToTime,
+  handleSeekToPercent,
+  handleSetSessionDuration,
+  handleSetTransitionDuration,
+  
+  // Preset functions
+  handleRegisterPresetStateProvider,
+  handleSavePreset,
+  handleLoadPreset,
+  handleDeletePreset,
+  handleGetPresets,
+  handleExportPreset,
+  handleImportPreset
+]);
 
-  return (
-    <AudioContext.Provider value={contextValue}>
-      {children}
-    </AudioContext.Provider>
-  );
+return (
+  <AudioContext.Provider value={contextValue}>
+    {children}
+  </AudioContext.Provider>
+);
 };
 
 export default AudioContext;
