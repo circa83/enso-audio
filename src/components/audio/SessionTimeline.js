@@ -1,6 +1,6 @@
 // src/components/audio/SessionTimeline.js
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useAudio } from '../../hooks/useAudio'; // Updated to use the new hook
+import { useAudio } from '../../hooks/useAudio'; // Using our refactored hook
 import PhaseMarker from './PhaseMarker';
 import styles from '../../styles/components/SessionTimeline.module.css';
 
@@ -13,11 +13,9 @@ const DEFAULT_PHASES = [
 
 const SessionTimeline = ({ 
   enabled = true, 
-  sessionDuration = 60 * 60 * 1000, // Default 1 hour
-  transitionDuration = 4000, // Default 4s transition time
   onDurationChange 
 }) => {
-  // Use the refactored audio hook with its grouped functionality
+  // Use our new hook with grouped functionality
   const { 
     playback,
     volume,
@@ -58,12 +56,12 @@ const SessionTimeline = ({
     
     // Register session duration
     if (timeline.setDuration) {
-      timeline.setDuration(sessionDuration);
+      timeline.setDuration(timeline.duration);
     }
     
     // Register transition duration
     if (timeline.setTransitionDuration) {
-      timeline.setTransitionDuration(transitionDuration);
+      timeline.setTransitionDuration(timeline.transitionDuration);
     }
     
     // Clean up
@@ -72,34 +70,34 @@ const SessionTimeline = ({
         clearInterval(volumeTransitionTimer.current);
       }
     };
-  }, []);
+  }, [phases, timeline]);
   
   // Register the state provider for presets
   useEffect(() => {
-    if (layers.registerPresetStateProvider) {
-      // This function will be called when saving a preset
-      const getTimelineState = () => {
-        return {
-          phases: phases.map(phase => ({
-            id: phase.id,
-            name: phase.name,
-            position: phase.position,
-            color: phase.color,
-            state: phase.state,
-            locked: phase.locked
-          })),
-          sessionDuration: sessionDuration,
-          transitionDuration: transitionDuration
-        };
+    // This function will be called when saving a preset
+    const getTimelineState = () => {
+      return {
+        phases: phases.map(phase => ({
+          id: phase.id,
+          name: phase.name,
+          position: phase.position,
+          color: phase.color,
+          state: phase.state,
+          locked: phase.locked
+        })),
+        sessionDuration: timeline.duration,
+        transitionDuration: timeline.transitionDuration
       };
+    };
 
-      // Register the function
-      layers.registerPresetStateProvider('timeline', getTimelineState);
+    // Register the function with the preset system
+    if (timeline.registerPresetStateProvider) {
+      timeline.registerPresetStateProvider('timeline', getTimelineState);
       
       // Clean up when component unmounts
-      return () => layers.registerPresetStateProvider('timeline', null);
+      return () => timeline.registerPresetStateProvider('timeline', null);
     }
-  }, [layers.registerPresetStateProvider, phases, sessionDuration, transitionDuration]);
+  }, [phases, timeline]);
 
   // Handle when timeline phases are updated from a preset
   useEffect(() => {
@@ -268,27 +266,22 @@ const SessionTimeline = ({
   
   // Update time and progress bar - runs continuously during playback
   useEffect(() => {
-    
     let interval;
     
     if (enabled && playback.isPlaying) {
-      console.log('Updating time and progress bar');  
       interval = setInterval(() => {
         const time = playback.getTime();
         setCurrentTime(time);
         
-        const progressPercent = Math.min(100, (time / sessionDuration) * 100);
+        const progressPercent = Math.min(100, (time / timeline.duration) * 100);
         setProgress(progressPercent);
-      }, 50);
-      if(!playback.isPlaying){
-        console.log('Playback is not playing, stopping time updates');
-      } // Update more frequently for smoother animation
+      }, 50); // Update more frequently for smoother animation
     }
     
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [enabled, playback, sessionDuration]);
+  }, [enabled, playback, timeline.duration]);
   
   // Phase detection logic - separate from animation updates
   useEffect(() => {
@@ -302,7 +295,7 @@ const SessionTimeline = ({
         }
         
         const time = playback.getTime();
-        const progressPercent = Math.min(100, (time / sessionDuration) * 100);
+        const progressPercent = Math.min(100, (time / timeline.duration) * 100);
         
         // Find the current phase based on progress
         const sortedPhases = [...phases].sort((a, b) => b.position - a.position);
@@ -343,7 +336,7 @@ const SessionTimeline = ({
     return () => {
       if (phaseCheckInterval) clearInterval(phaseCheckInterval);
     };
-  }, [enabled, playback, phases, volume.layers, layers.active, sessionDuration, transitioning]);
+  }, [enabled, playback, phases, volume.layers, layers.active, timeline.duration, transitioning]);
   
   // Format time display (HH:MM:SS)
   const formatTime = useCallback((ms) => {
@@ -357,10 +350,10 @@ const SessionTimeline = ({
   
   // Format estimated time remaining
   const formatTimeRemaining = useCallback(() => {
-    const remainingMs = sessionDuration - currentTime;
+    const remainingMs = timeline.duration - currentTime;
     if (remainingMs <= 0) return '00:00:00';
     return formatTime(remainingMs);
-  }, [formatTime, currentTime, sessionDuration]);
+  }, [formatTime, currentTime, timeline.duration]);
   
   // Handle phase marker position change
   const handlePhaseMarkerDrag = useCallback((index, newPosition) => {
@@ -467,7 +460,7 @@ const SessionTimeline = ({
     setTransitioning(true);
     
     // Use the duration from session settings
-    const duration = transitionDuration;
+    const duration = timeline.transitionDuration;
     console.log(`Starting full transition with duration: ${duration}ms`);
     
     // Step 1: Identify track changes needed
@@ -582,7 +575,7 @@ const SessionTimeline = ({
       console.log('No transitions needed for this phase');
       finishTransition(phase);
     }
-  }, [enabled, transitionDuration, layers.active, volume, transitions]);
+  }, [enabled, timeline.transitionDuration, layers.active, volume, transitions]);
   
   // Helper function to finish the transition and update state
   const finishTransition = useCallback((phase) => {
@@ -607,11 +600,6 @@ const SessionTimeline = ({
       deselectAllMarkers();
     }
   }, [deselectAllMarkers, timelineRef]);
-  
-  // Debug logging to help diagnose issues
-  console.log("SessionTimeline rendering with phases:", phases);
-  console.log("Selected phase:", selectedPhase);
-  console.log("Active phase:", activePhase);
   
   if (!enabled) return null;
   
@@ -649,10 +637,10 @@ const SessionTimeline = ({
           style={{ width: `${progress}%` }}
         />
         
-        {/* Map phase markers - this is the critical part */}
+        {/* Map phase markers */}
         {phases.map((phase, index) => (
           <PhaseMarker
-            key={phase.id || index} // Fallback in case id is missing
+            key={phase.id || index}
             name={phase.name}
             color={phase.color}
             position={phase.position}
@@ -665,7 +653,7 @@ const SessionTimeline = ({
             onStateCapture={() => capturePhaseState(index)}
             storedState={phase.state}
             editMode={editMode}
-            sessionDuration={sessionDuration}
+            sessionDuration={timeline.duration}
             hasStateCaptured={!!phase.state}
           />
         ))}
