@@ -1,40 +1,45 @@
 // src/components/audio/PlayerControlPanel.js
-import React from 'react';
-import { useAudio } from '../../contexts/StreamingAudioContext';
+import React, { memo, useCallback } from 'react';
+import { useAudio } from '../../hooks/useAudio';
 import AudioVisualizer from './AudioVisualizer';
 import MasterVolumeControl from './MasterVolumeControl';
 import styles from '../../styles/components/PlayerControlPanel.module.css';
 
+/**
+ * PlayerControlPanel component
+ * 
+ * Provides the main playback controls, audio visualization,
+ * and master volume controls for the audio player
+ * 
+ * @returns {JSX.Element} Rendered component
+ */
 const PlayerControlPanel = () => {
-  const { isPlaying, startSession, pauseSession } = useAudio();
+  // Use our new hook with grouped API
+  const { playback } = useAudio();
   
-  const togglePlayPause = () => {
-    if (isPlaying) {
-      pauseSession();
+  // Handle play/pause with useCallback for optimization
+  const togglePlayPause = useCallback(() => {
+    if (playback.isPlaying) {
+      playback.pause();
     } else {
-      startSession();
+      playback.start();
     }
-  };
+  }, [playback]);
   
   return (
     <div className={styles.playerControlPanel}>
       <div className={styles.visualizerSection}>
-       {/* <AudioVisualizer /> */}
-       <div className={styles.imageContainer}>
-          <img 
-            src="/images/Stillness_EnsōAudio_bkcp.png" 
-            alt="Ensō circle" 
-            className={styles.staticImage}
-          />
-        </div>
+        <AudioVisualizer />
       </div>
       
       <div className={styles.controlsSection}>
         <button 
-          className={`${styles.playButton} ${isPlaying ? styles.playing : ''}`}
+          className={`${styles.playButton} ${playback.isPlaying ? styles.playing : ''}`}
           onClick={togglePlayPause}
+          aria-label={playback.isPlaying ? 'Stop' : 'Play'}
+          aria-pressed={playback.isPlaying}
         >
-          {isPlaying ? 'Stop' : 'Play'}
+          {playback.isPlaying ? 'Stop' : 'Play'}
         </button>
         
         <MasterVolumeControl />
@@ -43,4 +48,5 @@ const PlayerControlPanel = () => {
   );
 };
 
-export default PlayerControlPanel;
+// Use memo for performance optimization
+export default memo(PlayerControlPanel);

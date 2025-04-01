@@ -1,91 +1,69 @@
 /* src/styles/components/PlayerControlPanel.module.css */
 .playerControlPanel {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin: 30px 0;
-    padding: 30px;
-    background-color: #1c1c1c;
-    border: 1px solid #333;
-    width: 100%;
-    box-sizing: border-box;
-  }
-  
-  .visualizerSection {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    margin-bottom: 30px;
-  }
-  
-  .controlsSection {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 70%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 30px 0;
+  padding: 30px;
+  background-color: #1c1c1c;
+  border: 1px solid #333;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.visualizerSection {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 30px;
+}
+
+.controlsSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 70%;
+}
+
+.playButton {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background-color: transparent;
+  border: 1px solid #ffffff;
+  color: #ffffff;
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 0.8rem;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+  margin-bottom: 25px;
+}
+
+.playButton:hover {
+  background-color: #ffffff;
+  color: #111111;
+}
+
+.playButton.playing {
+  background-color: #ffffff;
+  color: #111111;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .playerControlPanel {
+    padding: 20px;
   }
   
   .playButton {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    background-color: transparent;
-    border: 1px solid #ffffff;
-    color: #ffffff;
-    font-family: 'Archivo', sans-serif;
-    font-weight: 200;
-    font-size: 0.8rem;
-    letter-spacing: 1px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-transform: uppercase;
-    margin-bottom: 25px;
+    width: 50px;
+    height: 50px;
+    font-size: 0.7rem;
   }
-  
-  .playButton:hover {
-    background-color: #ffffff;
-    color: #111111;
-  }
-  
-  .playButton.playing {
-    background-color: #ffffff;
-    color: #111111;
-  }
-  .imageContainer {
-    width: 100%;
-    max-width: 300px;
-    aspect-ratio: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin: 0 auto;
-  }
-  
-  .staticImage {
-    max-width: 100%;
-    height: auto;
-    transition: opacity 0.3s ease;
-    /* Optional: Add subtle effects when audio is playing */
-    opacity: 0.8;
-  }
-  
-  /* You can add a class to change the image when playing */
-  .playing .staticImage {
-    opacity: 1;
-  }
-  
-  /* Responsive adjustments */
-  @media (max-width: 768px) {
-    .playerControlPanel {
-      padding: 20px;
-    }
-    
-    .playButton {
-      width: 50px;
-      height: 50px;
-      font-size: 0.7rem;
-    }
-  }
+}

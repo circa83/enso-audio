@@ -1,10 +1,26 @@
 // src/components/audio/MasterVolumeControl.js
-import React from 'react';
-import { useAudio } from '../../contexts/StreamingAudioContext';
+import React, { memo } from 'react';
+import { useAudio } from '../../hooks/useAudio';
 import styles from '../../styles/components/MasterVolumeControl.module.css';
 
+/**
+ * Master volume control component
+ * Provides a slider to control the global master volume level
+ * 
+ * @returns {JSX.Element} Rendered component
+ */
 const MasterVolumeControl = () => {
-  const { masterVolume, setMasterVolumeLevel } = useAudio();
+  // Use our new hook with the grouped API pattern
+  const { volume } = useAudio();
+  
+  // Handle volume change from the slider
+  const handleVolumeChange = (e) => {
+    const newVolume = parseFloat(e.target.value);
+    volume.setMaster(newVolume);
+  };
+  
+  // Format volume as percentage for display
+  const volumePercentage = Math.round(volume.master * 100);
   
   return (
     <div className={styles.masterVolume}>
@@ -15,14 +31,19 @@ const MasterVolumeControl = () => {
           min="0" 
           max="1" 
           step="0.01" 
-          value={masterVolume}
-          onChange={(e) => setMasterVolumeLevel(parseFloat(e.target.value))}
+          value={volume.master}
+          onChange={handleVolumeChange}
           className={styles.volumeSlider}
+          aria-label="Master Volume"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow={volumePercentage}
         />
-        <span className={styles.volumeValue}>{Math.round(masterVolume * 100)}%</span>
+        <span className={styles.volumeValue}>{volumePercentage}%</span>
       </div>
     </div>
   );
 };
 
-export default MasterVolumeControl;
+// Use React.memo to prevent unnecessary re-renders
+export default memo(MasterVolumeControl);
