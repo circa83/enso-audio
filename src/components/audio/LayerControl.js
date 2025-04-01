@@ -26,11 +26,13 @@ const LayerControl = ({ label, layer }) => {
   // Format volume as percentage for display and accessibility
   const volumePercentage = Math.round(currentVolume * 100);
   
-  // Handle volume change with useCallback for optimization
-  const handleVolumeChange = useCallback((e) => {
-    const newVolume = parseFloat(e.target.value);
-    volume.setLayer(layerKey, newVolume);
-  }, [volume, layerKey]);
+    // Handle volume change with useCallback for optimization
+    const handleVolumeChange = useCallback((e) => {
+      console.log(`Volume change for ${layerKey}: ${e.target.value}`);
+      const newVolume = parseFloat(e.target.value);
+      volume.setLayer(layerKey, newVolume);
+    }, [volume, layerKey]);
+    
   
   return (
     <div className={styles.layerSlider}>
