@@ -24,6 +24,14 @@ const CollapsibleSection = ({
   const toggleExpanded = () => {
     const newExpandedState = !isExpanded;
     setIsExpanded(newExpandedState);
+
+    // Only call onExpand if truly expanding (not collapsing)
+  if (newExpandedState && onExpand) {
+    // Use setTimeout to defer the callback until after state update
+    setTimeout(() => {
+      onExpand();
+    }, 0);
+  }
   };
   
   return (

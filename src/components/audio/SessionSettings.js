@@ -27,6 +27,7 @@ const SessionSettings = ({
     const newDuration = (durationHours * 60 * 60 * 1000) + 
                         (durationMinutes * 60 * 1000) + 
                         (durationSeconds * 1000);
+                        console.log(`Setting session duration to: ${newDuration}ms`);
     onDurationChange(newDuration);
   };
   
@@ -62,6 +63,7 @@ const SessionSettings = ({
   // Handle transition duration change
   const handleTransitionDurationChange = (e) => {
     const value = parseInt(e.target.value, 10);
+    console.log(`Setting transition duration to: ${value}ms`);
     onTransitionDurationChange(value);
   };
   

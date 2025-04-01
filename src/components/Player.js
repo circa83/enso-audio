@@ -309,8 +309,24 @@ const Player = () => {
         sessionDuration={sessionDuration}
         timelineEnabled={timelineEnabled}
         transitionDuration={transitionDuration}
-        onDurationChange={newDuration => setSessionDuration(newDuration)}
-        onTransitionDurationChange={newDuration => setTransitionDuration(newDuration)}
+        onDurationChange={newDuration => {
+          console.log(`Player received new session duration: ${newDuration}ms`);
+          setSessionDuration(newDuration);
+          
+          // Make sure this is passed to the timeline service
+          if (timeline.setDuration) {
+            timeline.setDuration(newDuration);
+          }
+        }}
+        onTransitionDurationChange={newDuration => {
+          console.log(`Player received new transition duration: ${newDuration}ms`);
+          setTransitionDuration(newDuration);
+          
+          // Make sure this is passed to the timeline service
+          if (timeline.setTransitionDuration) {
+            timeline.setTransitionDuration(newDuration);
+          }
+        }}
         onTimelineToggle={enabled => setTimelineEnabled(enabled)}
       />
     );

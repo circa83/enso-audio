@@ -63,6 +63,14 @@ const SessionTimeline = ({
     if (timeline.setTransitionDuration) {
       timeline.setTransitionDuration(timeline.transitionDuration);
     }
+
+      // IMPORTANT: Only reset timeline if playback is not active
+  // This prevents resetting when the component mounts during playback
+  if (!playback.isPlaying && timeline.reset) {
+    console.log("Timeline reset on mount (playback not active)");
+    timeline.reset();
+  }
+  
     
     // Clean up
     return () => {
@@ -187,6 +195,12 @@ const SessionTimeline = ({
   
   // Reset all timeline state for a clean restart
   const resetTimeline = useCallback(() => {
+    // Don't reset if playback is active - this prevents disruption
+  if (playback.isPlaying) {
+    console.log("Skipping timeline reset - playback is active");
+    return;
+  }
+  
     setProgress(0);
     setCurrentTime(0);
     
@@ -269,17 +283,27 @@ const SessionTimeline = ({
     let interval;
     
     if (enabled && playback.isPlaying) {
+      // Add debug logging
+      console.log("Starting SessionTimeline progress tracking");
+      
       interval = setInterval(() => {
         const time = playback.getTime();
         setCurrentTime(time);
         
         const progressPercent = Math.min(100, (time / timeline.duration) * 100);
+        // Log progress occasionally to verify it's updating
+        if (Math.floor(progressPercent) % 10 === 0) {
+          console.log(`Timeline progress: ${progressPercent.toFixed(1)}%`);
+        }
         setProgress(progressPercent);
       }, 50); // Update more frequently for smoother animation
     }
     
     return () => {
-      if (interval) clearInterval(interval);
+      if (interval) {
+        console.log("Cleaning up SessionTimeline progress tracking");
+        clearInterval(interval);
+      }
     };
   }, [enabled, playback, timeline.duration]);
   
