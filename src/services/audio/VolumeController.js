@@ -92,56 +92,60 @@ class VolumeController {
      * @returns {boolean} - Success status
      */
     setVolume(layerId, volume, options = {}) {
-      // Clamp volume to valid range
-      const safeVolume = Math.max(0, Math.min(1, volume));
-      
-      // Get options
-      const immediate = options.immediate || false;
-      const transitionTime = options.transitionTime || this.config.transitionTime;
-      
-      try {
-        // Get the gain node (create if doesn't exist)
-        const gainNode = this.getGainNode(layerId);
+        // Clamp volume to valid range
+        const safeVolume = Math.max(0, Math.min(1, volume));
         
-        // Get the current volume
-        const currentVolume = this.volumeLevels.get(layerId);
+        // Get options - default to immediate for UI-driven changes
+        const immediate = options.immediate !== undefined ? options.immediate : true;
+        const transitionTime = options.transitionTime || this.config.transitionTime;
         
-        // Skip if volume hasn't changed
-        if (currentVolume === safeVolume) {
+        try {
+          // Get the gain node (create if doesn't exist)
+          const gainNode = this.getGainNode(layerId);
+          
+          // Get the current volume
+          const currentVolume = this.volumeLevels.get(layerId);
+          
+          // Skip if volume hasn't changed
+          if (currentVolume === safeVolume) {
+            return true;
+          }
+          
+          // Set gain value
+          if (immediate) {
+            // Cancel any scheduled changes
+            const now = this.audioContext.currentTime;
+            gainNode.gain.cancelScheduledValues(now);
+            
+            // Set immediately
+            gainNode.gain.value = safeVolume;
+          } else {
+            // Smooth transition with proper cancellation
+            const now = this.audioContext.currentTime;
+            
+            // Cancel any previously scheduled automation
+            gainNode.gain.cancelScheduledValues(now);
+            
+            // Start from current value
+            gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+            
+            // Linear ramp to target value
+            gainNode.gain.linearRampToValueAtTime(
+              safeVolume, 
+              now + transitionTime
+            );
+          }
+          
+          // Update stored volume
+          this.volumeLevels.set(layerId, safeVolume);
+          
           return true;
+        } catch (error) {
+          this.log(`Error setting volume for "${layerId}": ${error.message}`, 'error');
+          return false;
         }
-        
-        // Set gain value
-        if (immediate) {
-          // Set immediately
-          gainNode.gain.value = safeVolume;
-          this.log(`Set volume for "${layerId}" to ${safeVolume} (immediate)`);
-        } else {
-          // Smooth transition
-          const now = this.audioContext.currentTime;
-          
-          // Start from current value
-          gainNode.gain.setValueAtTime(currentVolume, now);
-          
-          // Linear ramp to target value
-          gainNode.gain.linearRampToValueAtTime(
-            safeVolume, 
-            now + transitionTime
-          );
-          
-          this.log(`Transitioning volume for "${layerId}" from ${currentVolume} to ${safeVolume} over ${transitionTime}s`);
-        }
-        
-        // Update stored volume
-        this.volumeLevels.set(layerId, safeVolume);
-        
-        return true;
-      } catch (error) {
-        this.log(`Error setting volume for "${layerId}": ${error.message}`, 'error');
-        return false;
       }
-    }
-    
+     
     /**
      * Get the current volume for a specific layer
      * 
@@ -207,6 +211,8 @@ class VolumeController {
         
         // Connect source to gain node
         sourceNode.connect(gainNode);
+
+        console.log(`VolumeController: Connected source to layer "${layerId}" with volume ${gainNode.gain.value}`);
         
         return true;
       } catch (error) {

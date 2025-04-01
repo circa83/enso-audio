@@ -1,5 +1,5 @@
 // src/components/audio/LayerControl.js
-import React, { memo, useCallback, useEffect } from 'react';
+import React, { memo, useCallback, useEffect, useRef } from 'react';
 import { useAudio } from '../../hooks/useAudio';
 import LayerDropdown from './LayerDropdown';
 import styles from '../../styles/components/LayerControl.module.css';
@@ -17,6 +17,10 @@ const LayerControl = ({ label, layer }) => {
   // Use our new hook with grouped API
   const { volume, layers } = useAudio();
   
+    // Track mounting state with useRef (doesn't cause re-renders)
+    const isMounted = useRef(false);
+    
+    
    // Get normalized layer key (lowercase)
    const layerKey = layer.toLowerCase();
   
@@ -27,37 +31,29 @@ const LayerControl = ({ label, layer }) => {
   // Format volume as percentage for display and accessibility
   const volumePercentage = Math.round(currentVolume * 100);
   
+    // Track component lifecycle without triggering re-renders
+    useEffect(() => {
+      // Only log on initial mount
+      if (!isMounted.current) {
+        isMounted.current = true;
+        console.log(`LayerControl mounted for ${layerKey}, initial volume: ${currentVolume}`);
+      }
+      
+      // Cleanup on unmount
+      return () => {
+        console.log(`LayerControl unmounted for ${layerKey}`);
+        isMounted.current = false;
+      };
+    }, [layerKey, currentVolume]);
 
-  //DEBUGGING
-   // Add debugging for initial render
-   useEffect(() => {
-    console.log(`LayerControl mounted for ${layerKey}, initial volume:`, currentVolume);
-    console.log(`Volume object:`, volume);
-    // Return cleanup function
-    return () => {
-      console.log(`LayerControl unmounted for ${layerKey}`);
-    };
-  }, [layerKey, currentVolume, volume]);
-    // Add debugging for volume change
-    useEffect(() => {
-      console.log(`Volume changed for ${layerKey}:`, currentVolume);
-    }
-    , [currentVolume, layerKey]);
-    // Add debugging for layer switch         
-    useEffect(() => {
-      console.log(`Layer switchable: ${layers.hasSwitchable}`);
-    }, [layers.hasSwitchable]);
-    // Add debugging for layer dropdown
-    useEffect(() => {
-      console.log(`Layer dropdown available for ${layerKey}`);
-    }
-    , [volume, layerKey]);
    // Handle volume change with the same pattern as master volume
    const handleVolumeChange = useCallback((e) => {
     const newVolume = parseFloat(e.target.value);
     // Set volume with immediate=true to match master volume behavior
     volume.setLayer(layerKey, newVolume, { immediate: true });
   }, [volume, layerKey]);
+
+
   
   return (
     <div className={styles.layerSlider}>
