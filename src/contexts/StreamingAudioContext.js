@@ -525,10 +525,10 @@ export const AudioProvider = ({ children }) => {
             updatePlayingState(true);
             
             // Start the TimelineEngine
-            console.log("About to start TimelineEngine, current instance:", serviceRef.current.timelineEngine);
+console.log("About to start TimelineEngine, current instance:", serviceRef.current.timelineEngine);
             if (serviceRef.current.timelineEngine) {
-              const started = serviceRef.current.timelineEngine.start({ reset: true });
-              console.log("TimelineEngine start result:", started);
+const started = serviceRef.current.timelineEngine.start({ reset: true });
+console.log("TimelineEngine start result:", started);
             }
           }
         })
@@ -538,10 +538,10 @@ export const AudioProvider = ({ children }) => {
           updatePlayingState(true);
           
           // Start the TimelineEngine
-          console.log("About to start TimelineEngine, current instance:", serviceRef.current.timelineEngine);
+console.log("About to start TimelineEngine, current instance:", serviceRef.current.timelineEngine);
           if (serviceRef.current.timelineEngine) {
-            const started = serviceRef.current.timelineEngine.start({ reset: true });
-            console.log("TimelineEngine start result:", started);
+const started = serviceRef.current.timelineEngine.start({ reset: true });
+console.log("TimelineEngine start result:", started);
           }
         });
       
@@ -550,10 +550,10 @@ export const AudioProvider = ({ children }) => {
         updatePlayingState(true);
         
         // Start the TimelineEngine
-        console.log("About to start TimelineEngine, current instance:", serviceRef.current.timelineEngine);
+console.log("About to start TimelineEngine, current instance:", serviceRef.current.timelineEngine);
         if (serviceRef.current.timelineEngine) {
-          const started = serviceRef.current.timelineEngine.start({ reset: true });
-          console.log("TimelineEngine start result:", started);
+const started = serviceRef.current.timelineEngine.start({ reset: true });
+console.log("TimelineEngine start result:", started);
         }
       }
       
