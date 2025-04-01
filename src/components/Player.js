@@ -1,6 +1,6 @@
 // src/components/Player.js
-import React, { useState, useEffect, useRef } from 'react';
-import { useAudio } from '../contexts/StreamingAudioContext';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useAudio } from '../hooks/useAudio';
 import CollapsibleSection from './common/CollapsibleSection';
 import LayerControl from './audio/LayerControl';
 import SessionTimer from './audio/SessionTimer';
@@ -10,59 +10,69 @@ import PlayerControlPanel from './audio/PlayerControlPanel';
 import DebugOverlay from './debug/DebugOverlay';
 import styles from '../styles/pages/Player.module.css';
 
-
-
+/**
+ * Main Player component for Ensō Audio
+ * 
+ * Integrates all audio functionality including playback controls,
+ * layer management, timeline, and presets
+ * 
+ * @returns {JSX.Element} Rendered component
+ */
 const Player = () => {
+  // Use our new hook with structured API approach
   const { 
-    LAYERS, 
-    volumes, 
-    hasSwitchableAudio,
-    setVolume,
-    getSessionTime,
-    savePreset,
-    loadPreset,
-    deletePreset,
-    getPresets,
-    exportPreset,
-    importPreset,
-    registerPresetStateProvider
+    layers,
+    timeline,
+    presets
   } = useAudio();
   
+  // Local state for settings and UI
   const [sessionDuration, setSessionDuration] = useState(60 * 60 * 1000); // Default 1 hour
   const [timelineEnabled, setTimelineEnabled] = useState(true);
   const [transitionDuration, setTransitionDuration] = useState(4000); // Default 4 seconds
   const [showDebugPanel, setShowDebugPanel] = useState(false); // Debug panel state
   
-  // Preset management
-  const [presets, setPresets] = useState([]);
+  // Preset management state
+  const [availablePresets, setAvailablePresets] = useState([]);
   const [newPresetName, setNewPresetName] = useState('');
   const [selectedPreset, setSelectedPreset] = useState(null);
   const [confirmOperation, setConfirmOperation] = useState(null);
   
-  // Import/Export
+  // Import/Export state
   const [isImporting, setIsImporting] = useState(false);
   const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState(null);
   const fileInputRef = useRef(null);
   
+  // Toggle debug panel with Ctrl+Shift+D
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        e.preventDefault();
+        setShowDebugPanel(prev => !prev);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+  
   // Register our session settings with the preset system
   useEffect(() => {
-    if (registerPresetStateProvider) {
-      const getSessionState = () => {
-        return {
-          timelineEnabled,
-          sessionDuration,
-          transitionDuration
-        };
+    const getSessionState = () => {
+      return {
+        timelineEnabled,
+        sessionDuration,
+        transitionDuration
       };
-      
-      // Register the state provider function
-      registerPresetStateProvider('sessionSettings', getSessionState);
-      
-      // Cleanup on component unmount
-      return () => registerPresetStateProvider('sessionSettings', null);
-    }
-  }, [registerPresetStateProvider, timelineEnabled, sessionDuration, transitionDuration]);
+    };
+    
+    // Register the state provider function
+    presets.registerStateProvider('sessionSettings', getSessionState);
+    
+    // Cleanup on component unmount
+    return () => presets.registerStateProvider('sessionSettings', null);
+  }, [presets, timelineEnabled, sessionDuration, transitionDuration]);
   
   // Listen for settings updates from preset loading
   useEffect(() => {
@@ -92,31 +102,18 @@ const Player = () => {
     };
   }, []);
   
-  // Toggle debug panel with Ctrl+Shift+D
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
-        e.preventDefault();
-        setShowDebugPanel(prev => !prev);
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-  
   // Load available presets when the presets section is expanded
-  const handlePresetsExpanded = () => {
-    const availablePresets = getPresets();
-    setPresets(availablePresets);
-  };
+  const handlePresetsExpanded = useCallback(() => {
+    const loadedPresets = presets.getAll();
+    setAvailablePresets(loadedPresets);
+  }, [presets]);
   
   // Save current state as a preset
-  const handleSavePreset = () => {
+  const handleSavePreset = useCallback(() => {
     if (newPresetName.trim() === '') return;
     
     // Check if preset name already exists
-    const existingPreset = presets.find(p => p.name === newPresetName);
+    const existingPreset = availablePresets.find(p => p.name === newPresetName);
     
     if (existingPreset) {
       // Ask for confirmation before overwriting
@@ -125,67 +122,67 @@ const Player = () => {
         presetName: newPresetName,
         action: () => {
           // Save preset and reset state
-          savePreset(newPresetName);
+          presets.save(newPresetName);
           setNewPresetName('');
           setConfirmOperation(null);
           
           // Refresh presets list
-          const updatedPresets = getPresets();
-          setPresets(updatedPresets);
+          const updatedPresets = presets.getAll();
+          setAvailablePresets(updatedPresets);
         }
       });
     } else {
       // New preset, save directly
-      savePreset(newPresetName);
+      presets.save(newPresetName);
       setNewPresetName('');
       
       // Refresh presets list
-      const updatedPresets = getPresets();
-      setPresets(updatedPresets);
+      const updatedPresets = presets.getAll();
+      setAvailablePresets(updatedPresets);
     }
-  };
+  }, [newPresetName, availablePresets, presets]);
   
   // Load a preset
-  const handleLoadPreset = (presetName) => {
+  const handleLoadPreset = useCallback((presetName) => {
     setSelectedPreset(presetName);
     setConfirmOperation({
       type: 'load',
       presetName,
       action: () => {
-        loadPreset(presetName);
+        presets.load(presetName);
         setConfirmOperation(null);
         setSelectedPreset(null);
       }
     });
-  };
+  }, [presets]);
   
   // Delete a preset
-  const handleDeletePreset = (presetName) => {
+  const handleDeletePreset = useCallback((presetName) => {
     setSelectedPreset(presetName);
     setConfirmOperation({
       type: 'delete',
       presetName,
       action: () => {
-        deletePreset(presetName);
+        presets.delete(presetName);
         setConfirmOperation(null);
         setSelectedPreset(null);
         
         // Refresh presets list
-        const updatedPresets = getPresets();
-        setPresets(updatedPresets);
+        const updatedPresets = presets.getAll();
+        setAvailablePresets(updatedPresets);
       }
     });
-  };
+  }, [presets]);
   
   // Cancel operation
-  const handleCancelOperation = () => {
+  const handleCancelOperation = useCallback(() => {
     setConfirmOperation(null);
     setSelectedPreset(null);
-  };
+  }, []);
   
   // Export a preset to JSON
-  const handleExportPreset = (presetName) => {
-    const presetJson = exportPreset(presetName);
+  const handleExportPreset = useCallback((presetName) => {
+    const presetJson = presets.export(presetName);
     if (!presetJson) return;
     
     // Create a blob object to save
@@ -204,31 +201,31 @@ const Player = () => {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
     }, 0);
-  };
+  }, [presets]);
   
   // Show import UI
-  const handleShowImport = () => {
+  const handleShowImport = useCallback(() => {
     setIsImporting(true);
     setImportText('');
     setImportError(null);
-  };
+  }, []);
   
   // Hide import UI
-  const handleCancelImport = () => {
+  const handleCancelImport = useCallback(() => {
     setIsImporting(false);
     setImportText('');
     setImportError(null);
-  };
+  }, []);
   
   // Import from text
-  const handleImportFromText = () => {
+  const handleImportFromText = useCallback(() => {
     if (!importText.trim()) {
       setImportError('Please enter valid JSON data');
       return;
     }
     
     try {
-      const result = importPreset(importText);
+      const result = presets.import(importText);
       
       if (result.success) {
         setIsImporting(false);
@@ -236,18 +233,18 @@ const Player = () => {
         setImportError(null);
         
         // Refresh presets list
-        const updatedPresets = getPresets();
-        setPresets(updatedPresets);
+        const updatedPresets = presets.getAll();
+        setAvailablePresets(updatedPresets);
       } else {
         setImportError(result.error || 'Failed to import preset');
       }
     } catch (error) {
       setImportError(`Error importing preset: ${error.message}`);
     }
-  };
+  }, [importText, presets]);
   
   // Handle file selection for import
-  const handleFileSelect = (e) => {
+  const handleFileSelect = useCallback((e) => {
     const file = e.target.files[0];
     if (!file) return;
     
@@ -272,27 +269,25 @@ const Player = () => {
     };
     
     reader.readAsText(file);
-  };
+  }, []);
   
   // Render audio layer controls
-  const renderLayerControls = () => {
+  const renderLayerControls = useCallback(() => {
     return (
       <div className={styles.layerControlsContent}>
-        {Object.values(LAYERS).map(layer => (
+        {Object.values(layers.TYPES).map(layer => (
           <LayerControl
             key={layer}
             label={layer.charAt(0).toUpperCase() + layer.slice(1)}
-            value={volumes[layer.toLowerCase()]}
-            onChange={(value) => setVolume(layer.toLowerCase(), value)}
             layer={layer}
           />
         ))}
       </div>
     );
-  };
+  }, [layers.TYPES]);
   
   // Render session timeline content
-  const renderSessionTimeline = () => {
+  const renderSessionTimeline = useCallback(() => {
     if (!timelineEnabled) return (
       <div className={styles.timelineDisabled}>
         Timeline is currently disabled. Enable it in Session Settings.
@@ -302,15 +297,13 @@ const Player = () => {
     return (
       <SessionTimeline 
         enabled={true}
-        sessionDuration={sessionDuration}
-        transitionDuration={transitionDuration}
         onDurationChange={setSessionDuration}
       />
     );
-  };
+  }, [timelineEnabled]);
   
-  // Render session settings content - reusing the existing component
-  const renderSessionSettings = () => {
+  // Render session settings content
+  const renderSessionSettings = useCallback(() => {
     return (
       <SessionSettings 
         sessionDuration={sessionDuration}
@@ -321,10 +314,10 @@ const Player = () => {
         onTimelineToggle={enabled => setTimelineEnabled(enabled)}
       />
     );
-  };
+  }, [sessionDuration, timelineEnabled, transitionDuration]);
   
   // Render presets content
-  const renderPresetsContent = () => {
+  const renderPresetsContent = useCallback(() => {
     return (
       <div className={styles.presetsContent}>
         <div className={styles.presetControls}>
@@ -441,10 +434,10 @@ const Player = () => {
         )}
         
         <div className={styles.presetsList}>
-          {presets.length === 0 ? (
+          {availablePresets.length === 0 ? (
             <div className={styles.noPresets}>No saved presets</div>
           ) : (
-            presets.map(preset => (
+            availablePresets.map(preset => (
               <div 
                 key={preset.name} 
                 className={`${styles.presetItem} ${selectedPreset === preset.name ? styles.selected : ''}`}
@@ -479,7 +472,13 @@ const Player = () => {
         </div>
       </div>
     );
-  };
+  }, [
+    newPresetName, handleSavePreset, handleShowImport, isImporting, 
+    handleCancelImport, fileInputRef, handleFileSelect, importText, 
+    importError, handleImportFromText, confirmOperation, 
+    handleCancelOperation, availablePresets, selectedPreset, 
+    handleLoadPreset, handleExportPreset, handleDeletePreset
+  ]);
   
   return (
     <div className={styles.simplePlayer}>
@@ -516,7 +515,7 @@ const Player = () => {
         {renderSessionSettings()}
       </CollapsibleSection>
       
-      {/* NEW: Collapsible Section for Presets */}
+      {/* Collapsible Section for Presets */}
       <CollapsibleSection 
         title="Presets" 
         initialExpanded={false}
@@ -525,13 +524,11 @@ const Player = () => {
         {renderPresetsContent()}
       </CollapsibleSection>
       
-        {/* Add the debug overlay */}
-        <DebugOverlay />
+      {/* Add the debug overlay */}
+      <DebugOverlay />
       
       {/* Session Timer */}
       <SessionTimer />
-      
-    
       
       <div className={styles.debugNote}>
         Press Ctrl+Shift+D to toggle debug panel
