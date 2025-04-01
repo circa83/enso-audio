@@ -268,16 +268,21 @@ const SessionTimeline = ({
   
   // Update time and progress bar - runs continuously during playback
   useEffect(() => {
+    
     let interval;
     
     if (enabled && playback.isPlaying) {
+      console.log('Updating time and progress bar');  
       interval = setInterval(() => {
         const time = playback.getTime();
         setCurrentTime(time);
         
         const progressPercent = Math.min(100, (time / sessionDuration) * 100);
         setProgress(progressPercent);
-      }, 50); // Update more frequently for smoother animation
+      }, 50);
+      if(!playback.isPlaying){
+        console.log('Playback is not playing, stopping time updates');
+      } // Update more frequently for smoother animation
     }
     
     return () => {

@@ -429,7 +429,7 @@ export const AudioProvider = ({ children }) => {
   });
     
     // Apply volume using the VolumeController
-  const result = serviceRef.current.volumeController.setVolume(layer, value);
+  const result = serviceRef.current.volumeController.setVolume(layer, value, options);
   console.log(`VolumeController.setVolume result for ${layer}: ${result}`);
   
   // If there's an active crossfade for this layer, update its volume too
@@ -525,8 +525,10 @@ export const AudioProvider = ({ children }) => {
             updatePlayingState(true);
             
             // Start the TimelineEngine
+            console.log("About to start TimelineEngine, current instance:", serviceRef.current.timelineEngine);
             if (serviceRef.current.timelineEngine) {
-              serviceRef.current.timelineEngine.start({ reset: true });
+              const started = serviceRef.current.timelineEngine.start({ reset: true });
+              console.log("TimelineEngine start result:", started);
             }
           }
         })
@@ -536,8 +538,10 @@ export const AudioProvider = ({ children }) => {
           updatePlayingState(true);
           
           // Start the TimelineEngine
+          console.log("About to start TimelineEngine, current instance:", serviceRef.current.timelineEngine);
           if (serviceRef.current.timelineEngine) {
-            serviceRef.current.timelineEngine.start({ reset: true });
+            const started = serviceRef.current.timelineEngine.start({ reset: true });
+            console.log("TimelineEngine start result:", started);
           }
         });
       
@@ -546,8 +550,10 @@ export const AudioProvider = ({ children }) => {
         updatePlayingState(true);
         
         // Start the TimelineEngine
+        console.log("About to start TimelineEngine, current instance:", serviceRef.current.timelineEngine);
         if (serviceRef.current.timelineEngine) {
-          serviceRef.current.timelineEngine.start({ reset: true });
+          const started = serviceRef.current.timelineEngine.start({ reset: true });
+          console.log("TimelineEngine start result:", started);
         }
       }
       
