@@ -113,7 +113,7 @@ export function useAudio() {
     master: masterVolume,
     layers: volumes,
     setMaster: setMasterVolumeLevel,
-    setLayer: setVolume
+    setLayer: (layer, level, options) => setVolume(layer, level, options)
   };
   
   // Layer management

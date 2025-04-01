@@ -408,7 +408,7 @@ export const AudioProvider = ({ children }) => {
   }, []);
 
   // Set volume for a specific layer
-const handleSetVolume = useCallback((layer, value) => {
+  const handleSetVolume = useCallback((layer, value, options = {}) => {
   console.log(`handleSetVolume called for ${layer}: ${value}`);
   
   if (!serviceRef.current.volumeController) {
