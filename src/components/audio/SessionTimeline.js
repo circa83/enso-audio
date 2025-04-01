@@ -1,6 +1,7 @@
 // src/components/audio/SessionTimeline.js
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudio } from '../../hooks/useAudio';
+import PhaseMarker from './PhaseMarker';
 import styles from '../../styles/components/SessionTimeline.module.css';
 
 /**
@@ -29,6 +30,8 @@ const SessionTimeline = ({
   const [currentTime, setCurrentTime] = useState(0);
   const [progress, setProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [selectedPhase, setSelectedPhase] = useState(null);
   
   // Refs
   const timelineRef = useRef(null);
@@ -72,6 +75,9 @@ const SessionTimeline = ({
   // Handle timeline click/touch for seeking
   const handleTimelineClick = useCallback((e) => {
     if (!timelineRef.current || !enabled) return;
+
+    // Ignore clicks during edit mode unless it's on the timeline itself
+    if (editMode && e.target !== timelineRef.current) return;
     
     // Get timeline element dimensions
     const rect = timelineRef.current.getBoundingClientRect();
@@ -96,6 +102,11 @@ const SessionTimeline = ({
   // Handle drag start
   const handleDragStart = useCallback((e) => {
     if (!enabled) return;
+    setIsDragging(true);
+    
+    // Skip if we're in edit mode
+    if (editMode) return;
+    
     setIsDragging(true);
     
     // Prevent text selection during drag
@@ -143,6 +154,53 @@ const SessionTimeline = ({
     document.removeEventListener('touchmove', handleTouchMove);
     document.removeEventListener('touchend', handleDragEnd);
   }, [handleDragMove, handleTouchMove]);
+
+   // Toggle edit mode
+   const toggleEditMode = useCallback(() => {
+    setEditMode(prev => !prev);
+    setSelectedPhase(null); // Clear selection when toggling mode
+  }, []);
+  
+  // Phase marker callbacks
+  const handlePhaseSelect = useCallback((phaseId) => {
+    if (!editMode) return;
+    setSelectedPhase(phaseId);
+  }, [editMode]);
+  
+  const handlePhaseDeselect = useCallback(() => {
+    setSelectedPhase(null);
+  }, []);
+  
+  const handlePhasePositionChange = useCallback((phaseId, newPosition) => {
+    if (!editMode) return;
+    
+    // Call the timeline service to update the phase position
+    timeline.updatePhases(
+      timeline.phases.map(phase => 
+        phase.id === phaseId 
+          ? { ...phase, position: newPosition } 
+          : phase
+      )
+    );
+  }, [editMode, timeline]);
+  
+  const handleCapturePhaseState = useCallback((phaseId) => {
+    if (!editMode) return;
+    
+    // Find the phase to update
+    const phase = timeline.phases.find(p => p.id === phaseId);
+    if (!phase) return;
+    
+    // In a real implementation, we would capture the current state here
+    // For this version, we'll just update the phase to mark it as having state
+    const updatedPhases = timeline.phases.map(p => 
+      p.id === phaseId 
+        ? { ...p, state: { capturedAt: new Date().toISOString() } } 
+        : p
+    );
+    
+    timeline.updatePhases(updatedPhases);
+  }, [editMode, timeline]);
   
   // Cleanup event listeners on unmount
   useEffect(() => {
@@ -161,19 +219,62 @@ const SessionTimeline = ({
     <div className={styles.timelineContainer}>
       <div className={styles.timelineHeader}>
         <h2 className={styles.timelineTitle}>Session Timeline</h2>
+        
+        <div className={styles.timelineControls}>
+          <button 
+            className={`${styles.controlButton} ${editMode ? styles.active : ''}`}
+            onClick={toggleEditMode}
+          >
+            {editMode ? 'Exit Edit Mode' : 'Edit Phases'}
+          </button>
+        </div>
       </div>
       
-      <div 
-        className={styles.timeline} 
-        ref={timelineRef}
-        onClick={handleTimelineClick}
-        onMouseDown={handleDragStart}
-        onTouchStart={handleDragStart}
-      >
+      {/* Phase indicator */}
+      <div className={styles.phaseIndicator}>
+        Current Phase:
+        <span className={styles.activePhase}>
+          {timeline.activePhase 
+            ? timeline.phases.find(p => p.id === timeline.activePhase)?.name || 'Unknown'
+            : 'None'}
+        </span>
+      </div>
+      
+      {/* Timeline container with phase markers */}
+      <div className={styles.timelineWrapper}>
         <div 
-          className={styles.progressBar} 
-          style={{ width: `${progress}%` }}
-        />
+          className={styles.timeline} 
+          ref={timelineRef}
+          onClick={handleTimelineClick}
+          onMouseDown={handleDragStart}
+          onTouchStart={handleDragStart}
+        >
+          <div 
+            className={styles.progressBar} 
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        
+        {/* Render phase markers - positioned absolutely relative to the wrapper */}
+        {Array.isArray(timeline.phases) && timeline.phases.map(phase => (
+          <PhaseMarker
+            key={phase.id}
+            name={phase.name}
+            color={phase.color}
+            position={phase.position}
+            isActive={timeline.activePhase === phase.id}
+            isSelected={selectedPhase === phase.id}
+            isDraggable={!phase.locked}
+            onDrag={(newPosition) => handlePhasePositionChange(phase.id, newPosition)}
+            onSelect={() => handlePhaseSelect(phase.id)}
+            onDeselect={handlePhaseDeselect}
+            onStateCapture={() => handleCapturePhaseState(phase.id)}
+            storedState={phase.state}
+            editMode={editMode}
+            sessionDuration={timeline.duration}
+            hasStateCaptured={!!phase.state}
+          />
+        ))}
       </div>
       
       {/* Time info below the timeline */}
@@ -186,6 +287,13 @@ const SessionTimeline = ({
         <span>Start</span>
         <span>End</span>
       </div>
+      
+      {editMode && (
+        <div className={styles.editInstructions}>
+          Click on phase markers to select them. Drag unlocked markers to adjust timing.
+          Select a marker to capture the current audio state for that phase.
+        </div>
+      )}
     </div>
   );
 };
