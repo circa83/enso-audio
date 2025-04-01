@@ -1,5 +1,5 @@
 // src/hooks/useAudio.js
-import { useContext, useCallback, useEffect } from 'react';
+import { useContext, useCallback, useMemo } from 'react';
 import AudioContext from '../contexts/StreamingAudioContext';
 
 /**
@@ -14,17 +14,6 @@ export function useAudio() {
   if (!context) {
     throw new Error('useAudio must be used within an AudioProvider');
   }
-
-  /* Add debugging
-  useEffect(() => {
-    console.log('useAudio hook - Context received:', {
-      hasVolumes: !!context.volumes,
-      volumesLength: context.volumes ? Object.keys(context.volumes).length : 0,
-      hasSetVolume: !!context.setVolume,
-      isSetVolumeFunction: typeof context.setVolume === 'function'
-    });
-  }, [context]);
-*/
 
   // Extract values from context for cleaner access
   const {
@@ -85,88 +74,168 @@ export function useAudio() {
     LAYERS
   } = context;
 
- // Debug volume-related functionality
- const debugSetLayer = useCallback((layer, value) => {
-    console.log(`useAudio.setLayer called for ${layer} with value ${value}`);
-    console.log(`setVolume function present:`, !!setVolume);
-    if (setVolume) {
-      console.log(`Calling setVolume(${layer}, ${value})`);
-      setVolume(layer, value);
-    } else {
-      console.error(`setVolume function not available in context`);
-    }
-  }, [setVolume]);
-
-
   // Group related functionality for a more organized API
   
   // Playback controls
-  const playback = {
+  const playback = useMemo(() => ({
     isPlaying,
-    start: startSession,
-    pause: pauseSession,
-    getTime: getSessionTime
-  };
+    start: () => {
+      console.log('[useAudio] Starting session playback');
+      return startSession();
+    },
+    pause: () => {
+      console.log('[useAudio] Pausing session playback');
+      return pauseSession();
+    },
+    getTime: () => {
+      // Don't log this to avoid console spam
+      return getSessionTime();
+    }
+  }), [isPlaying, startSession, pauseSession, getSessionTime]);
   
   // Volume controls
-  const volume = {
+  const volume = useMemo(() => ({
     master: masterVolume,
     layers: volumes,
-    setMaster: setMasterVolumeLevel,
-    setLayer: (layer, level, options) => setVolume(layer, level, options)
-  };
+    setMaster: (level, options) => {
+      console.log(`[useAudio] Setting master volume to ${level}`);
+      return setMasterVolumeLevel(level, options);
+    },
+    setLayer: (layer, level, options) => {
+      console.log(`[useAudio] Setting ${layer} volume to ${level}`);
+      return setVolume(layer, level, options);
+    }
+  }), [masterVolume, volumes, setMasterVolumeLevel, setVolume]);
   
   // Layer management
-  const layers = {
+  const layers = useMemo(() => ({
     active: activeAudio,
     available: audioLibrary,
     hasSwitchable: hasSwitchableAudio,
     TYPES: LAYERS
-  };
+  }), [activeAudio, audioLibrary, hasSwitchableAudio, LAYERS]);
   
   // Transitions
-  const transitions = {
+  const transitions = useMemo(() => ({
     active: activeCrossfades,
     progress: crossfadeProgress,
     preloadProgress,
-    crossfade: crossfadeTo,
-    preload: preloadAudio
-  };
+    crossfade: (layer, trackId, duration) => {
+      console.log(`[useAudio] Crossfading ${layer} to track ${trackId}`);
+      return crossfadeTo(layer, trackId, duration);
+    },
+    preload: (layer, trackId) => {
+      console.log(`[useAudio] Preloading ${layer} track ${trackId}`);
+      return preloadAudio(layer, trackId);
+    }
+  }), [activeCrossfades, crossfadeProgress, preloadProgress, crossfadeTo, preloadAudio]);
   
-  // Timeline controls
-  const timeline = {
+  // Timeline controls with enhanced debugging
+  const timeline = useMemo(() => ({
     events: timelineEvents,
     phases: timelinePhases,
     activePhase,
     progress,
     duration: sessionDuration,
     transitionDuration,
-    reset: resetTimelineEventIndex,
-    registerEvent: registerTimelineEvent,
-    clearEvents: clearTimelineEvents,
-    updatePhases: updateTimelinePhases,
+    reset: () => {
+      console.log('[useAudio] Resetting timeline event index');
+      return resetTimelineEventIndex();
+    },
+    registerEvent: (event) => {
+      console.log(`[useAudio] Registering timeline event: ${event.id}`);
+      return registerTimelineEvent(event);
+    },
+    clearEvents: () => {
+      console.log('[useAudio] Clearing all timeline events');
+      return clearTimelineEvents();
+    },
+    updatePhases: (phases) => {
+      console.log(`[useAudio] Updating timeline phases (${phases.length} phases)`);
+      return updateTimelinePhases(phases);
+    },
+    seekToTime: (timeMs) => {
+      console.log(`[useAudio] Seeking to time: ${timeMs}ms`);
+      return seekToTime(timeMs);
+    },
+    seekToPercent: (percent) => {
+      console.log(`[useAudio] Seeking to percent: ${percent}%`);
+      return seekToPercent(percent);
+    },
+    setDuration: (duration) => {
+      console.log(`[useAudio] Setting session duration: ${duration}ms`);
+      return setSessionDuration(duration);
+    },
+    setTransitionDuration: (duration) => {
+      console.log(`[useAudio] Setting transition duration: ${duration}ms`);
+      return setTransitionDuration(duration);
+    }
+  }), [
+    timelineEvents, 
+    timelinePhases, 
+    activePhase, 
+    progress, 
+    sessionDuration, 
+    transitionDuration,
+    resetTimelineEventIndex,
+    registerTimelineEvent,
+    clearTimelineEvents,
+    updateTimelinePhases,
     seekToTime,
     seekToPercent,
-    setDuration: setSessionDuration,
+    setSessionDuration,
     setTransitionDuration
-  };
+  ]);
   
   // Preset management
-  const presets = {
-    registerStateProvider: registerPresetStateProvider,
-    save: savePreset,
-    load: loadPreset,
-    delete: deletePreset,
-    getAll: getPresets,
-    export: exportPreset,
-    import: importPreset
-  };
+  const presets = useMemo(() => ({
+    registerStateProvider: (key, providerFn) => {
+      console.log(`[useAudio] ${providerFn ? 'Registering' : 'Unregistering'} preset state provider: ${key}`);
+      return registerPresetStateProvider(key, providerFn);
+    },
+    save: (name) => {
+      console.log(`[useAudio] Saving preset: ${name}`);
+      return savePreset(name);
+    },
+    load: (nameOrData) => {
+      if (typeof nameOrData === 'string') {
+        console.log(`[useAudio] Loading preset: ${nameOrData}`);
+      } else {
+        console.log('[useAudio] Loading preset from data object');
+      }
+      return loadPreset(nameOrData);
+    },
+    delete: (name) => {
+      console.log(`[useAudio] Deleting preset: ${name}`);
+      return deletePreset(name);
+    },
+    getAll: () => {
+      // Don't log for get operations
+      return getPresets();
+    },
+    export: (name) => {
+      console.log(`[useAudio] Exporting preset: ${name}`);
+      return exportPreset(name);
+    },
+    import: (jsonString) => {
+      console.log('[useAudio] Importing preset from JSON data');
+      return importPreset(jsonString);
+    }
+  }), [
+    registerPresetStateProvider,
+    savePreset,
+    loadPreset,
+    deletePreset,
+    getPresets,
+    exportPreset,
+    importPreset
+  ]);
   
   // Loading state
-  const loading = {
+  const loading = useMemo(() => ({
     isLoading,
     progress: loadingProgress
-  };
+  }), [isLoading, loadingProgress]);
 
   // Return both grouped functionality and individual functions/values
   // to support both usage patterns:
