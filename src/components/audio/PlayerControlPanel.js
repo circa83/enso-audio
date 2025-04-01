@@ -14,14 +14,18 @@ import styles from '../../styles/components/PlayerControlPanel.module.css';
  * @returns {JSX.Element} Rendered component
  */
 const PlayerControlPanel = () => {
+  
   // Use our new hook with grouped API
   const { playback } = useAudio();
-  
+ 
   // Handle play/pause with useCallback for optimization
   const togglePlayPause = useCallback(() => {
+    console.log("Play/Pause button clicked, current state:", playback.isPlaying);
     if (playback.isPlaying) {
+      console.log("Attempting to pause playback");
       playback.pause();
     } else {
+      console.log("Attempting to start playback");
       playback.start();
     }
   }, [playback]);

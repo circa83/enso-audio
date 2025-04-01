@@ -26,7 +26,7 @@ export const useAudio = () => {
   const context = useContext(AudioContext);
   if (!context) {
     throw new Error('useAudio must be used within an AudioProvider');
-  }
+  } 
   return context;
 };
 
@@ -248,21 +248,29 @@ export const AudioProvider = ({ children }) => {
     // Build initial basic library
     const basicLibrary = {};
     Object.values(LAYERS).forEach(layer => {
+      const trackId = `${layer}1`;
       basicLibrary[layer] = [{
-        id: `${layer}1`,
+        id: trackId,
         name: `${layer.charAt(0).toUpperCase() + layer.slice(1)}`,
         path: DEFAULT_AUDIO[layer]
       }];
+      newActiveAudio[layer] = trackId;
     });
     
     // Update audio library state
     setAudioLibrary(basicLibrary);
     setLoadingProgress(20);
     
+    console.log("Initializing audio with track IDs:", newActiveAudio);
     // For each layer, create and load the default audio element
     for (const layer of Object.values(LAYERS)) {
       // Always use the first track as default
+      console.log(`Attempting to load audio for ${layer} from path:`, DEFAULT_AUDIO[layer]);
+      
       const defaultTrack = basicLibrary[layer][0];
+      const trackId = defaultTrack.id;
+      
+      console.log(`Loading audio for ${layer}, track ID: ${trackId}, path: ${defaultTrack.path}`);
       
       try {
         // Create new audio element
@@ -284,6 +292,8 @@ export const AudioProvider = ({ children }) => {
           // Handle errors
           audioElement.addEventListener('error', (e) => {
             console.error(`Error loading audio for ${layer}:`, e);
+            console.error(`Audio src was:`, audioElement.src);
+          console.error(`Error code:`, audioElement.error ? audioElement.error.code : 'unknown');
             loadHandler(); // Still mark as loaded so we don't hang
           }, { once: true });
           
@@ -308,7 +318,7 @@ export const AudioProvider = ({ children }) => {
         volumeController.connectToLayer(layer, source, masterGain);
         
         // Store the audio element and its source
-        newAudioElements[layer][defaultTrack.id] = {
+        newAudioElements[layer][trackId] = {
           element: audioElement,
           source: source,
           track: defaultTrack,
@@ -316,7 +326,7 @@ export const AudioProvider = ({ children }) => {
         };
         
         // Set as active audio for this layer
-        newActiveAudio[layer] = defaultTrack.id;
+        newActiveAudio[layer] = trackId;
         
         // Wait for this layer to load
         await loadPromise;
@@ -329,11 +339,20 @@ export const AudioProvider = ({ children }) => {
         setLoadingProgress(progress);
       }
     }
-    
+
+    // Store audio elements in AudioCore
+  console.log("Registering audio elements with AudioCore:", 
+    Object.keys(newAudioElements).map(layer => 
+      `${layer}: ${Object.keys(newAudioElements[layer]).join(', ')}`
+    )
+  );
     // Store audio elements in AudioCore
     if (audioCore.registerElements) {
-      audioCore.registerElements(newAudioElements);
-    }
+    const registered = audioCore.registerElements(newAudioElements);
+    console.log("AudioCore registration result:", registered);
+  } else {
+    console.error("AudioCore.registerElements is not defined");
+  }
     
     // Update state with loaded audio
     setActiveAudio(newActiveAudio);
@@ -416,7 +435,9 @@ export const AudioProvider = ({ children }) => {
   }, []);
 
   // Start the session
+  
   const handleStartSession = useCallback(() => {
+   
     // Use ref for current state check to avoid race conditions
     if (!serviceRef.current.audioCore || isPlayingRef.current) {
       console.log("Can't start: AudioCore missing or already playing");
@@ -433,38 +454,56 @@ export const AudioProvider = ({ children }) => {
       
       // Get currently active audio elements
       const audioElements = serviceRef.current.audioCore.getElements?.() || {};
+
+     console.log("Starting session - Audio Elements:", 
+      Object.keys(audioElements).map(layer => 
+        `${layer}: ${Object.keys(audioElements[layer] || {}).join(', ')}`
+      )
+    );
+    console.log("Active Audio Mapping:", JSON.stringify(activeAudio));
+    console.log("Audio elements retrieved from AudioCore:", 
+      Object.keys(audioElements).length === 0 ? "{}" : "Found elements"
+    );
+       // Make sure all audio elements are reset to beginning
+    Object.entries(activeAudio).forEach(([layer, trackId]) => {
+      const track = audioElements[layer]?.[trackId];
+      console.log(`Layer ${layer} - Attempting to play track ${trackId}:`, track ? 'Found' : 'Not found');
       
-      // Make sure all audio elements are reset to beginning
-      Object.entries(activeAudio).forEach(([layer, trackId]) => {
-        const track = audioElements[layer]?.[trackId];
-        if (track?.element) {
-          // Reset to beginning of track
-          track.element.currentTime = 0;
-        }
-      });
+      if (track?.element) {
+        // Log volume level
+        console.log(`Layer ${layer} - Volume level:`, volumes[layer]);
+        console.log(`Layer ${layer} - Audio element readyState:`, track.element.readyState);
+        
+        // Reset to beginning of track
+        track.element.currentTime = 0;
+      }
+    });
       
-      // Play all active audio elements
-      let allPlayPromises = [];
-      
-      Object.entries(activeAudio).forEach(([layer, trackId]) => {
-        const track = audioElements[layer]?.[trackId];
-        if (track?.element) {
-          // Play and collect the promise
-          try {
-            const playPromise = track.element.play();
-            if (playPromise !== undefined) {
-              allPlayPromises.push(
-                playPromise.catch(err => {
-                  console.error(`Error playing ${layer}:`, err);
-                  return null;
-                })
-              );
-            }
-          } catch (err) {
-            console.error(`Error starting ${layer}:`, err);
+         // Play all active audio elements
+    let allPlayPromises = [];
+    
+    Object.entries(activeAudio).forEach(([layer, trackId]) => {
+      const track = audioElements[layer]?.[trackId];
+      if (track?.element) {
+        // Play and collect the promise
+        try {
+          console.log(`Layer ${layer} - Initiating play() for track ${trackId}`);
+          const playPromise = track.element.play();
+          if (playPromise !== undefined) {
+            allPlayPromises.push(
+              playPromise.catch(err => {
+                console.error(`Error playing ${layer}:`, err);
+                return null;
+              })
+            );
           }
+        } catch (err) {
+          console.error(`Error starting ${layer}:`, err);
         }
-      });
+      } else {
+        console.error(`No track found for ${layer}/${trackId}`);
+      }
+    });
       
       // Wait for all play operations to complete
       Promise.all(allPlayPromises)

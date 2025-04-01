@@ -24,6 +24,7 @@ class AudioCore {
       this._initialized = false;
       this._suspended = true;
       this._eventListeners = [];
+      this._audioElements = {}; // Track audio elements by layer/track
       
       // Bound methods to maintain context
       this._handleUserInteraction = this._handleUserInteraction.bind(this);
@@ -165,14 +166,17 @@ class AudioCore {
       // Only attempt resume if suspended
       if (this._context.state === 'suspended') {
         try {
+          console.log('AudioCore: Attempting to resume context from state:', this._context.state);
           await this._context.resume();
           this._suspended = false;
-          console.log('AudioCore: Context resumed');
+          console.log('AudioCore: Context resumed successfully, new state:', this._context.state);
           return true;
         } catch (error) {
           console.error('AudioCore: Failed to resume context:', error);
           return false;
         }
+      } else {
+        console.log('AudioCore: Context already running, state:', this._context.state);
       }
       
       return true;
@@ -213,6 +217,66 @@ class AudioCore {
         return true;
       }
       return this._context.state === 'suspended';
+    }
+  
+    /**
+     * Register audio elements for tracking
+     * @param {Object} elements - Map of layer names to audio element objects
+     * @returns {boolean} Success status
+     */
+    registerElements(elements) {
+      if (!elements || typeof elements !== 'object') {
+        console.error('AudioCore: Invalid elements provided to registerElements');
+        return false;
+      }
+      
+      console.log('AudioCore: Registering audio elements:', 
+        Object.keys(elements).map(layer => 
+          `${layer}: ${Object.keys(elements[layer] || {}).join(', ')}`
+        )
+      );
+      
+      // Store the elements
+      this._audioElements = { ...elements };
+      return true;
+    }
+    
+    /**
+     * Update a single audio element
+     * @param {string} layer - Layer identifier
+     * @param {string} trackId - Track identifier
+     * @param {Object} elementData - Audio element data
+     * @returns {boolean} Success status
+     */
+    updateElement(layer, trackId, elementData) {
+      if (!layer || !trackId || !elementData) {
+        console.error('AudioCore: Invalid parameters for updateElement');
+        return false;
+      }
+      
+      console.log(`AudioCore: Updating element for ${layer}/${trackId}`);
+      
+      // Initialize layer if it doesn't exist
+      if (!this._audioElements[layer]) {
+        this._audioElements[layer] = {};
+      }
+      
+      // Store the element
+      this._audioElements[layer][trackId] = elementData;
+      return true;
+    }
+    
+    /**
+     * Get all registered audio elements
+     * @returns {Object} Map of audio elements by layer and track ID
+     */
+    getElements() {
+      console.log('AudioCore: getElements called, returning:', 
+        Object.keys(this._audioElements).map(layer => 
+          `${layer}: ${Object.keys(this._audioElements[layer] || {}).join(', ')}`
+        )
+      );
+      return this._audioElements;
     }
   
     /**
@@ -272,6 +336,7 @@ class AudioCore {
       this._analyzer = null;
       this._initialized = false;
       this._suspended = true;
+      this._audioElements = {};
       
       console.log('AudioCore: Cleanup complete');
     }
