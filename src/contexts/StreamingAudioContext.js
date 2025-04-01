@@ -409,7 +409,9 @@ export const AudioProvider = ({ children }) => {
 
   // Set volume for a specific layer
   const handleSetVolume = useCallback((layer, value) => {
-    if (!serviceRef.current.volumeController) return;
+    if (!serviceRef.current.volumeController) 
+      console.error("Cannot set volume: VolumeController not available");
+    return;
     
     // Update our local state for UI
     setVolumes(prev => ({
