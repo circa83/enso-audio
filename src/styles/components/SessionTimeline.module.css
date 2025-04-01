@@ -115,10 +115,6 @@
   transition: transform 0.1s ease;
 }
 
-/* Hover effect for timeline */
-.timeline:hover {
-  transform: scaleY(1.2);
-}
 
 /* Slider-like appearance */
 .timeline::before {
