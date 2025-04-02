@@ -1,5 +1,5 @@
 // src/components/audio/LayerDropdown.js
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAudio } from '../../hooks/useAudio'; // Import the refactored hook
 import styles from '../../styles/components/LayerDropdown.module.css';
 
@@ -19,8 +19,8 @@ const LayerDropdown = ({ layer }) => {
   const dropdownRef = useRef(null);
   const toggleButtonRef = useRef(null);
   
-  // Get z-index based on layer name for proper stacking
-  const getZIndexForLayer = (layerName) => {
+   // Get z-index based on layer name for proper stacking
+   const getZIndexForLayer = useCallback((layerName) => {
     // Significantly increased z-index values with wider gaps between them
     switch(layerName.toLowerCase()) {
       case 'drone':
@@ -34,10 +34,10 @@ const LayerDropdown = ({ layer }) => {
       default:
         return 8000; // Fallback
     }
-  };
+  }, []); // No dependencies since this is a pure function
 
   // Update menu position function
-  const updateMenuPosition = () => {
+  const updateMenuPosition = useCallback(() => {
     if (!toggleButtonRef.current) return;
     
     const rect = toggleButtonRef.current.getBoundingClientRect();
@@ -45,7 +45,7 @@ const LayerDropdown = ({ layer }) => {
       top: rect.bottom,
       left: rect.left
     });
-  };
+  }, [toggleButtonRef]); // Depend on the ref
   
   // Handle scroll event to update dropdown position
   useEffect(() => {
@@ -101,11 +101,11 @@ const LayerDropdown = ({ layer }) => {
     };
   }, [isExpanded]);
   
-  // Toggle dropdown visibility
-  const toggleDropdown = (e) => {
+  // Toggle dropdown visibility with useCallback
+  const toggleDropdown = useCallback((e) => {
     e.stopPropagation(); // Prevent event from reaching parent elements
-    setIsExpanded(!isExpanded);
-  };
+    setIsExpanded(prev => !prev);
+  }, []); // No external dependencies needed
   
   // Get active track name
   const getActiveTrackName = () => {
@@ -115,8 +115,8 @@ const LayerDropdown = ({ layer }) => {
     return activeTrack ? activeTrack.name : 'Default';
   };
   
-  // Handle track selection
-  const handleTrackSelect = (e, trackId) => {
+   // Handle track selection with useCallback
+   const handleTrackSelect = useCallback((e, trackId) => {
     e.stopPropagation(); // Important: prevent event bubbling
     e.preventDefault();
     
@@ -141,7 +141,7 @@ const LayerDropdown = ({ layer }) => {
     
     // Close the dropdown
     setIsExpanded(false);
-  };
+  }, [layer, activeCrossfades, activeAudio, isPlaying, crossfadeTo]); // Include all external dependencies
   
   // Check if the layer is currently in a crossfade
   const isInCrossfade = activeCrossfades && activeCrossfades[layer];

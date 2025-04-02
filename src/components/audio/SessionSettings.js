@@ -1,5 +1,5 @@
 // src/components/audio/SessionSettings.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import styles from '../../styles/components/SessionSettings.module.css';
 
 const SessionSettings = ({ 
@@ -20,52 +20,57 @@ const SessionSettings = ({
     if (onTransitionDurationChange && transitionDuration !== 4000) {
       onTransitionDurationChange(4000);
     }
-  }, []);
+  }, [onTransitionDurationChange, transitionDuration]);
   
-  // Handle duration change
-  const handleDurationChange = () => {
+  // Handle duration change with useCallback
+  const handleDurationChange = useCallback(() => {
     const newDuration = (durationHours * 60 * 60 * 1000) + 
                         (durationMinutes * 60 * 1000) + 
                         (durationSeconds * 1000);
-                        console.log(`Setting session duration to: ${newDuration}ms`);
+    console.log(`Setting session duration to: ${newDuration}ms`);
     onDurationChange(newDuration);
-  };
+  }, [durationHours, durationMinutes, durationSeconds, onDurationChange]);
   
-  // Handle hours input change
-  const handleHoursChange = (e) => {
+  // Handle hours input change with useCallback
+  const handleHoursChange = useCallback((e) => {
     const value = parseInt(e.target.value, 10);
     if (!isNaN(value) && value >= 0 && value <= 12) {
       setDurationHours(value);
     }
-  };
+  }, []);
   
-  // Handle minutes input change
-  const handleMinutesChange = (e) => {
+  // Handle minutes input change with useCallback
+  const handleMinutesChange = useCallback((e) => {
     const value = parseInt(e.target.value, 10);
     if (!isNaN(value) && value >= 0 && value < 60) {
       setDurationMinutes(value);
     }
-  };
+  }, []);
   
-  // Handle seconds input change
-  const handleSecondsChange = (e) => {
+  // Handle seconds input change with useCallback
+  const handleSecondsChange = useCallback((e) => {
     const value = parseInt(e.target.value, 10);
     if (!isNaN(value) && value >= 0 && value < 60) {
       setDurationSeconds(value);
     }
-  };
+  }, []);
   
-  // Apply changes on blur
-  const handleBlur = () => {
+  // Apply changes on blur with useCallback
+  const handleBlur = useCallback(() => {
     handleDurationChange();
-  };
+  }, [handleDurationChange]);
   
-  // Handle transition duration change
-  const handleTransitionDurationChange = (e) => {
+  // Handle transition duration change with useCallback
+  const handleTransitionDurationChange = useCallback((e) => {
     const value = parseInt(e.target.value, 10);
     console.log(`Setting transition duration to: ${value}ms`);
     onTransitionDurationChange(value);
-  };
+  }, [onTransitionDurationChange]);
+  
+  // Handle timeline toggle with useCallback
+  const handleTimelineToggle = useCallback((enabled) => {
+    onTimelineToggle(enabled);
+  }, [onTimelineToggle]);
   
   return (
     <div className={styles.settingsContainer}>
@@ -74,13 +79,13 @@ const SessionSettings = ({
         <div className={styles.settingToggle}>
           <button 
             className={`${styles.toggleButton} ${timelineEnabled ? styles.active : ''}`}
-            onClick={() => onTimelineToggle(true)}
+            onClick={() => handleTimelineToggle(true)}
           >
             Enabled
           </button>
           <button 
             className={`${styles.toggleButton} ${!timelineEnabled ? styles.active : ''}`}
-            onClick={() => onTimelineToggle(false)}
+            onClick={() => handleTimelineToggle(false)}
           >
             Disabled
           </button>

@@ -1,5 +1,5 @@
 // src/components/audio/MasterVolumeControl.js
-import React, { memo } from 'react';
+import React, { memo, useCallback } from 'react';
 import { useAudio } from '../../hooks/useAudio';
 import styles from '../../styles/components/MasterVolumeControl.module.css';
 
@@ -13,11 +13,11 @@ const MasterVolumeControl = () => {
   // Use our new hook with the grouped API pattern
   const { volume } = useAudio();
   
-  // Handle volume change from the slider
-  const handleVolumeChange = (e) => {
+  // Handle volume change from the slider - optimize with useCallback
+  const handleVolumeChange = useCallback((e) => {
     const newVolume = parseFloat(e.target.value);
     volume.setMaster(newVolume);
-  };
+  }, [volume]); // Include volume in dependencies
   
   // Format volume as percentage for display
   const volumePercentage = Math.round(volume.master * 100);

@@ -1,5 +1,5 @@
 // src/components/common/CollapsibleSection.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import styles from '../../styles/components/CollapsibleSection.module.css';
 
 const CollapsibleSection = ({ 
@@ -20,8 +20,8 @@ const CollapsibleSection = ({
     }
   }, [isExpanded, onExpand]);
   
-  // Toggle expanded state
-  const toggleExpanded = () => {
+  // Toggle expanded state with useCallback
+  const toggleExpanded = useCallback(() => {
     const newExpandedState = !isExpanded;
     setIsExpanded(newExpandedState);
 
@@ -32,7 +32,7 @@ const CollapsibleSection = ({
         onExpand();
       }, 0);
     }
-  };
+  }, [isExpanded, onExpand]);
   
   return (
     <div className={`${styles.sectionContainer} ${className}`}>

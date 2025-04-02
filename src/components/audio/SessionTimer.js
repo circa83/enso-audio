@@ -1,5 +1,5 @@
 // src/components/audio/SessionTimer.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAudio } from '../../hooks/useAudio'; // Use the refactored hook
 import { formatTime } from '../../utils/formatTime';
 import styles from '../../styles/components/SessionTimer.module.css';
@@ -8,9 +8,18 @@ const SessionTimer = () => {
   const { playback } = useAudio(); // Get the playback group from the hook
   const [displayTime, setDisplayTime] = useState('00:00:00');
 
+  // Format and update time using useCallback
+  const updateDisplayTime = useCallback((time) => {
+    if (time !== undefined && time !== null && !isNaN(time)) {
+      setDisplayTime(formatTime(time));
+    } else {
+      console.log("Invalid time value:", time);
+      setDisplayTime('00:00:00');
+    }
+  }, []);
+
   useEffect(() => {
     console.log("SessionTimer effect running, playback state:", playback.isPlaying);
-    console.log(playback)
     let intervalId = null;
   
     if (playback.isPlaying) {
@@ -18,23 +27,13 @@ const SessionTimer = () => {
       // Update every second when playing
       intervalId = setInterval(() => {
         const time = playback.getTime();
-       // console.log("Current session time:", time, "ms");
-        if (time !== undefined && time !== null && !isNaN(time)) {
-          setDisplayTime(formatTime(time));
-        } else {
-          console.log("Invalid time value:", time);
-          setDisplayTime('00:00:00');
-        }
+        updateDisplayTime(time);
       }, 1000);
     } else {
       // Get current time when paused
       const time = playback.getTime();
       console.log("Paused time check:", time, "ms");
-      if (time !== undefined && time !== null && !isNaN(time)) {
-        setDisplayTime(formatTime(time));
-      } else {
-        setDisplayTime('00:00:00');
-      }
+      updateDisplayTime(time);
     }
 
     return () => {
@@ -42,7 +41,7 @@ const SessionTimer = () => {
         clearInterval(intervalId);
       }
     };
-  }, [playback.isPlaying, playback.getTime]); // Update dependencies
+  }, [playback.isPlaying, playback.getTime, updateDisplayTime]); // Update dependencies
 
   return (
     <div className={styles.sessionTimer}>
