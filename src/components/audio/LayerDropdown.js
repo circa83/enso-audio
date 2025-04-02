@@ -1,6 +1,6 @@
 // src/components/audio/LayerDropdown.js
 import React, { useState, useRef, useEffect } from 'react';
-import { useAudio } from '../../contexts/StreamingAudioContext';
+import { useAudio } from '../../hooks/useAudio'; // Import the refactored hook
 import styles from '../../styles/components/LayerDropdown.module.css';
 
 const LayerDropdown = ({ layer }) => {
@@ -229,4 +229,5 @@ const LayerDropdown = ({ layer }) => {
   );
 };
 
-export default LayerDropdown;
+// Export with memoization to prevent unnecessary re-renders
+export default React.memo(LayerDropdown);

@@ -26,12 +26,12 @@ const CollapsibleSection = ({
     setIsExpanded(newExpandedState);
 
     // Only call onExpand if truly expanding (not collapsing)
-  if (newExpandedState && onExpand) {
-    // Use setTimeout to defer the callback until after state update
-    setTimeout(() => {
-      onExpand();
-    }, 0);
-  }
+    if (newExpandedState && onExpand) {
+      // Use setTimeout to defer the callback until after state update
+      setTimeout(() => {
+        onExpand();
+      }, 0);
+    }
   };
   
   return (
@@ -53,4 +53,5 @@ const CollapsibleSection = ({
   );
 };
 
-export default CollapsibleSection;
+// Export with memoization to prevent unnecessary re-renders
+export default React.memo(CollapsibleSection);

@@ -52,4 +52,5 @@ const SessionTimer = () => {
   );
 };
 
-export default SessionTimer;
+// Export with memoization to prevent unnecessary re-renders
+export default React.memo(SessionTimer);
