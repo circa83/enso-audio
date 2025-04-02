@@ -44,42 +44,60 @@ const SessionTimeline = ({
   const currentAudioState = useRef({});
   const previousEditMode = useRef(editMode);
   const transitionInProgress = useRef(false);
+
+  const initialMount = useRef(true);
   
-  // Initialize and register with timeline service
+  // Initialize and register with timeline service - FIXED version
   useEffect(() => {
-    console.log("SessionTimeline component mounted, phases:", phases);
+    console.log("SessionTimeline mounting check");
     
-    // Register initial phases with timeline service
-    if (timeline.updatePhases) {
-      timeline.updatePhases(phases);
-    }
-    
-    // Register session duration
-    if (timeline.setDuration) {
-      timeline.setDuration(timeline.duration);
-    }
-    
-    // Register transition duration
-    if (timeline.setTransitionDuration) {
-      timeline.setTransitionDuration(timeline.transitionDuration);
-    }
+    // Only run the setup operations once on first mount
+    if (initialMount.current) {
+      console.log("SessionTimeline - initial setup");
+      
+      // Register initial phases with timeline service
+      if (timeline.updatePhases) {
+        console.log("Registering initial phases with timeline service");
+        timeline.updatePhases(phases);
+      }
+      
+      // Register session duration
+      if (timeline.setDuration) {
+        console.log("Setting initial session duration");
+        timeline.setDuration(timeline.duration);
+      }
+      
+      // Register transition duration
+      if (timeline.setTransitionDuration) {
+        console.log("Setting initial transition duration");
+        timeline.setTransitionDuration(timeline.transitionDuration);
+      }
 
       // IMPORTANT: Only reset timeline if playback is not active
-  // This prevents resetting when the component mounts during playback
-  if (!playback.isPlaying && timeline.reset) {
-    console.log("Timeline reset on mount (playback not active)");
-    timeline.reset();
-  }
-  
-    
+      // This prevents resetting when the component mounts during playback
+      if (!playback.isPlaying && timeline.reset) {
+        console.log("Timeline reset on mount (playback not active)");
+        timeline.reset();
+      }
+      
+      // Mark initial setup as complete
+      initialMount.current = false;
+    }
     // Clean up
     return () => {
       if (volumeTransitionTimer.current) {
         clearInterval(volumeTransitionTimer.current);
       }
     };
-  }, [phases, timeline]);
+  }, []);
   
+  // Add a separate effect to update phases when they change
+useEffect(() => {
+  if (!initialMount.current && timeline.updatePhases) {
+    timeline.updatePhases(phases);
+  }
+}, [phases]);
+
   // Register the state provider for presets
   useEffect(() => {
     // This function will be called when saving a preset

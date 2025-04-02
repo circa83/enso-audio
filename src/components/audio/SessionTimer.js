@@ -18,7 +18,7 @@ const SessionTimer = () => {
       // Update every second when playing
       intervalId = setInterval(() => {
         const time = playback.getTime();
-        console.log("Current session time:", time, "ms");
+       // console.log("Current session time:", time, "ms");
         if (time !== undefined && time !== null && !isNaN(time)) {
           setDisplayTime(formatTime(time));
         } else {

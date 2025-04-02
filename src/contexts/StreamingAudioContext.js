@@ -424,7 +424,7 @@ export const AudioProvider = ({ children }) => {
       ...prev,
       [layer]: value
     };
-    console.log(`New volumes state:`, newVolumes);
+   // console.log(`New volumes state:`, newVolumes);
     return newVolumes;
   });
     

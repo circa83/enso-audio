@@ -95,7 +95,7 @@ const Player = () => {
     
     // Listen for settings updates
     window.addEventListener('sessionSettings-update', handleSessionSettingsUpdate);
-    
+    console.log("Listening for sessionSettings-update events...");
     // Cleanup
     return () => {
       window.removeEventListener('sessionSettings-update', handleSessionSettingsUpdate);
