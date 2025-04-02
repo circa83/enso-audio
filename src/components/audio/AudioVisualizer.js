@@ -93,10 +93,16 @@ const AudioVisualizer = () => {
   return (
     <div className={styles.visualizerContainer} ref={visualizerRef}>
       <div className={styles.audioVisualizer}>
-        <div className={`${styles.circle} ${styles.bass}`}></div>
+      <img 
+          src="../../images/Stillness_EnsōAudio_bkcp.png" 
+          alt="Ensō circle" 
+          className={styles.visualizerImage}
+        />
+     {/*   <div className={`${styles.circle} ${styles.bass}`}></div>
         <div className={`${styles.circle} ${styles.mid}`}></div>
         <div className={`${styles.circle} ${styles.high}`}></div>
         <div className={`${styles.circle} ${styles.overlay}`}></div>
+      </div> */}
       </div>
     </div>
   );

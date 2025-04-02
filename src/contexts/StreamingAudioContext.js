@@ -694,6 +694,7 @@ console.log("TimelineEngine start result:", started);
     
     // Get the current active track ID
     const currentTrackId = activeAudio[layer];
+    console.log(`Current track for ${layer}: ${currentTrackId}`);
     
     // Skip if already playing requested track
     if (currentTrackId === newTrackId) {

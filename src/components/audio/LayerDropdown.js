@@ -19,8 +19,8 @@ const LayerDropdown = ({ layer }) => {
   const dropdownRef = useRef(null);
   const toggleButtonRef = useRef(null);
   
-   // Get z-index based on layer name for proper stacking
-   const getZIndexForLayer = useCallback((layerName) => {
+  // Get z-index based on layer name for proper stacking
+  const getZIndexForLayer = useCallback((layerName) => {
     // Significantly increased z-index values with wider gaps between them
     switch(layerName.toLowerCase()) {
       case 'drone':
@@ -47,6 +47,40 @@ const LayerDropdown = ({ layer }) => {
     });
   }, [toggleButtonRef]); // Depend on the ref
   
+  // Toggle dropdown visibility with useCallback
+  const toggleDropdown = useCallback((e) => {
+    e.stopPropagation(); // Prevent event from reaching parent elements
+    setIsExpanded(prev => !prev);
+  }, []); // No external dependencies needed
+  
+  // Handle track selection with useCallback
+  const handleTrackSelect = useCallback((e, trackId) => {
+    e.stopPropagation(); // Important: prevent event bubbling
+    e.preventDefault();
+    
+    // Don't allow selection during active crossfade
+    if (activeCrossfades && activeCrossfades[layer]) {
+      console.log(`Crossfade already in progress for ${layer}`);
+      return;
+    }
+    
+    // Skip if already selected
+    if (trackId === activeAudio[layer]) {
+      setIsExpanded(false);
+      return;
+    }
+    
+    console.log(`Selecting track ${trackId} for ${layer}`);
+    
+    // Perform crossfade with appropriate duration
+    // Use shorter crossfade if not playing to avoid long waits
+    const fadeDuration = isPlaying ? 2000 : 200;
+    crossfadeTo(layer, trackId, fadeDuration);
+    
+    // Close the dropdown
+    setIsExpanded(false);
+  }, [layer, activeCrossfades, activeAudio, isPlaying, crossfadeTo]); // Include all external dependencies
+  
   // Handle scroll event to update dropdown position
   useEffect(() => {
     const handleScroll = () => {
@@ -66,7 +100,7 @@ const LayerDropdown = ({ layer }) => {
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleScroll);
     };
-  }, [isExpanded]);
+  }, [isExpanded, updateMenuPosition]); // Now depends on the memoized function
   
   // Handle click outside
   useEffect(() => {
@@ -101,56 +135,22 @@ const LayerDropdown = ({ layer }) => {
     };
   }, [isExpanded]);
   
-  // Toggle dropdown visibility with useCallback
-  const toggleDropdown = useCallback((e) => {
-    e.stopPropagation(); // Prevent event from reaching parent elements
-    setIsExpanded(prev => !prev);
-  }, []); // No external dependencies needed
-  
-  // Get active track name
-  const getActiveTrackName = () => {
+  // Get active track name - optimize with useCallback if used in multiple places
+  const getActiveTrackName = useCallback(() => {
     if (!activeAudio[layer] || !audioLibrary[layer]) return 'Default';
     
     const activeTrack = audioLibrary[layer].find(t => t.id === activeAudio[layer]);
     return activeTrack ? activeTrack.name : 'Default';
-  };
-  
-   // Handle track selection with useCallback
-   const handleTrackSelect = useCallback((e, trackId) => {
-    e.stopPropagation(); // Important: prevent event bubbling
-    e.preventDefault();
-    
-    // Don't allow selection during active crossfade
-    if (activeCrossfades && activeCrossfades[layer]) {
-      console.log(`Crossfade already in progress for ${layer}`);
-      return;
-    }
-    
-    // Skip if already selected
-    if (trackId === activeAudio[layer]) {
-      setIsExpanded(false);
-      return;
-    }
-    
-    console.log(`Selecting track ${trackId} for ${layer}`);
-    
-    // Perform crossfade with appropriate duration
-    // Use shorter crossfade if not playing to avoid long waits
-    const fadeDuration = isPlaying ? 2000 : 200;
-    crossfadeTo(layer, trackId, fadeDuration);
-    
-    // Close the dropdown
-    setIsExpanded(false);
-  }, [layer, activeCrossfades, activeAudio, isPlaying, crossfadeTo]); // Include all external dependencies
+  }, [activeAudio, audioLibrary, layer]);
   
   // Check if the layer is currently in a crossfade
   const isInCrossfade = activeCrossfades && activeCrossfades[layer];
   
   // Get progress percentage for display
-  const getProgressPercent = () => {
+  const getProgressPercent = useCallback(() => {
     if (!isInCrossfade) return 0;
     return Math.floor((crossfadeProgress[layer] || 0) * 100);
-  };
+  }, [isInCrossfade, crossfadeProgress, layer]);
 
   // If there are no options to show, don't render the component
   if (!audioLibrary[layer] || audioLibrary[layer].length <= 1) {

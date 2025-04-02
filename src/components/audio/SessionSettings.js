@@ -5,7 +5,7 @@ import styles from '../../styles/components/SessionSettings.module.css';
 const SessionSettings = ({ 
   sessionDuration, 
   timelineEnabled,
-  transitionDuration = 4000, // Default to 4 seconds
+  transitionDuration, // Default to 4 seconds
   onDurationChange,
   onTransitionDurationChange,
   onTimelineToggle
@@ -16,12 +16,13 @@ const SessionSettings = ({
   const [durationSeconds, setDurationSeconds] = useState(Math.floor((sessionDuration % (60 * 1000)) / 1000));
   
   // Initialize with default 4 second transition
-  useEffect(() => {
+  /*useEffect(() => {
     if (onTransitionDurationChange && transitionDuration !== 4000) {
-      onTransitionDurationChange(4000);
+      onTransitionDurationChange(4000); // Fallback to 4 seconds if undefined
     }
   }, [onTransitionDurationChange, transitionDuration]);
-  
+  */
+ 
   // Handle duration change with useCallback
   const handleDurationChange = useCallback(() => {
     const newDuration = (durationHours * 60 * 60 * 1000) + 

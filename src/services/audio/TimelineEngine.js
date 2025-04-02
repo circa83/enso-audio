@@ -268,7 +268,7 @@ class TimelineEngine {
         this.log('Invalid session duration', 'error');
         return false;
       }
-      
+      this.log(`Changing session duration from ${this.config.sessionDuration}ms to ${duration}ms`);
       this.config.sessionDuration = duration;
       this.log(`Session duration set to ${duration}ms`);
       
