@@ -37,7 +37,7 @@ const LayerSelector = ({ layer }) => {
       console.log(`User selected track ${trackId} for ${layer}`);
       
       // Attempt crossfade with the exposed function name
-      const success = await crossfadeTo(layer, trackId);
+      const success = await crossfadeTo(layer, trackId, transitionDuration);
       
       if (!success) {
         setErrorMessage('Could not load audio track. Please try again.');
@@ -46,7 +46,7 @@ const LayerSelector = ({ layer }) => {
       console.error('Error changing track:', error);
       setErrorMessage('Error during track transition. Please try again.');
     }
-  }, [layer, activeAudio, activeCrossfades, crossfadeTo]);
+  }, [layer, activeAudio, activeCrossfades, crossfadeTo, transitionDuration]);
 
   // Toggle expanded state with useCallback
   const toggleExpanded = useCallback(() => {

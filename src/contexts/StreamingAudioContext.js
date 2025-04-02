@@ -677,8 +677,9 @@ console.log("TimelineEngine start result:", started);
   }, [audioLibrary]);
 
   // Crossfade between audio tracks
-  const handleCrossfadeTo = useCallback(async (layer, newTrackId, fadeDuration = 4000) => {
+  const handleCrossfadeTo = useCallback(async (layer, newTrackId, fadeDuration = null) => {
     console.log(`Starting crossfade process for ${layer}: ${newTrackId}`);
+    const actualDuration = fadeDuration !== null ? fadeDuration : transitionDuration;
     
     // Verify we have what we need
     if (!serviceRef.current.audioCore || 
@@ -860,7 +861,7 @@ console.log("TimelineEngine start result:", started);
       targetNode: newTrackElements.source,
       targetElement: newTrackElements.element,
       currentVolume: currentVolume,
-      duration: fadeDuration,
+      duration: actualDuration,
       syncPosition: true,
       metadata: {
         fromTrackId: currentTrackId,

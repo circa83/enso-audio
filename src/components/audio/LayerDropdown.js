@@ -11,7 +11,8 @@ const LayerDropdown = ({ layer }) => {
     activeCrossfades,
     crossfadeProgress,
     preloadProgress,
-    isPlaying
+    isPlaying,
+    transitionDuration
   } = useAudio();
   
   const [isExpanded, setIsExpanded] = useState(false);
@@ -74,12 +75,12 @@ const LayerDropdown = ({ layer }) => {
     
     // Perform crossfade with appropriate duration
     // Use shorter crossfade if not playing to avoid long waits
-    const fadeDuration = isPlaying ? 2000 : 200;
+    const fadeDuration = isPlaying ? transitionDuration : 200;
     crossfadeTo(layer, trackId, fadeDuration);
     
     // Close the dropdown
     setIsExpanded(false);
-  }, [layer, activeCrossfades, activeAudio, isPlaying, crossfadeTo]); // Include all external dependencies
+  }, [layer, activeCrossfades, activeAudio, isPlaying, crossfadeTo, transitionDuration]); // Include all external dependencies
   
   // Handle scroll event to update dropdown position
   useEffect(() => {
