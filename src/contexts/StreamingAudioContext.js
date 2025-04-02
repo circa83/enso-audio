@@ -258,6 +258,7 @@ export const AudioProvider = ({ children }) => {
     });
     
     // Update audio library state
+    console.log("Setting basic audio library:", basicLibrary);
     setAudioLibrary(basicLibrary);
     setLoadingProgress(20);
     
@@ -324,7 +325,7 @@ export const AudioProvider = ({ children }) => {
           track: defaultTrack,
           isActive: true
         };
-        
+        console.log(`Audio element created for ${layer}:`, newAudioElements[layer][trackId]);
         // Set as active audio for this layer
         newActiveAudio[layer] = trackId;
         
@@ -389,7 +390,7 @@ export const AudioProvider = ({ children }) => {
                 }))
               ];
             });
-            
+            console.log("Extended audio library Variations:", extendedLibrary);
             return extendedLibrary;
           });
         }
@@ -417,7 +418,7 @@ export const AudioProvider = ({ children }) => {
   }
   
   // Update our local state for UI
-  console.log(`Updating local volume state for ${layer} from`, volumes[layer], `to ${value}`);
+  //console.log(`Updating local volume state for ${layer} from`, volumes[layer], `to ${value}`);
   
   setVolumes(prev => {
     const newVolumes = {

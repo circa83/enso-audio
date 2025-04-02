@@ -311,7 +311,7 @@ useEffect(() => {
         const progressPercent = Math.min(100, (time / timeline.duration) * 100);
         // Log progress occasionally to verify it's updating
         if (Math.floor(progressPercent) % 10 === 0) {
-          console.log(`Timeline progress: ${progressPercent.toFixed(1)}%`);
+         // console.log(`Timeline progress: ${progressPercent.toFixed(1)}%`);
         }
         setProgress(progressPercent);
       }, 50); // Update more frequently for smoother animation

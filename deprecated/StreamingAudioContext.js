@@ -996,11 +996,12 @@ useEffect(() => {
 
  // Calculate elapsed session time using TimelineEngine if available
  const getSessionTime = useCallback(() => {
+  console.log('Getting session time...');
   // Use TimelineEngine if available
-  if (timelineEngineRef.current) {
+ /* if (timelineEngineRef.current) {
     return timelineEngineRef.current.getElapsedTime();
   }
-  
+  */
   // Fallback to original implementation
   if (!sessionStartTime) return 0;
   return isPlayingRef.current ? Date.now() - sessionStartTime : 0;

@@ -10,7 +10,7 @@ const SessionTimer = () => {
 
   useEffect(() => {
     console.log("SessionTimer effect running, playback state:", playback.isPlaying);
-    
+    console.log(playback)
     let intervalId = null;
   
     if (playback.isPlaying) {
