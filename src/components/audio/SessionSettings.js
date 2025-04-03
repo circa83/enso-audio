@@ -124,6 +124,26 @@ const SessionSettings = ({
         </div>
       </div>
       
+       
+      <div className={styles.settingGroup}>
+            <label className={styles.settingLabel}>
+              Transition Duration: {(transitionDuration / 1000).toFixed(1)} seconds
+            </label>
+            <input 
+              type="range" 
+              min="2000" 
+              max="30000" 
+              step="1000" 
+              value={transitionDuration}
+              onChange={handleTransitionDurationChange}
+              className={styles.rangeInput}
+            />
+            <div className={styles.rangeLabels}>
+              <span>Fast (2s)</span>
+              <span>Slow (30s)</span>
+            </div>
+          </div>
+
       {timelineEnabled && (
         <>
           <div className={styles.settingGroup}>
@@ -169,25 +189,7 @@ const SessionSettings = ({
               </div>
             </div>
           </div>
-          
-          <div className={styles.settingGroup}>
-            <label className={styles.settingLabel}>
-              Transition Duration: {(transitionDuration / 1000).toFixed(1)} seconds
-            </label>
-            <input 
-              type="range" 
-              min="2000" 
-              max="30000" 
-              step="1000" 
-              value={transitionDuration}
-              onChange={handleTransitionDurationChange}
-              className={styles.rangeInput}
-            />
-            <div className={styles.rangeLabels}>
-              <span>Fast (2s)</span>
-              <span>Slow (30s)</span>
-            </div>
-          </div>
+         
         </>
       )}
       
@@ -195,8 +197,9 @@ const SessionSettings = ({
         <p className={styles.settingInfo}>
           {timelineEnabled 
             ? 'With timeline enabled, audio layers will automatically adjust during the session based on your configured phases.'
-            : 'With timeline disabled, you have complete manual control over audio layers throughout the session.'}
-        </p>
+            : 'With timeline disabled, you have complete manual control over audio layers throughout the session.Transition duration still applies to crossfades between audio variations.'}
+  </p>
+        
       </div>
     </div>
   );
