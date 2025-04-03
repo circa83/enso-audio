@@ -120,26 +120,19 @@ useEffect(() => {
       timeline.setTransitionDuration(event.detail.duration);
     }
   };
-  // Handle timeline enabled/disabled events
-  const handleEnabledChange = (event) => {
-    console.log('Timeline received enabled change event:', event.detail.enabled);
-    // Update local state if needed
-    setTimelineEnabled(event.detail.enabled);
-  };
-  
+ 
 
   
   // Add event listeners
   window.addEventListener('timeline-duration-changed', handleDurationChange);
   window.addEventListener('timeline-transition-changed', handleTransitionChange);
-  window.addEventListener('timeline-enabled-changed', handleEnabledChange);
-  
+
   
   return () => {
     // Clean up event listeners
     window.removeEventListener('timeline-duration-changed', handleDurationChange);
     window.removeEventListener('timeline-transition-changed', handleTransitionChange);
-    window.removeEventListener('timeline-enabled-changed', handleEnabledChange);
+   
   };
 }, [timeline, onDurationChange]);
 
