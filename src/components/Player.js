@@ -120,11 +120,22 @@ useEffect(() => {
     }
   }
 }, [sessionDuration, timelineEnabled, transitionDuration, timeline]);
-
+  // Effect to ensure Timeline is updated when settings change
+  useEffect(() => {
+    console.log("Session settings changed - updating timeline components");
+    
+    // Force the timeline to update its duration if it exists
+    if (timeline && timeline.setDuration) {
+      timeline.setDuration(sessionDuration);
+    }
+    
+    // Force the timeline to update its transition duration if it exists
+    if (timeline && timeline.setTransitionDuration) {
+      timeline.setTransitionDuration(transitionDuration);
+    }
+    
+  }, [sessionDuration, transitionDuration, timeline]);
     };
-
-   
-
     
     // Listen for settings updates
     window.addEventListener('sessionSettings-update', handleSessionSettingsUpdate);
@@ -356,6 +367,7 @@ useEffect(() => {
     
     // Make sure this is passed to the timeline service
     if (timeline.setDuration) {
+      console.log('Updating timeline duration service:', newDuration);
       //ensure this happens synchronously
       timeline.setDuration(newDuration);
 
@@ -366,7 +378,8 @@ useEffect(() => {
       timeline.updatePhases(phasesClone);
     }
   }
-  
+
+
   // Force timeline component to update
   const timelineEvent = new CustomEvent('timeline-duration-changed', { 
     detail: { duration: newDuration } 
@@ -383,6 +396,7 @@ useEffect(() => {
     
     // Make sure this is passed to the timeline service
     if (timeline.setTransitionDuration) {
+      console.log('Updating timeline transition duration service:', newDuration);
       timeline.setTransitionDuration(newDuration);
     
     // Trigger a custom event to force updates

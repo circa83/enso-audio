@@ -22,7 +22,7 @@ const SessionSettings = ({
     }
   }, [onTransitionDurationChange, transitionDuration]);
   */
- 
+
   // Handle duration change with useCallback
   const handleDurationChange = useCallback(() => {
     const newDuration = (durationHours * 60 * 60 * 1000) + 
