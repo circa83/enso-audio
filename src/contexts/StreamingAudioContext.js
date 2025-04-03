@@ -735,68 +735,66 @@ if (serviceRef.current.timelineEngine.onProgress) {
     if (currentTrackId === undefined) {
       console.log(`No current track found for ${layer}, using immediate switch instead of crossfade`);
       
-      try {
-        // Find track in library
-        const track = audioLibrary[layer].find(t => t.id === newTrackId);
-        if (!track) {
-          console.error(`Track ${newTrackId} not found in library`);
-          return false;
-        }
-        
-        // Check if we already have this track loaded
-        let trackElements = audioElements[layer]?.[newTrackId];
-        
-        if (!trackElements) {
-          // Create and load the track if needed
-          const audioElement = new Audio();
-          audioElement.preload = "auto";
-          audioElement.loop = true;
-          audioElement.src = track.path;
-          
-          // Create source node
-          const source = audioCtx.createMediaElementSource(audioElement);
-          
-          // Connect to VolumeController
-          serviceRef.current.volumeController.connectToLayer(layer, source, masterGain);
-          
-          // Store the new track
-          trackElements = {
-            element: audioElement,
-            source: source,
-            track: track,
-            isActive: false
-          };
-          
-          // Update audio elements in AudioCore if it supports it
-          if (serviceRef.current.audioCore.updateElement) {
-            serviceRef.current.audioCore.updateElement(layer, newTrackId, trackElements);
-          }
-        }
-        
-        // Update active audio state immediately
-        setActiveAudio(prev => ({
-          ...prev,
-          [layer]: newTrackId
-        }));
-        
-        // If we're already playing, start this track
-        if (isPlayingRef.current && trackElements.element) {
-          try {
-            trackElements.element.currentTime = 0;
-            await trackElements.element.play();
-            console.log(`Started playing ${newTrackId} for ${layer}`);
-          } catch (err) {
-            console.error(`Error playing ${layer}:`, err);
-          }
-        }
-        
-        console.log(`Immediate switch to ${newTrackId} successful for ${layer}`);
-        return true;
-      } catch (error) {
-        console.error(`Error during immediate track switch: ${error.message}`);
+      const libraryTrack = audioLibrary[layer]?.find(t => t.id === newTrackId);
+      if (!libraryTrack) {
+        console.error(`Track ${newTrackId} not found in library for layer ${layer}`);
+        console.log(`Available tracks for ${layer}:`, audioLibrary[layer]?.map(t => t.id) || 'none');
         return false;
       }
+      }
+    
+     // Check if we have the requested track in our audio library
+  
+  
+        // If audio is not playing, do an immediate switch without crossfade
+  if (!isPlayingRef.current || !currentTrackId) {
+    try {
+      console.log(`No current track found for ${layer} or not playing, using immediate switch instead of crossfade`);
+      
+      // Check if we already have this track loaded
+      let trackElements = audioElements[layer]?.[newTrackId];
+      
+      if (!trackElements) {
+        // Create and load the track if needed
+        console.log(`Creating new audio element for ${layer}/${newTrackId} with path ${libraryTrack.path}`);
+        const audioElement = new Audio();
+        audioElement.preload = "auto";
+        audioElement.loop = true;
+        audioElement.src = libraryTrack.path;
+        
+        // Create source node
+        const source = audioCtx.createMediaElementSource(audioElement);
+        
+        // Connect to VolumeController
+        serviceRef.current.volumeController.connectToLayer(layer, source, masterGain);
+        
+        // Store the new track
+        trackElements = {
+          element: audioElement,
+          source: source,
+          track: libraryTrack,
+          isActive: false
+        };
+        
+        // Update audio elements in AudioCore if it supports it
+        if (serviceRef.current.audioCore.updateElement) {
+          serviceRef.current.audioCore.updateElement(layer, newTrackId, trackElements);
+        }
+      }
+      
+      // Update active audio state immediately
+      setActiveAudio(prev => ({
+        ...prev,
+        [layer]: newTrackId
+      }));
+      
+      console.log(`Immediate switch to ${newTrackId} successful for ${layer}`);
+      return true;
+    } catch (error) {
+      console.error(`Error during immediate track switch: ${error.message}`);
+      return false;
     }
+  }
     
     // If audio is not playing, do an immediate switch without crossfade
     if (!isPlayingRef.current) {

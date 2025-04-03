@@ -647,8 +647,12 @@ useEffect(() => {
     // If we have volume changes to make, set up the transition timer
     if (volumeChanges.length > 0) {
       const updateInterval = 50; // ms between volume updates
-      const totalSteps = duration / updateInterval;
+      const totalSteps = Math.max(1, duration / updateInterval);
       let currentStep = 0;
+
+      // Log the volume transition plan
+  console.log(`Setting up volume transitions with ${totalSteps} steps over ${duration}ms`);
+  console.log('Volume changes:', volumeChanges.map(c => `${c.layer}: ${c.from.toFixed(2)} → ${c.to.toFixed(2)}`));
       
       volumeTransitionTimer.current = setInterval(() => {
         currentStep++;
@@ -663,7 +667,9 @@ useEffect(() => {
           // Update volume (but not if this layer is in an active crossfade)
           const isInCrossfade = trackChanges.some(tc => tc.layer === change.layer);
           if (!isInCrossfade) {
-            volume.setLayer(change.layer, newVolume);
+              // Use the immediate flag to ensure volume changes are applied directly
+        // This ensures the UI slider moves with the transition
+        volume.setLayer(change.layer, newVolume, { immediate: false });
           }
         });
         
@@ -677,7 +683,8 @@ useEffect(() => {
           volumeChanges.forEach(change => {
             const isInCrossfade = trackChanges.some(tc => tc.layer === change.layer);
             if (!isInCrossfade) {
-              volume.setLayer(change.layer, change.to);
+              volume.setLayer(change.layer, change.to, { immediate: true });
+              console.log(`Volume transition complete for ${change.layer}: ${change.to.toFixed(2)}`);
             }
           });
           
