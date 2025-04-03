@@ -44,6 +44,8 @@ const SessionTimeline = ({
   const currentAudioState = useRef({});
   const previousEditMode = useRef(editMode);
   const transitionInProgress = useRef(false);
+  const componentHasRendered = useRef(false);
+  const isFirstRender = useRef(true);
 
   const initialMount = useRef(true);
   
@@ -75,14 +77,15 @@ const SessionTimeline = ({
 
       // IMPORTANT: Only reset timeline if playback is not active
       // This prevents resetting when the component mounts during playback
-     /* if (!playback.isPlaying && timeline.reset) {
+  if (!playback.isPlaying && timeline.reset) {
         console.log("Timeline reset on mount (playback not active)");
         timeline.reset();
       }
       
       // Mark initial setup as complete
-      initialMount.current = false; */
+      initialMount.current = false; 
     }
+    componentHasRendered.current = true;
     // Clean up
     return () => {
       if (volumeTransitionTimer.current) {
@@ -218,7 +221,7 @@ useEffect(() => {
   // Track play state changes to detect stops and restarts
   useEffect(() => {
     if (playback.isPlaying) {
-      if (!wasPlayingBeforeStop.current) {
+      if (!wasPlayingBeforeStop.current && componentHasRendered.current) {
         resetTimeline();
       }
       wasPlayingBeforeStop.current = true;
@@ -292,9 +295,16 @@ useEffect(() => {
 
   // Apply pre-onset phase IMMEDIATELY when play is pressed (no transition)
   useEffect(() => {
+     // Skip the effect on first render to prevent state changes when the container is opened
+  if (isFirstRender.current) {
+    isFirstRender.current = false;
+    return;
+  }
     if (enabled && playback.isPlaying && !startingPhaseApplied.current) {
       const preOnsetPhase = phases.find(p => p.id === 'pre-onset');
       
+      
+      if (timelineRef.current) { // This ensures the DOM is fully rendered
       // Determine the state to apply - either the saved state or the default
       const stateToApply = preOnsetPhase?.state || DEFAULT_PRE_ONSET_STATE;
       
@@ -309,6 +319,10 @@ useEffect(() => {
         console.log('Applying SAVED pre-onset phase state', stateToApply);
       }
       
+
+       // Apply the state only if we're actively starting playback
+      // This is the key check to prevent unwanted state application when container is opened
+      if (playback.isPlaying) {
       // Apply the state
       console.log('Applying pre-onset phase immediately at start of playback (no transition)');
       
@@ -323,6 +337,7 @@ useEffect(() => {
           console.log(`Immediate switch to ${trackId} for ${layer}`);
           transitions.crossfade(layer, trackId, 50); // 50ms is practically instant but avoids pops
         }
+     
       });
       
       // Mark as applied and update state refs
@@ -334,6 +349,8 @@ useEffect(() => {
       currentVolumeState.current = { ...stateToApply.volumes };
       currentAudioState.current = { ...stateToApply.activeAudio };
     }
+  }
+}
   }, [enabled, playback.isPlaying, phases, volume, transitions, layers]);
   
   // Update time and progress bar - runs continuously during playback

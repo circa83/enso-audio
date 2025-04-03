@@ -14,7 +14,7 @@ class TimelineEngine {
      * @param {Function} options.onScheduledEvent - Callback triggered when a scheduled event occurs: (event) => void
      * @param {Function} options.onProgress - Callback for timeline progress updates: (progress, time) => void
      * @param {Object} [options.defaultPhases] - Initial phase configuration
-     * @param {number} [options.sessionDuration=3600000] - Total session duration in ms (default: 1 hour)
+     * @param {number} [options.sessionDuration=60000] - Total session duration in ms (default: 1 hour)
      * @param {number} [options.transitionDuration=4000] - Default phase transition duration in ms (default: 4 seconds)
      * @param {boolean} [options.enableLogging=false] - Enable detailed console logging
      */

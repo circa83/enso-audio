@@ -86,7 +86,7 @@ export const AudioProvider = ({ children }) => {
   const [timelinePhases, setTimelinePhases] = useState([]);
   const [activePhase, setActivePhase] = useState(null);
   const [progress, setProgress] = useState(0);
-  const [sessionDuration, setSessionDuration] = useState(60 * 60 * 1000); // 1 hour
+  const [sessionDuration, setSessionDuration] = useState( 1 * 60 * 1000); // 1 min
   const [transitionDuration, setTransitionDuration] = useState(4000); // 4 seconds
   
   // Preset management

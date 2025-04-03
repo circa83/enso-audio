@@ -29,7 +29,7 @@ const Player = () => {
   } = useAudio();
   
   // Local state for settings and UI
-  const [sessionDuration, setSessionDuration] = useState(60 * 60 * 1000); // Default 1 hour
+  const [sessionDuration, setSessionDuration] = useState(1 * 60 * 1000); // Default 1 hour
   const [timelineEnabled, setTimelineEnabled] = useState(true);
   const [transitionDuration, setTransitionDuration] = useState(4000); // Default 4 seconds
   const [showDebugPanel, setShowDebugPanel] = useState(false); // Debug panel state
