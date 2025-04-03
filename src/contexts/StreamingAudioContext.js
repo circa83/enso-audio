@@ -460,10 +460,17 @@ export const AudioProvider = ({ children }) => {
     
     try {
       console.log("Starting session...");
+
+       // Ensure timeline is reset at the start of playback
+    if (serviceRef.current.timelineEngine) {
+      console.log("Explicitly resetting timeline engine before starting playback");
+      serviceRef.current.timelineEngine.reset();
+    }
       
       // Resume AudioCore
       serviceRef.current.audioCore.resume().catch(err => {
         console.error('Error resuming audio context:', err);
+        
       });
       
       // Get currently active audio elements
@@ -553,8 +560,19 @@ console.log("TimelineEngine start result:", started);
         // Start the TimelineEngine
 console.log("About to start TimelineEngine, current instance:", serviceRef.current.timelineEngine);
         if (serviceRef.current.timelineEngine) {
+
+            // Ensure we stop any existing timers first
+  serviceRef.current.timelineEngine.stop();
+
 const started = serviceRef.current.timelineEngine.start({ reset: true });
 console.log("TimelineEngine start result:", started);
+
+// Force an initial progress update to get things moving
+if (serviceRef.current.timelineEngine.onProgress) {
+  const initialTime = serviceRef.current.timelineEngine.getElapsedTime();
+  const initialProgress = Math.min(100, (initialTime / sessionDuration) * 100);
+  serviceRef.current.timelineEngine.onProgress(initialProgress, initialTime);
+}
         }
       }
       

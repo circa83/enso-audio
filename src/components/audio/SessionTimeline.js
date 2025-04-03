@@ -75,13 +75,13 @@ const SessionTimeline = ({
 
       // IMPORTANT: Only reset timeline if playback is not active
       // This prevents resetting when the component mounts during playback
-      if (!playback.isPlaying && timeline.reset) {
+     /* if (!playback.isPlaying && timeline.reset) {
         console.log("Timeline reset on mount (playback not active)");
         timeline.reset();
       }
       
       // Mark initial setup as complete
-      initialMount.current = false;
+      initialMount.current = false; */
     }
     // Clean up
     return () => {
@@ -256,7 +256,7 @@ useEffect(() => {
     console.log("Skipping timeline reset - playback is active");
     return;
   }
-  
+  console.log("Performing full timeline reset");
     setProgress(0);
     setCurrentTime(0);
     
@@ -272,9 +272,11 @@ useEffect(() => {
     transitionInProgress.current = false;
     
     if (timeline.reset) {
+      console.log("Calling timeline.reset()");
       timeline.reset();
     }
-  }, [timeline]);
+    startingPhaseApplied.current = false;
+}, [timeline, playback.isPlaying]);
   
   // Define default pre-onset phase state - used if no saved state exists
   const DEFAULT_PRE_ONSET_STATE = {
@@ -342,7 +344,14 @@ useEffect(() => {
       // Add debug logging
       console.log("Starting SessionTimeline progress tracking");
       
+      // Start with fresh time - clear any old state
+      const time = playback.getTime();
+      setCurrentTime(time);
+      const progressPercent = Math.min(100, (time / timeline.duration) * 100);
+      setProgress(progressPercent);
+      
       interval = setInterval(() => {
+        // Get current time directly from the timeline service
         const time = playback.getTime();
         setCurrentTime(time);
         
@@ -353,6 +362,9 @@ useEffect(() => {
         }
         setProgress(progressPercent);
       }, 50); // Update more frequently for smoother animation
+    } else if (!playback.isPlaying) {
+      // Explicitly reset when not playing
+      console.log("Playback not active, setting timeline to initial state");
     }
     
     return () => {
@@ -361,7 +373,7 @@ useEffect(() => {
         clearInterval(interval);
       }
     };
-  }, [enabled, playback, timeline.duration]);
+  }, [enabled, playback.isPlaying, timeline.duration]);
   
   // Phase detection logic - separate from animation updates
   useEffect(() => {

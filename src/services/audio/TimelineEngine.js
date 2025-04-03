@@ -134,17 +134,26 @@ class TimelineEngine {
         
         // Reset elapsed time if requested
         if (reset) {
+          this.log('Performing full timeline reset before starting');
+          // Stop any existing timers
+          this.stopProgressTimer();
+          this.stopEventChecking();
           this.elapsedTime = 0;
           this.nextEventIndex = 0;
-          this.log('Timeline reset to beginning');
-        }
+           // Ensure we trigger initial progress updates
+      if (this.onProgress) {
+        this.onProgress(0, 0);
+      }
+      
+      this.log('Timeline reset to beginning');
+    }
         
         // Set start time based on current elapsed time
         this.startTime = Date.now() - this.elapsedTime;
         this.isPlaying = true;
         
         // Start progress timer
-        this.startProgressTimer();
+        this.startProgressTimer(true); // Added parameter for immediate updat
         
         // Start event checking
         this.startEventChecking();
@@ -668,9 +677,19 @@ class TimelineEngine {
      * Start the progress update timer
      * @private
      */
-    startProgressTimer() {
+    startProgressTimer(immediate = false) {
       if (this.progressTimer) {
         clearInterval(this.progressTimer);
+      }
+      
+      // Trigger an immediate update if requested
+      if (immediate && this.onProgress) {
+        const elapsedTime = this.getElapsedTime();
+        const progress = this.getProgress();
+        this.onProgress(progress, elapsedTime);
+        
+        // Check for phase changes
+        this.checkCurrentPhase();
       }
       
       // Update progress every 100ms for smoother UI updates
