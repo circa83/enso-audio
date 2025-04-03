@@ -266,7 +266,7 @@ useEffect(() => {
     lastActivePhaseId.current = null;
     setActivePhase(null);
     
-    if (volumeTransitionTimer.current) {
+    if (!enabled && volumeTransitionTimer.current) {
       clearInterval(volumeTransitionTimer.current);
       volumeTransitionTimer.current = null;
     }
@@ -278,8 +278,8 @@ useEffect(() => {
       console.log("Calling timeline.reset()");
       timeline.reset();
     }
-    startingPhaseApplied.current = false;
-}, [timeline, playback.isPlaying]);
+    // startingPhaseApplied.current = false;
+}, [timeline, playback.isPlaying, enabled]);
   
   // Define default pre-onset phase state - used if no saved state exists
   const DEFAULT_PRE_ONSET_STATE = {

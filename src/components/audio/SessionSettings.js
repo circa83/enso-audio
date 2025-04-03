@@ -92,9 +92,18 @@ const SessionSettings = ({
   
   // Handle timeline toggle with useCallback
   const handleTimelineToggle = useCallback((enabled) => {
-    onTimelineToggle(enabled);
+    console.log(`Timeline toggle: ${enabled}`);
+    
+    if (onTimelineToggle) {
+     onTimelineToggle(enabled)
+    } 
+    // Force an update by triggering a custom event
+    const event = new CustomEvent('timeline-enabled-changed', { 
+      detail: { enabled: enabled } 
+    });
+    window.dispatchEvent(event);
   }, [onTimelineToggle]);
-  
+
   return (
     <div className={styles.settingsContainer}>
       <div className={styles.settingGroup}>

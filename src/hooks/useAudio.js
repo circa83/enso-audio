@@ -50,6 +50,8 @@ export function useAudio() {
     progress,
     sessionDuration,
     transitionDuration,
+    timelineIsEnabled,
+    setTimelineEnabled,
     
     // Timeline functions
     resetTimelineEventIndex,
@@ -138,6 +140,8 @@ export function useAudio() {
     progress,
     duration: sessionDuration,
     transitionDuration,
+    enabled: timelineIsEnabled,
+    setTimelineEnabled, 
     reset: () => {
       console.log('[useAudio] Resetting timeline event index');
       return resetTimelineEventIndex();
@@ -171,6 +175,8 @@ export function useAudio() {
       return setTransitionDuration(duration);
     }
   }), [
+    timelineIsEnabled,
+    setTimelineEnabled,
     timelineEvents, 
     timelinePhases, 
     activePhase, 
@@ -280,6 +286,8 @@ export function useAudio() {
     preloadAudio,
     getSessionTime,
     resetTimelineEventIndex,
+    timelineIsEnabled,
+    setTimelineEnabled,
     registerTimelineEvent,
     clearTimelineEvents,
     updateTimelinePhases,

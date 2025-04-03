@@ -82,6 +82,7 @@ export const AudioProvider = ({ children }) => {
   const [preloadProgress, setPreloadProgress] = useState({});
   
   // Timeline features
+  const[timelineIsEnabled, setTimelineIsEnabled] = useState(true);
   const [timelineEvents, setTimelineEvents] = useState([]);
   const [timelinePhases, setTimelinePhases] = useState([]);
   const [activePhase, setActivePhase] = useState(null);
@@ -448,6 +449,13 @@ export const AudioProvider = ({ children }) => {
     setIsPlaying(newState);
   }, []);
 
+// Handler for Enable Timeline
+const handleSetTimelineEnabled = useCallback((enabled) => {
+  console.log(`Setting timeline enabled: ${enabled}`);
+  setTimelineIsEnabled(enabled);
+}, []);
+
+  
   // Start the session
   
   const handleStartSession = useCallback(() => {
@@ -461,8 +469,9 @@ export const AudioProvider = ({ children }) => {
     try {
       console.log("Starting session...");
 
-       // Ensure timeline is reset at the start of playback
-    if (serviceRef.current.timelineEngine) {
+     // Only start and reset timeline if timeline is enabled
+    // This is a key change - only operate timeline if enabled
+    if (serviceRef.current.timelineEngine && timelineIsEnabled) {
       console.log("Explicitly resetting timeline engine before starting playback");
       serviceRef.current.timelineEngine.reset();
     }
@@ -533,10 +542,11 @@ export const AudioProvider = ({ children }) => {
             updatePlayingState(true);
             
             // Start the TimelineEngine
-console.log("About to start TimelineEngine, current instance:", serviceRef.current.timelineEngine);
-            if (serviceRef.current.timelineEngine) {
-const started = serviceRef.current.timelineEngine.start({ reset: true });
-console.log("TimelineEngine start result:", started);
+
+            if (serviceRef.current.timelineEngine && timelineIsEnabled) {
+              console.log("About to start TimelineEngine, current instance:", serviceRef.current.timelineEngine);
+              const started = serviceRef.current.timelineEngine.start({ reset: true });
+              console.log("TimelineEngine start result:", started);
             }
           }
         })
@@ -580,7 +590,7 @@ if (serviceRef.current.timelineEngine.onProgress) {
       console.error('Error starting session:', error);
       updatePlayingState(false);
     }
-  }, [activeAudio, updatePlayingState]);
+  }, [activeAudio, updatePlayingState, timelineIsEnabled]);
 
   // Pause/Stop session
   const handlePauseSession = useCallback(() => {
@@ -1156,6 +1166,8 @@ const contextValue = useMemo(() => {
     seekToPercent: handleSeekToPercent,
     setSessionDuration: handleSetSessionDuration,
     setTransitionDuration: handleSetTransitionDuration,
+    timelineIsEnabled,
+    setTimelineIsEnabled: handleSetTimelineEnabled,
     
     // Preset functions
     registerPresetStateProvider: handleRegisterPresetStateProvider,
@@ -1199,6 +1211,7 @@ const contextValue = useMemo(() => {
   progress,
   sessionDuration,
   transitionDuration,
+  timelineIsEnabled,
   
   // Timeline functions
   handleResetTimelineEventIndex,
@@ -1209,6 +1222,7 @@ const contextValue = useMemo(() => {
   handleSeekToPercent,
   handleSetSessionDuration,
   handleSetTransitionDuration,
+  handleSetTimelineEnabled,
   
   // Preset functions
   handleRegisterPresetStateProvider,

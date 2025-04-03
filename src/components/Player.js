@@ -411,12 +411,17 @@ const handleTimelineToggle = useCallback((enabled) => {
   console.log(`Timeline toggle: ${enabled}`);
   setTimelineEnabled(enabled);
   
+  // Update the timeline enabled state in the audio context
+  // This is important to make sure the context knows the timeline state
+  if (timeline && timeline.setTimelineEnabled) {
+    timeline.setTimelineEnabled(enabled);
+  }
   // Force an update by triggering a custom event
   const event = new CustomEvent('timeline-enabled-changed', { 
     detail: { enabled: enabled } 
   });
   window.dispatchEvent(event);
-}, []);
+}, [timeline]);
   
   // Render session settings content
   const renderSessionSettings = useCallback(() => {
