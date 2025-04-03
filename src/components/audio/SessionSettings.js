@@ -37,27 +37,49 @@ const SessionSettings = ({
     const value = parseInt(e.target.value, 10);
     if (!isNaN(value) && value >= 0 && value <= 12) {
       setDurationHours(value);
-    }
-  }, []);
+    // Use a micro-task to allow state to update first
+    setTimeout(() => {
+      const newDuration = (value * 60 * 60 * 1000) + 
+                          (durationMinutes * 60 * 1000) + 
+                          (durationSeconds * 1000);
+      onDurationChange(newDuration);
+    }, 0);
+  }
+}, [onDurationChange, durationMinutes, durationSeconds]);
   
   // Handle minutes input change with useCallback
   const handleMinutesChange = useCallback((e) => {
     const value = parseInt(e.target.value, 10);
     if (!isNaN(value) && value >= 0 && value < 60) {
       setDurationMinutes(value);
-    }
-  }, []);
+   // Use a micro-task to allow state to update first
+   setTimeout(() => {
+    const newDuration = (durationHours * 60 * 60 * 1000) + 
+                        (value * 60 * 1000) + 
+                        (durationSeconds * 1000);
+    onDurationChange(newDuration);
+  }, 0);
+}
+}, [onDurationChange, durationHours, durationSeconds]);
   
   // Handle seconds input change with useCallback
   const handleSecondsChange = useCallback((e) => {
     const value = parseInt(e.target.value, 10);
     if (!isNaN(value) && value >= 0 && value < 60) {
       setDurationSeconds(value);
+      // Use a micro-task to allow state to update first
+      setTimeout(() => {
+        const newDuration = (durationHours * 60 * 60 * 1000) + 
+                            (durationMinutes * 60 * 1000) + 
+                            (value * 1000);
+        onDurationChange(newDuration);
+      }, 0);
     }
-  }, []);
+  }, [onDurationChange, durationHours, durationMinutes]);
   
   // Apply changes on blur with useCallback
   const handleBlur = useCallback(() => {
+    console.log("Input field blur - validating values");
     handleDurationChange();
   }, [handleDurationChange]);
   

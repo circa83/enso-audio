@@ -23,7 +23,9 @@ const Player = () => {
   const { 
     layers,
     timeline,
-    presets
+    presets,
+    timelinePhases,
+    
   } = useAudio();
   
   // Local state for settings and UI
@@ -90,7 +92,39 @@ const Player = () => {
           setTransitionDuration(event.detail.transitionDuration);
         }
       }
+       // Effect to handle settings updates and ensure UI reactivity
+useEffect(() => {
+  // This effect will run whenever sessionDuration, timelineEnabled, or transitionDuration changes
+  console.log('Settings changed, ensuring UI updates:', {
+    sessionDuration,
+    timelineEnabled,
+    transitionDuration
+  });
+  
+  // If we have a timeline component and it's available
+  if (timeline) {
+    // Ensure timeline duration is synced
+    if (timeline.setDuration) {
+      timeline.setDuration(sessionDuration);
+    }
+    
+    // Ensure transition duration is synced
+    if (timeline.setTransitionDuration) {
+      timeline.setTransitionDuration(transitionDuration);
+    }
+    
+    // Force a UI update by triggering a state refresh of the phases
+    if (timeline.phases && timeline.updatePhases) {
+      console.log('Refreshing timeline phases to trigger UI update');
+      timeline.updatePhases([...timeline.phases]);
+    }
+  }
+}, [sessionDuration, timelineEnabled, transitionDuration, timeline]);
+
     };
+
+   
+
     
     // Listen for settings updates
     window.addEventListener('sessionSettings-update', handleSessionSettingsUpdate);
@@ -316,27 +350,59 @@ const Player = () => {
   // Memoize timeline settings handlers
   const handleDurationChange = useCallback((newDuration) => {
     console.log(`Player received new session duration: ${newDuration}ms`);
+    
+    //update local state
     setSessionDuration(newDuration);
     
     // Make sure this is passed to the timeline service
     if (timeline.setDuration) {
+      //ensure this happens synchronously
       timeline.setDuration(newDuration);
+
+      // Trigger a phase update to refresh the timeline display
+    if (timeline.updatePhases && timelinePhases.length > 0) {
+      console.log('Refreshing timeline phases after duration change');
+      const phasesClone = [...timelinePhases];
+      timeline.updatePhases(phasesClone);
     }
-  }, [timeline]);
+  }
+  
+  // Force timeline component to update
+  const timelineEvent = new CustomEvent('timeline-duration-changed', { 
+    detail: { duration: newDuration } 
+  });
+  window.dispatchEvent(timelineEvent);
+  
+}, [timeline, timelinePhases]);
   
   const handleTransitionDurationChange = useCallback((newDuration) => {
     console.log(`Player received new transition duration: ${newDuration}ms`);
+    
+    //Update local state
     setTransitionDuration(newDuration);
     
     // Make sure this is passed to the timeline service
     if (timeline.setTransitionDuration) {
       timeline.setTransitionDuration(newDuration);
-    }
-  }, [timeline]);
+    
+    // Trigger a custom event to force updates
+    const event = new CustomEvent('timeline-transition-changed', { 
+      detail: { duration: newDuration } 
+    });
+    window.dispatchEvent(event);
+  }
+}, [timeline]);
+
+const handleTimelineToggle = useCallback((enabled) => {
+  console.log(`Timeline toggle: ${enabled}`);
+  setTimelineEnabled(enabled);
   
-  const handleTimelineToggle = useCallback((enabled) => {
-    setTimelineEnabled(enabled);
-  }, []);
+  // Force an update by triggering a custom event
+  const event = new CustomEvent('timeline-enabled-changed', { 
+    detail: { enabled: enabled } 
+  });
+  window.dispatchEvent(event);
+}, []);
   
   // Render session settings content
   const renderSessionSettings = useCallback(() => {

@@ -98,6 +98,49 @@ useEffect(() => {
   }
 }, [phases]);
 
+// Listen for timeline setting changes
+useEffect(() => {
+  // Handle duration change events
+  const handleDurationChange = (event) => {
+    console.log('Timeline received duration change event:', event.detail.duration);
+    // Force an update of the timeline
+    if (timeline.setDuration) {
+      timeline.setDuration(event.detail.duration);
+    }
+    // Update local state if needed
+    if (onDurationChange) {
+      onDurationChange(event.detail.duration);
+    }
+  };
+  
+  // Handle transition duration change events
+  const handleTransitionChange = (event) => {
+    console.log('Timeline received transition change event:', event.detail.duration);
+    if (timeline.setTransitionDuration) {
+      timeline.setTransitionDuration(event.detail.duration);
+    }
+  };
+  
+  // Handle timeline enabled/disabled events
+  const handleEnabledChange = (event) => {
+    console.log('Timeline received enabled change event:', event.detail.enabled);
+    // Update local state if needed
+    setTimelineEnabled(event.detail.enabled);
+  };
+  
+  // Add event listeners
+  window.addEventListener('timeline-duration-changed', handleDurationChange);
+  window.addEventListener('timeline-transition-changed', handleTransitionChange);
+  window.addEventListener('timeline-enabled-changed', handleEnabledChange);
+  
+  return () => {
+    // Clean up event listeners
+    window.removeEventListener('timeline-duration-changed', handleDurationChange);
+    window.removeEventListener('timeline-transition-changed', handleTransitionChange);
+    window.removeEventListener('timeline-enabled-changed', handleEnabledChange);
+  };
+}, [timeline, onDurationChange]);
+
   // Register the state provider for presets
   useEffect(() => {
     // This function will be called when saving a preset
