@@ -21,7 +21,7 @@ const SessionTimeline = ({
     volume,
     layers,
     transitions,
-    timeline
+    timeline,
   } = useAudio();
   
   // Local state
@@ -217,43 +217,9 @@ useEffect(() => {
       previousEditMode.current = editMode;
     }
   }, [editMode]);
-  
-  // Track play state changes to detect stops and restarts
-  useEffect(() => {
-    if (playback.isPlaying) {
-      if (!wasPlayingBeforeStop.current && componentHasRendered.current) {
-        resetTimeline();
-      }
-      wasPlayingBeforeStop.current = true;
-    } else {
-      wasPlayingBeforeStop.current = false;
-      // Reset the starting phase flag when playback stops
-      startingPhaseApplied.current = false;
-    }
-  }, [playback.isPlaying]);
-
-  // Watch for active crossfades to update transition state
-  useEffect(() => {
-    const hasActiveCrossfades = Object.keys(transitions.active).length > 0;
-    
-    // If any layer is in transition, mark as transitioning
-    if (hasActiveCrossfades) {
-      transitionInProgress.current = true;
-      setTransitioning(true);
-    } else if (transitionInProgress.current) {
-      // If was transitioning but now no crossfades are active
-      transitionInProgress.current = false;
-      
-      // Short delay before allowing new transitions
-      setTimeout(() => {
-        setTransitioning(false);
-        transitionCompletedRef.current = true;
-      }, 200);
-    }
-  }, [transitions.active]);
-  
+   
   // Reset all timeline state for a clean restart
-  const resetTimeline = useCallback(() => {
+   const resetTimeline = useCallback(() => {
     // Don't reset if playback is active - this prevents disruption
   if (playback.isPlaying) {
     console.log("Skipping timeline reset - playback is active");
@@ -280,6 +246,53 @@ useEffect(() => {
     }
     // startingPhaseApplied.current = false;
 }, [timeline, playback.isPlaying, enabled]);
+
+  // Track play state changes to detect stops and restarts
+  useEffect(() => {
+    if (playback.isPlaying) {
+      if (!wasPlayingBeforeStop.current && componentHasRendered.current) {
+        resetTimeline();
+     
+        // Ensure current audio state is synchronized with active audio
+     if (layers && layers.active) {
+      console.log('Synchronizing currentAudioState with active audio');
+      Object.entries(layers.active).forEach(([layer, trackId]) => {
+        if (trackId) {
+          currentAudioState.current[layer] = trackId;
+          console.log(`Set currentAudioState for ${layer} to ${trackId}`);
+        }
+      });
+    }
+  }
+  wasPlayingBeforeStop.current = true;
+} else {
+  wasPlayingBeforeStop.current = false;
+  // Reset the starting phase flag when playback stops
+  startingPhaseApplied.current = false;
+}
+}, [playback.isPlaying, resetTimeline, layers]);
+
+  // Watch for active crossfades to update transition state
+  useEffect(() => {
+    const hasActiveCrossfades = Object.keys(transitions.active).length > 0;
+    
+    // If any layer is in transition, mark as transitioning
+    if (hasActiveCrossfades) {
+      transitionInProgress.current = true;
+      setTransitioning(true);
+    } else if (transitionInProgress.current) {
+      // If was transitioning but now no crossfades are active
+      transitionInProgress.current = false;
+      
+      // Short delay before allowing new transitions
+      setTimeout(() => {
+        setTransitioning(false);
+        transitionCompletedRef.current = true;
+      }, 200);
+    }
+  }, [transitions.active]);
+  
+ 
   
   // Define default pre-onset phase state - used if no saved state exists
   const DEFAULT_PRE_ONSET_STATE = {
@@ -303,6 +316,13 @@ useEffect(() => {
     if (enabled && playback.isPlaying && !startingPhaseApplied.current && wasPlayingBeforeStop.current === false) {
       const preOnsetPhase = phases.find(p => p.id === 'pre-onset');
       
+      if (Object.keys(currentAudioState.current).length === 0 && layers && layers.active) {
+        console.log('Initializing currentAudioState from active layers');
+        Object.entries(layers.active).forEach(([layer, trackId]) => {
+          if (trackId) {
+            currentAudioState.current[layer] = trackId;
+          }
+        });
       
       if (timelineRef.current) { // This ensures the DOM is fully rendered
       // Determine the state to apply - either the saved state or the default
@@ -351,7 +371,7 @@ useEffect(() => {
     }
   }
 }
-  }, [enabled, playback.isPlaying, phases, volume, transitions, layers]);
+ } }, [enabled, playback.isPlaying, phases, volume, transitions, layers]);
   
   // Update time and progress bar - runs continuously during playback
   useEffect(() => {
@@ -576,8 +596,13 @@ useEffect(() => {
     const trackChanges = [];
     
     Object.entries(phase.state.activeAudio).forEach(([layer, targetTrackId]) => {
-      const currentTrackId = currentAudioState.current[layer] || layers.active[layer];
-      
+      const currentTrackId = currentAudioState.current[layer] !== undefined ? 
+    currentAudioState.current[layer] : 
+    layers.active[layer];
+        // Additional check to ensure we have a valid currentTrackId
+    if (!currentTrackId) {
+      console.log(`No current track ID for ${layer}, will use immediate switch`);
+    }
       if (targetTrackId !== currentTrackId) {
         console.log(`Need to crossfade ${layer}: ${currentTrackId} → ${targetTrackId}`);
         
@@ -601,19 +626,21 @@ useEffect(() => {
     
     // Step 3: Handle volume changes with smooth transitions over the same duration
     const volumeChanges = [];
-    
+
     Object.entries(phase.state.volumes).forEach(([layer, targetVolume]) => {
       const currentVolume = currentVolumeState.current[layer] !== undefined 
         ? currentVolumeState.current[layer] 
-        : volume.layers[layer];
+        : (volume.layers[layer] !== undefined ? volume.layers[layer] : 0);
       
       // Only transition if there's a meaningful difference
-      if (Math.abs(targetVolume - currentVolume) > 0.01) {
+      if (Math.abs(targetVolume - currentVolume) > 0.02) {
         volumeChanges.push({
           layer,
           from: currentVolume,
           to: targetVolume
         });
+      } else {
+        console.log(`Skipping volume transition for ${layer} - change too small (${currentVolume.toFixed(2)} → ${targetVolume.toFixed(2)})`);
       }
     });
     
@@ -684,7 +711,7 @@ useEffect(() => {
       console.log('No transitions needed for this phase');
       finishTransition(phase);
     }
-  }, [enabled, timeline.transitionDuration, layers.active, volume, transitions]);
+  }, [enabled, timeline, layers, volume, transitions]);
   
   // Helper function to finish the transition and update state
   const finishTransition = useCallback((phase) => {
@@ -711,6 +738,7 @@ useEffect(() => {
   }, [deselectAllMarkers, timelineRef]);
   
   if (!enabled) return null;
+
   
   return (
     <div className={styles.timelineContainer}>
@@ -787,5 +815,4 @@ useEffect(() => {
     </div>
   );
 };
-
 export default SessionTimeline;

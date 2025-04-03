@@ -653,6 +653,14 @@ const handleTimelineToggle = useCallback((enabled) => {
       {/* Main player and controls */}
       <PlayerControlPanel />
       
+        {/* Collapsible Section for Audio Layers */}
+        <CollapsibleSection 
+        title="Audio Layers" 
+        initialExpanded={false}
+      >
+        {renderLayerControls()}
+      </CollapsibleSection>
+
       {/* Collapsible Section for Session Timeline */}
       <CollapsibleSection 
         title="Session Timeline" 
@@ -660,15 +668,7 @@ const handleTimelineToggle = useCallback((enabled) => {
       >
         {renderSessionTimeline()}
       </CollapsibleSection>
-      
-      {/* Collapsible Section for Audio Layers */}
-      <CollapsibleSection 
-        title="Audio Layers" 
-        initialExpanded={false}
-      >
-        {renderLayerControls()}
-      </CollapsibleSection>
-      
+          
       {/* Collapsible Section for Session Settings */}
       <CollapsibleSection 
         title="Session Settings" 
