@@ -200,9 +200,9 @@ useEffect(() => {
       setTransitioning(false);
     }
     
-    if (!enabled) {
-      startingPhaseApplied.current = false;
-    }
+    // if (!enabled) {
+    //   startingPhaseApplied.current = false;
+    // }
   }, [enabled]);
   
   // Effect to track edit mode changes and ensure deselection
@@ -300,7 +300,7 @@ useEffect(() => {
     isFirstRender.current = false;
     return;
   }
-    if (enabled && playback.isPlaying && !startingPhaseApplied.current) {
+    if (enabled && playback.isPlaying && !startingPhaseApplied.current && wasPlayingBeforeStop.current === false) {
       const preOnsetPhase = phases.find(p => p.id === 'pre-onset');
       
       
