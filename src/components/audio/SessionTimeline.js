@@ -309,24 +309,48 @@ useEffect(() => {
   };
 
   // Apply pre-onset phase IMMEDIATELY when play is pressed (no transition)
-  useEffect(() => {
-     // Skip the effect on first render to prevent state changes when the container is opened
+  // Replace the entire useEffect that handles pre-onset phase application
+useEffect(() => {
+  // Skip the effect on first render to prevent state changes when the container is opened
   if (isFirstRender.current) {
     isFirstRender.current = false;
     return;
   }
-    if (enabled && playback.isPlaying && !startingPhaseApplied.current && wasPlayingBeforeStop.current === false) {
-      const preOnsetPhase = phases.find(p => p.id === 'pre-onset');
-      
-      if (Object.keys(currentAudioState.current).length === 0 && layers && layers.active) {
-        console.log('Initializing currentAudioState from active layers');
-        Object.entries(layers.active).forEach(([layer, trackId]) => {
-          if (trackId) {
-            currentAudioState.current[layer] = trackId;
-          }
-        });
-      
-      if (timelineRef.current) { // This ensures the DOM is fully rendered
+  
+  if (enabled && playback.isPlaying && !startingPhaseApplied.current && wasPlayingBeforeStop.current === false) {
+    const preOnsetPhase = phases.find(p => p.id === 'pre-onset');
+    
+    // Ensure we have valid current state data
+    let needsStateInitialization = false;
+    
+    if (Object.keys(currentAudioState.current).length === 0) {
+      needsStateInitialization = true;
+      console.log('Current audio state is empty, will initialize from active layers');
+    }
+    
+    if (needsStateInitialization && layers && layers.active) {
+      console.log('Initializing currentAudioState from active layers');
+      Object.entries(layers.active).forEach(([layer, trackId]) => {
+        if (trackId) {
+          currentAudioState.current[layer] = trackId;
+          console.log(`Set currentAudioState for ${layer} to ${trackId}`);
+        }
+      });
+    }
+    
+    // Ensure volume state is also initialized
+    if (Object.keys(currentVolumeState.current).length === 0 && volume && volume.layers) {
+      console.log('Initializing currentVolumeState from active volumes');
+      Object.entries(volume.layers).forEach(([layer, vol]) => {
+        currentVolumeState.current[layer] = vol;
+        console.log(`Set currentVolumeState for ${layer} to ${vol}`);
+      });
+    }
+    
+    console.log('Updated volume state:', currentVolumeState.current);
+    console.log('Updated audio state:', currentAudioState.current);
+    
+    if (timelineRef.current) { // This ensures the DOM is fully rendered
       // Determine the state to apply - either the saved state or the default
       const stateToApply = preOnsetPhase?.state || DEFAULT_PRE_ONSET_STATE;
       
@@ -341,39 +365,36 @@ useEffect(() => {
         console.log('Applying SAVED pre-onset phase state', stateToApply);
       }
       
-
-       // Apply the state only if we're actively starting playback
-      // This is the key check to prevent unwanted state application when container is opened
+      // Apply the state only if we're actively starting playback
       if (playback.isPlaying) {
-      // Apply the state
-      console.log('Applying pre-onset phase immediately at start of playback (no transition)');
-      
-      // Immediately set volumes
-      Object.entries(stateToApply.volumes).forEach(([layer, vol]) => {
-        volume.setLayer(layer, vol, { immediate: true });
-      });
-      
-      // Handle track changes immediately (with a nearly instant 50ms crossfade)
-      Object.entries(stateToApply.activeAudio).forEach(([layer, trackId]) => {
-        if (trackId !== layers.active[layer]) {
-          console.log(`Immediate switch to ${trackId} for ${layer}`);
-          transitions.crossfade(layer, trackId, 50); // 50ms is practically instant but avoids pops
-        }
-     
-      });
-      
-      // Mark as applied and update state refs
-      startingPhaseApplied.current = true;
-      lastActivePhaseId.current = 'pre-onset';
-      setActivePhase('pre-onset');
-      
-      // Update current state refs
-      currentVolumeState.current = { ...stateToApply.volumes };
-      currentAudioState.current = { ...stateToApply.activeAudio };
+        // Apply the state
+        console.log('Applying pre-onset phase immediately at start of playback (no transition)');
+        
+        // Immediately set volumes
+        Object.entries(stateToApply.volumes).forEach(([layer, vol]) => {
+          volume.setLayer(layer, vol, { immediate: true });
+        });
+        
+        // Handle track changes immediately (with a nearly instant 50ms crossfade)
+        Object.entries(stateToApply.activeAudio).forEach(([layer, trackId]) => {
+          if (trackId !== layers.active[layer]) {
+            console.log(`Immediate switch to ${trackId} for ${layer}`);
+            transitions.crossfade(layer, trackId, 50); // 50ms is practically instant but avoids pops
+          }
+        });
+        
+        // Mark as applied and update state refs
+        startingPhaseApplied.current = true;
+        lastActivePhaseId.current = 'pre-onset';
+        setActivePhase('pre-onset');
+        
+        // Update current state refs
+        currentVolumeState.current = { ...stateToApply.volumes };
+        currentAudioState.current = { ...stateToApply.activeAudio };
+      }
     }
   }
-}
- } }, [enabled, playback.isPlaying, phases, volume, transitions, layers]);
+}, [enabled, playback.isPlaying, phases, volume, transitions, layers]);
   
   // Update time and progress bar - runs continuously during playback
   useEffect(() => {
@@ -591,6 +612,26 @@ useEffect(() => {
     
     // Signal that transition is starting
     setTransitioning(true);
+    
+ // Before working with current state, add this recovery mechanism
+ if (Object.keys(currentAudioState.current).length === 0 && layers && layers.active) {
+  console.log('Initializing currentAudioState from active layers');
+  Object.entries(layers.active).forEach(([layer, trackId]) => {
+    if (trackId) {
+      currentAudioState.current[layer] = trackId;
+      console.log(`Set currentAudioState for ${layer} to ${trackId}`);
+    }
+  });
+}
+
+// Similarly for volume state
+if (Object.keys(currentVolumeState.current).length === 0 && volume && volume.layers) {
+  console.log('Initializing currentVolumeState from active layers');
+  Object.entries(volume.layers).forEach(([layer, vol]) => {
+    currentVolumeState.current[layer] = vol;
+    console.log(`Set currentVolumeState for ${layer} to ${vol}`);
+  });
+}
     
     // Use the duration from session settings
     const duration = timeline.transitionDuration;
