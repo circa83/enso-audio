@@ -93,6 +93,8 @@ class VolumeController {
      */
    // In src/services/audio/VolumeController.js, check the setVolume method
 
+// In src/services/audio/VolumeController.js, check the setVolume method
+
 setVolume(layerId, volume, options = {}) {
   // Clamp volume to valid range
   const safeVolume = Math.max(0, Math.min(1, volume));
