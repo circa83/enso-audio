@@ -646,7 +646,97 @@ useEffect(() => {
       }
     };
   }, [enabled, playback.isPlaying, timeline.duration]);
+ 
+
+  useEffect(() => {
+    // Check if playback is active but the ref is false
+    if (playback.isPlaying && !isPlayingRef.current) {
+      console.log("State/ref mismatch detected! Fixing isPlayingRef...");
+      // Attempt to fix the ref value (this needs to be done in the context where ref is defined)
+      
+      // Force reset all transition flags
+      transitionCompletedRef.current = true;
+      transitionInProgress.current = false;
+      setTransitioning(false);
   
+      // Force a manual phase check
+      const manualCheck = () => {
+        const time = playback.getTime();
+        const progressPercent = Math.min(100, (time / timeline.duration) * 100);
+        console.log("Manual phase check at progress:", progressPercent);
+        
+        // Find the current phase based on progress
+        const sortedPhases = [...phases].sort((a, b) => b.position - a.position);
+        let newActivePhase = null;
+        
+        for (const phase of sortedPhases) {
+          if (progressPercent >= phase.position) {
+            newActivePhase = phase;
+            break;
+          }
+        }
+        
+        if (newActivePhase && newActivePhase.id !== lastActivePhaseId.current) {
+          console.log(`Manual phase check found new active phase: ${newActivePhase.name}`);
+          
+          // Update phase tracking
+          lastActivePhaseId.current = newActivePhase.id;
+          setActivePhase(newActivePhase.id);
+          
+          if (newActivePhase.state) {
+            // First save current state
+            const originalVolumeState = { ...volume.layers };
+            const originalAudioState = { ...layers.active };
+            
+            // Begin transition
+            transitionCompletedRef.current = false;
+            transitionInProgress.current = true;
+            setTransitioning(true);
+            
+            // Pass original state to transition
+            const transitionState = {
+              originalVolumes: {...originalVolumeState}
+            };
+            
+            startFullTransition(newActivePhase, transitionState);
+          }
+        }
+      };
+      
+      // Run the manual check now
+      manualCheck();
+      
+      // Set up a recurring check that doesn't rely on the problematic flags
+      const intervalId = setInterval(() => {
+        if (playback.isPlaying) {
+          manualCheck();
+        } else {
+          clearInterval(intervalId);
+        }
+      }, 1000);
+      
+      // Clean up interval when component unmounts or playback stops
+      return () => {
+        clearInterval(intervalId);
+      };
+    }
+  }, [playback.isPlaying, isPlayingRef]);
+  
+  
+  useEffect(() => {
+    // Log both timeline and component enabled states for clarity
+    console.log("Timeline enabled states:", {
+      componentEnabled: enabled, 
+      globalTimelineEnabled: timeline.enabled,
+      effectiveEnabled: enabled && timeline.enabled
+    });
+  }, [enabled, timeline.enabled]);
+
+// Add this effect to ensure sync between playing state and ref
+useEffect(() => {
+  isPlayingRef.current = playback.isPlaying;
+  console.log("Synced playing state ref:", isPlayingRef.current);
+}, [playback.isPlaying]);
   // In SessionTimeline.js phase detection effect
 useEffect(() => {
   let phaseCheckInterval;
@@ -737,7 +827,7 @@ if (newActivePhase && newActivePhase.id !== lastActivePhaseId.current) {
 return () => {
   if (phaseCheckInterval) clearInterval(phaseCheckInterval);
 };
-  }, [enabled, playback, phases, volume.layers, layers.active, timeline.duration, transitioning, refreshVolumeStateReference, startFullTransition]);
+  }, [enabled, playback.isPlaying, timeline.enabled, playback, phases, volume.layers, layers.active, timeline.duration, transitioning, refreshVolumeStateReference, startFullTransition]);
   
   // track play state changes effect
 useEffect(() => {

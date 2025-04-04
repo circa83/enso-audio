@@ -262,6 +262,7 @@ useEffect(() => {
   }
 }, [audioLibrary]);
 
+
   // Update master volume when state changes
   useEffect(() => {
     if (serviceRef.current.audioCore) {
