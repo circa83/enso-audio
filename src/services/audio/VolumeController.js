@@ -91,60 +91,62 @@ class VolumeController {
      * @param {number} [options.transitionTime] - Custom transition time (seconds)
      * @returns {boolean} - Success status
      */
-    setVolume(layerId, volume, options = {}) {
-        // Clamp volume to valid range
-        const safeVolume = Math.max(0, Math.min(1, volume));
-        
-        // Get options - default to immediate for UI-driven changes
-        const immediate = options.immediate !== undefined ? options.immediate : true;
-        const transitionTime = options.transitionTime || this.config.transitionTime;
-        
-        try {
-          // Get the gain node (create if doesn't exist)
-          const gainNode = this.getGainNode(layerId);
-          
-          // Get the current volume
-          const currentVolume = this.volumeLevels.get(layerId);
-          
-          // Skip if volume hasn't changed
-          if (currentVolume === safeVolume) {
-            return true;
-          }
-          
-          // Set gain value
-          if (immediate) {
-            // Cancel any scheduled changes
-            const now = this.audioContext.currentTime;
-            gainNode.gain.cancelScheduledValues(now);
-            
-            // Set immediately
-            gainNode.gain.value = safeVolume;
-          } else {
-            // Smooth transition with proper cancellation
-            const now = this.audioContext.currentTime;
-            
-            // Cancel any previously scheduled automation
-            gainNode.gain.cancelScheduledValues(now);
-            
-            // Start from current value
-            gainNode.gain.setValueAtTime(gainNode.gain.value, now);
-            
-            // Linear ramp to target value
-            gainNode.gain.linearRampToValueAtTime(
-              safeVolume, 
-              now + transitionTime
-            );
-          }
-          
-          // Update stored volume
-          this.volumeLevels.set(layerId, safeVolume);
-          
-          return true;
-        } catch (error) {
-          this.log(`Error setting volume for "${layerId}": ${error.message}`, 'error');
-          return false;
-        }
-      }
+   // In src/services/audio/VolumeController.js, check the setVolume method
+
+setVolume(layerId, volume, options = {}) {
+  // Clamp volume to valid range
+  const safeVolume = Math.max(0, Math.min(1, volume));
+  
+  // Get options - default to immediate for UI-driven changes
+  const immediate = options.immediate !== undefined ? options.immediate : true;
+  const transitionTime = options.transitionTime || this.config.transitionTime;
+  
+  try {
+    // Get the gain node (create if doesn't exist)
+    const gainNode = this.getGainNode(layerId);
+    
+    // Get the current volume
+    const currentVolume = this.volumeLevels.get(layerId);
+    
+    // Skip if volume hasn't changed
+    if (currentVolume === safeVolume) {
+      return true;
+    }
+    
+    // Set gain value
+    if (immediate) {
+      // Cancel any scheduled changes
+      const now = this.audioContext.currentTime;
+      gainNode.gain.cancelScheduledValues(now);
+      
+      // Set immediately
+      gainNode.gain.value = safeVolume;
+    } else {
+      // Smooth transition with proper cancellation
+      const now = this.audioContext.currentTime;
+      
+      // Cancel any previously scheduled automation
+      gainNode.gain.cancelScheduledValues(now);
+      
+      // Start from current value
+      gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+      
+      // Linear ramp to target value
+      gainNode.gain.linearRampToValueAtTime(
+        safeVolume, 
+        now + transitionTime
+      );
+    }
+    
+    // Update stored volume
+    this.volumeLevels.set(layerId, safeVolume);
+    
+    return true;
+  } catch (error) {
+    this.log(`Error setting volume for "${layerId}": ${error.message}`, 'error');
+    return false;
+  }
+}
      
     /**
      * Get the current volume for a specific layer

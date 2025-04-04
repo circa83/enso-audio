@@ -318,6 +318,7 @@ useEffect(() => {
 
   // Initialize audio elements with default tracks
   const initializeDefaultAudio = async () => {
+    const { audioCore, bufferManager, volumeController } = serviceRef.current;
     if (!audioCoreRef.current || !bufferManagerRef.current || !volumeControllerRef.current) {
       console.error('Cannot initialize audio, services not ready');
       return false;
@@ -330,25 +331,26 @@ useEffect(() => {
     let loadedFilesCount = 0;
     
     const newActiveAudio = {};
-    const newAudioElements = { 
-      [LAYERS.DRONE]: {},
-      [LAYERS.MELODY]: {},
-      [LAYERS.RHYTHM]: {},
-      [LAYERS.NATURE]: {}
-    };
+    const newAudioElements = {}; 
+      Object.values(LAYERS).forEach(layer => {
+        newAudioElements[layer] = {};
+    });
     
     // Build initial basic library
     const basicLibrary = {};
     Object.values(LAYERS).forEach(layer => {
+      const trackId = `${layer}1`; // Default track ID
       basicLibrary[layer] = [{
-        id: `${layer}1`,
+        id: trackId,
         name: `${layer.charAt(0).toUpperCase() + layer.slice(1)}`,
         path: DEFAULT_AUDIO[layer]
       }];
+      newActiveAudio[layer] = `${layer}1`; // Set default track as active 
     });
     
     // Update audio library state
     setAudioLibrary(basicLibrary);
+    console.log("Initial audio library set to : ", basicLibrary)
     
     // Update progress to show we're starting to load
     setLoadingProgress(20);
