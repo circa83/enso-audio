@@ -520,10 +520,17 @@ setLoadingProgress(100);
 
   // Function to safely set playing state
   const updatePlayingState = useCallback((newState) => {
+    // Debug log before updating
+    console.log(`Updating playing state from ${isPlayingRef.current} to ${newState}`);
+    
     // Update the ref immediately (sync)
     isPlayingRef.current = newState;
+    
     // Update the React state (async)
     setIsPlaying(newState);
+    
+    // Debug log after updating
+    console.log(`Updated playing state, ref is now: ${isPlayingRef.current}`);
   }, []);
 
 // Handler for Enable Timeline
@@ -718,9 +725,10 @@ if (serviceRef.current.timelineEngine.onProgress) {
         });
       }
       
-      // Update state immediately
-      updatePlayingState(false);
-      
+     // Check for proper state update
+console.log("Before updatePlayingState in handlePauseSession, current state:", isPlayingRef.current);
+updatePlayingState(false);
+console.log("After updatePlayingState in handlePauseSession, new state:", isPlayingRef.current);
     } catch (error) {
       console.error('Error pausing session:', error);
       // Still try to update state even if an error occurs
