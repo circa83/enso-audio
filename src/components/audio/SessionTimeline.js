@@ -596,17 +596,12 @@ useEffect(() => {
     const trackChanges = [];
     
     Object.entries(phase.state.activeAudio).forEach(([layer, targetTrackId]) => {
-      // Important fix: Ensure we have a valid current track ID reference by checking multiple sources
+      // More robust check for current track ID
       const currentTrackId = currentAudioState.current[layer] !== undefined ? 
         currentAudioState.current[layer] : 
-        layers.active[layer];
+        layers.active[layer] || `${layer}1`; // Default fallback
         
-      // Additional check to ensure we have a valid currentTrackId
-      if (!currentTrackId) {
-        console.log(`No current track ID for ${layer}, will use immediate switch`);
-      }
-      
-      if (targetTrackId !== currentTrackId) {
+      if (currentTrackId && targetTrackId && targetTrackId !== currentTrackId) {
         console.log(`Need to crossfade ${layer}: ${currentTrackId} → ${targetTrackId}`);
         
         // Add to our list of needed track changes

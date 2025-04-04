@@ -40,6 +40,28 @@ export const AudioProvider = ({ children }) => {
   const volumeControllerRef = useRef(null);
   const timelineEngineRef = useRef(null);
   const presetManagerRef = useRef(null);
+  const audioLibraryRef = useRef({
+    [LAYERS.DRONE]: [{
+      id: `${LAYERS.DRONE}1`,
+      name: `${LAYERS.DRONE.charAt(0).toUpperCase() + LAYERS.DRONE.slice(1)}`,
+      path: DEFAULT_AUDIO[LAYERS.DRONE]
+    }],
+    [LAYERS.MELODY]: [{
+      id: `${LAYERS.MELODY}1`,
+      name: `${LAYERS.MELODY.charAt(0).toUpperCase() + LAYERS.MELODY.slice(1)}`,
+      path: DEFAULT_AUDIO[LAYERS.MELODY]
+    }],
+    [LAYERS.RHYTHM]: [{
+      id: `${LAYERS.RHYTHM}1`,
+      name: `${LAYERS.RHYTHM.charAt(0).toUpperCase() + LAYERS.RHYTHM.slice(1)}`,
+      path: DEFAULT_AUDIO[LAYERS.RHYTHM]
+    }],
+    [LAYERS.NATURE]: [{
+      id: `${LAYERS.NATURE}1`, 
+      name: `${LAYERS.NATURE.charAt(0).toUpperCase() + LAYERS.NATURE.slice(1)}`,
+      path: DEFAULT_AUDIO[LAYERS.NATURE]
+    }]
+  });
   
   // Loading state
   const [isLoading, setIsLoading] = useState(true);
@@ -273,6 +295,19 @@ useEffect(() => {
   };
 }, []);
 
+// Sync the ref with state
+useEffect(() => {
+  audioLibraryRef.current = audioLibrary;
+}, [audioLibrary]);
+
+// Ensure we can recover from the ref if needed
+useEffect(() => {
+  if (Object.values(audioLibrary).some(layerTracks => !layerTracks || layerTracks.length === 0)) {
+    console.warn('Detected empty audio library, recovering from ref...');
+    setAudioLibrary(audioLibraryRef.current);
+  }
+}, [audioLibrary]);
+
   // Update master volume in AudioCore when masterVolume state changes
   useEffect(() => {
     if (audioCoreRef.current) {
@@ -438,6 +473,27 @@ useEffect(() => {
         setLoadingProgress(progress);
       }
     }
+    // Ensure basic library is properly set
+const finalLibrary = {...basicLibrary};
+// Update state with loaded audio - USE FUNCTIONAL UPDATES
+// This ensures we're not overwriting existing state
+setAudioLibrary(prev => {
+  // Merge previous library with new one, prioritizing non-empty arrays
+  const merged = {...prev};
+  Object.entries(finalLibrary).forEach(([layer, tracks]) => {
+    if (!merged[layer] || merged[layer].length === 0) {
+      merged[layer] = tracks;
+    } else if (tracks.length > 0) {
+      // Add any missing tracks
+      tracks.forEach(track => {
+        if (!merged[layer].some(t => t.id === track.id)) {
+          merged[layer].push(track);
+        }
+      });
+    }
+  });
+  return merged;
+});
     
     // Update state with loaded audio
     setAudioElements(newAudioElements);
