@@ -732,20 +732,10 @@ if (newActivePhase && newActivePhase.id !== lastActivePhaseId.current) {
   }
 }
 }, 250);
-} else {
-  console.log("Not setting up phase detection - conditions not met:", 
-    {enabled, isPlaying: playback.isPlaying})
-    console.log("NOT CREATING INTERVAL because:", {
-      enabled,
-      "playback.isPlaying": playback.isPlaying});
-    
 }
 
 return () => {
-  if (phaseCheckInterval) {
-    console.log("Clearing phase detection interval");
-    clearInterval(phaseCheckInterval);
-  }
+  if (phaseCheckInterval) clearInterval(phaseCheckInterval);
 };
   }, [enabled, playback, phases, volume.layers, layers.active, timeline.duration, transitioning, refreshVolumeStateReference, startFullTransition]);
   
