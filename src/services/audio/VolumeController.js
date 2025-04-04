@@ -100,7 +100,7 @@ setVolume(layerId, volume, options = {}) {
   const safeVolume = Math.max(0, Math.min(1, volume));
   
   // Get options - default to immediate for UI-driven changes
-  const immediate = options.immediate !== undefined ? options.immediate : true;
+  //const immediate = options.immediate !== undefined ? options.immediate : true;
   const transitionTime = options.transitionTime || this.config.transitionTime;
   
   try {
@@ -117,6 +117,7 @@ setVolume(layerId, volume, options = {}) {
     
     // Set gain value
     if (immediate) {
+      console.log(`Setting volume for "${layerId}" immediately to ${safeVolume}`);
       // Cancel any scheduled changes
       const now = this.audioContext.currentTime;
       gainNode.gain.cancelScheduledValues(now);

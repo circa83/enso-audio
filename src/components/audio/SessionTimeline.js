@@ -457,7 +457,7 @@ Object.entries(phase.state.volumes).forEach(([layer, targetVolume]) => {
           volumeChanges.forEach(change => {
             const isInCrossfade = trackChanges.some(tc => tc.layer === change.layer);
             if (!isInCrossfade) {
-              volume.setLayer(change.layer, change.to, { immediate: true });
+              volume.setLayer(change.layer, change.to, { immediate: false });
               console.log(`Volume transition complete for ${change.layer}: ${change.to.toFixed(2)}`);
             }
           });
@@ -506,8 +506,8 @@ const refreshVolumeStateReference = useCallback(() => {
     });
     
     // Log the previous and new state for debugging
-    console.log('Refreshing volume state - Previous:', {...currentVolumeState.current});
-    console.log('New actual volumes:', newVolumeState);
+    //console.log('Refreshing volume state - Previous:', {...currentVolumeState.current});
+   // console.log('New actual volumes:', newVolumeState);
     
     // Update reference
     currentVolumeState.current = newVolumeState;
@@ -663,7 +663,7 @@ useEffect(() => {
       const manualCheck = () => {
         const time = playback.getTime();
         const progressPercent = Math.min(100, (time / timeline.duration) * 100);
-        console.log("Manual phase check at progress:", progressPercent);
+        //console.log("Manual phase check at progress:", progressPercent);
         
         // Find the current phase based on progress
         const sortedPhases = [...phases].sort((a, b) => b.position - a.position);
@@ -737,12 +737,14 @@ useEffect(() => {
   isPlayingRef.current = playback.isPlaying;
   console.log("Synced playing state ref:", isPlayingRef.current);
 }, [playback.isPlaying]);
-  // In SessionTimeline.js phase detection effect
+ 
+
+// Phase detection effect
 useEffect(() => {
   let phaseCheckInterval;
-  
+  refreshVolumeStateReference();
   // CRITICAL DEBUGGING: Log the exact state that should trigger the interval
-  console.log("PHASE DETECTION DEBUG:", {
+ /* console.log("PHASE DETECTION DEBUG:", {
     enabled: enabled,
     playbackIsPlaying: playback.isPlaying,
     bothConditions: enabled && playback.isPlaying,
@@ -751,14 +753,14 @@ useEffect(() => {
     transitioning: transitioning,
     transitionCompleted: transitionCompletedRef.current,
     transitionInProgress: transitionInProgress.current
-  });
+  });*/ 
 
   if (enabled && playback.isPlaying) {
-    console.log("Setting up phase detection interval");
-    
+   //console.log("Setting up phase detection interval");
+   
     phaseCheckInterval = setInterval(() => {
       // Add debug at the start of interval callback
-      console.log("Phase check interval tick - checking for phase transitions");
+     // console.log("Phase check interval tick - checking for phase transitions");
       
       // Skip phase checks during active transitions
       if (transitioning || !transitionCompletedRef.current || transitionInProgress.current) {
@@ -767,6 +769,7 @@ useEffect(() => {
         return;
       }
      // Refresh volume state reference to ensure it's current
+    // console.log("Refreshing volume state reference before phase check");
      refreshVolumeStateReference();
 
 
@@ -820,13 +823,16 @@ if (newActivePhase && newActivePhase.id !== lastActivePhaseId.current) {
     console.log('Starting full transition with state:', transitionState);
     startFullTransition(newActivePhase, transitionState);
   }
+
 }
+return () => {
+  console.log("Cleaning up phase detection interval");
+  if (phaseCheckInterval) clearInterval(phaseCheckInterval);
+};
 }, 250);
 }
 
-return () => {
-  if (phaseCheckInterval) clearInterval(phaseCheckInterval);
-};
+
   }, [enabled, playback.isPlaying, timeline.enabled, playback, phases, volume.layers, layers.active, timeline.duration, transitioning, refreshVolumeStateReference, startFullTransition]);
   
   // track play state changes effect
