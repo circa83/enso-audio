@@ -104,7 +104,7 @@ export function useAudio() {
       return setMasterVolumeLevel(level, options);
     },
     setLayer: (layer, level, options) => {
-      console.log(`[useAudio] Setting ${layer} volume to ${level}`);
+      //console.log(`[useAudio] Setting ${layer} volume to ${level}`);
       return setVolume(layer, level, options);
     }
   }), [masterVolume, volumes, setMasterVolumeLevel, setVolume]);
@@ -155,7 +155,7 @@ export function useAudio() {
       return clearTimelineEvents();
     },
     updatePhases: (phases) => {
-      console.log(`[useAudio] Updating timeline phases (${phases.length} phases)`);
+     // console.log(`[useAudio] Updating timeline phases (${phases.length} phases)`);
       return updateTimelinePhases(phases);
     },
     seekToTime: (timeMs) => {

@@ -198,6 +198,8 @@ useEffect(() => {
       clearInterval(volumeTransitionTimer.current);
       volumeTransitionTimer.current = null;
       setTransitioning(false);
+       // Refresh volume state reference to ensure it's current
+    
     }
     
     // if (!enabled) {
@@ -422,7 +424,8 @@ useEffect(() => {
         if (transitioning || !transitionCompletedRef.current || transitionInProgress.current) {
           return;
         }
-        
+         // Refresh volume state reference to ensure it's current
+   
         const time = playback.getTime();
         const progressPercent = Math.min(100, (time / timeline.duration) * 100);
         
@@ -572,6 +575,7 @@ useEffect(() => {
     deselectAllMarkers();
   }, [phases, volume.layers, layers.active, timeline, deselectAllMarkers]);
   
+  
   // Full transition function that coordinates track changes and volume changes
   const startFullTransition = useCallback((phase) => {
     if (!enabled || !phase.state) {
@@ -627,9 +631,8 @@ useEffect(() => {
   
     Object.entries(phase.state.volumes).forEach(([layer, targetVolume]) => {
       // Important fix: Ensure we have a valid current volume by checking multiple sources
-      const currentVolume = currentVolumeState.current[layer] !== undefined 
-        ? currentVolumeState.current[layer] 
-        : (volume.layers[layer] !== undefined ? volume.layers[layer] : 0);
+      const currentVolume = volume.layers[layer] !== undefined ? volume.layers[layer] : 0;
+        console.log(`Current volume for ${layer}: ${currentVolume.toFixed(2)}, Target: ${targetVolume.toFixed(2)}`);
       
       // Only transition if there's a meaningful difference
       if (Math.abs(targetVolume - currentVolume) > 0.02) {
@@ -721,20 +724,50 @@ useEffect(() => {
   
   // Helper function to finish the transition and update state
   const finishTransition = useCallback((phase) => {
-    // Update current state references
-    currentVolumeState.current = { ...phase.state.volumes };
-    currentAudioState.current = { ...phase.state.activeAudio };
+   // Update current state references - deep clone to avoid reference issues
+   currentVolumeState.current = JSON.parse(JSON.stringify(phase.state.volumes));
+   currentAudioState.current = JSON.parse(JSON.stringify(phase.state.activeAudio));
+   
     
     // Clear transition flags after a small delay to avoid race conditions
     setTimeout(() => {
       setTransitioning(false);
+    
       transitionCompletedRef.current = true;
       transitionInProgress.current = false;
       
       console.log(`Transition to ${phase.name} phase complete`);
+        // Important: Log the final state to verify
+    console.log('Updated volume state:', currentVolumeState.current);
+    console.log('Updated audio state:', currentAudioState.current);
     }, 200);
   }, []);
   
+//refresh the volume state reference 
+const refreshVolumeStateReference = useCallback(() => {
+  // Update our internal volume state reference from the actual current volumes
+  if (volume && volume.layers) {
+    // Force different object reference to ensure change detection
+    const newVolumeState = {};
+    Object.entries(volume.layers).forEach(([layer, val]) => {
+      // Round to 2 decimal places to avoid floating point comparison issues
+      newVolumeState[layer] = Math.round(val * 100) / 100;
+    });
+    
+    // Log the previous and new state for debugging
+    console.log('Refreshing volume state - Previous:', {...currentVolumeState.current});
+    console.log('New actual volumes:', newVolumeState);
+    
+    // Update reference
+    currentVolumeState.current = newVolumeState;
+  }
+  
+  // Also ensure audio state is up to date
+  if (layers && layers.active) {
+    currentAudioState.current = {...layers.active};
+  }
+}, [volume, layers]);
+
   // Handle click away from markers - deselect the current marker
   const handleBackgroundClick = useCallback((e) => {
     // Make sure we're clicking on the timeline background, not a marker

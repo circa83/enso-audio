@@ -64,7 +64,7 @@ const audioLibraryRef = useRef({
       path: DEFAULT_AUDIO[LAYERS.NATURE]
     }]
   });
-  
+ 
   // Loading state
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
@@ -121,7 +121,7 @@ const audioLibraryRef = useRef({
   // Initialize services - Only run once on mount
   useEffect(() => {
     let isMounted = true; // For preventing state updates after unmount
-    
+   
     const initializeServices = async () => {
       if (typeof window === 'undefined') return;
       
@@ -424,7 +424,7 @@ Object.values(LAYERS).forEach(layer => {
     });
   }
 });
-
+console.log ("Initial audio library reference:", audioLibraryRef.current);
 // Update both states together
 setAudioLibrary(updatedLibrary);
 setActiveAudio(newActiveAudio);
@@ -482,7 +482,7 @@ setLoadingProgress(100);
 
   // Set volume for a specific layer
   const handleSetVolume = useCallback((layer, value, options = {}) => {
-  console.log(`handleSetVolume called for ${layer}: ${value}`);
+  //console.log(`handleSetVolume called for ${layer}: ${value}`);
   
   if (!serviceRef.current.volumeController) {
     console.error("Cannot set volume: VolumeController not available");
@@ -503,7 +503,7 @@ setLoadingProgress(100);
     
     // Apply volume using the VolumeController
   const result = serviceRef.current.volumeController.setVolume(layer, value, options);
-  console.log(`VolumeController.setVolume result for ${layer}: ${result}`);
+  //console.log(`VolumeController.setVolume result for ${layer}: ${result}`);
   
   // If there's an active crossfade for this layer, update its volume too
   if (serviceRef.current.crossfadeEngine?.isActive(layer)) {
@@ -732,6 +732,7 @@ if (serviceRef.current.timelineEngine.onProgress) {
     try {
       // Find the track in library
       const track = audioLibrary[layer].find(t => t.id === trackId);
+      console.log(`Preloading audio for ${layer}/${trackId}:`, track ? 'Found' : 'Not found', track);
       if (!track) {
         console.error(`Track ${trackId} not found in library`);
         return false;
@@ -796,95 +797,103 @@ const handleCrossfadeTo = useCallback(async (layer, newTrackId, fadeDuration = n
   const audioElements = serviceRef.current.audioCore.getElements?.() || {};
   console.log("Audio elements retrieved:", audioElements);
 
-// Get the current active track ID
-const currentTrackId = activeAudio[layer];
-console.log(`Current track for ${layer}: ${currentTrackId}`);
 
-// CRITICAL: Check if the audio library is empty and repair if needed
-if (!audioLibrary[layer] || audioLibrary[layer].length === 0) {
-  console.error(`Audio library for ${layer} is empty, repairing...`);
-  
-  // Use our backup from the ref
-  const repairLibrary = {...audioLibraryRef.current};
-  
-  // Update the audio library state
-  setAudioLibrary(repairLibrary);
-  console.log(`Repaired audio library:`, repairLibrary);
-  
-  // If current layer doesn't have a current track, set it now
-  if (!currentTrackId) {
-    const defaultTrackId = `${layer}1`;
-    console.log(`Setting default track ${defaultTrackId} for ${layer}`);
-    setActiveAudio(prev => ({
-      ...prev,
-      [layer]: defaultTrackId
-    }));
-    // Return to allow state updates to complete before proceeding
-    return true;
+ // CRITICAL FIX: Check and synchronize audio library state BEFORE attempting to access it
+  // This ensures the library is always populated before we try to use it
+  if (!audioLibrary[layer] || audioLibrary[layer].length === 0) {
+    console.log(`Proactively syncing audio library for ${layer} from reference`);
+    
+    // Create a synchronized copy of the state to work with immediately
+    const syncedLibrary = {...audioLibraryRef.current};
+    
+    // Force immediate state update (synchronous operation to ensure library is available)
+    setAudioLibrary(syncedLibrary);
+    console.log(`Synchronized audio library for ${layer}:`, syncedLibrary[layer] || 'none');
+    // Wait a tick to ensure React state is updated before continuing
+    await new Promise(resolve => setTimeout(resolve, 0));
   }
-}
+
+  // Get the current active track ID
+const currentTrackId = activeAudio[layer];
+console.log(`Current track for ${layer}: ${currentTrackId || 'none'}`);
+  
   // Skip if already playing requested track
   if (currentTrackId === newTrackId) {
     console.log(`Already playing ${newTrackId} on ${layer}`);
     return true;
   }
 
-  // Find the target track in library - using let to allow reassignment if needed
-  let libraryTrack = audioLibrary[layer]?.find(t => t.id === newTrackId);
 
+ // Now find the target track in library - we've ensured library exists
+ const libraryTrack = audioLibrary[layer]?.find(t => t.id === newTrackId) || 
+ // Fallback to reference if still not found
+ audioLibraryRef.current[layer]?.find(t => t.id === newTrackId);
+console.log(`Library track for ${layer}/${newTrackId}:`, libraryTrack ? 'Found' : 'Not found', libraryTrack);
+  
   // Handle case where track is not in library by creating a fallback
   if (!libraryTrack) {
     console.error(`Track ${newTrackId} not found in library for layer ${layer}`);
     console.log(`Audio library state:`, JSON.stringify(audioLibrary));
     console.log(`Available tracks for ${layer}:`, audioLibrary[layer]?.map(t => t.id) || 'none');
     
-    // Create a fallback track
-    libraryTrack = {
+    const fallbackTrack = {
       id: newTrackId,
       name: newTrackId,
-      path: DEFAULT_AUDIO[layer] // Use the default audio path
+      path: DEFAULT_AUDIO[layer]
     };
     
     // Add to audio library
-    console.log(`Creating fallback track for ${layer}: ${newTrackId}`);
     setAudioLibrary(prev => {
       const updated = {...prev};
       if (!updated[layer]) updated[layer] = [];
       
       // Add track if it doesn't exist
       if (!updated[layer].some(t => t.id === newTrackId)) {
-        updated[layer] = [...updated[layer], libraryTrack];
+        updated[layer] = [...updated[layer], fallbackTrack];
       }
       
       return updated;
     });
+    // Also update reference
+    if (!audioLibraryRef.current[layer]) {
+      audioLibraryRef.current[layer] = [];
+    }
+    
+    if (!audioLibraryRef.current[layer].some(t => t.id === newTrackId)) {
+      audioLibraryRef.current[layer].push(fallbackTrack);
+    }
+    
+    // Use the fallback for our operation
+    var trackToUse = fallbackTrack;
+  } else {
+    var trackToUse = libraryTrack;
   }
+  
 
   // Get or create the target track's audio elements
   let newTrackElements = audioElements[layer]?.[newTrackId];
 
-  // Create the new track if it doesn't exist yet
-  if (!newTrackElements) {
-    console.log(`Creating new audio element for ${layer}/${newTrackId} with path ${libraryTrack.path}`);
-    const audioElement = new Audio();
-    audioElement.preload = "auto";
-    audioElement.loop = true;
-    audioElement.src = libraryTrack.path;
-    
-    // Create source node
-    const source = audioCtx.createMediaElementSource(audioElement);
-    
-    // Connect to VolumeController
-    serviceRef.current.volumeController.connectToLayer(layer, source, masterGain);
-    
-    // Store the new track
-    newTrackElements = {
-      element: audioElement,
-      source: source,
-      track: libraryTrack,
-      isActive: false
-    };
-    
+    // Create the new track if it doesn't exist yet
+    if (!newTrackElements) {
+      console.log(`Creating new audio element for ${layer}/${newTrackId} with path ${trackToUse.path}`);
+      const audioElement = new Audio();
+      audioElement.preload = "auto";
+      audioElement.loop = true;
+      audioElement.src = trackToUse.path;
+      
+      // Create source node
+      const source = audioCtx.createMediaElementSource(audioElement);
+      
+      // Connect to VolumeController
+      serviceRef.current.volumeController.connectToLayer(layer, source, masterGain);
+      
+      // Store the new track
+      newTrackElements = {
+        element: audioElement,
+        source: source,
+        track: trackToUse,
+        isActive: false
+      };
     // Update audio elements in AudioCore if it supports it
     if (serviceRef.current.audioCore.updateElement) {
       serviceRef.current.audioCore.updateElement(layer, newTrackId, newTrackElements);
@@ -920,6 +929,7 @@ if (!audioLibrary[layer] || audioLibrary[layer].length === 0) {
   
   // Get the current track
   const currentTrack = audioElements[layer]?.[currentTrackId];
+  console.log(`Current track for ${layer}:`, currentTrack ? 'Found' : 'Not found', currentTrackId);
   
   // Handle case where current track is missing
   if (!currentTrack) {
