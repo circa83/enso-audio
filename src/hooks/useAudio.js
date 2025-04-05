@@ -53,6 +53,7 @@ export function useAudio() {
     timelineIsEnabled,
     setTimelineEnabled,
     timelineIsPlaying, 
+    startTimeline,
     stopTimeline,
     
     // Timeline functions
@@ -191,6 +192,8 @@ export function useAudio() {
       return setTransitionDuration(duration);
     }
   }), [
+    startTimeline,
+    stopTimeline,
     timelineIsEnabled,
     timelineIsPlaying,
     setTimelineEnabled,

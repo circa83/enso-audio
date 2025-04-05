@@ -244,10 +244,12 @@ const toggleTimelinePlayback = useCallback(() => {
     return;
   }
   
-  // Toggle timeline playback state
-  setTimelineIsPlaying(prev => !prev);
-  
-  if (!timelineIsPlaying) {
+  // Toggle the local timeline state
+  const newTimelineState = !timelineIsPlaying;
+  setTimelineIsPlaying(newTimelineState);
+  setLocalTimelineIsPlaying(newTimelineState);
+
+  if (newTimelineState) {
     console.log("Starting timeline progression");
     // Reset progress tracking to start fresh
     setProgress(0);
@@ -280,7 +282,7 @@ const toggleTimelinePlayback = useCallback(() => {
     }
     setTransitionState(false);
   }
-}, [timelineIsPlaying, playback.isPlaying, timeline]);
+}, [timelineIsPlaying, playback.isPlaying, timeline, setTransitionState]);
 
   
 // Reset all timeline state for a clean restart
@@ -547,7 +549,7 @@ const toggleTimelinePlayback = useCallback(() => {
     }
   }, [enabled, timeline, layers, volume, transitions, setTransitionState, finishTransition]);
 
-  // Track play state changes to detect stops and restarts
+  // Restart Playing
   useEffect(() => {
     if (playback.isPlaying) {
       if (!wasPlayingBeforeStop.current && componentHasRendered.current) {
@@ -570,6 +572,32 @@ const toggleTimelinePlayback = useCallback(() => {
       setTransitionState(false);
     }
   }, [playback.isPlaying, resetTimeline, layers, setTransitionState]);
+
+// Stop Playback and reset timeline
+useEffect(() => {
+  // If audio playback stops, also stop the timeline
+  if (!playback.isPlaying && timelineIsPlaying) {
+    console.log("Audio stopped - stopping timeline automatically");
+    setTimelineIsPlaying(false);
+    setLocalTimelineIsPlaying(false);
+    
+    // Reset phase tracking
+    lastActivePhaseId.current = null;
+    setActivePhase(null);
+    
+    // Cancel active transitions
+    if (volumeTransitionTimer.current) {
+      clearInterval(volumeTransitionTimer.current);
+      volumeTransitionTimer.current = null;
+    }
+    setTransitionState(false);
+    
+    // Stop timeline in the service
+    if (timeline.stopTimeline) {
+      timeline.stopTimeline();
+    }
+  }
+}, [playback.isPlaying, timelineIsPlaying, timeline, setTransitionState]);
 
   // Watch for active crossfades to update transition state
   useEffect(() => {
@@ -907,8 +935,24 @@ useEffect(() => {
 React.useImperativeHandle(ref, () => ({
   resetTimelinePlayback: () => {
     console.log("Timeline playback reset by parent component");
+    setTimelineIsPlaying(false);
     setLocalTimelineIsPlaying(false);
-  }
+   // Also reset phase tracking
+   lastActivePhaseId.current = null;
+   setActivePhase(null);
+   
+   // Stop any running transitions
+   if (volumeTransitionTimer.current) {
+     clearInterval(volumeTransitionTimer.current);
+     volumeTransitionTimer.current = null;
+   }
+   setTransitionState(false);
+   
+   // Stop timeline in the service
+   if (timeline.stopTimeline) {
+     timeline.stopTimeline();
+   }
+ }
 }));
   
   if (!enabled) return null;
