@@ -114,7 +114,7 @@ const audioLibraryRef = useRef({
   const [progress, setProgress] = useState(0);
   const [sessionDuration, setSessionDuration] = useState( 1 * 60 * 1000); // 1 min
   const [transitionDuration, setTransitionDuration] = useState(4000); // 4 seconds
-  
+  const [timelineIsPlaying, setTimelineIsPlaying] = useState(false);
   // Preset management
   const [presets, setPresets] = useState({});
   const stateProviders = useRef({});
@@ -792,7 +792,6 @@ console.log("After updatePlayingState in handlePauseSession, new state:", isPlay
   }, [audioLibrary]);
 
   // Crossfade between audio tracks
- // Crossfade between audio tracks
 const handleCrossfadeTo = useCallback(async (layer, newTrackId, fadeDuration = null) => {
   console.log(`Starting crossfade process for ${layer}: ${newTrackId}`);
   const actualDuration = fadeDuration !== null ? fadeDuration : transitionDuration;
@@ -1146,6 +1145,32 @@ console.log(`Current track for ${layer}: ${currentTrackId}`);
 }, [audioLibrary, activeAudio, transitionDuration]);
 
   // Timeline functions - wrapped in useCallback
+const handleStartTimeline = useCallback(() => {
+  if (!serviceRef.current.timelineEngine) return false;
+  
+  // Start the timeline engine
+  const success = serviceRef.current.timelineEngine.start({ reset: false });
+  
+  if (success) {
+    setTimelineIsPlaying(true);
+  }
+  
+  return success;
+}, []);
+
+const handleStopTimeline = useCallback(() => {
+  if (!serviceRef.current.timelineEngine) return false;
+  
+  // Stop the timeline engine
+  const success = serviceRef.current.timelineEngine.stop();
+  
+  if (success) {
+    setTimelineIsPlaying(false);
+  }
+  
+  return success;
+}, []);
+
   const handleGetSessionTime = useCallback(() => {
     if (serviceRef.current.timelineEngine) {
       return serviceRef.current.timelineEngine.getElapsedTime();
@@ -1346,6 +1371,8 @@ const contextValue = useMemo(() => {
     setTransitionDuration: handleSetTransitionDuration,
     timelineIsEnabled,
     setTimelineIsEnabled: handleSetTimelineEnabled,
+    startTimeline: handleStartTimeline,
+    stopTimeline: handleStopTimeline,
     
     // Preset functions
     registerPresetStateProvider: handleRegisterPresetStateProvider,

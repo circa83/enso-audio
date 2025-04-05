@@ -11,10 +11,11 @@ const DEFAULT_PHASES = [
   { id: 'return', name: 'Return & Integration', position: 60, color: '#A98467', state: null, locked: false }
 ];
 
-const SessionTimeline = ({ 
+const SessionTimeline = React.forwardRef(({ 
   enabled = true, 
   onDurationChange 
-}) => {
+}, ref) => {
+  
   // Use our hook with grouped functionality
   const { 
     playback,
@@ -33,6 +34,7 @@ const SessionTimeline = ({
   const [selectedPhase, setSelectedPhase] = useState(null);
   const [transitioning, setTransitioning] = useState(false);
   const [timelineIsPlaying, setTimelineIsPlaying] = useState(false);
+  const [localTimelineIsPlaying, setLocalTimelineIsPlaying] = useState(false);
   
   // Refs
   const timelineRef = useRef(null);
@@ -234,7 +236,7 @@ const SessionTimeline = ({
     }
   }, [editMode]);
  
-  //goggle timeline
+  //Toggle timeline playback
 const toggleTimelinePlayback = useCallback(() => {
   // Only allow starting timeline if audio is playing
   if (!playback.isPlaying && !timelineIsPlaying) {
@@ -279,6 +281,7 @@ const toggleTimelinePlayback = useCallback(() => {
     setTransitionState(false);
   }
 }, [timelineIsPlaying, playback.isPlaying, timeline]);
+
   
 // Reset all timeline state for a clean restart
   const resetTimeline = useCallback(() => {
@@ -652,7 +655,7 @@ useEffect(() => {
   let interval;
   
   // Only run progress tracking when BOTH audio is playing AND timeline is enabled AND timeline is playing
-  if (enabled && playback.isPlaying && timelineIsPlaying) {
+  if (enabled && playback.isPlaying && localTimelineIsPlaying) {
     console.log("Starting SessionTimeline progress tracking");
     
     // Start with fresh time - clear any old state
@@ -676,13 +679,13 @@ useEffect(() => {
       clearInterval(interval);
     }
   };
-}, [enabled, playback.isPlaying, timelineIsPlaying, timeline.duration, playback]);
+}, [enabled, playback.isPlaying, localTimelineIsPlaying, timeline.duration, playback]);
   
   // Phase detection effect
   useEffect(() => {
     let phaseCheckInterval;
     
-    if (enabled && playback.isPlaying && timelineIsPlaying) {
+    if (enabled && playback.isPlaying && localTimelineIsPlaying) {
       phaseCheckInterval = setInterval(() => {
         // Skip phase checks during active transitions
         if (transitioning || !transitionCompletedRef.current || transitionInProgress.current) {
@@ -747,7 +750,7 @@ useEffect(() => {
         clearInterval(phaseCheckInterval);
       }
     };
-  }, [enabled, playback.isPlaying, transitioning, phases, volume.layers, layers.active, 
+  }, [enabled, playback.isPlaying, localTimelineIsPlaying, transitioning, phases, volume.layers, layers.active, 
       timeline.duration, refreshVolumeStateReference, startFullTransition, playback]);
   
   // Cleanup transitions when playback stops
@@ -899,6 +902,14 @@ useEffect(() => {
       deselectAllMarkers();
     }
   }, [deselectAllMarkers]);
+
+  // useImperativeHandle hook
+React.useImperativeHandle(ref, () => ({
+  resetTimelinePlayback: () => {
+    console.log("Timeline playback reset by parent component");
+    setLocalTimelineIsPlaying(false);
+  }
+}));
   
   if (!enabled) return null;
 
@@ -996,6 +1007,6 @@ useEffect(() => {
       )}
     </div>
   );
-};
+});
 
-export default SessionTimeline;
+export default React.memo(SessionTimeline);

@@ -25,6 +25,7 @@ const Player = () => {
     timeline,
     presets,
     timelinePhases,
+    playback
     
   } = useAudio();
   
@@ -33,7 +34,7 @@ const Player = () => {
   const [timelineEnabled, setTimelineEnabled] = useState(true);
   const [transitionDuration, setTransitionDuration] = useState(4000); // Default 4 seconds
   const [showDebugPanel, setShowDebugPanel] = useState(false); // Debug panel state
-  
+  const timelineComponentRef = useRef(null);
   // Preset management state
   const [availablePresets, setAvailablePresets] = useState([]);
   const [newPresetName, setNewPresetName] = useState('');
@@ -59,7 +60,7 @@ const Player = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
   
-  // Memoize the session settings state object for the preset system
+  // the session settings state object for the preset system
   const sessionSettingsState = useMemo(() => ({
     timelineEnabled,
     sessionDuration,
@@ -120,7 +121,8 @@ useEffect(() => {
     }
   }
 }, [sessionDuration, timelineEnabled, transitionDuration, timeline]);
-  // Effect to ensure Timeline is updated when settings change
+ 
+// Effect to ensure Timeline is updated when settings change
   useEffect(() => {
     console.log("Session settings changed - updating timeline components");
     
@@ -146,186 +148,23 @@ useEffect(() => {
     };
   }, []);
   
-  // Load available presets when the presets section is expanded
-  const handlePresetsExpanded = useCallback(() => {
-    const loadedPresets = presets.getAll();
-    setAvailablePresets(loadedPresets);
-  }, [presets]);
-  
-  // Memoize the validation result for the new preset name
-  const isNewPresetNameValid = useMemo(() => 
-    newPresetName.trim() !== '', 
-    [newPresetName]
-  );
-  
-  // Save current state as a preset
-  const handleSavePreset = useCallback(() => {
-    if (!isNewPresetNameValid) return;
-    
-    // Check if preset name already exists
-    const existingPreset = availablePresets.find(p => p.name === newPresetName);
-    
-    if (existingPreset) {
-      // Ask for confirmation before overwriting
-      setConfirmOperation({
-        type: 'overwrite',
-        presetName: newPresetName,
-        action: () => {
-          // Save preset and reset state
-          presets.save(newPresetName);
-          setNewPresetName('');
-          setConfirmOperation(null);
-          
-          // Refresh presets list
-          const updatedPresets = presets.getAll();
-          setAvailablePresets(updatedPresets);
-        }
-      });
-    } else {
-      // New preset, save directly
-      presets.save(newPresetName);
-      setNewPresetName('');
+  //Stop Timeline when Audio Stops
+  useEffect(() => {
+    if (!playback.isPlaying) {
+      // Audio stopped playing
+      console.log("Audio playback stopped - ensuring timeline is also stopped");
       
-      // Refresh presets list
-      const updatedPresets = presets.getAll();
-      setAvailablePresets(updatedPresets);
-    }
-  }, [newPresetName, availablePresets, presets, isNewPresetNameValid]);
-  
-  // Load a preset
-  const handleLoadPreset = useCallback((presetName) => {
-    setSelectedPreset(presetName);
-    setConfirmOperation({
-      type: 'load',
-      presetName,
-      action: () => {
-        presets.load(presetName);
-        setConfirmOperation(null);
-        setSelectedPreset(null);
+      // Stop the timeline in the service
+      if (timeline.stopTimeline) {
+        timeline.stopTimeline();
       }
-    });
-  }, [presets]);
-  
-  // Delete a preset
-  const handleDeletePreset = useCallback((presetName) => {
-    setSelectedPreset(presetName);
-    setConfirmOperation({
-      type: 'delete',
-      presetName,
-      action: () => {
-        presets.delete(presetName);
-        setConfirmOperation(null);
-        setSelectedPreset(null);
-        
-        // Refresh presets list
-        const updatedPresets = presets.getAll();
-        setAvailablePresets(updatedPresets);
-      }
-    });
-  }, [presets]);
-  
-  // Cancel operation
-  const handleCancelOperation = useCallback(() => {
-    setConfirmOperation(null);
-    setSelectedPreset(null);
-  }, []);
-  
-  // Export a preset to JSON
-  const handleExportPreset = useCallback((presetName) => {
-    const presetJson = presets.export(presetName);
-    if (!presetJson) return;
-    
-    // Create a blob object to save
-    const blob = new Blob([presetJson], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    
-    // Create a temporary link element and trigger download
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${presetName.replace(/\s+/g, '_')}_preset.json`;
-    document.body.appendChild(a);
-    a.click();
-    
-    // Cleanup
-    setTimeout(() => {
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    }, 0);
-  }, [presets]);
-  
-  // Show import UI
-  const handleShowImport = useCallback(() => {
-    setIsImporting(true);
-    setImportText('');
-    setImportError(null);
-  }, []);
-  
-  // Hide import UI
-  const handleCancelImport = useCallback(() => {
-    setIsImporting(false);
-    setImportText('');
-    setImportError(null);
-  }, []);
-  
-  // Memoize import validation state
-  const isImportTextValid = useMemo(() => 
-    importText.trim() !== '', 
-    [importText]
-  );
-  
-  // Import from text
-  const handleImportFromText = useCallback(() => {
-    if (!isImportTextValid) {
-      setImportError('Please enter valid JSON data');
-      return;
-    }
-    
-    try {
-      const result = presets.import(importText);
       
-      if (result.success) {
-        setIsImporting(false);
-        setImportText('');
-        setImportError(null);
-        
-        // Refresh presets list
-        const updatedPresets = presets.getAll();
-        setAvailablePresets(updatedPresets);
-      } else {
-        setImportError(result.error || 'Failed to import preset');
+      // Reset UI state in the component
+      if (timelineComponentRef.current && timelineComponentRef.current.resetTimelinePlayback) {
+        timelineComponentRef.current.resetTimelinePlayback();
       }
-    } catch (error) {
-      setImportError(`Error importing preset: ${error.message}`);
     }
-  }, [importText, presets, isImportTextValid]);
-  
-  // Handle file selection for import
-  const handleFileSelect = useCallback((e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    
-    reader.onload = (event) => {
-      try {
-        const fileContent = event.target.result;
-        setImportText(fileContent);
-        
-        // Clear file input
-        if (fileInputRef.current) {
-          fileInputRef.current.value = null;
-        }
-      } catch (error) {
-        setImportError(`Error reading file: ${error.message}`);
-      }
-    };
-    
-    reader.onerror = () => {
-      setImportError('Error reading file');
-    };
-    
-    reader.readAsText(file);
-  }, []);
+  }, [playback.isPlaying, timeline]);
   
   // Render audio layer controls
   const renderLayerControls = useCallback(() => {
@@ -352,13 +191,14 @@ useEffect(() => {
     
     return (
       <SessionTimeline 
-        enabled={true}
-        onDurationChange={setSessionDuration}
-      />
+      ref={timelineComponentRef}
+      enabled={timelineEnabled}
+      onDurationChange={handleDurationChange}
+    />
     );
   }, [timelineEnabled]);
   
-  // Memoize timeline settings handlers
+  // timeline settings handlers
   const handleDurationChange = useCallback((newDuration) => {
     console.log(`Player received new session duration: ${newDuration}ms`);
     
@@ -444,7 +284,191 @@ const handleTimelineToggle = useCallback((enabled) => {
     handleTimelineToggle
   ]);
   
-  // Memoize the confirmation dialog content
+
+//PRESET MANAGEMENT
+
+ // Load available presets when the presets section is expanded
+ const handlePresetsExpanded = useCallback(() => {
+  const loadedPresets = presets.getAll();
+  setAvailablePresets(loadedPresets);
+}, [presets]);
+
+// the validation result for the new preset name
+const isNewPresetNameValid = useMemo(() => 
+  newPresetName.trim() !== '', 
+  [newPresetName]
+);
+
+// Save current state as a preset
+const handleSavePreset = useCallback(() => {
+  if (!isNewPresetNameValid) return;
+  
+  // Check if preset name already exists
+  const existingPreset = availablePresets.find(p => p.name === newPresetName);
+  
+  if (existingPreset) {
+    // Ask for confirmation before overwriting
+    setConfirmOperation({
+      type: 'overwrite',
+      presetName: newPresetName,
+      action: () => {
+        // Save preset and reset state
+        presets.save(newPresetName);
+        setNewPresetName('');
+        setConfirmOperation(null);
+        
+        // Refresh presets list
+        const updatedPresets = presets.getAll();
+        setAvailablePresets(updatedPresets);
+      }
+    });
+  } else {
+    // New preset, save directly
+    presets.save(newPresetName);
+    setNewPresetName('');
+    
+    // Refresh presets list
+    const updatedPresets = presets.getAll();
+    setAvailablePresets(updatedPresets);
+  }
+}, [newPresetName, availablePresets, presets, isNewPresetNameValid]);
+
+// Load a preset
+const handleLoadPreset = useCallback((presetName) => {
+  setSelectedPreset(presetName);
+  setConfirmOperation({
+    type: 'load',
+    presetName,
+    action: () => {
+      presets.load(presetName);
+      setConfirmOperation(null);
+      setSelectedPreset(null);
+    }
+  });
+}, [presets]);
+
+// Delete a preset
+const handleDeletePreset = useCallback((presetName) => {
+  setSelectedPreset(presetName);
+  setConfirmOperation({
+    type: 'delete',
+    presetName,
+    action: () => {
+      presets.delete(presetName);
+      setConfirmOperation(null);
+      setSelectedPreset(null);
+      
+      // Refresh presets list
+      const updatedPresets = presets.getAll();
+      setAvailablePresets(updatedPresets);
+    }
+  });
+}, [presets]);
+
+// Cancel operation
+const handleCancelOperation = useCallback(() => {
+  setConfirmOperation(null);
+  setSelectedPreset(null);
+}, []);
+
+// Export a preset to JSON
+const handleExportPreset = useCallback((presetName) => {
+  const presetJson = presets.export(presetName);
+  if (!presetJson) return;
+  
+  // Create a blob object to save
+  const blob = new Blob([presetJson], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  
+  // Create a temporary link element and trigger download
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${presetName.replace(/\s+/g, '_')}_preset.json`;
+  document.body.appendChild(a);
+  a.click();
+  
+  // Cleanup
+  setTimeout(() => {
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  }, 0);
+}, [presets]);
+
+// Show import UI
+const handleShowImport = useCallback(() => {
+  setIsImporting(true);
+  setImportText('');
+  setImportError(null);
+}, []);
+
+// Hide import UI
+const handleCancelImport = useCallback(() => {
+  setIsImporting(false);
+  setImportText('');
+  setImportError(null);
+}, []);
+
+// import validation state
+const isImportTextValid = useMemo(() => 
+  importText.trim() !== '', 
+  [importText]
+);
+
+// Import from text
+const handleImportFromText = useCallback(() => {
+  if (!isImportTextValid) {
+    setImportError('Please enter valid JSON data');
+    return;
+  }
+  
+  try {
+    const result = presets.import(importText);
+    
+    if (result.success) {
+      setIsImporting(false);
+      setImportText('');
+      setImportError(null);
+      
+      // Refresh presets list
+      const updatedPresets = presets.getAll();
+      setAvailablePresets(updatedPresets);
+    } else {
+      setImportError(result.error || 'Failed to import preset');
+    }
+  } catch (error) {
+    setImportError(`Error importing preset: ${error.message}`);
+  }
+}, [importText, presets, isImportTextValid]);
+
+// Handle file selection for import
+const handleFileSelect = useCallback((e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  
+  reader.onload = (event) => {
+    try {
+      const fileContent = event.target.result;
+      setImportText(fileContent);
+      
+      // Clear file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = null;
+      }
+    } catch (error) {
+      setImportError(`Error reading file: ${error.message}`);
+    }
+  };
+  
+  reader.onerror = () => {
+    setImportError('Error reading file');
+  };
+  
+  reader.readAsText(file);
+}, []);
+
+  // the confirmation dialog content
   const confirmDialogContent = useMemo(() => {
     if (!confirmOperation) return null;
     
@@ -476,7 +500,7 @@ const handleTimelineToggle = useCallback((enabled) => {
     );
   }, [confirmOperation, handleCancelOperation]);
   
-  // Memoize the import interface content
+  // the import interface content
   const importInterfaceContent = useMemo(() => {
     if (!isImporting) return null;
     
@@ -546,7 +570,7 @@ const handleTimelineToggle = useCallback((enabled) => {
     handleImportFromText
   ]);
   
-  // Memoize the preset items list
+  // the preset items list
   const presetItemsList = useMemo(() => {
     if (availablePresets.length === 0) {
       return <div className={styles.noPresets}>No saved presets</div>;
@@ -641,7 +665,7 @@ const handleTimelineToggle = useCallback((enabled) => {
     presetItemsList,
     isNewPresetNameValid
   ]);
-  
+
   return (
     <div className={styles.simplePlayer}>
       <h1 className={styles.title}>Ensō Audio</h1>
