@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudio } from '../../hooks/useAudio'; // Using our refactored hook
 import PhaseMarker from './PhaseMarker';
 import styles from '../../styles/components/SessionTimeline.module.css';
+import { set } from 'mongoose';
 
 const DEFAULT_PHASES = [
   { id: 'pre-onset', name: 'Pre-Onset', position: 0, color: '#4A6670', state: null, locked: true },
@@ -49,7 +50,23 @@ const SessionTimeline = ({
   const isPlayingRef = useRef(false);
 
   const initialMount = useRef(true);
+   // Add this function to SessionTimeline.js (around line 650-700, before the finishTransition function)
+const setTransitionState = useCallback((isTransitioning) => {
+  console.log(`Setting transition state: ${isTransitioning ? 'START' : 'END'}`);
   
+  // Update all transition state flags atomically
+  transitionInProgress.current = isTransitioning;
+  transitionCompletedRef.current = !isTransitioning;
+  setTransitioning(isTransitioning);
+  
+  // Log the new state for debugging
+  console.log(`Transition state updated:`, {
+    transitioning: isTransitioning,
+    completed: !isTransitioning,
+    inProgress: isTransitioning
+  });
+}, []);
+
   // Initialize and register with timeline service - FIXED version
   useEffect(() => {
     console.log("SessionTimeline mounting check");
@@ -57,6 +74,8 @@ const SessionTimeline = ({
     // Only run the setup operations once on first mount
     if (initialMount.current) {
       console.log("SessionTimeline - initial setup");
+      // Initialize transition state
+        setTransitionState(false);
       
       // Register initial phases with timeline service
       if (timeline.updatePhases) {
@@ -93,7 +112,7 @@ const SessionTimeline = ({
         clearInterval(volumeTransitionTimer.current);
       }
     };
-  }, []);
+  }, [setTransitionState]);
   
   // Add a separate effect to update phases when they change
 useEffect(() => {
@@ -198,7 +217,7 @@ useEffect(() => {
     if (!enabled && volumeTransitionTimer.current) {
       clearInterval(volumeTransitionTimer.current);
       volumeTransitionTimer.current = null;
-      setTransitioning(false);
+      setTransitionState(false);
        // Refresh volume state reference to ensure it's current
     
     }
@@ -239,7 +258,7 @@ useEffect(() => {
       clearInterval(volumeTransitionTimer.current);
       volumeTransitionTimer.current = null;
     }
-    setTransitioning(false);
+    setTransitionState(false);
     transitionCompletedRef.current = true;
     transitionInProgress.current = false;
     
@@ -255,7 +274,7 @@ useEffect(() => {
     if (playback.isPlaying) {
       if (!wasPlayingBeforeStop.current && componentHasRendered.current) {
         resetTimeline();
-     
+        setTransitionState(false);
         // Ensure current audio state is synchronized with active audio
      if (layers && layers.active) {
       console.log('Synchronizing currentAudioState with active audio');
@@ -270,10 +289,10 @@ useEffect(() => {
   wasPlayingBeforeStop.current = true;
 } else {
   wasPlayingBeforeStop.current = false;
-  // Reset the starting phase flag when playback stops
   startingPhaseApplied.current = false;
+  setTransitionState(false);
 }
-}, [playback.isPlaying, resetTimeline, layers]);
+}, [playback.isPlaying, resetTimeline, layers, setTransitionState]);
 
   // Watch for active crossfades to update transition state
   useEffect(() => {
@@ -283,7 +302,7 @@ useEffect(() => {
     if (hasActiveCrossfades) {
       console.log("Active crossfades detected, marking as transitioning");
       transitionInProgress.current = true;
-      setTransitioning(true);
+      setTransitionState(true);
     } else if (transitionInProgress.current) {
       console.log("No active crossfades detected, marking transition as complete");
       // If was transitioning but now no crossfades are active
@@ -291,7 +310,7 @@ useEffect(() => {
       
       // Short delay before allowing new transitions
       setTimeout(() => {
-        setTransitioning(false);
+        setTransitionState(false);
         transitionCompletedRef.current = true;
       }, 200);
     }
@@ -311,7 +330,7 @@ useEffect(() => {
     activeAudio: {}
   };
 
-
+ 
   // Full transition function that coordinates track changes and volume changes
   const startFullTransition = useCallback((phase, transitionState = null) => {
     console.log(`Starting full transition to phase: ${phase.name}`);
@@ -327,7 +346,7 @@ useEffect(() => {
     }
     
     // Signal that transition is starting
-    setTransitioning(true);
+    setTransitionState(true);
     
  // Before working with current state, add this recovery mechanism
  if (Object.keys(currentAudioState.current).length === 0 && layers && layers.active) {
@@ -492,7 +511,7 @@ Object.entries(phase.state.volumes).forEach(([layer, targetVolume]) => {
       console.log('No transitions needed for this phase');
       finishTransition(phase);
     }
-  }, [enabled, timeline, layers, volume, transitions]);
+  }, [enabled, timeline, layers, volume, transitions, setTransitionState]);
 
 //refresh the volume state reference 
 const refreshVolumeStateReference = useCallback(() => {
@@ -657,7 +676,7 @@ useEffect(() => {
       // Force reset all transition flags
       transitionCompletedRef.current = true;
       transitionInProgress.current = false;
-      setTransitioning(false);
+      setTransitionState(false);
   
       // Force a manual phase check
       const manualCheck = () => {
@@ -691,7 +710,7 @@ useEffect(() => {
             // Begin transition
             transitionCompletedRef.current = false;
             transitionInProgress.current = true;
-            setTransitioning(true);
+            setTransitionState(true);
             
             // Pass original state to transition
             const transitionState = {
@@ -742,6 +761,7 @@ useEffect(() => {
 // Phase detection effect
 useEffect(() => {
   let phaseCheckInterval;
+  let transitionTimeoutId;
   refreshVolumeStateReference();
   // CRITICAL DEBUGGING: Log the exact state that should trigger the interval
  /* console.log("PHASE DETECTION DEBUG:", {
@@ -766,7 +786,24 @@ useEffect(() => {
       if (transitioning || !transitionCompletedRef.current || transitionInProgress.current) {
         console.log("Skipping phase check - transition in progress:", 
           {transitioning, completed: transitionCompletedRef.current, inProgress: transitionInProgress.current});
+        
+        // ADD THIS SECTION - Failsafe for stuck transitions
+        if (!transitionTimeoutId) {
+          console.log("Setting transition timeout failsafe (10 seconds)");
+          transitionTimeoutId = setTimeout(() => {
+            // If we're still in transition state after 10 seconds, force reset
+            if (transitioning || !transitionCompletedRef.current || transitionInProgress.current) {
+              console.log("FAILSAFE: Transition appears stuck, forcing reset");
+              setTransitionState(false);
+              transitionTimeoutId = null;
+            }
+          }, 10000); // 10 second timeout
+        }
         return;
+      } else if (transitionTimeoutId) {
+        // Clear timeout if transition completed normally
+        clearTimeout(transitionTimeoutId);
+        transitionTimeoutId = null;
       }
      // Refresh volume state reference to ensure it's current
     // console.log("Refreshing volume state reference before phase check");
@@ -828,12 +865,13 @@ if (newActivePhase && newActivePhase.id !== lastActivePhaseId.current) {
 return () => {
   console.log("Cleaning up phase detection interval");
   if (phaseCheckInterval) clearInterval(phaseCheckInterval);
+  if (transitionTimeoutId) clearTimeout(transitionTimeoutId);
 };
 }, 250);
 }
 
 
-  }, [enabled, playback.isPlaying, timeline.enabled, playback, phases, volume.layers, layers.active, timeline.duration, transitioning, refreshVolumeStateReference, startFullTransition]);
+  }, [enabled, playback.isPlaying, timeline.enabled, playback, phases, volume.layers, layers.active, timeline.duration, transitioning, refreshVolumeStateReference, startFullTransition, setTransitionState]);
   
   // track play state changes effect
 useEffect(() => {
@@ -844,7 +882,7 @@ useEffect(() => {
       // IMPORTANT: Reset transition flags when playback starts
       transitionCompletedRef.current = true;
       transitionInProgress.current = false;
-      setTransitioning(false);
+      setTransitionState(false);
       
       // Ensure current audio state is synchronized with active audio
       if (layers && layers.active) {
@@ -866,7 +904,7 @@ useEffect(() => {
     // Reset transition flags when stopping
     transitionCompletedRef.current = true;
     transitionInProgress.current = false;
-    setTransitioning(false);
+    setTransitionState(false);
   }
 }, [playback.isPlaying, resetTimeline, layers]);
 
@@ -987,12 +1025,12 @@ const finishTransition = useCallback((phase) => {
   // IMPORTANT: Reset transition flags immediately to unblock phase detection
   transitionCompletedRef.current = true;
   transitionInProgress.current = false;
-  setTransitioning(false);
+  setTransitionState(false);
   
   console.log('Transition complete - flags reset, phase detection unblocked');
   console.log('Updated volume state:', currentVolumeState.current);
   console.log('Updated audio state:', currentAudioState.current);
-}, []);
+}, [setTransitionState]);
   
 
 
