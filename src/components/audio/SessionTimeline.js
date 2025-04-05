@@ -271,24 +271,14 @@ const SessionTimeline = React.forwardRef(({
       if (timeline.startTimeline) {
         console.log("Calling timeline.startTimeline()");
         timeline.startTimeline();
-      } else if (timeline.start) {
-        console.log("Calling timeline.start()");
-        timeline.start({ reset: true });
-      } else {
-        console.log("No timeline start method found!");
-      }
+      } 
     } else {
       console.log("Stopping timeline progression");
       // Stop timeline in the service - try different method names
       if (timeline.stopTimeline) {
         console.log("Calling timeline.stopTimeline()");
         timeline.stopTimeline();
-      } else if (timeline.stop) {
-        console.log("Calling timeline.stop()");
-        timeline.stop();
-      } else {
-        console.log("No timeline stop method found!");
-      }
+      } 
       
       // Reset phase tracking
       lastActivePhaseId.current = null;
@@ -1035,12 +1025,7 @@ React.useImperativeHandle(ref, () => ({
         </div>
       </div>
       <div className={styles.timelineControls}>
-  <button 
-    className={`${styles.controlButton} ${editMode ? styles.active : ''}`}
-    onClick={toggleEditMode}
-  >
-    {editMode ? 'Done' : 'Edit Timeline'}
-  </button>
+  
   
   {/* Add timeline playback controls */}
  {/* Add debug info to the button */}
