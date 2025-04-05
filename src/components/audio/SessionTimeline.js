@@ -66,7 +66,7 @@ const SessionTimeline = React.forwardRef(({
 
   // Initialize and register with timeline service
   useEffect(() => {
-    console.log("SessionTimeline mounting check");
+    //console.log("SessionTimeline mounting check");
     
     // Only run the setup operations once on first mount
     if (initialMount.current) {
@@ -237,53 +237,71 @@ const SessionTimeline = React.forwardRef(({
   }, [editMode]);
  
   //Toggle timeline playback
-const toggleTimelinePlayback = useCallback(() => {
-  // Only allow starting timeline if audio is playing
-  if (!playback.isPlaying && !timelineIsPlaying) {
-    console.log("Cannot start timeline when audio is not playing");
-    return;
-  }
+  const toggleTimelinePlayback = useCallback(() => {
+    // Only allow starting timeline if audio is playing
+    if (!playback.isPlaying && !timelineIsPlaying) {
+      console.log("Cannot start timeline when audio is not playing");
+      return;
+    }
+    
+    console.log("Timeline toggle button clicked, current state:", timelineIsPlaying);
+    
+    // Toggle the local timeline state
+    const newTimelineState = !timelineIsPlaying;
+    console.log("Setting new timeline state to:", newTimelineState);
+    
+    setTimelineIsPlaying(newTimelineState);
+    setLocalTimelineIsPlaying(newTimelineState);
   
-  // Toggle the local timeline state
-  const newTimelineState = !timelineIsPlaying;
-  setTimelineIsPlaying(newTimelineState);
-  setLocalTimelineIsPlaying(newTimelineState);
-
-  if (newTimelineState) {
-    console.log("Starting timeline progression");
-    // Reset progress tracking to start fresh
-    setProgress(0);
-    setCurrentTime(0);
-    
-    // Reset timeline in the service
-    if (timeline.reset) {
-      timeline.reset();
+    if (newTimelineState) {
+      console.log("Starting timeline progression");
+      // Reset progress tracking to start fresh
+      setProgress(0);
+      setCurrentTime(0);
+      
+      // Reset timeline in the service
+      if (timeline.reset) {
+        console.log("Calling timeline.reset()");
+        timeline.reset();
+      }
+      
+      // Start timeline in the service - try different method names
+      console.log("About to start timeline, available methods:", Object.keys(timeline));
+      
+      if (timeline.startTimeline) {
+        console.log("Calling timeline.startTimeline()");
+        timeline.startTimeline();
+      } else if (timeline.start) {
+        console.log("Calling timeline.start()");
+        timeline.start({ reset: true });
+      } else {
+        console.log("No timeline start method found!");
+      }
+    } else {
+      console.log("Stopping timeline progression");
+      // Stop timeline in the service - try different method names
+      if (timeline.stopTimeline) {
+        console.log("Calling timeline.stopTimeline()");
+        timeline.stopTimeline();
+      } else if (timeline.stop) {
+        console.log("Calling timeline.stop()");
+        timeline.stop();
+      } else {
+        console.log("No timeline stop method found!");
+      }
+      
+      // Reset phase tracking
+      lastActivePhaseId.current = null;
+      setActivePhase(null);
+      
+      // Cancel active transitions
+      if (volumeTransitionTimer.current) {
+        clearInterval(volumeTransitionTimer.current);
+        volumeTransitionTimer.current = null;
+      }
+      setTransitionState(false);
     }
-    
-    // Start timeline in the service
-    if (timeline.enabled && timeline.start) {
-      timeline.start({ reset: true });
-    }
-  } else {
-    console.log("Stopping timeline progression");
-    // Stop timeline in the service
-    if (timeline.enabled && timeline.stop) {
-      timeline.stop();
-    }
-    
-    // Reset phase tracking
-    lastActivePhaseId.current = null;
-    setActivePhase(null);
-    
-    // Cancel active transitions
-    if (volumeTransitionTimer.current) {
-      clearInterval(volumeTransitionTimer.current);
-      volumeTransitionTimer.current = null;
-    }
-    setTransitionState(false);
-  }
-}, [timelineIsPlaying, playback.isPlaying, timeline, setTransitionState]);
-
+  }, [timelineIsPlaying, playback.isPlaying, timeline, setTransitionState]);
   
 // Reset all timeline state for a clean restart
   const resetTimeline = useCallback(() => {
@@ -1025,13 +1043,17 @@ React.useImperativeHandle(ref, () => ({
   </button>
   
   {/* Add timeline playback controls */}
-  <button 
-    className={`${styles.controlButton} ${timelineIsPlaying ? styles.active : ''}`}
-    onClick={toggleTimelinePlayback}
-    disabled={!playback.isPlaying}
-  >
-    {timelineIsPlaying ? 'Stop Timeline' : 'Start Timeline'}
-  </button>
+ {/* Add debug info to the button */}
+<button 
+  className={`${styles.controlButton} ${timelineIsPlaying ? styles.active : ''}`}
+  onClick={() => {
+    console.log("Timeline button clicked!");
+    toggleTimelinePlayback();
+  }}
+  disabled={!playback.isPlaying}
+>
+  {timelineIsPlaying ? 'Stop Timeline' : 'Start Timeline'}
+</button>
 </div>
       {/* Time info below the timeline */}
       <div className={styles.timeInfo}>
