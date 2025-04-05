@@ -48,24 +48,27 @@ const SessionTimeline = ({
   const componentHasRendered = useRef(false);
   const isFirstRender = useRef(true);
   const isPlayingRef = useRef(false);
+  const transitionTimeoutId = useRef(null);
 
   const initialMount = useRef(true);
    // Add this function to SessionTimeline.js (around line 650-700, before the finishTransition function)
-const setTransitionState = useCallback((isTransitioning) => {
-  console.log(`Setting transition state: ${isTransitioning ? 'START' : 'END'}`);
-  
-  // Update all transition state flags atomically
-  transitionInProgress.current = isTransitioning;
-  transitionCompletedRef.current = !isTransitioning;
-  setTransitioning(isTransitioning);
-  
-  // Log the new state for debugging
-  console.log(`Transition state updated:`, {
-    transitioning: isTransitioning,
-    completed: !isTransitioning,
-    inProgress: isTransitioning
-  });
-}, []);
+   const setTransitionState = useCallback((isTransitioning) => {
+    console.log(`Setting transition state: ${isTransitioning ? 'START' : 'END'}`);
+    
+    // Update all transition state flags atomically to ensure consistency
+    transitionInProgress.current = isTransitioning;
+    transitionCompletedRef.current = !isTransitioning;
+    
+    // IMPORTANT: Set the React state last to ensure the UI updates correctly
+    setTransitioning(isTransitioning);
+    
+    // Additional logging to verify state consistency
+    console.log(`Transition state updated:`, {
+      reactState: isTransitioning,
+      completed: !isTransitioning,
+      inProgress: isTransitioning
+    });
+  }, []);
 
   // Initialize and register with timeline service - FIXED version
   useEffect(() => {
@@ -666,7 +669,7 @@ useEffect(() => {
     };
   }, [enabled, playback.isPlaying, timeline.duration]);
  
-
+//Manual Phase Check
   useEffect(() => {
     // Check if playback is active but the ref is false
     if (playback.isPlaying && !isPlayingRef.current) {
@@ -741,9 +744,9 @@ useEffect(() => {
     }
   }, [playback.isPlaying, isPlayingRef]);
   
-  
-  useEffect(() => {
     // Log both timeline and component enabled states for clarity
+  useEffect(() => {
+  
     console.log("Timeline enabled states:", {
       componentEnabled: enabled, 
       globalTimelineEnabled: timeline.enabled,
@@ -789,22 +792,35 @@ useEffect(() => {
         
         // ADD THIS SECTION - Failsafe for stuck transitions
         if (!transitionTimeoutId) {
-          console.log("Setting transition timeout failsafe (10 seconds)");
+          console.log("Setting transition timeout failsafe (5 seconds)");
           transitionTimeoutId = setTimeout(() => {
-            // If we're still in transition state after 10 seconds, force reset
+            // If we're still in transition state after 5 seconds, force reset
             if (transitioning || !transitionCompletedRef.current || transitionInProgress.current) {
-              console.log("FAILSAFE: Transition appears stuck, forcing reset");
-              setTransitionState(false);
-              transitionTimeoutId = null;
+              console.log("FAILSAFE: Transition appears stuck, forcing complete reset");
+              
+              // Force reset ALL transition state variables
+              transitionInProgress.current = false;
+              transitionCompletedRef.current = true;
+              setTransitioning(false);
+              
+              // Clear any volume transition timers
+              if (volumeTransitionTimer.current) {
+                clearInterval(volumeTransitionTimer.current);
+                volumeTransitionTimer.current = null;
+              }
+              
+              // Log the state after reset
+              console.log("Transition state after failsafe reset:", {
+                transitioning: false,
+                completed: true,
+                inProgress: false
+              });
             }
-          }, 10000); // 10 second timeout
+            
+            // Always clear the timeout ID
+            transitionTimeoutId = null;
+          }, 5000); // Reduced to 5 seconds for faster recovery
         }
-        return;
-      } else if (transitionTimeoutId) {
-        // Clear timeout if transition completed normally
-        clearTimeout(transitionTimeoutId);
-        transitionTimeoutId = null;
-      }
      // Refresh volume state reference to ensure it's current
     // console.log("Refreshing volume state reference before phase check");
      refreshVolumeStateReference();
@@ -867,6 +883,7 @@ return () => {
   if (phaseCheckInterval) clearInterval(phaseCheckInterval);
   if (transitionTimeoutId) clearTimeout(transitionTimeoutId);
 };
+      }
 }, 250);
 }
 
@@ -907,6 +924,44 @@ useEffect(() => {
     setTransitionState(false);
   }
 }, [playback.isPlaying, resetTimeline, layers]);
+
+//Cleanup Transitions
+useEffect(() => {
+  // Force reset all transition state when playback stops
+  if (!playback.isPlaying) {
+    console.log("Playback stopped, forcing transition state reset");
+    
+    // Ensure all transition state is reset
+    transitionInProgress.current = false;
+    transitionCompletedRef.current = true;
+    setTransitioning(false);
+    
+    // Clear any volume transition timers
+    if (volumeTransitionTimer.current) {
+      clearInterval(volumeTransitionTimer.current);
+      volumeTransitionTimer.current = null;
+    }
+    
+    // Clear any transition timeout
+    if (transitionTimeoutId) {
+      clearTimeout(transitionTimeoutId);
+      transitionTimeoutId.current = null;
+    }
+  }
+  
+  // Cleanup function to ensure all state is reset when unmounting
+  return () => {
+    if (volumeTransitionTimer.current) {
+      clearInterval(volumeTransitionTimer.current);
+      volumeTransitionTimer.current = null;
+    }
+    
+    if (transitionTimeoutId) {
+      clearTimeout(transitionTimeoutId);
+      transitionTimeoutId.current = null;
+    }
+  };
+}, [playback.isPlaying]);
 
   // Format time display (HH:MM:SS)
   const formatTime = useCallback((ms) => {
@@ -1022,15 +1077,17 @@ const finishTransition = useCallback((phase) => {
   currentVolumeState.current = JSON.parse(JSON.stringify(phase.state.volumes));
   currentAudioState.current = JSON.parse(JSON.stringify(phase.state.activeAudio));
   
-  // IMPORTANT: Reset transition flags immediately to unblock phase detection
+  // IMPORTANT: Reset transition flags immediately and explicitly to unblock phase detection
   transitionCompletedRef.current = true;
   transitionInProgress.current = false;
-  setTransitionState(false);
+  
+  // CRITICAL: Set React state last and separately with a small delay to ensure state updates properly
+  setTransitioning(false);
   
   console.log('Transition complete - flags reset, phase detection unblocked');
   console.log('Updated volume state:', currentVolumeState.current);
   console.log('Updated audio state:', currentAudioState.current);
-}, [setTransitionState]);
+}, []);
   
 
 
