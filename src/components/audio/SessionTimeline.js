@@ -32,6 +32,7 @@ const SessionTimeline = ({
   const [editMode, setEditMode] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState(null);
   const [transitioning, setTransitioning] = useState(false);
+  const [timelineIsPlaying, setTimelineIsPlaying] = useState(false);
   
   // Refs
   const timelineRef = useRef(null);
@@ -232,8 +233,54 @@ const SessionTimeline = ({
       previousEditMode.current = editMode;
     }
   }, [editMode]);
+ 
+  //goggle timeline
+const toggleTimelinePlayback = useCallback(() => {
+  // Only allow starting timeline if audio is playing
+  if (!playback.isPlaying && !timelineIsPlaying) {
+    console.log("Cannot start timeline when audio is not playing");
+    return;
+  }
   
-  // Reset all timeline state for a clean restart
+  // Toggle timeline playback state
+  setTimelineIsPlaying(prev => !prev);
+  
+  if (!timelineIsPlaying) {
+    console.log("Starting timeline progression");
+    // Reset progress tracking to start fresh
+    setProgress(0);
+    setCurrentTime(0);
+    
+    // Reset timeline in the service
+    if (timeline.reset) {
+      timeline.reset();
+    }
+    
+    // Start timeline in the service
+    if (timeline.enabled && timeline.start) {
+      timeline.start({ reset: true });
+    }
+  } else {
+    console.log("Stopping timeline progression");
+    // Stop timeline in the service
+    if (timeline.enabled && timeline.stop) {
+      timeline.stop();
+    }
+    
+    // Reset phase tracking
+    lastActivePhaseId.current = null;
+    setActivePhase(null);
+    
+    // Cancel active transitions
+    if (volumeTransitionTimer.current) {
+      clearInterval(volumeTransitionTimer.current);
+      volumeTransitionTimer.current = null;
+    }
+    setTransitionState(false);
+  }
+}, [timelineIsPlaying, playback.isPlaying, timeline]);
+  
+// Reset all timeline state for a clean restart
   const resetTimeline = useCallback(() => {
     // Don't reset if playback is active - this prevents disruption
     if (playback.isPlaying) {
@@ -599,42 +646,43 @@ const SessionTimeline = ({
     }
   }, [enabled, playback.isPlaying, phases, volume, transitions, layers, refreshVolumeStateReference, DEFAULT_PRE_ONSET_STATE]);
   
-  // Update time and progress bar - runs continuously during playback
-  useEffect(() => {
-    let interval;
+ 
+// This effect handles updating time and progress bar 
+useEffect(() => {
+  let interval;
+  
+  // Only run progress tracking when BOTH audio is playing AND timeline is enabled AND timeline is playing
+  if (enabled && playback.isPlaying && timelineIsPlaying) {
+    console.log("Starting SessionTimeline progress tracking");
     
-    if (enabled && playback.isPlaying) {
-      // Add debug logging
-      console.log("Starting SessionTimeline progress tracking");
-      
-      // Start with fresh time - clear any old state
+    // Start with fresh time - clear any old state
+    const time = playback.getTime();
+    setCurrentTime(time);
+    const progressPercent = Math.min(100, (time / timeline.duration) * 100);
+    setProgress(progressPercent);
+    
+    interval = setInterval(() => {
+      // Get current time directly from the timeline service
       const time = playback.getTime();
       setCurrentTime(time);
+      
       const progressPercent = Math.min(100, (time / timeline.duration) * 100);
       setProgress(progressPercent);
-      
-      interval = setInterval(() => {
-        // Get current time directly from the timeline service
-        const time = playback.getTime();
-        setCurrentTime(time);
-        
-        const progressPercent = Math.min(100, (time / timeline.duration) * 100);
-        setProgress(progressPercent);
-      }, 50); // Update more frequently for smoother animation
+    }, 50); // Update more frequently for smoother animation
+  }
+  
+  return () => {
+    if (interval) {
+      clearInterval(interval);
     }
-    
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
-  }, [enabled, playback.isPlaying, timeline.duration, playback]);
+  };
+}, [enabled, playback.isPlaying, timelineIsPlaying, timeline.duration, playback]);
   
   // Phase detection effect
   useEffect(() => {
     let phaseCheckInterval;
     
-    if (enabled && playback.isPlaying) {
+    if (enabled && playback.isPlaying && timelineIsPlaying) {
       phaseCheckInterval = setInterval(() => {
         // Skip phase checks during active transitions
         if (transitioning || !transitionCompletedRef.current || transitionInProgress.current) {
@@ -913,7 +961,23 @@ const SessionTimeline = ({
           ))}
         </div>
       </div>
-      
+      <div className={styles.timelineControls}>
+  <button 
+    className={`${styles.controlButton} ${editMode ? styles.active : ''}`}
+    onClick={toggleEditMode}
+  >
+    {editMode ? 'Done' : 'Edit Timeline'}
+  </button>
+  
+  {/* Add timeline playback controls */}
+  <button 
+    className={`${styles.controlButton} ${timelineIsPlaying ? styles.active : ''}`}
+    onClick={toggleTimelinePlayback}
+    disabled={!playback.isPlaying}
+  >
+    {timelineIsPlaying ? 'Stop Timeline' : 'Start Timeline'}
+  </button>
+</div>
       {/* Time info below the timeline */}
       <div className={styles.timeInfo}>
         <span>{formatTime(currentTime)}</span>

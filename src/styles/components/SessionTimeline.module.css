@@ -115,7 +115,15 @@
   transition: transform 0.1s ease;
 }
 
+.controlButton.active {
+  border-color: #ffaa00;
+  color: #ffaa00;
+}
 
+.controlButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 /* Slider-like appearance */
 .timeline::before {
   content: '';
