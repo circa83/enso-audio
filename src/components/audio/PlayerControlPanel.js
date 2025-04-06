@@ -1,8 +1,9 @@
 // src/components/audio/PlayerControlPanel.js
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useRef } from 'react';
 import { useAudio } from '../../hooks/useAudio';
 import AudioVisualizer from './AudioVisualizer';
 import MasterVolumeControl from './MasterVolumeControl';
+import SessionTimeline from './SessionTimeline';
 import styles from '../../styles/components/PlayerControlPanel.module.css';
 
 /**
@@ -14,6 +15,8 @@ import styles from '../../styles/components/PlayerControlPanel.module.css';
  * @returns {JSX.Element} Rendered component
  */
 const PlayerControlPanel = () => {
+  
+  
   
   // Use our new hook with grouped API
   const { playback } = useAudio();
@@ -45,7 +48,9 @@ const PlayerControlPanel = () => {
         >
           {playback.isPlaying ? 'Stop' : 'Play'}
         </button>
-        
+        <SessionTimeline 
+            
+            />
         <MasterVolumeControl />
       </div>
     </div>

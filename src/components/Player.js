@@ -47,6 +47,9 @@ const Player = () => {
   const [importError, setImportError] = useState(null);
   const fileInputRef = useRef(null);
   
+  // Track previous playback state
+  const wasPlaying = useRef(playback.isPlaying);
+
   // Toggle debug panel with Ctrl+Shift+D
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -148,9 +151,12 @@ useEffect(() => {
     };
   }, []);
   
-  //Stop Timeline when Audio Stops
+  
+   //Stop Timeline when Audio Stops, but only when it was previously playing
   useEffect(() => {
-    if (!playback.isPlaying) {
+    
+    // If we were playing before and now we're not, that's a true stop event
+    if (wasPlaying.current && !playback.isPlaying) {
       // Audio stopped playing
       console.log("Audio playback stopped - ensuring timeline is also stopped");
       
@@ -164,6 +170,9 @@ useEffect(() => {
         timelineComponentRef.current.resetTimelinePlayback();
       }
     }
+    
+    // Update previous state for next check
+    wasPlaying.current = playback.isPlaying;
   }, [playback.isPlaying, timeline]);
   
   // Render audio layer controls

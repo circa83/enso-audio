@@ -124,6 +124,7 @@ export const AudioProvider = ({ children }) => {
   // Initialize services - Only run once on mount
   useEffect(() => {
     let isMounted = true; // For preventing state updates after unmount
+    console.log("AudioProvider mounted, initializing services...");
    
     const initializeServices = async () => {
       if (typeof window === 'undefined') return;

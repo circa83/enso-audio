@@ -53,7 +53,16 @@ const SessionTimeline = React.forwardRef(({
   const transitionTimeoutRef = useRef(null);
 
   // Set transition state helper function
-  const setTransitionState = useCallback((isTransitioning) => {
+  const setTransitionState = useCallback((isTransitioning, force = false) => {
+    // Skip unnecessary state updates if state is already set correctly
+    // But allow forcing an update if needed for sync purposes
+    if (!force && isTransitioning === transitioning && 
+        isTransitioning === transitionInProgress.current && 
+        !isTransitioning === transitionCompletedRef.current) {
+      console.log(`Transition state already set to: ${isTransitioning ? 'START' : 'END'}, skipping update`);
+      return;
+    }
+    
     console.log(`Setting transition state: ${isTransitioning ? 'START' : 'END'}`);
     
     // Update all transition state flags atomically to ensure consistency
@@ -62,8 +71,8 @@ const SessionTimeline = React.forwardRef(({
     
     // Set the React state last to ensure the UI updates correctly
     setTransitioning(isTransitioning);
-  }, []);
-
+  }, [transitioning]);
+  
   // Initialize and register with timeline service
   useEffect(() => {
     //console.log("SessionTimeline mounting check");
@@ -640,8 +649,8 @@ const SessionTimeline = React.forwardRef(({
       
       // Ensure we have valid current state data
       refreshVolumeStateReference();
-      
       if (timelineRef.current) {
+      
         // Determine the state to apply - either the saved state or the default
         const stateToApply = preOnsetPhase?.state || DEFAULT_PRE_ONSET_STATE;
         
