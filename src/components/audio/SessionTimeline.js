@@ -72,7 +72,7 @@ const SessionTimeline = React.forwardRef(({
     // Set the React state last to ensure the UI updates correctly
     setTransitioning(isTransitioning);
   }, [transitioning]);
-  
+
   // Initialize and register with timeline service
   useEffect(() => {
     //console.log("SessionTimeline mounting check");
@@ -637,7 +637,7 @@ const SessionTimeline = React.forwardRef(({
   }, [transitions.active, setTransitionState]);
 
   // Apply pre-onset phase IMMEDIATELY when play is pressed (no transition)
-  useEffect(() => {
+ /* useEffect(() => {
     // Skip the effect on first render
     if (isFirstRender.current) {
       isFirstRender.current = false;
@@ -693,7 +693,7 @@ const SessionTimeline = React.forwardRef(({
       }
     }
   }, [enabled, playback.isPlaying, phases, volume, transitions, layers, refreshVolumeStateReference, DEFAULT_PRE_ONSET_STATE]);
-  
+  */
  
 // updating time and progress bar 
   useEffect(() => {

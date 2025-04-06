@@ -556,13 +556,6 @@ const handleSetTimelineEnabled = useCallback((enabled) => {
     
     try {
       console.log("Starting session...");
-
-     // Only start and reset timeline if timeline is enabled
-    // This is a key change - only operate timeline if enabled
-    if (serviceRef.current.timelineEngine && timelineIsEnabled) {
-      console.log("Explicitly resetting timeline engine before starting playback");
-      serviceRef.current.timelineEngine.reset();
-    }
       
       // Resume AudioCore
       serviceRef.current.audioCore.resume().catch(err => {
@@ -628,50 +621,17 @@ const handleSetTimelineEnabled = useCallback((enabled) => {
         .then(() => {
           if (!isPlayingRef.current) {
             updatePlayingState(true);
-            
-            // Start the TimelineEngine
-
-            if (serviceRef.current.timelineEngine && timelineIsEnabled) {
-              console.log("About to start TimelineEngine, current instance:", serviceRef.current.timelineEngine);
-              const started = serviceRef.current.timelineEngine.start({ reset: true });
-              console.log("TimelineEngine start result:", started);
-            }
           }
         })
         .catch(error => {
           console.error('Error in play promises:', error);
           // Try to update state anyway
           updatePlayingState(true);
-          
-          // Start the TimelineEngine
-console.log("About to start TimelineEngine, current instance:", serviceRef.current.timelineEngine);
-          if (serviceRef.current.timelineEngine) {
-const started = serviceRef.current.timelineEngine.start({ reset: true });
-console.log("TimelineEngine start result:", started);
-          }
         });
       
       // Set state immediately as a fallback
       if (!isPlayingRef.current) {
         updatePlayingState(true);
-        
-        // Start the TimelineEngine
-console.log("About to start TimelineEngine, current instance:", serviceRef.current.timelineEngine);
-        if (serviceRef.current.timelineEngine) {
-
-            // Ensure we stop any existing timers first
-  serviceRef.current.timelineEngine.stop();
-
-const started = serviceRef.current.timelineEngine.start({ reset: true });
-console.log("TimelineEngine start result:", started);
-
-// Force an initial progress update to get things moving
-if (serviceRef.current.timelineEngine.onProgress) {
-  const initialTime = serviceRef.current.timelineEngine.getElapsedTime();
-  const initialProgress = Math.min(100, (initialTime / sessionDuration) * 100);
-  serviceRef.current.timelineEngine.onProgress(initialProgress, initialTime);
-}
-        }
       }
       
     } catch (error) {
@@ -1149,29 +1109,46 @@ console.log(`Current track for ${layer}: ${currentTrackId}`);
 
   // Timeline functions - wrapped in useCallback
 const handleStartTimeline = useCallback(() => {
-  if (!serviceRef.current.timelineEngine) return false;
+  if (!serviceRef.current.timelineEngine) {
+    console.error("TimelineEngine not initialized");
+    return false;
+  }
+
+  // Ensure the audio is playing first - timeline should not auto-start audio
+  if (!isPlayingRef.current) {
+    console.log("Audio is not playing, cannot start timeline");
+    return false;
+  }
+
+  // Reset the timeline state first
+  serviceRef.current.timelineEngine.stop();
   
-  // Start the timeline engine
-  const success = serviceRef.current.timelineEngine.start({ reset: false });
+  // Start the timeline with reset option
+  const started = serviceRef.current.timelineEngine.start({ reset: true });
+  console.log("TimelineEngine start result:", started);
   
-  if (success) {
+  if (started) {
     setTimelineIsPlaying(true);
   }
   
-  return success;
-}, []);
+  return started;
+}, [ isPlayingRef, sessionDuration]);
 
 const handleStopTimeline = useCallback(() => {
-  if (!serviceRef.current.timelineEngine) return false;
+  if (!serviceRef.current.timelineEngine) {
+    console.log("Can't stop timeline: TimelineEngine missing");
+    return false;
+  }
+  console.log("Stopping timeline...");
+  // Just stop the timeline without affecting audio playback
+  const stopped = serviceRef.current.timelineEngine.stop();
+  console.log("TimelineEngine stop result:", stopped);
   
-  // Stop the timeline engine
-  const success = serviceRef.current.timelineEngine.stop();
-  
-  if (success) {
+  if (stopped) {
     setTimelineIsPlaying(false);
   }
   
-  return success;
+  return stopped;
 }, []);
 
   const handleGetSessionTime = useCallback(() => {
