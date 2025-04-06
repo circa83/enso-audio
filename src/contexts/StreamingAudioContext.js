@@ -43,29 +43,8 @@ export const AudioProvider = ({ children }) => {
     presetManager: null
   });
   const activeAudioRef = useRef({}); // To keep track of active audio elements without causing re-renders 
-const audioLibraryRef = useRef({
-    [LAYERS.DRONE]: [{
-      id: `${LAYERS.DRONE}1`,
-      name: `${LAYERS.DRONE.charAt(0).toUpperCase() + LAYERS.DRONE.slice(1)}`,
-      path: DEFAULT_AUDIO[LAYERS.DRONE]
-    }],
-    [LAYERS.MELODY]: [{
-      id: `${LAYERS.MELODY}1`,
-      name: `${LAYERS.MELODY.charAt(0).toUpperCase() + LAYERS.MELODY.slice(1)}`,
-      path: DEFAULT_AUDIO[LAYERS.MELODY]
-    }],
-    [LAYERS.RHYTHM]: [{
-      id: `${LAYERS.RHYTHM}1`,
-      name: `${LAYERS.RHYTHM.charAt(0).toUpperCase() + LAYERS.RHYTHM.slice(1)}`,
-      path: DEFAULT_AUDIO[LAYERS.RHYTHM]
-    }],
-    [LAYERS.NATURE]: [{
-      id: `${LAYERS.NATURE}1`, 
-      name: `${LAYERS.NATURE.charAt(0).toUpperCase() + LAYERS.NATURE.slice(1)}`,
-      path: DEFAULT_AUDIO[LAYERS.NATURE]
-    }]
-  });
- 
+
+
   // Loading state
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
@@ -95,7 +74,30 @@ const audioLibraryRef = useRef({
     [LAYERS.RHYTHM]: [],
     [LAYERS.NATURE]: []
   });
-  
+ 
+  const audioLibraryRef = useRef({
+    [LAYERS.DRONE]: [{
+      id: `${LAYERS.DRONE}1`,
+      name: `${LAYERS.DRONE.charAt(0).toUpperCase() + LAYERS.DRONE.slice(1)}`,
+      path: DEFAULT_AUDIO[LAYERS.DRONE]
+    }],
+    [LAYERS.MELODY]: [{
+      id: `${LAYERS.MELODY}1`,
+      name: `${LAYERS.MELODY.charAt(0).toUpperCase() + LAYERS.MELODY.slice(1)}`,
+      path: DEFAULT_AUDIO[LAYERS.MELODY]
+    }],
+    [LAYERS.RHYTHM]: [{
+      id: `${LAYERS.RHYTHM}1`,
+      name: `${LAYERS.RHYTHM.charAt(0).toUpperCase() + LAYERS.RHYTHM.slice(1)}`,
+      path: DEFAULT_AUDIO[LAYERS.RHYTHM]
+    }],
+    [LAYERS.NATURE]: [{
+      id: `${LAYERS.NATURE}1`, 
+      name: `${LAYERS.NATURE.charAt(0).toUpperCase() + LAYERS.NATURE.slice(1)}`,
+      path: DEFAULT_AUDIO[LAYERS.NATURE]
+    }]
+  });
+ 
   // Feature availability
   const [hasSwitchableAudio, setHasSwitchableAudio] = useState(false);
   
@@ -250,12 +252,12 @@ const audioLibraryRef = useRef({
   }, [activeAudio]);
 
 // Then sync the ref with state using an effect
-useEffect(() => {
+  useEffect(() => {
   audioLibraryRef.current = audioLibrary;
 }, [audioLibrary]);
 
-// And ensure we can recover from the ref if needed
-useEffect(() => {
+// Recover Audio From AudioLibrary if needed
+  useEffect(() => {
   if (Object.values(audioLibrary).some(layerTracks => layerTracks.length === 0)) {
     console.warn('Detected empty audio library, recovering from ref...');
     setAudioLibrary(audioLibraryRef.current);

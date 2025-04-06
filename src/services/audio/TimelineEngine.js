@@ -465,6 +465,7 @@ class TimelineEngine {
       return sortedPhases.find(phase => phase.position <= progress) || null;
     }
     
+    //SCHEDULED EVENTS
     /**
      * Add a scheduled event to the timeline
      * @param {Object} event - Event object

@@ -582,7 +582,7 @@ const SessionTimeline = React.forwardRef(({
   }, [playback.isPlaying, resetTimeline, layers, setTransitionState]);
 
 // Stop Playback and reset timeline
-useEffect(() => {
+  useEffect(() => {
   // If audio playback stops, also stop the timeline
   if (!playback.isPlaying && timelineIsPlaying) {
     console.log("Audio stopped - stopping timeline automatically");
@@ -686,8 +686,8 @@ useEffect(() => {
   }, [enabled, playback.isPlaying, phases, volume, transitions, layers, refreshVolumeStateReference, DEFAULT_PRE_ONSET_STATE]);
   
  
-// This effect handles updating time and progress bar 
-useEffect(() => {
+// updating time and progress bar 
+  useEffect(() => {
   let interval;
   
   // Only run progress tracking when BOTH audio is playing AND timeline is enabled AND timeline is playing

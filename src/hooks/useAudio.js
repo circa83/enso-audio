@@ -103,7 +103,7 @@ export function useAudio() {
     master: masterVolume,
     layers: volumes,
     setMaster: (level, options) => {
-      console.log(`[useAudio] Setting master volume to ${level}`);
+      //console.log(`[useAudio] Setting master volume to ${level}`);
       return setMasterVolumeLevel(level, options);
     },
     setLayer: (layer, level, options) => {
@@ -147,11 +147,11 @@ export function useAudio() {
     setTimelineEnabled, 
     isPlaying: false, // Add state in StreamingAudioContext first
     
-    startTimeline: () => { // Add this function to the context
+    startTimeline: () => { 
       console.log('[useAudio] Starting timeline progression');
       return startTimeline();
     },
-    stopTimeline: () => { // Add this function to the context
+    stopTimeline: () => { 
       console.log('[useAudio] Stopping timeline progression');
       return stopTimeline();
     },
