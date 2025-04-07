@@ -729,9 +729,10 @@ const SessionTimeline = React.forwardRef(({
   // Phase detection effect
   useEffect(() => {
     let phaseCheckInterval;
-    
+    console.log("Starting phase detection effect", { enabled, playback: playback.isPlaying, localTimelineIsPlaying });
     if (enabled && playback.isPlaying && localTimelineIsPlaying) {
       phaseCheckInterval = setInterval(() => {
+        console.log("Checking for phase changes...");
         // Skip phase checks during active transitions
         if (transitioning || !transitionCompletedRef.current || transitionInProgress.current) {
           return;

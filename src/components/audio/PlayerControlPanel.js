@@ -14,9 +14,10 @@ import styles from '../../styles/components/PlayerControlPanel.module.css';
  * 
  * @returns {JSX.Element} Rendered component
  */
-const PlayerControlPanel = () => {
-  
-  
+const PlayerControlPanel = React.forwardRef(({ 
+  timelineEnabled, 
+  onDurationChange 
+}, ref) => {
   
   // Use our new hook with grouped API
   const { playback } = useAudio();
@@ -49,13 +50,18 @@ const PlayerControlPanel = () => {
           {playback.isPlaying ? 'Stop' : 'Play'}
         </button>
         <SessionTimeline 
-            
-            />
+          ref={ref}
+          enabled={timelineEnabled}
+          onDurationChange={onDurationChange}
+        />
         <MasterVolumeControl />
       </div>
     </div>
   );
-};
+});
+
+// Add display name for debugging
+PlayerControlPanel.displayName = 'PlayerControlPanel';
 
 // Use memo for performance optimization
 export default memo(PlayerControlPanel);

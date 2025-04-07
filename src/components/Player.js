@@ -47,6 +47,7 @@ const Player = () => {
   const [importError, setImportError] = useState(null);
   const fileInputRef = useRef(null);
   
+  
   // Track previous playback state
   const wasPlaying = useRef(playback.isPlaying);
 
@@ -189,23 +190,6 @@ useEffect(() => {
       </div>
     );
   }, [layers.TYPES]);
-  
-  // Render session timeline content
-  const renderSessionTimeline = useCallback(() => {
-    if (!timelineEnabled) return (
-      <div className={styles.timelineDisabled}>
-        Timeline is currently disabled. Enable it in Session Settings.
-      </div>
-    );
-    
-    return (
-      <SessionTimeline 
-      ref={timelineComponentRef}
-      enabled={timelineEnabled}
-      onDurationChange={handleDurationChange}
-    />
-    );
-  }, [timelineEnabled]);
   
   // timeline settings handlers
   const handleDurationChange = useCallback((newDuration) => {
@@ -684,22 +668,17 @@ const handleFileSelect = useCallback((e) => {
       </div>
       
       {/* Main player and controls */}
-      <PlayerControlPanel />
-      
+      <PlayerControlPanel 
+  timelineEnabled={timelineEnabled}
+  onDurationChange={handleDurationChange}
+  ref={timelineComponentRef}
+/>
         {/* Collapsible Section for Audio Layers */}
         <CollapsibleSection 
         title="Audio Layers" 
         initialExpanded={false}
       >
         {renderLayerControls()}
-      </CollapsibleSection>
-
-      {/* Collapsible Section for Session Timeline */}
-      <CollapsibleSection 
-        title="Session Timeline" 
-        initialExpanded={false}
-      >
-        {renderSessionTimeline()}
       </CollapsibleSection>
           
       {/* Collapsible Section for Session Settings */}
