@@ -728,11 +728,24 @@ const SessionTimeline = React.forwardRef(({
   
   // Phase detection effect
   useEffect(() => {
-    let phaseCheckInterval;
-    console.log("Starting phase detection effect", { enabled, playback: playback.isPlaying, localTimelineIsPlaying });
-    if (enabled && playback.isPlaying && localTimelineIsPlaying) {
-      phaseCheckInterval = setInterval(() => {
-        console.log("Checking for phase changes...");
+    // Add debug logging to see if this effect is running
+    // console.log("Phase detection effect triggered with state:", { 
+    //   enabled, 
+    //   isPlaying: playback.isPlaying, 
+    //   timelinePlaying: localTimelineIsPlaying 
+    // });
+    
+    let timeoutId = null;
+    let isRunning = false;
+    const runPhaseCheck = () => {
+      // Only continue if conditions are still met
+      if (!enabled || !playback.isPlaying || !localTimelineIsPlaying) {
+        console.log("Stopping phase checks as conditions no longer met");
+        isRunning = false;
+        return;
+      }
+
+      console.log("Phase check running");
         // Skip phase checks during active transitions
         if (transitioning || !transitionCompletedRef.current || transitionInProgress.current) {
           return;
@@ -743,7 +756,7 @@ const SessionTimeline = React.forwardRef(({
 
         const time = playback.getTime();
         const progressPercent = Math.min(100, (time / timeline.duration) * 100);
-        
+        console.log(`Current progress: ${progressPercent.toFixed(2)}%`);
         // Find the current phase based on progress
         const sortedPhases = [...phases].sort((a, b) => b.position - a.position);
         let newActivePhase = null;
@@ -787,18 +800,48 @@ const SessionTimeline = React.forwardRef(({
             // Start full transition with state information
             startFullTransition(newActivePhase, transitionState);
           }
-        }
-      }, 250);
-    }
     
-    return () => {
-      if (phaseCheckInterval) {
-        clearInterval(phaseCheckInterval);
+          // Schedule next check
+          timeoutId = setTimeout(runPhaseCheck, 250);
+        };
+        
+        // Start the checks if conditions are met
+        if (enabled && playback.isPlaying && localTimelineIsPlaying && !isRunning) {
+          console.log("Starting phase detection checks");
+          isRunning = true;
+          runPhaseCheck();
+        }
+        
+        return () => {
+          console.log("Cleaning up phase detection");
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+          }
+          isRunning = false;
+        };
+      }; 
+      if (enabled && playback.isPlaying && localTimelineIsPlaying && !isRunning) {
+        // console.log("Starting phase detection checks");
+        isRunning = true;
+        runPhaseCheck();
       }
-    };
-  }, [enabled, playback.isPlaying, localTimelineIsPlaying, transitioning, phases, volume.layers, layers.active, 
-      timeline.duration, refreshVolumeStateReference, startFullTransition, playback]);
-  
+    }, [
+  // Make sure ALL dependencies are listed here
+  enabled, 
+  playback.isPlaying, 
+  localTimelineIsPlaying, 
+  transitioning, 
+  timeline.duration, 
+  refreshVolumeStateReference, 
+  playback.getTime,
+  // Make sure you include ALL other dependencies that are used inside
+  phases,
+  volume.layers,
+  layers.active,
+  startFullTransition
+]);
+ 
   // Cleanup transitions when playback stops
   useEffect(() => {
     // Force reset all transition state when playback stops
