@@ -109,6 +109,13 @@ export function useAudio() {
     setLayer: (layer, level, options) => {
       //console.log(`[useAudio] Setting ${layer} volume to ${level}`);
       return setVolume(layer, level, options);
+    }, 
+    fadeVolume: (layer, targetVolume, duration) => {
+      if (serviceRef.current.volumeController) {
+        console.log(`[useAudio] Fading ${layer} volume to ${targetVolume} over ${duration}ms`);
+        return serviceRef.current.volumeController.fadeVolume(layer, targetVolume, duration);
+      }
+      return false;
     }
   }), [masterVolume, volumes, setMasterVolumeLevel, setVolume]);
   
