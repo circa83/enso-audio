@@ -52,19 +52,19 @@ const SessionTimeline = React.forwardRef(({
   const initialMount = useRef(true);
   const transitionTimeoutRef = useRef(null);
 
-  //simple test
-  useEffect(() => {
-    console.log('SessionTimeline component mounted');
-  }, []);
+//   //simple test
+//   useEffect(() => {
+//     console.log('SessionTimeline component mounted');
+//   }, []);
 
-//Provide Volume Data from useAudio
-  useEffect(() => {
-    console.log('Volume in SessionTimeline component:', {
-      volumeObject: volume,
-      hasVolumeLayers: volume && !!volume.layers,
-      volumeLayerCount: volume && volume.layers ? Object.keys(volume.layers).length : 0
-    });
-  }, [volume]);
+// //Provide Volume Data from useAudio
+//   useEffect(() => {
+//     console.log('Volume in SessionTimeline component:', {
+//       volumeObject: volume,
+//       hasVolumeLayers: volume && !!volume.layers,
+//       volumeLayerCount: volume && volume.layers ? Object.keys(volume.layers).length : 0
+//     });
+//   }, [volume]);
 
   // Set transition state helper function
   const setTransitionState = useCallback((isTransitioning, force = false) => {
@@ -345,23 +345,33 @@ const SessionTimeline = React.forwardRef(({
   }, [timeline, playback.isPlaying, setTransitionState]);
 
   // Refresh volume state reference
+  // Update refreshVolumeStateReference function
   const refreshVolumeStateReference = useCallback(() => {
-    // Update internal volume state reference from the actual current volumes
+    // Get the ACTUAL current volumes directly from the volume controller
     if (volume && volume.layers) {
-      // Force different object reference to ensure change detection
-      const newVolumeState = {};
-      Object.entries(volume.layers).forEach(([layer, val]) => {
-        // Round to 2 decimal places to avoid floating point comparison issues
-        newVolumeState[layer] = Math.round(val * 100) / 100;
+      // Create a new object to ensure it's a different reference
+      const actualCurrentVolumes = {};
+      Object.entries(volume.layers).forEach(([layer, vol]) => {
+        // Round to avoid floating point issues
+        actualCurrentVolumes[layer] = Math.round(vol * 100) / 100;
       });
       
-      // Update reference
-      currentVolumeState.current = newVolumeState;
+      // Replace the current state reference
+      currentVolumeState.current = actualCurrentVolumes;
+     // console.log('Refreshed volume state with ACTUAL current values:', actualCurrentVolumes);
     }
     
-    // Also ensure audio state is up to date
+    // Get the ACTUAL current audio tracks
     if (layers && layers.active) {
-      currentAudioState.current = {...layers.active};
+      const actualCurrentAudio = {};
+      Object.entries(layers.active).forEach(([layer, trackId]) => {
+        if (trackId) {
+          actualCurrentAudio[layer] = trackId;
+        }
+      });
+      
+      currentAudioState.current = actualCurrentAudio;
+     // console.log('Refreshed audio state with ACTUAL current tracks:', actualCurrentAudio);
     }
   }, [volume, layers]);
 
@@ -378,217 +388,245 @@ const SessionTimeline = React.forwardRef(({
   };
 
     // Helper function to finish the transition and update state
-    const finishTransition = useCallback((phase) => {
-      console.log('Finishing transition to phase:', phase.name);
-      
-      // Update current state references - deep clone to avoid reference issues
-      currentVolumeState.current = JSON.parse(JSON.stringify(phase.state.volumes));
-      currentAudioState.current = JSON.parse(JSON.stringify(phase.state.activeAudio));
-      
-      // Reset transition flags
-      transitionCompletedRef.current = true;
-      transitionInProgress.current = false;
-      
-      // Set React state
-      setTransitioning(false);
-      
-      console.log('Transition complete - flags reset, phase detection unblocked');
-    }, []);
+  // Update the finishTransition function
+// Update the finishTransition function
+const finishTransition = useCallback((phase) => {
+  console.log('Finishing transition to phase:', phase.name);
+  
+  // NOW is when we update the current state references to the target values
+  // This ensures we only update after the transition is complete
+  
+  // Update volume state reference
+  if (phase.state?.volumes) {
+    currentVolumeState.current = {};
+    Object.entries(phase.state.volumes).forEach(([layer, vol]) => {
+      currentVolumeState.current[layer] = vol;
+    });
+    console.log('Updated volume state reference to target values:', currentVolumeState.current);
+  }
+  
+  // Update audio state reference
+  if (phase.state?.activeAudio) {
+    currentAudioState.current = {};
+    Object.entries(phase.state.activeAudio).forEach(([layer, trackId]) => {
+      currentAudioState.current[layer] = trackId;
+    });
+    console.log('Updated audio state reference to target values:', currentAudioState.current);
+  }
+  
+  // Reset transition flags
+  transitionCompletedRef.current = true;
+  transitionInProgress.current = false;
+  
+  // Set React state
+  setTransitioning(false);
+  
+  console.log('Transition complete - flags reset, phase detection unblocked');
+}, []);
   
   // Full transition function that coordinates track changes and volume changes
-  const startFullTransition = useCallback((phase, transitionState = null) => {
-    console.log(`Starting full transition to phase: ${phase.name}`);
-   
-    console.log('Volume object check:', {
-      volumeExists: !!volume,
-      volumeType: typeof volume,
-      hasLayers: volume && !!volume.layers,
-      layersType: volume && volume.layers ? typeof volume.layers : 'N/A',
-      layersKeys: volume && volume.layers ? Object.keys(volume.layers) : [],
-    });
-   //Skip Transition if already in progress or not enabled
-    if (!enabled || !phase.state) {
-      console.log('Skipping transition - either disabled or no state');
-      return;
+ // Update the startFullTransition function in SessionTimeline.js
+ // Update the startFullTransition function with focus on preserving original state
+const startFullTransition = useCallback((phase, transitionState = null) => {
+  console.log(`Starting full transition to phase: ${phase.name}`);
+ 
+  // Skip transition if already in progress or not enabled
+  if (!enabled || !phase.state) {
+    console.log('Skipping transition - either disabled or no state');
+    return;
+  }
+  
+  // Clean up any existing volume transition timer
+  if (volumeTransitionTimer.current) {
+    clearInterval(volumeTransitionTimer.current);
+    volumeTransitionTimer.current = null;
+  }
+  
+  // Cancel any existing transition timeout
+  if (transitionTimeoutRef.current) {
+    clearTimeout(transitionTimeoutRef.current);
+    transitionTimeoutRef.current = null;
+  }
+  
+  // Signal that transition is starting
+  setTransitionState(true);
+  
+  // Use the duration from session settings
+  const duration = timeline.transitionDuration;
+  console.log(`Starting full transition with duration: ${duration}ms`);
+  
+  // CRITICAL: Create a snapshot of the current state before starting any transitions
+  // We'll use this as the starting point for all transitions
+  
+
+// First for volume state
+const originalVolumeState = {};
+
+// If we were provided a transition state object with original volumes, use that EXCLUSIVELY
+if (volume && volume.layers) {
+  Object.entries(volume.layers).forEach(([layer, vol]) => {
+    originalVolumeState[layer] = vol;
+  });
+  console.log('Captured original volume state:', originalVolumeState);
+}
+  
+  // Then for audio state
+  const originalAudioState = {};
+  
+  // Use current active audio or fallback
+  Object.values(layers.TYPES).forEach(layerType => {
+    const layer = layerType.toLowerCase();
+    // First try current reference, then active layers, then fallback
+    if (currentAudioState.current && currentAudioState.current[layer]) {
+      originalAudioState[layer] = currentAudioState.current[layer];
+    } else if (layers && layers.active && layers.active[layer]) {
+      originalAudioState[layer] = layers.active[layer];
+    } else {
+      // Last resort fallback
+      originalAudioState[layer] = `${layer}1`;
     }
-    
-    // Clean up any existing volume transition timer
-    if (volumeTransitionTimer.current) {
-      clearInterval(volumeTransitionTimer.current);
-      volumeTransitionTimer.current = null;
+  });
+  
+  console.log('Original audio state:', originalAudioState);
+  
+  // Step 1: Identify track changes needed
+  const trackChanges = [];
+  
+  // Compare original audio state to the target phase state
+  Object.entries(phase.state.activeAudio || {}).forEach(([layer, targetTrackId]) => {
+    const currentTrackId = originalAudioState[layer];
+      
+    if (currentTrackId && targetTrackId && targetTrackId !== currentTrackId) {
+      console.log(`Need to crossfade ${layer}: ${currentTrackId} → ${targetTrackId}`);
+      
+      // Add to our list of needed track changes
+      trackChanges.push({
+        layer,
+        from: currentTrackId,
+        to: targetTrackId
+      });
     }
+  });
+  
+  // Step 2: Execute all track crossfades with the same duration
+  const crossfadePromises = trackChanges.map(change => {
+    console.log(`Starting crossfade for ${change.layer} from ${change.from} to ${change.to}`);
+    return transitions.crossfade(change.layer, change.to, duration)
+      .catch(err => {
+        console.error(`Error in crossfade for ${change.layer}:`, err);
+        return false;
+      });
+  });
+  
+  // Step 3: Handle volume changes with smooth transitions
+  const volumeChanges = [];
+  
+  // Compare original volume state to the target phase state
+  Object.entries(phase.state.volumes || {}).forEach(([layer, targetVolume]) => {
+    const currentVolume = originalVolumeState[layer] !== undefined ? 
+      originalVolumeState[layer] : 0;
     
-    // Cancel any existing transition timeout
-    if (transitionTimeoutRef.current) {
-      clearTimeout(transitionTimeoutRef.current);
-      transitionTimeoutRef.current = null;
+    // Only transition if there's a meaningful difference
+    if (Math.abs(targetVolume - currentVolume) > 0.01) {
+      console.log(`Volume change for ${layer}: ${currentVolume} → ${targetVolume}`);
+      volumeChanges.push({
+        layer,
+        from: currentVolume,
+        to: targetVolume
+      });
     }
-    
-    // Signal that transition is starting
-    setTransitionState(true);
-    
-    // Initialize state if needed
-    if (Object.keys(currentAudioState.current).length === 0 && layers && layers.active) {
-      console.log('Initializing currentAudioState from active layers');
-      Object.entries(layers.active).forEach(([layer, trackId]) => {
-        if (trackId) {
-          currentAudioState.current[layer] = trackId;
+  });
+  
+  // If we have volume changes to make, set up the transition timer
+  if (volumeChanges.length > 0) {
+    console.log(`Setting up volume transitions for ${volumeChanges.length} layers`);
+    const updateInterval = 50; // ms between volume updates
+    const totalSteps = Math.max(1, Math.floor(duration / updateInterval));
+    let currentStep = 0;
+
+    volumeTransitionTimer.current = setInterval(() => {
+      currentStep++;
+      
+      // Update all volume changes with eased transitions
+      volumeChanges.forEach(change => {
+        // Calculate progress with easing for smoother transitions
+        const progress = currentStep / totalSteps;
+        const easedProgress = 0.5 - 0.5 * Math.cos(progress * Math.PI); // Cosine easing
+        const newVolume = change.from + (change.to - change.from) * easedProgress;
+        
+        // IMPORTANT: Only apply the volume change, don't update the currentVolumeState yet
+        // This ensures we're always transitioning from original to target
+        
+        // Update volume (but not if this layer is in an active crossfade)
+        const isInCrossfade = trackChanges.some(tc => tc.layer === change.layer);
+        if (!isInCrossfade) {
+          volume.setLayer(change.layer, newVolume, { immediate: false });
         }
       });
-    }
-
-    // Always refresh current volume state
-    if (volume && volume.layers) {
-      console.log('Refreshing currentVolumeState from active volumes');
-      Object.entries(volume.layers).forEach(([layer, vol]) => {
-        currentVolumeState.current[layer] = vol;
-      });
-    }
-    
-    // Use the duration from session settings
-    const duration = timeline.transitionDuration;
-    console.log(`Starting full transition with duration: ${duration}ms`);
-    
-    // Step 1: Identify track changes needed
-    const trackChanges = [];
-    
-    // Get current track ID with fallbacks
-    Object.entries(phase.state.activeAudio).forEach(([layer, targetTrackId]) => {
-      const currentTrackId = currentAudioState.current[layer] !== undefined ? 
-        currentAudioState.current[layer] : 
-        layers.active[layer] || `${layer}1`;
-        
-      if (currentTrackId && targetTrackId && targetTrackId !== currentTrackId) {
-        console.log(`Need to crossfade ${layer}: ${currentTrackId} → ${targetTrackId}`);
-        
-        // Add to our list of needed track changes
-        trackChanges.push({
-          layer,
-          from: currentTrackId,
-          to: targetTrackId
-        });
-      }
-    });
-    
-    // Step 2: Execute all track crossfades with the same duration
-    const crossfadePromises = trackChanges.map(change => {
-      return transitions.crossfade(change.layer, change.to, duration)
-        .catch(err => {
-          console.error(`Error in crossfade for ${change.layer}:`, err);
-          return false;
-        });
-    });
-    
-    // Step 3: Handle volume changes with smooth transitions
-    const volumeChanges = [];
-
-    // Create a snapshot of the current volume state BEFORE we make any changes
-    const volumeSnapshot = transitionState?.originalVolumes || {};
-    console.log('Volume snapshot:', volumeSnapshot);
-
-    // If we don't have originalVolumes from transitionState, create a snapshot
-    if (!transitionState?.originalVolumes) {
-      Object.entries(volume.layers).forEach(([layer, vol]) => {
-        volumeSnapshot[layer] = vol;
-      });
-    }
-    
-    //Set Current volume to volume snapshot & Transition to target volume
-    Object.entries(phase.state.volumes).forEach(([layer, targetVolume]) => {
-      const currentVolume = volumeSnapshot[layer] !== undefined ? volumeSnapshot[layer] : 0;
       
-      // Only transition if there's a meaningful difference
-      if (Math.abs(targetVolume - currentVolume) > 0.02) {
-        volumeChanges.push({
-          layer,
-          from: currentVolume,
-          to: targetVolume
-        });
-      }
-    });
-    
-    // If we have volume changes to make, set up the transition timer
-    if (volumeChanges.length > 0) {
-      const updateInterval = 50; // ms between volume updates
-      const totalSteps = Math.max(1, duration / updateInterval);
-      let currentStep = 0;
-  
-      volumeTransitionTimer.current = setInterval(() => {
-        currentStep++;
+      // Check if volume transition is complete
+      if (currentStep >= totalSteps) {
+        // Clear the interval
+        clearInterval(volumeTransitionTimer.current);
+        volumeTransitionTimer.current = null;
         
-        // Update all volume changes with eased transitions
+        // Make sure target volumes are exactly set
         volumeChanges.forEach(change => {
-          // Calculate progress with easing for smoother transitions
-          const progress = currentStep / totalSteps;
-          const easedProgress = 0.5 - 0.5 * Math.cos(progress * Math.PI); // Cosine easing
-          const newVolume = change.from + (change.to - change.from) * easedProgress;
-          
-          // Update volume (but not if this layer is in an active crossfade)
           const isInCrossfade = trackChanges.some(tc => tc.layer === change.layer);
           if (!isInCrossfade) {
-            volume.setLayer(change.layer, newVolume, { immediate: false });
+            volume.setLayer(change.layer, change.to, { immediate: false });
           }
         });
         
-        // Check if volume transition is complete
-        if (currentStep >= totalSteps) {
-          // Clear the interval
-          clearInterval(volumeTransitionTimer.current);
-          volumeTransitionTimer.current = null;
-          
-          // Make sure target volumes are exactly set
-          volumeChanges.forEach(change => {
-            const isInCrossfade = trackChanges.some(tc => tc.layer === change.layer);
-            if (!isInCrossfade) {
-              volume.setLayer(change.layer, change.to, { immediate: false });
-            }
-          });
-          
-          // If no track changes, finish transition now
-          if (trackChanges.length === 0) {
-            finishTransition(phase);
-          }
+        // If no track changes, finish transition now
+        if (trackChanges.length === 0) {
+          console.log('All volume transitions complete, no track changes pending');
+          finishTransition(phase);
+        } else {
+          console.log('Volume transitions complete, waiting for crossfades');
         }
-      }, updateInterval);
-    }
-    
-    // Step 4: If we had any track changes, wait for them to complete
-    if (trackChanges.length > 0) {
-      // Set a failsafe timeout
-      transitionTimeoutRef.current = setTimeout(() => {
-        console.log("Failsafe: Forcing transition completion after timeout");
-        if (volumeTransitionTimer.current) {
-          clearInterval(volumeTransitionTimer.current);
-          volumeTransitionTimer.current = null;
-        }
-        finishTransition(phase);
-      }, duration + 2000); // Duration plus buffer
-      
-      // Wait for all crossfades to complete
-      Promise.all(crossfadePromises)
-        .then(() => {
-          console.log(`All track crossfades complete`);
-          
-          if (transitionTimeoutRef.current) {
-            clearTimeout(transitionTimeoutRef.current);
-            transitionTimeoutRef.current = null;
-          }
-          
-          // Check if volume transition is still running
-          if (volumeTransitionTimer.current) {
-            // Let it finish naturally
-            console.log('Volume transition still in progress, letting it complete');
-          } else {
-            // Volume transition already done
-            finishTransition(phase);
-          }
-        });
-    } else if (volumeChanges.length === 0) {
-      // No track changes or volume changes needed
-      console.log('No transitions needed for this phase');
+      }
+    }, updateInterval);
+  }
+  
+  // Step 4: If we had any track changes, wait for them to complete
+  if (trackChanges.length > 0) {
+    // Set a failsafe timeout
+    transitionTimeoutRef.current = setTimeout(() => {
+      console.log("Failsafe: Forcing transition completion after timeout");
+      if (volumeTransitionTimer.current) {
+        clearInterval(volumeTransitionTimer.current);
+        volumeTransitionTimer.current = null;
+      }
       finishTransition(phase);
-    }
-  }, [enabled, timeline, layers, volume, transitions, setTransitionState, finishTransition]);
+    }, duration + 2000); // Duration plus buffer
+    
+    // Wait for all crossfades to complete
+    Promise.all(crossfadePromises)
+      .then(() => {
+        console.log(`All track crossfades complete`);
+        
+        if (transitionTimeoutRef.current) {
+          clearTimeout(transitionTimeoutRef.current);
+          transitionTimeoutRef.current = null;
+        }
+        
+        // Check if volume transition is still running
+        if (volumeTransitionTimer.current) {
+          // Let it finish naturally
+          console.log('Volume transition still in progress, letting it complete');
+        } else {
+          // Volume transition already done
+          console.log('Track crossfades and volume transitions complete');
+          finishTransition(phase);
+        }
+      });
+  } else if (volumeChanges.length === 0) {
+    // No track changes or volume changes needed
+    console.log('No transitions needed for this phase');
+    finishTransition(phase);
+  }
+}, [enabled, timeline, layers, volume, transitions, setTransitionState, finishTransition]);
 
 
   // Restart Playing
@@ -639,7 +677,7 @@ const SessionTimeline = React.forwardRef(({
       timeline.stopTimeline();
     }
   }
-}, [playback.isPlaying, timelineIsPlaying, timeline, setTransitionState]);
+  }, [playback.isPlaying, timelineIsPlaying, timeline, setTransitionState]);
 
   // Watch for active crossfades to update transition state
   useEffect(() => {
@@ -794,37 +832,59 @@ const SessionTimeline = React.forwardRef(({
         }
         
         // If we've reached a new phase and it has state data
+       // In the phase detection useEffect, enhance this section:
         if (newActivePhase && newActivePhase.id !== lastActivePhaseId.current) {
           console.log(`New active phase detected: ${newActivePhase.name} at ${progressPercent.toFixed(1)}%`);
           
-          // First save current state BEFORE changing anything
-          const originalVolumeState = { ...volume.layers };
-          const originalAudioState = { ...layers.active };
-          
+        
+  // IMPORTANT: Capture the ACTUAL current state directly from volume controller
+  // This is critical - don't use our possibly stale references
+  const actualCurrentVolumes = {};
+  
+  // Get the real current volumes directly from the volume controller
+  if (volume && volume.layers) {
+    Object.entries(volume.layers).forEach(([layer, vol]) => {
+      actualCurrentVolumes[layer] = vol;
+    });
+  }
+  
+  console.log('Actual current volumes captured from system:', actualCurrentVolumes);
+  
+  // Get the actual current audio tracks
+  const actualCurrentAudio = {};
+  if (layers && layers.active) {
+    Object.entries(layers.active).forEach(([layer, trackId]) => {
+      actualCurrentAudio[layer] = trackId;
+    });
+  }
+  
+  console.log('Actual current audio tracks captured from system:', actualCurrentAudio);
+  
           // Update phase tracking
           lastActivePhaseId.current = newActivePhase.id;
           setActivePhase(newActivePhase.id);
           
           if (newActivePhase.state) {
             console.log(`Starting transition to ${newActivePhase.name} phase`);
+            console.log('Target state:', {
+              volumes: newActivePhase.state.volumes,
+              tracks: newActivePhase.state.activeAudio
+            });
             
             // Store the original state we captured
-            currentVolumeState.current = originalVolumeState;
-            currentAudioState.current = originalAudioState;
+            const stateSnapshot = {
+              originalVolumes: actualCurrentVolumes,
+              phaseData: newActivePhase
+            };
             
             // Begin transition
             transitionCompletedRef.current = false;
             transitionInProgress.current = true;
             
-            // Pass a copy of the original state to the transition function
-            const transitionState = {
-              originalVolumes: {...originalVolumeState},
-              phaseData: newActivePhase
-            };
-            
             // Start full transition with state information
-            startFullTransition(newActivePhase, transitionState);
+            startFullTransition(newActivePhase, stateSnapshot);
           }
+
     
           // Schedule next check
           timeoutId = setTimeout(runPhaseCheck, 250);
