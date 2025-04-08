@@ -17,43 +17,39 @@ const LayerControl = ({ label, layer }) => {
   // Use our new hook with grouped API
   const { volume, layers } = useAudio();
   
-    // Track mounting state with useRef (doesn't cause re-renders)
-    const isMounted = useRef(false);
-    
-    
-   // Get normalized layer key (lowercase)
-   const layerKey = layer.toLowerCase();
+  // Track mounting state with useRef (doesn't cause re-renders)
+  const isMounted = useRef(false);
   
-   // Current volume for this layer
-   const currentVolume = volume.layers[layerKey] || 0;
+  // Get normalized layer key (lowercase)
+  const layerKey = layer.toLowerCase();
   
+  // Current volume for this layer
+  const currentVolume = volume.layers[layerKey] || 0;
   
   // Format volume as percentage for display and accessibility
   const volumePercentage = Math.round(currentVolume * 100);
   
-    // Track component lifecycle without triggering re-renders
-    useEffect(() => {
-      // Only log on initial mount
-      if (!isMounted.current) {
-        isMounted.current = true;
-      //  console.log(`LayerControl mounted for ${layerKey}, initial volume: ${currentVolume}`);
-      }
-      
-      // Cleanup on unmount
-      return () => {
-      //  console.log(`LayerControl unmounted for ${layerKey}`);
-        isMounted.current = false;
-      };
-    }, [layerKey, currentVolume]);
+  // Track component lifecycle without triggering re-renders
+  useEffect(() => {
+    // Only log on initial mount
+    if (!isMounted.current) {
+      isMounted.current = true;
+      console.log(`[LayerControl] Mounted for ${layerKey}, initial volume: ${currentVolume}`);
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      console.log(`[LayerControl] Unmounted for ${layerKey}`);
+      isMounted.current = false;
+    };
+  }, [layerKey, currentVolume]);
 
-   // Handle volume change with the same pattern as master volume
-   const handleVolumeChange = useCallback((e) => {
+  // Handle volume change with the same pattern as master volume
+  const handleVolumeChange = useCallback((e) => {
     const newVolume = parseFloat(e.target.value);
-    // Set volume with immediate=true to match master volume behavior
+    // Set volume with immediate=false to allow smooth transitions
     volume.setLayer(layerKey, newVolume, { immediate: false });
   }, [volume, layerKey]);
-
-
   
   return (
     <div className={styles.layerSlider}>

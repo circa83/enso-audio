@@ -279,84 +279,79 @@ const setTransitionState = useCallback((isTransitioning, force = false) => {
  
 
   //Toggle timeline playback
-const toggleTimelinePlayback = useCallback(() => {
-  // Only allow starting timeline if audio is playing
-  if (!playback.isPlaying && !timelineIsPlaying) {
-    console.log("[SessionTimeline: toggleTimelinePlayback] Cannot start timeline when audio is not playing");
-    return;
-  }
-  
-  console.log("[SessionTimeline: toggleTimelinePlayback] Timeline toggle button clicked, current state:", timelineIsPlaying);
-  
-  // Toggle the local timeline state
-  const newTimelineState = !timelineIsPlaying;
-  console.log("[SessionTimeline: toggleTimelinePlayback] Setting new timeline state to:", newTimelineState);
-  
-  setTimelineIsPlaying(newTimelineState);
-  setLocalTimelineIsPlaying(newTimelineState);
-
-  if (newTimelineState) {
-    console.log("[SessionTimeline: toggleTimelinePlayback] Starting timeline progression");
-    // Reset progress tracking to start fresh
-    setProgress(0);
-    setCurrentTime(0);
-    
-    // Reset timeline in the service
-    if (timeline.reset) {
-      console.log("[SessionTimeline: toggleTimelinePlayback] Calling timeline.reset()");
-      timeline.reset();
+  const toggleTimelinePlayback = useCallback(() => {
+    // Only allow starting timeline if audio is playing
+    if (!playback.isPlaying && !timelineIsPlaying) {
+      console.log("[SessionTimeline: toggleTimelinePlayback] Cannot start timeline when audio is not playing");
+      return;
     }
     
-    // Start timeline in the service - try different method names
-    console.log("[SessionTimeline: toggleTimelinePlayback] About to start timeline, available methods:", Object.keys(timeline));
+    console.log("[SessionTimeline: toggleTimelinePlayback] Timeline toggle button clicked, current state:", timelineIsPlaying);
     
-    if (timeline.startTimeline) {
-      console.log("[SessionTimeline: toggleTimelinePlayback] Calling timeline.startTimeline()");
-      timeline.startTimeline();
-    } 
-  } else {
-    console.log("[SessionTimeline: toggleTimelinePlayback] Stopping timeline progression");
-    // Stop timeline in the service - try different method names
+    // Toggle the local timeline state
+    const newTimelineState = !timelineIsPlaying;
+    console.log("[SessionTimeline: toggleTimelinePlayback] Setting new timeline state to:", newTimelineState);
+    
+    setTimelineIsPlaying(newTimelineState);
+    setLocalTimelineIsPlaying(newTimelineState);
+  
+    if (newTimelineState) {
+      console.log("[SessionTimeline: toggleTimelinePlayback] Starting timeline progression");
+      
+      // Start timeline in the service - try different method names
+      console.log("[SessionTimeline: toggleTimelinePlayback] About to start timeline, available methods:", Object.keys(timeline));
+      
+      if (timeline.startTimeline) {
+        console.log("[SessionTimeline: toggleTimelinePlayback] Calling timeline.startTimeline()");
+        timeline.startTimeline();
+      } 
+    } else {
+      console.log("[SessionTimeline: toggleTimelinePlayback] Stopping timeline progression");
+      // Stop timeline in the service - try different method names
+      if (timeline.stopTimeline) {
+        console.log("[SessionTimeline: toggleTimelinePlayback] Calling timeline.stopTimeline()");
+        timeline.stopTimeline();
+      } 
+      
+      // Cancel active transitions
+      if (volumeTransitionTimer.current) {
+        clearInterval(volumeTransitionTimer.current);
+        volumeTransitionTimer.current = null;
+      }
+      
+      if (transitionTimeoutRef.current) {
+        clearTimeout(transitionTimeoutRef.current);
+        transitionTimeoutRef.current = null;
+      }
+      
+      setTransitionState(false, true); // Force update transition state
+    }
+  }, [timelineIsPlaying, playback.isPlaying, timeline, setTransitionState]);
+  
+
+// Reset Timeline
+const handleRestartTimeline = useCallback(() => {
+  console.log("[SessionTimeline: handleRestartTimeline] Restarting timeline immediately to pre-onset phase");
+  
+  // First, stop the timeline if it's playing
+  if (timelineIsPlaying) {
     if (timeline.stopTimeline) {
-      console.log("[SessionTimeline: toggleTimelinePlayback] Calling timeline.stopTimeline()");
+      console.log("[SessionTimeline: handleRestartTimeline] Stopping timeline progression");
       timeline.stopTimeline();
-    } 
-    
-    // Reset phase tracking
-    lastActivePhaseId.current = null;
-    setActivePhase(null);
-    
-    // Cancel active transitions
-    if (volumeTransitionTimer.current) {
-      clearInterval(volumeTransitionTimer.current);
-      volumeTransitionTimer.current = null;
     }
-    
-    if (transitionTimeoutRef.current) {
-      clearTimeout(transitionTimeoutRef.current);
-      transitionTimeoutRef.current = null;
-    }
-    
-    setTransitionState(false, true); // Force update transition state
-  }
-}, [timelineIsPlaying, playback.isPlaying, timeline, setTransitionState]);
-  
-
-  // Reset all timeline state for a clean restart
-const resetTimeline = useCallback(() => {
-  // Don't reset if playback is active - this prevents disruption
-  if (playback.isPlaying) {
-    console.log("[SessionTimeline: resetTimeline] Skipping timeline reset - playback is active");
-    return;
+    setTimelineIsPlaying(false);
+    setLocalTimelineIsPlaying(false);
   }
   
-  console.log("[SessionTimeline: resetTimeline] Performing full timeline reset");
+  // Reset progress tracking
   setProgress(0);
   setCurrentTime(0);
   
+  // Reset phase tracking
   lastActivePhaseId.current = null;
   setActivePhase(null);
   
+  // Cancel any active transitions
   if (volumeTransitionTimer.current) {
     clearInterval(volumeTransitionTimer.current);
     volumeTransitionTimer.current = null;
@@ -367,13 +362,99 @@ const resetTimeline = useCallback(() => {
     transitionTimeoutRef.current = null;
   }
   
-  setTransitionState(false, true); // Force update
+  setTransitionState(false, true); // Force update transition state
   
+  // Find the pre-onset phase
+  const preOnsetPhase = phases.find(p => p.id === 'pre-onset');
+  if (preOnsetPhase && preOnsetPhase.state) {
+    console.log("[SessionTimeline: handleRestartTimeline] Applying pre-onset phase immediately");
+    
+    // Immediately set volumes without transitions
+    if (preOnsetPhase.state.volumes) {
+      Object.entries(preOnsetPhase.state.volumes).forEach(([layer, vol]) => {
+        volume.setLayer(layer, vol, { immediate: true });
+      });
+    }
+    
+    // Immediately switch to pre-onset tracks without crossfade
+    if (preOnsetPhase.state.activeAudio) {
+      Object.entries(preOnsetPhase.state.activeAudio).forEach(([layer, trackId]) => {
+        if (trackId !== layers.active[layer]) {
+          // Use a minimal 50ms transition to prevent audio pops but still be immediate
+          transitions.crossfade(layer, trackId, 50);
+        }
+      });
+    }
+    
+    // Set pre-onset as the active phase
+    lastActivePhaseId.current = 'pre-onset';
+    setActivePhase('pre-onset');
+  } else {
+    console.log("[SessionTimeline: handleRestartTimeline] No pre-onset phase state found, using defaults");
+    
+    // Apply default state for layers if no pre-onset phase state exists
+    Object.values(layers.TYPES).forEach(layer => {
+      const layerKey = layer.toLowerCase();
+      // Set drone to 25%, all others to 0
+      const defaultVolume = layerKey === 'drone' ? 0.25 : 0;
+      volume.setLayer(layerKey, defaultVolume, { immediate: true });
+    });
+  }
+  
+  // Reset timeline in the service
   if (timeline.reset) {
-    console.log("[SessionTimeline: resetTimeline] Calling timeline.reset()");
+    console.log("[SessionTimeline: handleRestartTimeline] Resetting timeline service");
     timeline.reset();
   }
-}, [timeline, playback.isPlaying, setTransitionState]);
+  
+  if (timeline.seekToPercent) {
+    console.log("[SessionTimeline: handleRestartTimeline] Seeking to beginning");
+    timeline.seekToPercent(0);
+  }
+  
+  return true;
+}, [
+  timelineIsPlaying, 
+  timeline, 
+  phases, 
+  volume, 
+  layers, 
+  transitions, 
+  setTransitionState
+]);
+
+//   // Reset all timeline state for a clean restart
+// const resetTimeline = useCallback(() => {
+//   // Don't reset if playback is active - this prevents disruption
+//   if (playback.isPlaying) {
+//     console.log("[SessionTimeline: resetTimeline] Skipping timeline reset - playback is active");
+//     return;
+//   }
+  
+//   console.log("[SessionTimeline: resetTimeline] Performing full timeline reset");
+//   setProgress(0);
+//   setCurrentTime(0);
+  
+//   lastActivePhaseId.current = null;
+//   setActivePhase(null);
+  
+//   if (volumeTransitionTimer.current) {
+//     clearInterval(volumeTransitionTimer.current);
+//     volumeTransitionTimer.current = null;
+//   }
+  
+//   if (transitionTimeoutRef.current) {
+//     clearTimeout(transitionTimeoutRef.current);
+//     transitionTimeoutRef.current = null;
+//   }
+  
+//   setTransitionState(false, true); // Force update
+  
+//   if (timeline.reset) {
+//     console.log("[SessionTimeline: resetTimeline] Calling timeline.reset()");
+//     timeline.reset();
+//   }
+// }, [timeline, playback.isPlaying, setTransitionState]);
 
 
   // Refresh Volume State Reference function
@@ -525,11 +606,11 @@ const startFullTransition = useCallback((phase) => {
 }, [enabled, timeline, volume, layers, transitions]);
 
 
-// Restart Playing
+/* // Restart Audio Playing
   useEffect(() => {
     if (playback.isPlaying) {
       if (!wasPlayingBeforeStop.current && componentHasRendered.current) {
-        resetTimeline();
+        handleRestartTimeline();
         setTransitionState(false);
         
         // Ensure current audio state is synchronized with active audio
@@ -547,37 +628,39 @@ const startFullTransition = useCallback((phase) => {
       startingPhaseApplied.current = false;
       setTransitionState(false);
     }
-  }, [playback.isPlaying, resetTimeline, layers, setTransitionState]);
+  }, [playback.isPlaying, handleRestartTimeline, layers, setTransitionState]);
 
 
-  // Stop Playback and reset timeline
-  useEffect(() => {
-  // If audio playback stops, also stop the timeline
-  if (!playback.isPlaying && timelineIsPlaying) {
-    console.log("Audio stopped - stopping timeline automatically");
-    setTimelineIsPlaying(false);
-    setLocalTimelineIsPlaying(false);
+   // Stop Playback and reset timeline
+   useEffect(() => {
+  // // If audio playback stops, also stop the timeline
+  // if (!playback.isPlaying && timelineIsPlaying) {
+  //   console.log("Audio stopped - stopping timeline automatically");
+  //   setTimelineIsPlaying(false);
+  //   setLocalTimelineIsPlaying(false);
     
-    // Reset phase tracking
-    lastActivePhaseId.current = null;
-    setActivePhase(null);
+  //   // Reset phase tracking
+  //   lastActivePhaseId.current = null;
+  //   setActivePhase(null);
     
-    // Cancel active transitions
-    if (volumeTransitionTimer.current) {
-      clearInterval(volumeTransitionTimer.current);
-      volumeTransitionTimer.current = null;
-    }
-    setTransitionState(false);
+  //   // Cancel active transitions
+  //   if (volumeTransitionTimer.current) {
+  //     clearInterval(volumeTransitionTimer.current);
+  //     volumeTransitionTimer.current = null;
+  //   }
+  //   setTransitionState(false);
     
-    // Stop timeline in the service
-    if (timeline.stopTimeline) {
-      timeline.stopTimeline();
-    }
-  }
-  }, [playback.isPlaying, timelineIsPlaying, timeline, setTransitionState]);
+  //   // Stop timeline in the service
+  //   if (timeline.stopTimeline) {
+  //     timeline.stopTimeline();
+  //   }
+  // }
+   }, [playback.isPlaying, timelineIsPlaying, timeline, setTransitionState]);
 
+*/
+  
 
-  // Watch for active crossfades to update transition state
+// Watch for active crossfades to update transition state
 useEffect(() => {
   const hasActiveCrossfades = Object.keys(transitions.active).length > 0;
   
@@ -600,66 +683,6 @@ useEffect(() => {
 }, [transitions.active, setTransitionState]);
 
 
-  // Apply pre-onset phase IMMEDIATELY when play is pressed (no transition)
- /* useEffect(() => {
-    // Skip the effect on first render
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-    
-    if (enabled && playback.isPlaying && !startingPhaseApplied.current && wasPlayingBeforeStop.current === false) {
-      const preOnsetPhase = phases.find(p => p.id === 'pre-onset');
-      
-      // Ensure we have valid current state data
-      refreshVolumeStateReference();
-      if (timelineRef.current) {
-      
-        // Determine the state to apply - either the saved state or the default
-        const stateToApply = preOnsetPhase?.state || DEFAULT_PRE_ONSET_STATE;
-        
-        // If using default state, fill in current active audio
-        if (!preOnsetPhase?.state) {
-          Object.values(layers.TYPES).forEach(layer => {
-            const layerKey = layer.toLowerCase();
-            stateToApply.activeAudio[layerKey] = layers.active[layerKey];
-          });
-          console.log('Using DEFAULT pre-onset state (no saved state found)', stateToApply);
-        } else {
-          console.log('Applying SAVED pre-onset phase state', stateToApply);
-        }
-        
-        // Apply the state only if we're actively starting playback
-        if (playback.isPlaying) {
-          console.log('Applying pre-onset phase immediately at start of playback (no transition)');
-          
-          // Immediately set volumes
-          Object.entries(stateToApply.volumes).forEach(([layer, vol]) => {
-            volume.setLayer(layer, vol, { immediate: true });
-          });
-          
-          // Handle track changes immediately (with a nearly instant 50ms crossfade)
-          Object.entries(stateToApply.activeAudio).forEach(([layer, trackId]) => {
-            if (trackId !== layers.active[layer]) {
-              transitions.crossfade(layer, trackId, 50); // 50ms is practically instant but avoids pops
-            }
-          });
-          
-          // Mark as applied and update state refs
-          startingPhaseApplied.current = true;
-          lastActivePhaseId.current = 'pre-onset';
-          setActivePhase('pre-onset');
-          
-          // Update current state refs
-          currentVolumeState.current = { ...stateToApply.volumes };
-          currentAudioState.current = { ...stateToApply.activeAudio };
-        }
-      }
-    }
-  }, [enabled, playback.isPlaying, phases, volume, transitions, layers, refreshVolumeStateReference, DEFAULT_PRE_ONSET_STATE]);
-  */
- 
-
   // updating time and progress bar 
   useEffect(() => {
   let interval;
@@ -669,10 +692,10 @@ useEffect(() => {
     console.log("Starting SessionTimeline progress tracking");
     
     // Start with fresh time - clear any old state
-    const time = playback.getTime();
-    setCurrentTime(time);
-    const progressPercent = Math.min(100, (time / timeline.duration) * 100);
-    setProgress(progressPercent);
+    // const time = playback.getTime();
+    // setCurrentTime(time);
+    // const progressPercent = Math.min(100, (time / timeline.duration) * 100);
+    // setProgress(progressPercent);
     
     interval = setInterval(() => {
       // Get current time directly from the timeline service
@@ -722,7 +745,8 @@ useEffect(() => {
   timeline.duration, 
   playback.getTime
 ]);
- 
+
+
 // -------Phase change event listener-------
 // Listen for phase change events from the TimelineEngine
 useEffect(() => {
@@ -766,7 +790,8 @@ useEffect(() => {
     window.removeEventListener('timeline-phase-changed', handlePhaseChangeEvent);
   };
 }, [enabled, phases, startFullTransition]);
- 
+
+
 // Cleanup transitions when playback stops
 useEffect(() => {
   // Force reset all transition state when playback stops
@@ -803,6 +828,7 @@ useEffect(() => {
     }
   };
 }, [playback.isPlaying]);
+
 
   // Format time display (HH:MM:SS)
   const formatTime = useCallback((ms) => {
@@ -961,7 +987,8 @@ React.useImperativeHandle(ref, () => ({
    if (timeline.stopTimeline) {
      timeline.stopTimeline();
    }
- }
+ },
+ restartTimeline: () => handleRestartTimeline()
 }));
   
   if (!enabled) return null;
@@ -1038,8 +1065,15 @@ React.useImperativeHandle(ref, () => ({
   }}
   disabled={!playback.isPlaying}
 >
-  {timelineIsPlaying ? 'Stop Timeline' : 'Start Timeline'}
+  {timelineIsPlaying ? 'Pause Timeline' : 'Start Timeline'}
 </button>
+<button 
+    className={styles.controlButton}
+    onClick={handleRestartTimeline}
+    disabled={!playback.isPlaying}
+  >
+    Restart
+  </button>
 </div>
       {/* Time info below the timeline */}
       <div className={styles.timeInfo}>
