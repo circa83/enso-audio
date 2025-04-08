@@ -606,7 +606,7 @@ class TimelineEngine {
       
       // Check if phase changed
       if (activePhase && (!this.currentPhase || activePhase.id !== this.currentPhase.id)) {
-        this.log(`Phase changed to: ${activePhase.name} (${activePhase.id}) at progress ${progress.toFixed(2)}%`);
+        this.log(`Active Phase changed to: ${activePhase.name} (${activePhase.id}) at progress ${progress.toFixed(2)}%`);
         this.currentPhase = activePhase;
         
         // Trigger callback

@@ -307,6 +307,7 @@ const SessionTimeline = React.forwardRef(({
       lastActivePhaseId.current = null;
       setActivePhase(null);
       
+      
       // Cancel active transitions
       if (volumeTransitionTimer.current) {
         clearInterval(volumeTransitionTimer.current);
@@ -462,12 +463,17 @@ const startFullTransition = useCallback((phase, transitionState = null) => {
 // First for volume state
 const originalVolumeState = {};
 
-// If we were provided a transition state object with original volumes, use that EXCLUSIVELY
-if (volume && volume.layers) {
+// If we have a state snapshot with original volumes, use that EXCLUSIVELY
+if (transitionState && transitionState.originalVolumes) {
+  Object.assign(originalVolumeState, transitionState.originalVolumes);
+  console.log('Using provided original volume state:', originalVolumeState);
+}
+// Otherwise get directly from the volume controller
+else if (volume && volume.layers) {
   Object.entries(volume.layers).forEach(([layer, vol]) => {
     originalVolumeState[layer] = vol;
   });
-  console.log('Captured original volume state:', originalVolumeState);
+  console.log('Captured original volume state from controller:', originalVolumeState);
 }
   
   // Then for audio state
@@ -815,7 +821,7 @@ if (volume && volume.layers) {
         }
         
         // Refresh volume state reference to ensure it's current
-        refreshVolumeStateReference();
+       // refreshVolumeStateReference();
 
         const time = playback.getTime();
         const progressPercent = Math.min(100, (time / timeline.duration) * 100);
@@ -840,7 +846,7 @@ if (volume && volume.layers) {
   // IMPORTANT: Capture the ACTUAL current state directly from volume controller
   // This is critical - don't use our possibly stale references
   const actualCurrentVolumes = {};
-  
+  console.log(actualCurrentVolumes);
   // Get the real current volumes directly from the volume controller
   if (volume && volume.layers) {
     Object.entries(volume.layers).forEach(([layer, vol]) => {

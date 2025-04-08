@@ -157,7 +157,7 @@ export const AudioProvider = ({ children }) => {
             onPhaseChange: (phaseId, phaseData) => {
               if (!isMounted) return;
               
-              console.log(`Phase changed to: ${phaseId}`);
+              console.log(`PhaseId changed to: ${phaseId}`);
               setActivePhase(phaseId);
               
               // Apply phase state if it exists
