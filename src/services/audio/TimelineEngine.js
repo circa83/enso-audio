@@ -203,6 +203,43 @@ class TimelineEngine {
       }
     }
     
+/**
+ * Pause the timeline without resetting elapsed time
+ * This is different from stop() as it preserves position for later resuming
+ * @returns {boolean} Success state
+ */
+pauseTimeline() {
+  try {
+    if (!this.isPlaying) {
+      this.log('Timeline already paused', 'info');
+      return true;
+    }
+    
+    this.log('Pausing timeline (preserving position)');
+    
+    // Update elapsed time before pausing
+    if (this.startTime) {
+      this.elapsedTime = Date.now() - this.startTime;
+      this.log(`Elapsed time updated to ${this.elapsedTime}ms`);
+    }
+    
+    this.isPlaying = false;
+    this.startTime = null;
+    
+    // Stop timers
+    this.stopProgressTimer();
+    this.stopEventChecking();
+    
+    this.log('Timeline paused successfully');
+    return true;
+  } catch (error) {
+    this.log(`Error pausing timeline: ${error.message}`, 'error');
+    return false;
+  }
+}
+
+
+
     /**
      * Reset the timeline state
      * @returns {boolean} Success state

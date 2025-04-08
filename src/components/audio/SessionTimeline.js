@@ -279,55 +279,61 @@ const setTransitionState = useCallback((isTransitioning, force = false) => {
  
 
   //Toggle timeline playback
-  const toggleTimelinePlayback = useCallback(() => {
-    // Only allow starting timeline if audio is playing
-    if (!playback.isPlaying && !timelineIsPlaying) {
-      console.log("[SessionTimeline: toggleTimelinePlayback] Cannot start timeline when audio is not playing");
-      return;
+const toggleTimelinePlayback = useCallback(() => {
+  // Only allow starting timeline if audio is playing
+  if (!playback.isPlaying && !timelineIsPlaying) {
+    console.log("[SessionTimeline: toggleTimelinePlayback] Cannot start timeline when audio is not playing");
+    return;
+  }
+  
+  console.log("[SessionTimeline: toggleTimelinePlayback] Timeline toggle button clicked, current state:", timelineIsPlaying);
+  
+  // Toggle the local timeline state
+  const newTimelineState = !timelineIsPlaying;
+  console.log("[SessionTimeline: toggleTimelinePlayback] Setting new timeline state to:", newTimelineState);
+  
+  setTimelineIsPlaying(newTimelineState);
+  setLocalTimelineIsPlaying(newTimelineState);
+
+  if (newTimelineState) {
+    // We're starting/resuming playback
+    console.log("[SessionTimeline: toggleTimelinePlayback] Starting/resuming timeline progression");
+    
+    if (timeline.startTimeline) {
+      console.log("[SessionTimeline: toggleTimelinePlayback] Calling timeline.startTimeline() without reset to resume");
+      // Start without resetting to continue from current position
+      timeline.startTimeline({ reset: false });
+    }
+  } else {
+    // We're pausing (not stopping) the timeline
+    console.log("[SessionTimeline: toggleTimelinePlayback] Pausing timeline progression");
+    
+    if (timeline.pauseTimeline) {
+      // If a dedicated pause method exists, use it
+      console.log("[SessionTimeline: toggleTimelinePlayback] Calling timeline.pauseTimeline()");
+      timeline.pauseTimeline();
+    } else if (timeline.stopTimeline) {
+      // Fall back to stopTimeline if pauseTimeline doesn't exist
+      // This should preserve the elapsed time but halt progression
+      console.log("[SessionTimeline: toggleTimelinePlayback] No pauseTimeline method, using stopTimeline as fallback");
+      timeline.stopTimeline();
     }
     
-    console.log("[SessionTimeline: toggleTimelinePlayback] Timeline toggle button clicked, current state:", timelineIsPlaying);
-    
-    // Toggle the local timeline state
-    const newTimelineState = !timelineIsPlaying;
-    console.log("[SessionTimeline: toggleTimelinePlayback] Setting new timeline state to:", newTimelineState);
-    
-    setTimelineIsPlaying(newTimelineState);
-    setLocalTimelineIsPlaying(newTimelineState);
-  
-    if (newTimelineState) {
-      console.log("[SessionTimeline: toggleTimelinePlayback] Starting timeline progression");
-      
-      // Start timeline in the service - try different method names
-      console.log("[SessionTimeline: toggleTimelinePlayback] About to start timeline, available methods:", Object.keys(timeline));
-      
-      if (timeline.startTimeline) {
-        console.log("[SessionTimeline: toggleTimelinePlayback] Calling timeline.startTimeline()");
-        timeline.startTimeline();
-      } 
-    } else {
-      console.log("[SessionTimeline: toggleTimelinePlayback] Stopping timeline progression");
-      // Stop timeline in the service - try different method names
-      if (timeline.stopTimeline) {
-        console.log("[SessionTimeline: toggleTimelinePlayback] Calling timeline.stopTimeline()");
-        timeline.stopTimeline();
-      } 
-      
-      // Cancel active transitions
-      if (volumeTransitionTimer.current) {
-        clearInterval(volumeTransitionTimer.current);
-        volumeTransitionTimer.current = null;
-      }
-      
-      if (transitionTimeoutRef.current) {
-        clearTimeout(transitionTimeoutRef.current);
-        transitionTimeoutRef.current = null;
-      }
-      
-      setTransitionState(false, true); // Force update transition state
+    // Cancel active transitions
+    if (volumeTransitionTimer.current) {
+      clearInterval(volumeTransitionTimer.current);
+      volumeTransitionTimer.current = null;
     }
-  }, [timelineIsPlaying, playback.isPlaying, timeline, setTransitionState]);
-  
+    
+    if (transitionTimeoutRef.current) {
+      clearTimeout(transitionTimeoutRef.current);
+      transitionTimeoutRef.current = null;
+    }
+    
+    setTransitionState(false, true); // Force update transition state
+  }
+}, [timelineIsPlaying, playback.isPlaying, timeline, setTransitionState]);
+
 
 // Reset Timeline
 const handleRestartTimeline = useCallback(() => {

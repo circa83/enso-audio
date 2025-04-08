@@ -55,7 +55,9 @@ export function useAudio() {
     setTimelineEnabled,
     timelineIsPlaying, 
     startTimeline,
+    pauseTimeline,
     stopTimeline,
+  
     
     // Timeline functions
     resetTimelineEventIndex,
@@ -148,11 +150,16 @@ export function useAudio() {
     transitionDuration,
     enabled: timelineIsEnabled,
     setTimelineEnabled, 
-    isPlaying: false, // Add state in StreamingAudioContext first
+    isPlaying: timelineIsPlaying,
     
     startTimeline: () => { 
       console.log('[useAudio] Starting timeline progression');
       return startTimeline();
+    },
+    pauseTimeline: () => { 
+      console.log('[useAudio] Pausing timeline progression (preserving position)');
+      // Call the appropriate method in the underlying service
+     return pauseTimeline();
     },
     stopTimeline: () => { 
       console.log('[useAudio] Stopping timeline progression');
@@ -196,6 +203,7 @@ export function useAudio() {
     }
   }), [
     startTimeline,
+    pauseTimeline,
     stopTimeline,
     timelineIsEnabled,
     timelineIsPlaying,

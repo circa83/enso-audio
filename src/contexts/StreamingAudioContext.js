@@ -254,12 +254,12 @@ export const AudioProvider = ({ children }) => {
     activeAudioRef.current = {...activeAudio};
   }, [activeAudio]);
 
-// Then sync the ref with state using an effect
+  // Then sync the ref with state using an effect
   useEffect(() => {
   audioLibraryRef.current = audioLibrary;
 }, [audioLibrary]);
 
-// Recover Audio From AudioLibrary if needed
+  // Recover Audio From AudioLibrary if needed
   useEffect(() => {
   if (Object.values(audioLibrary).some(layerTracks => layerTracks.length === 0)) {
     console.warn('Detected empty audio library, recovering from ref...');
@@ -539,15 +539,13 @@ setLoadingProgress(100);
     console.log(`Updated playing state, ref is now: ${isPlayingRef.current}`);
   }, []);
 
-// Handler for Enable Timeline
+  // Handler for Enable Timeline
 const handleSetTimelineEnabled = useCallback((enabled) => {
   console.log(`Setting timeline enabled: ${enabled}`);
   setTimelineIsEnabled(enabled);
 }, []);
 
-  
-  // Start the session
-  
+  // Start the session 
   const handleStartSession = useCallback(() => {
    
     // Use ref for current state check to avoid race conditions
@@ -701,6 +699,38 @@ console.log("After updatePlayingState in handlePauseSession, new state:", isPlay
       updatePlayingState(false);
     }
   }, [activeAudio, updatePlayingState]);
+
+// In src/contexts/StreamingAudioContext.js
+const handlePauseTimeline = useCallback(() => {
+  if (!serviceRef.current.timelineEngine) {
+    console.log("Can't pause timeline: TimelineEngine missing");
+    return false;
+  }
+  console.log("Pausing timeline (preserving position)...");
+  
+  // Use the pauseTimeline method if it exists, otherwise fall back to stop
+  if (serviceRef.current.timelineEngine.pauseTimeline) {
+    const paused = serviceRef.current.timelineEngine.pauseTimeline();
+    console.log("TimelineEngine pause result:", paused);
+    
+    if (paused) {
+      setTimelineIsPlaying(false);
+    }
+    
+    return paused;
+  } else {
+    // Fall back to stop if pause isn't available
+    console.log("pauseTimeline not available, using stopTimeline as fallback");
+    const stopped = serviceRef.current.timelineEngine.stop();
+    console.log("TimelineEngine stop result:", stopped);
+    
+    if (stopped) {
+      setTimelineIsPlaying(false);
+    }
+    
+    return stopped;
+  }
+}, []);
 
   // Preload audio using BufferManager
   const handlePreloadAudio = useCallback(async (layer, trackId) => {
@@ -1383,6 +1413,7 @@ const contextValue = useMemo(() => {
     timelineIsEnabled,
     setTimelineIsEnabled: handleSetTimelineEnabled,
     startTimeline: handleStartTimeline,
+    pauseTimeline: handlePauseTimeline,
     stopTimeline: handleStopTimeline,
     
     // Preset functions
