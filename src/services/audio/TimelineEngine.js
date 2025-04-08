@@ -401,7 +401,7 @@ class TimelineEngine {
       
       // Update phases
       this.phases = sortedPhases;
-      this.log(`Updated phase ${phaseId}`);
+      this.log(`[TIMELINE-ENGINE: updatePhase] Updated phase ${phaseId}`);
       
       // Check if this affects current phase
       this.checkCurrentPhase();
@@ -431,7 +431,7 @@ class TimelineEngine {
       };
       
       this.phases = newPhases;
-      this.log(`Updated state for phase ${phaseId}`);
+      this.log(`[TIMELINE-ENGINE: setPhaseState] Updated state for phase ${phaseId}`);
       
       return true;
     }
@@ -449,6 +449,7 @@ class TimelineEngine {
      * @returns {Object|null} Current phase or null
      */
     getCurrentPhase() {
+      console.log('[TIMELINE-ENGINE: getCurrentPhase] Current phase:', this.currentPhase);
       return this.currentPhase;
     }
     
@@ -606,7 +607,7 @@ class TimelineEngine {
       
       // Check if phase changed
       if (activePhase && (!this.currentPhase || activePhase.id !== this.currentPhase.id)) {
-        this.log(`Active Phase changed to: ${activePhase.name} (${activePhase.id}) at progress ${progress.toFixed(2)}%`);
+        this.log(`[TIMELINE-ENGINE: checkCurrentPhase] Active Phase changed to: ${activePhase.name} (${activePhase.id}) at progress ${progress.toFixed(2)}%`);
         this.currentPhase = activePhase;
         
         // Trigger callback

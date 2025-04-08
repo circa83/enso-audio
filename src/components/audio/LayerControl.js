@@ -50,7 +50,7 @@ const LayerControl = ({ label, layer }) => {
    const handleVolumeChange = useCallback((e) => {
     const newVolume = parseFloat(e.target.value);
     // Set volume with immediate=true to match master volume behavior
-    volume.setLayer(layerKey, newVolume, { immediate: true });
+    volume.setLayer(layerKey, newVolume, { immediate: false });
   }, [volume, layerKey]);
 
 
