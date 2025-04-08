@@ -37,6 +37,7 @@ export function useAudio() {
     // Audio transition state
     crossfadeProgress,
     activeCrossfades,
+    fadeLayerVolume,
     preloadProgress,
     
     // Audio transition functions
@@ -103,21 +104,16 @@ export function useAudio() {
     master: masterVolume,
     layers: volumes,
     setMaster: (level, options) => {
-      //console.log(`[useAudio] Setting master volume to ${level}`);
       return setMasterVolumeLevel(level, options);
     },
     setLayer: (layer, level, options) => {
-      //console.log(`[useAudio] Setting ${layer} volume to ${level}`);
       return setVolume(layer, level, options);
     }, 
     fadeVolume: (layer, targetVolume, duration) => {
-      if (serviceRef.current.volumeController) {
-        console.log(`[useAudio] Fading ${layer} volume to ${targetVolume} over ${duration}ms`);
-        return serviceRef.current.volumeController.fadeVolume(layer, targetVolume, duration);
-      }
-      return false;
+      console.log(`[useAudio] Fading ${layer} volume to ${targetVolume} over ${duration}ms`);
+      return fadeLayerVolume(layer, targetVolume, duration);
     }
-  }), [masterVolume, volumes, setMasterVolumeLevel, setVolume]);
+  }), [masterVolume, volumes, setMasterVolumeLevel, setVolume, fadeLayerVolume]);
   
   // Layer management
   const layers = useMemo(() => ({

@@ -597,25 +597,23 @@ class TimelineEngine {
       return this.seekTo(Math.round(time));
     }
     
-    /**
-     * Check and update the current active phase
-     * @private
-     */
+
+    // * Check and update the current active phase
     checkCurrentPhase() {
-      const progress = this.getProgress();
-      const activePhase = this.getPhaseAtProgress(progress);
-      
-      // Check if phase changed
-      if (activePhase && (!this.currentPhase || activePhase.id !== this.currentPhase.id)) {
-        this.log(`[TIMELINE-ENGINE: checkCurrentPhase] Active Phase changed to: ${activePhase.name} (${activePhase.id}) at progress ${progress.toFixed(2)}%`);
-        this.currentPhase = activePhase;
-        
-        // Trigger callback
-        if (this.onPhaseChange) {
-          this.onPhaseChange(activePhase.id, activePhase);
-        }
-      }
+  const progress = this.getProgress();
+  const activePhase = this.getPhaseAtProgress(progress);
+  
+  // Check if phase changed
+  if (activePhase && (!this.currentPhase || activePhase.id !== this.currentPhase.id)) {
+    this.log(`[TIMELINE-ENGINE: checkCurrentPhase] Active Phase changed to: ${activePhase.name} (${activePhase.id}) at progress ${progress.toFixed(2)}%`);
+    this.currentPhase = activePhase;
+    
+    // Trigger callback
+    if (this.onPhaseChange) {
+      this.onPhaseChange(activePhase.id, activePhase);
     }
+  }
+}
     
     /**
      * Start checking for scheduled events
@@ -679,20 +677,20 @@ class TimelineEngine {
      * Start the progress update timer
      * @private
      */
-    startProgressTimer(immediate = false) {
-      if (this.progressTimer) {
-        clearInterval(this.progressTimer);
-      }
-      
-      // Trigger an immediate update if requested
-      if (immediate && this.onProgress) {
-        const elapsedTime = this.getElapsedTime();
-        const progress = this.getProgress();
-        this.onProgress(progress, elapsedTime);
-        
-        // Check for phase changes
-        this.checkCurrentPhase();
-      }
+startProgressTimer(immediate = false) {
+  if (this.progressTimer) {
+    clearInterval(this.progressTimer);
+  }
+  
+  // Trigger an immediate update if requested
+  if (immediate && this.onProgress) {
+    const elapsedTime = this.getElapsedTime();
+    const progress = this.getProgress();
+    this.onProgress(progress, elapsedTime);
+    
+    // Check for phase changes
+    this.checkCurrentPhase();
+  }
       
       // Update progress every 100ms for smoother UI updates
       this.progressTimer = setInterval(() => {

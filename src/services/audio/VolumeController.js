@@ -343,52 +343,82 @@ class VolumeController {
    * @param {number} duration - Fade duration in seconds
    * @returns {Promise<boolean>} - Resolves to success status when fade completes
    */
-  fadeVolume(layerId, targetVolume, duration) {
-    return new Promise((resolve) => {
-      try {
-        // Get the gain node
-        const gainNode = this.getGainNode(layerId);
+ // In src/services/audio/VolumeController.js
+// Updated VolumeController.fadeVolume method
+fadeVolume(layerId, targetVolume, duration, progressCallback) {
+  return new Promise((resolve) => {
+    try {
+      // Get the gain node
+      const gainNode = this.getGainNode(layerId);
+      
+      // Get current volume
+      const currentVolume = this.getVolume(layerId);
+      
+      // Clamp target volume
+      const safeTarget = Math.max(0, Math.min(1, targetVolume));
+      
+      // Calculate volume difference
+      const volumeDiff = safeTarget - currentVolume;
+      
+      // Set up the fade
+      const now = this.audioContext.currentTime;
+      
+      // Cancel any scheduled values
+      gainNode.gain.cancelScheduledValues(now);
+      
+      // Start from current value
+      gainNode.gain.setValueAtTime(currentVolume, now);
+      
+      // Linear ramp to target
+      gainNode.gain.linearRampToValueAtTime(safeTarget, now + duration);
+      
+      // Set up interval for UI updates during transition
+      const updateInterval = 30; // Update every 30ms for smooth UI
+      const totalUpdates = Math.floor((duration * 1000) / updateInterval);
+      let updateCount = 0;
+      
+      const updateIntervalId = setInterval(() => {
+        updateCount++;
         
-        // Get current volume
-        const currentVolume = this.getVolume(layerId);
+        // Calculate intermediate volume value
+        const progress = updateCount / totalUpdates;
+        const currentIntermediate = currentVolume + (volumeDiff * progress);
         
-        // Clamp target volume
-        const safeTarget = Math.max(0, Math.min(1, targetVolume));
+        // Update stored volume level for UI consistency
+        this.volumeLevels.set(layerId, currentIntermediate);
         
-        // Set up the fade
-        const now = this.audioContext.currentTime;
+        // Call progress callback if provided
+        if (progressCallback && typeof progressCallback === 'function') {
+          progressCallback(layerId, currentIntermediate, progress);
+        }
         
-        // Cancel any scheduled values
-        gainNode.gain.cancelScheduledValues(now);
-        
-        // Start from current value
-        gainNode.gain.setValueAtTime(currentVolume, now);
-        
-        // Linear ramp to target
-        gainNode.gain.linearRampToValueAtTime(safeTarget, now + duration);
-        
-        // Update stored volume immediately for UI consistency
-        this.volumeLevels.set(layerId, safeTarget);
-        
-        this.log(`Fading volume for "${layerId}" from ${currentVolume} to ${safeTarget} over ${duration}s`);
-        
-        // Set a timeout to resolve the promise when fade completes
-        setTimeout(() => {
-          // Make sure the final value is exactly what was requested
-          gainNode.gain.setValueAtTime(safeTarget, this.audioContext.currentTime);
+        // Clear interval when done
+        if (updateCount >= totalUpdates) {
+          clearInterval(updateIntervalId);
           
-          // Confirm the update to the stored value
+          // Make sure the final value is exactly what was requested
           this.volumeLevels.set(layerId, safeTarget);
           
+          // One final callback with exact target
+          if (progressCallback) {
+            progressCallback(layerId, safeTarget, 1);
+          }
+          
+          // Resolve the promise
           resolve(true);
-        }, duration * 1000 + 50); // Add a small buffer
-      } catch (error) {
-        this.log(`Error fading volume for "${layerId}": ${error.message}`, 'error');
-        resolve(false);
-      }
-    });
-  }
-  
+        }
+      }, updateInterval);
+      
+      this.log(`Fading volume for "${layerId}" from ${currentVolume} to ${safeTarget} over ${duration}s with UI updates`);
+      
+    } catch (error) {
+      this.log(`Error fading volume for "${layerId}": ${error.message}`, 'error');
+      resolve(false);
+    }
+  });
+}
+
+
   /**
    * Get a snapshot of the current volume state for all layers
    * 

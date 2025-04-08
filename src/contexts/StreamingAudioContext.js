@@ -160,24 +160,15 @@ export const AudioProvider = ({ children }) => {
               console.log(`[STREAMINGSUDIOCONTEXT: intitialize services] PhaseId changed to: ${phaseId}`);
               setActivePhase(phaseId);
               
-              // Apply phase state if it exists
-              if (phaseData?.state) {
-                // Apply volumes
-                if (phaseData.state.volumes) {
-                  Object.entries(phaseData.state.volumes).forEach(([layer, volume]) => {
-                    setVolumes(prev => ({ ...prev, [layer]: volume }));
-                    services.volumeController.setVolume(layer, volume);
-                  });
-                }
-                
-                // Apply track changes
-                if (phaseData.state.activeAudio) {
-                  Object.entries(phaseData.state.activeAudio).forEach(([layer, trackId]) => {
-                    if (trackId && trackId !== activeAudio[layer]) {
-                      handleCrossfadeTo(layer, trackId, transitionDuration);
-                    }
-                  });
-                }
+              // Instead of directly applying volume changes here, we'll defer to the SessionTimeline
+              // component which should handle transitions via the audio services
+              
+              // Just broadcast a phase change event that SessionTimeline will listen for
+              if (typeof window !== 'undefined') {
+                const event = new CustomEvent('timeline-phase-changed', { 
+                  detail: { phaseId, phaseData } 
+                });
+                window.dispatchEvent(event);
               }
             },
             onScheduledEvent: (event) => {
@@ -185,15 +176,26 @@ export const AudioProvider = ({ children }) => {
               
               console.log('Timeline event triggered:', event);
               
+              // Handle events via appropriate services
               if (event.action === 'crossfade' && event.data) {
                 const { layer, trackId, duration } = event.data;
                 if (layer && trackId) {
-                  handleCrossfadeTo(layer, trackId, duration || transitionDuration);
+                  const actualDuration = duration || transitionDuration;
+                  serviceRef.current.crossfadeEngine.crossfade({
+                    layer,
+                    sourceNode: getActiveSourceNode(layer),
+                    sourceElement: getActiveAudioElement(layer),
+                    targetNode: getOrCreateSourceNode(layer, trackId),
+                    targetElement: getOrCreateAudioElement(layer, trackId),
+                    currentVolume: volume.layers[layer] || 0,
+                    duration: actualDuration
+                  });
                 }
               } else if (event.action === 'volume' && event.data) {
                 const { layer, volume } = event.data;
                 if (layer !== undefined && volume !== undefined) {
-                  handleSetVolume(layer, volume);
+                  console.log(`[STREAMINGAUDIOCONTEXT: onPhaseChange] Setting volume for ${layer} to ${volume}`);
+                  serviceRef.current.volumeController.setVolume(layer, volume);
                 }
               }
             },
@@ -1107,6 +1109,34 @@ console.log(`Current track for ${layer}: ${currentTrackId}`);
   }
 }, [audioLibrary, activeAudio, transitionDuration]);
 
+// Fade volume for a specific layerh
+const handleFadeVolume = useCallback((layer, targetVolume, durationMs) => {
+  if (!serviceRef.current.volumeController) {
+    console.error("[StreamingAudioContext] Cannot fade volume: VolumeController not available");
+    return Promise.resolve(false);
+  }
+  
+  console.log(`[StreamingAudioContext] Fading ${layer} volume to ${targetVolume} over ${durationMs}ms`);
+  
+  // Convert milliseconds to seconds for VolumeController
+  const durationSec = durationMs / 1000;
+  
+  // Create a progress callback to update the volumes state
+  const progressCallback = (layerId, currentValue, progress) => {
+    // Update the volumes state to reflect current fade position
+    setVolumes(prev => ({
+      ...prev,
+      [layerId]: currentValue
+    }));
+    
+    // Log progress for debugging
+    console.log(`[StreamingAudioContext] Fade progress for ${layerId}: ${Math.round(progress * 100)}% - Volume: ${Math.round(currentValue * 100)}%`);
+  };
+  
+  // Call the service method with progress callback
+  return serviceRef.current.volumeController.fadeVolume(layer, targetVolume, durationSec, progressCallback);
+}, []);
+
   // Timeline functions - wrapped in useCallback
 const handleStartTimeline = useCallback(() => {
   if (!serviceRef.current.timelineEngine) {
@@ -1331,6 +1361,7 @@ const contextValue = useMemo(() => {
     startSession: handleStartSession,
     pauseSession: handlePauseSession,
     crossfadeTo: handleCrossfadeTo, 
+    fadeLayerVolume: handleFadeVolume,
     preloadAudio: handlePreloadAudio,
     getSessionTime: handleGetSessionTime,
     
