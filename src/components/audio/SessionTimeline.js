@@ -52,6 +52,20 @@ const SessionTimeline = React.forwardRef(({
   const initialMount = useRef(true);
   const transitionTimeoutRef = useRef(null);
 
+  //simple test
+  useEffect(() => {
+    console.log('SessionTimeline component mounted');
+  }, []);
+
+//Provide Volume Data from useAudio
+  useEffect(() => {
+    console.log('Volume in SessionTimeline component:', {
+      volumeObject: volume,
+      hasVolumeLayers: volume && !!volume.layers,
+      volumeLayerCount: volume && volume.layers ? Object.keys(volume.layers).length : 0
+    });
+  }, [volume]);
+
   // Set transition state helper function
   const setTransitionState = useCallback((isTransitioning, force = false) => {
     // Skip unnecessary state updates if state is already set correctly
@@ -363,27 +377,36 @@ const SessionTimeline = React.forwardRef(({
     activeAudio: {}
   };
 
-  // Helper function to finish the transition and update state
-  const finishTransition = useCallback((phase) => {
-    console.log('Finishing transition to phase:', phase.name);
-    
-    // Update current state references - deep clone to avoid reference issues
-    currentVolumeState.current = JSON.parse(JSON.stringify(phase.state.volumes));
-    currentAudioState.current = JSON.parse(JSON.stringify(phase.state.activeAudio));
-    
-    // Reset transition flags
-    transitionCompletedRef.current = true;
-    transitionInProgress.current = false;
-    
-    // Set React state
-    setTransitioning(false);
-    
-    console.log('Transition complete - flags reset, phase detection unblocked');
-  }, []);
-
+    // Helper function to finish the transition and update state
+    const finishTransition = useCallback((phase) => {
+      console.log('Finishing transition to phase:', phase.name);
+      
+      // Update current state references - deep clone to avoid reference issues
+      currentVolumeState.current = JSON.parse(JSON.stringify(phase.state.volumes));
+      currentAudioState.current = JSON.parse(JSON.stringify(phase.state.activeAudio));
+      
+      // Reset transition flags
+      transitionCompletedRef.current = true;
+      transitionInProgress.current = false;
+      
+      // Set React state
+      setTransitioning(false);
+      
+      console.log('Transition complete - flags reset, phase detection unblocked');
+    }, []);
+  
   // Full transition function that coordinates track changes and volume changes
   const startFullTransition = useCallback((phase, transitionState = null) => {
     console.log(`Starting full transition to phase: ${phase.name}`);
+   
+    console.log('Volume object check:', {
+      volumeExists: !!volume,
+      volumeType: typeof volume,
+      hasLayers: volume && !!volume.layers,
+      layersType: volume && volume.layers ? typeof volume.layers : 'N/A',
+      layersKeys: volume && volume.layers ? Object.keys(volume.layers) : [],
+    });
+   //Skip Transition if already in progress or not enabled
     if (!enabled || !phase.state) {
       console.log('Skipping transition - either disabled or no state');
       return;
@@ -429,8 +452,8 @@ const SessionTimeline = React.forwardRef(({
     // Step 1: Identify track changes needed
     const trackChanges = [];
     
+    // Get current track ID with fallbacks
     Object.entries(phase.state.activeAudio).forEach(([layer, targetTrackId]) => {
-      // Get current track ID with fallbacks
       const currentTrackId = currentAudioState.current[layer] !== undefined ? 
         currentAudioState.current[layer] : 
         layers.active[layer] || `${layer}1`;
@@ -461,6 +484,7 @@ const SessionTimeline = React.forwardRef(({
 
     // Create a snapshot of the current volume state BEFORE we make any changes
     const volumeSnapshot = transitionState?.originalVolumes || {};
+    console.log('Volume snapshot:', volumeSnapshot);
 
     // If we don't have originalVolumes from transitionState, create a snapshot
     if (!transitionState?.originalVolumes) {
@@ -469,8 +493,8 @@ const SessionTimeline = React.forwardRef(({
       });
     }
     
+    //Set Current volume to volume snapshot & Transition to target volume
     Object.entries(phase.state.volumes).forEach(([layer, targetVolume]) => {
-      // Use our snapshot for current volume
       const currentVolume = volumeSnapshot[layer] !== undefined ? volumeSnapshot[layer] : 0;
       
       // Only transition if there's a meaningful difference
@@ -528,7 +552,7 @@ const SessionTimeline = React.forwardRef(({
       }, updateInterval);
     }
     
-    // Step 4: If we have track changes, wait for them to complete
+    // Step 4: If we had any track changes, wait for them to complete
     if (trackChanges.length > 0) {
       // Set a failsafe timeout
       transitionTimeoutRef.current = setTimeout(() => {
@@ -565,6 +589,7 @@ const SessionTimeline = React.forwardRef(({
       finishTransition(phase);
     }
   }, [enabled, timeline, layers, volume, transitions, setTransitionState, finishTransition]);
+
 
   // Restart Playing
   useEffect(() => {
@@ -740,12 +765,12 @@ const SessionTimeline = React.forwardRef(({
     const runPhaseCheck = () => {
       // Only continue if conditions are still met
       if (!enabled || !playback.isPlaying || !localTimelineIsPlaying) {
-        console.log("Stopping phase checks as conditions no longer met");
+       // console.log("Stopping phase checks as conditions no longer met");
         isRunning = false;
         return;
       }
 
-      console.log("Phase check running");
+      //console.log("Phase check running");
         // Skip phase checks during active transitions
         if (transitioning || !transitionCompletedRef.current || transitionInProgress.current) {
           return;
@@ -756,7 +781,7 @@ const SessionTimeline = React.forwardRef(({
 
         const time = playback.getTime();
         const progressPercent = Math.min(100, (time / timeline.duration) * 100);
-        console.log(`Current progress: ${progressPercent.toFixed(2)}%`);
+        //console.log(`Current progress: ${progressPercent.toFixed(2)}%`);
         // Find the current phase based on progress
         const sortedPhases = [...phases].sort((a, b) => b.position - a.position);
         let newActivePhase = null;
