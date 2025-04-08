@@ -56,6 +56,7 @@ export function useAudio() {
     timelineIsPlaying, 
     startTimeline,
     pauseTimeline,
+    resumeTimeline,
     stopTimeline,
   
     
@@ -158,8 +159,11 @@ export function useAudio() {
     },
     pauseTimeline: () => { 
       console.log('[useAudio] Pausing timeline progression (preserving position)');
-      // Call the appropriate method in the underlying service
      return pauseTimeline();
+    },
+    resumeTimeline: () => {
+      console.log('[useAudio] Resuming timeline progression from current position');
+      return resumeTimeline();
     },
     stopTimeline: () => { 
       console.log('[useAudio] Stopping timeline progression');
@@ -204,6 +208,7 @@ export function useAudio() {
   }), [
     startTimeline,
     pauseTimeline,
+    resumeTimeline,
     stopTimeline,
     timelineIsEnabled,
     timelineIsPlaying,

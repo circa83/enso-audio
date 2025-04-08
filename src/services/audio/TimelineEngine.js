@@ -239,7 +239,45 @@ pauseTimeline() {
 }
 
 
-
+/**
+ * Resume the timeline from the current position
+ * This continues from the current elapsed time without resetting
+ * @returns {boolean} Success state
+ */
+resumeTimeline() {
+  try {
+    if (this.isPlaying) {
+      this.log('Timeline already playing', 'info');
+      return true;
+    }
+    
+    if (!this.isEnabled) {
+      this.log('Timeline is disabled, cannot resume', 'warn');
+      return false;
+    }
+    
+    this.log(`Resuming timeline from ${this.elapsedTime}ms`);
+    
+    // Set start time based on current elapsed time to ensure continuity
+    this.startTime = Date.now() - this.elapsedTime;
+    this.isPlaying = true;
+    
+    // Start progress timer 
+    this.startProgressTimer(true); // Force immediate update
+    
+    // Start event checking
+    this.startEventChecking();
+    
+    // Check for current phase
+    this.checkCurrentPhase();
+    
+    this.log(`Timeline resumed successfully from ${this.elapsedTime}ms`);
+    return true;
+  } catch (error) {
+    this.log(`Error resuming timeline: ${error.message}`, 'error');
+    return false;
+  }
+}
     /**
      * Reset the timeline state
      * @returns {boolean} Success state

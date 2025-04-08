@@ -700,38 +700,6 @@ console.log("After updatePlayingState in handlePauseSession, new state:", isPlay
     }
   }, [activeAudio, updatePlayingState]);
 
-// In src/contexts/StreamingAudioContext.js
-const handlePauseTimeline = useCallback(() => {
-  if (!serviceRef.current.timelineEngine) {
-    console.log("Can't pause timeline: TimelineEngine missing");
-    return false;
-  }
-  console.log("Pausing timeline (preserving position)...");
-  
-  // Use the pauseTimeline method if it exists, otherwise fall back to stop
-  if (serviceRef.current.timelineEngine.pauseTimeline) {
-    const paused = serviceRef.current.timelineEngine.pauseTimeline();
-    console.log("TimelineEngine pause result:", paused);
-    
-    if (paused) {
-      setTimelineIsPlaying(false);
-    }
-    
-    return paused;
-  } else {
-    // Fall back to stop if pause isn't available
-    console.log("pauseTimeline not available, using stopTimeline as fallback");
-    const stopped = serviceRef.current.timelineEngine.stop();
-    console.log("TimelineEngine stop result:", stopped);
-    
-    if (stopped) {
-      setTimelineIsPlaying(false);
-    }
-    
-    return stopped;
-  }
-}, []);
-
   // Preload audio using BufferManager
   const handlePreloadAudio = useCallback(async (layer, trackId) => {
     if (!serviceRef.current.bufferManager) {
@@ -1211,6 +1179,71 @@ const handleStopTimeline = useCallback(() => {
   return stopped;
 }, []);
 
+// In src/contexts/StreamingAudioContext.js
+const handlePauseTimeline = useCallback(() => {
+  if (!serviceRef.current.timelineEngine) {
+    console.log("Can't pause timeline: TimelineEngine missing");
+    return false;
+  }
+  console.log("Pausing timeline (preserving position)...");
+  
+  // Use the pauseTimeline method if it exists, otherwise fall back to stop
+  if (serviceRef.current.timelineEngine.pauseTimeline) {
+    const paused = serviceRef.current.timelineEngine.pauseTimeline();
+    console.log("TimelineEngine pause result:", paused);
+    
+    if (paused) {
+      setTimelineIsPlaying(false);
+    }
+    
+    return paused;
+  } else {
+    // Fall back to stop if pause isn't available
+    console.log("pauseTimeline not available, using stopTimeline as fallback");
+    const stopped = serviceRef.current.timelineEngine.stop();
+    console.log("TimelineEngine stop result:", stopped);
+    
+    if (stopped) {
+      setTimelineIsPlaying(false);
+    }
+    
+    return stopped;
+  }
+}, []);
+
+// In src/contexts/StreamingAudioContext.js
+const handleResumeTimeline = useCallback(() => {
+  if (!serviceRef.current.timelineEngine) {
+    console.log("Can't resume timeline: TimelineEngine missing");
+    return false;
+  }
+  console.log("Resuming timeline from current position...");
+  
+  // Use the resumeTimeline method if it exists
+  if (serviceRef.current.timelineEngine.resumeTimeline) {
+    const resumed = serviceRef.current.timelineEngine.resumeTimeline();
+    console.log("TimelineEngine resume result:", resumed);
+    
+    if (resumed) {
+      setTimelineIsPlaying(true);
+    }
+    
+    return resumed;
+  } else {
+    // Fall back to start with reset:false if resume isn't available
+    console.log("resumeTimeline not available, using startTimeline with reset:false as fallback");
+    const started = serviceRef.current.timelineEngine.start({ reset: false });
+    console.log("TimelineEngine start result:", started);
+    
+    if (started) {
+      setTimelineIsPlaying(true);
+    }
+    
+    return started;
+  }
+}, []);
+
+
   const handleGetSessionTime = useCallback(() => {
     if (serviceRef.current.timelineEngine) {
       return serviceRef.current.timelineEngine.getElapsedTime();
@@ -1414,6 +1447,7 @@ const contextValue = useMemo(() => {
     setTimelineIsEnabled: handleSetTimelineEnabled,
     startTimeline: handleStartTimeline,
     pauseTimeline: handlePauseTimeline,
+    resumeTimeline: handleResumeTimeline,
     stopTimeline: handleStopTimeline,
     
     // Preset functions

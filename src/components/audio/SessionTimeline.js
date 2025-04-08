@@ -117,6 +117,8 @@ const setTransitionState = useCallback((isTransitioning, force = false) => {
         timeline.setTransitionDuration(timeline.transitionDuration);
       }
 
+      applyPreOnsetPhase();
+
       // Only reset timeline if playback is not active
       if (!playback.isPlaying && timeline.reset) {
         console.log("[INITIALIZE] Timeline reset on mount (playback not active)");
@@ -279,60 +281,71 @@ const setTransitionState = useCallback((isTransitioning, force = false) => {
  
 
   //Toggle timeline playback
-const toggleTimelinePlayback = useCallback(() => {
-  // Only allow starting timeline if audio is playing
-  if (!playback.isPlaying && !timelineIsPlaying) {
-    console.log("[SessionTimeline: toggleTimelinePlayback] Cannot start timeline when audio is not playing");
-    return;
-  }
+  const toggleTimelinePlayback = useCallback(() => {
+    // Only allow starting timeline if audio is playing
+    if (!playback.isPlaying && !timelineIsPlaying) {
+      console.log("[SessionTimeline: toggleTimelinePlayback] Cannot start timeline when audio is not playing");
+      return;
+    }
+    
+    console.log("[SessionTimeline: toggleTimelinePlayback] Timeline toggle button clicked, current state:", timelineIsPlaying);
+    
+    // Toggle the local timeline state
+    const newTimelineState = !timelineIsPlaying;
+    console.log("[SessionTimeline: toggleTimelinePlayback] Setting new timeline state to:", newTimelineState);
+    
+    setTimelineIsPlaying(newTimelineState);
+    setLocalTimelineIsPlaying(newTimelineState);
   
-  console.log("[SessionTimeline: toggleTimelinePlayback] Timeline toggle button clicked, current state:", timelineIsPlaying);
-  
-  // Toggle the local timeline state
-  const newTimelineState = !timelineIsPlaying;
-  console.log("[SessionTimeline: toggleTimelinePlayback] Setting new timeline state to:", newTimelineState);
-  
-  setTimelineIsPlaying(newTimelineState);
-  setLocalTimelineIsPlaying(newTimelineState);
+    if (newTimelineState) {
+      // We're starting/resuming playback
+      if (currentTime > 0) {
+        // If we have elapsed time, RESUME from that position
+        console.log("[SessionTimeline: toggleTimelinePlayback] Resuming timeline from current position:", currentTime);
+        if (timeline.resumeTimeline) {
+          console.log("[SessionTimeline: toggleTimelinePlayback] Calling timeline.resumeTimeline()");
+          timeline.resumeTimeline();
+        } else {
+          // Fallback if resumeTimeline doesn't exist yet
+          console.log("[SessionTimeline: toggleTimelinePlayback] No resumeTimeline method available, using startTimeline with reset:false");
+          timeline.startTimeline({ reset: false });
+        }
+      } else {
+        // If no elapsed time, START from beginning
+        console.log("[SessionTimeline: toggleTimelinePlayback] Starting timeline from beginning");
+        applyPreOnsetPhase();
 
-  if (newTimelineState) {
-    // We're starting/resuming playback
-    console.log("[SessionTimeline: toggleTimelinePlayback] Starting/resuming timeline progression");
-    
-    if (timeline.startTimeline) {
-      console.log("[SessionTimeline: toggleTimelinePlayback] Calling timeline.startTimeline() without reset to resume");
-      // Start without resetting to continue from current position
-      timeline.startTimeline({ reset: false });
+        if (timeline.startTimeline) {
+          console.log("[SessionTimeline: toggleTimelinePlayback] Calling timeline.startTimeline()");
+          timeline.startTimeline({ reset: true });
+        }
+      }
+    } else {
+      // We're pausing the timeline
+      console.log("[SessionTimeline: toggleTimelinePlayback] Pausing timeline progression");
+      if (timeline.pauseTimeline) {
+        console.log("[SessionTimeline: toggleTimelinePlayback] Calling timeline.pauseTimeline()");
+        timeline.pauseTimeline();
+      } else {
+        // Fallback to stopTimeline if pauseTimeline doesn't exist
+        console.log("[SessionTimeline: toggleTimelinePlayback] No pauseTimeline method, using stopTimeline as fallback");
+        timeline.stopTimeline();
+      }
+      
+      // Cancel active transitions
+      if (volumeTransitionTimer.current) {
+        clearInterval(volumeTransitionTimer.current);
+        volumeTransitionTimer.current = null;
+      }
+      
+      if (transitionTimeoutRef.current) {
+        clearTimeout(transitionTimeoutRef.current);
+        transitionTimeoutRef.current = null;
+      }
+      
+      setTransitionState(false, true); // Force update transition state
     }
-  } else {
-    // We're pausing (not stopping) the timeline
-    console.log("[SessionTimeline: toggleTimelinePlayback] Pausing timeline progression");
-    
-    if (timeline.pauseTimeline) {
-      // If a dedicated pause method exists, use it
-      console.log("[SessionTimeline: toggleTimelinePlayback] Calling timeline.pauseTimeline()");
-      timeline.pauseTimeline();
-    } else if (timeline.stopTimeline) {
-      // Fall back to stopTimeline if pauseTimeline doesn't exist
-      // This should preserve the elapsed time but halt progression
-      console.log("[SessionTimeline: toggleTimelinePlayback] No pauseTimeline method, using stopTimeline as fallback");
-      timeline.stopTimeline();
-    }
-    
-    // Cancel active transitions
-    if (volumeTransitionTimer.current) {
-      clearInterval(volumeTransitionTimer.current);
-      volumeTransitionTimer.current = null;
-    }
-    
-    if (transitionTimeoutRef.current) {
-      clearTimeout(transitionTimeoutRef.current);
-      transitionTimeoutRef.current = null;
-    }
-    
-    setTransitionState(false, true); // Force update transition state
-  }
-}, [timelineIsPlaying, playback.isPlaying, timeline, setTransitionState]);
+  }, [timelineIsPlaying, playback.isPlaying, timeline, setTransitionState, currentTime]);
 
 
 // Reset Timeline
@@ -429,39 +442,50 @@ const handleRestartTimeline = useCallback(() => {
   setTransitionState
 ]);
 
-//   // Reset all timeline state for a clean restart
-// const resetTimeline = useCallback(() => {
-//   // Don't reset if playback is active - this prevents disruption
-//   if (playback.isPlaying) {
-//     console.log("[SessionTimeline: resetTimeline] Skipping timeline reset - playback is active");
-//     return;
-//   }
+// Apply Pre-Onset Phase 
+const applyPreOnsetPhase = useCallback(() => {
+  console.log("[SessionTimeline: applyPreOnsetPhase] Applying pre-onset phase state immediately");
   
-//   console.log("[SessionTimeline: resetTimeline] Performing full timeline reset");
-//   setProgress(0);
-//   setCurrentTime(0);
+  // Find the pre-onset phase
+  const preOnsetPhase = phases.find(p => p.id === 'pre-onset');
   
-//   lastActivePhaseId.current = null;
-//   setActivePhase(null);
-  
-//   if (volumeTransitionTimer.current) {
-//     clearInterval(volumeTransitionTimer.current);
-//     volumeTransitionTimer.current = null;
-//   }
-  
-//   if (transitionTimeoutRef.current) {
-//     clearTimeout(transitionTimeoutRef.current);
-//     transitionTimeoutRef.current = null;
-//   }
-  
-//   setTransitionState(false, true); // Force update
-  
-//   if (timeline.reset) {
-//     console.log("[SessionTimeline: resetTimeline] Calling timeline.reset()");
-//     timeline.reset();
-//   }
-// }, [timeline, playback.isPlaying, setTransitionState]);
-
+  if (preOnsetPhase && preOnsetPhase.state) {
+    console.log("[SessionTimeline: applyPreOnsetPhase] Found pre-onset phase with saved state");
+    
+    // Immediately set volumes without transitions
+    if (preOnsetPhase.state.volumes) {
+      Object.entries(preOnsetPhase.state.volumes).forEach(([layer, vol]) => {
+        console.log(`[SessionTimeline: applyPreOnsetPhase] Setting ${layer} volume to ${vol}`);
+        volume.setLayer(layer, vol, { immediate: true });
+      });
+    }
+    
+    // Immediately switch to pre-onset tracks without crossfade
+    if (preOnsetPhase.state.activeAudio) {
+      Object.entries(preOnsetPhase.state.activeAudio).forEach(([layer, trackId]) => {
+        if (trackId !== layers.active[layer]) {
+          console.log(`[SessionTimeline: applyPreOnsetPhase] Switching ${layer} to track ${trackId}`);
+          // Use a minimal 50ms transition to prevent audio pops but still be immediate
+          transitions.crossfade(layer, trackId, 50);
+        }
+      });
+    }
+    
+    // Set pre-onset as the active phase
+    lastActivePhaseId.current = 'pre-onset';
+    setActivePhase('pre-onset');
+  } else {
+    console.log("[SessionTimeline: applyPreOnsetPhase] No pre-onset phase state found, using defaults");
+    
+    // Apply default state for layers if no pre-onset phase state exists
+    Object.values(layers.TYPES).forEach(layer => {
+      const layerKey = layer.toLowerCase();
+      // Set drone to 25%, all others to 0
+      const defaultVolume = layerKey === 'drone' ? 0.25 : 0;
+      volume.setLayer(layerKey, defaultVolume, { immediate: true });
+    });
+  }
+}, [phases, volume, layers, transitions]);
 
   // Refresh Volume State Reference function
 const refreshVolumeStateReference = useCallback(() => {
