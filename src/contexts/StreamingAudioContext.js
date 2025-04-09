@@ -446,6 +446,7 @@ const initializeDefaultAudio = useCallback(async () => {
   
   return true;
 }, []); // No dependencies needed as we're using refs
+
   // Try to load variation files in background
   const tryLoadVariationFiles = useCallback(() => {
     setTimeout(async () => {

@@ -4,7 +4,6 @@ import { useAudio } from '../hooks/useAudio';
 import CollapsibleSection from './common/CollapsibleSection';
 import LayerControl from './audio/LayerControl';
 import SessionTimer from './audio/SessionTimer';
-import SessionTimeline from './audio/SessionTimeline';
 import SessionSettings from './audio/SessionSettings';
 import PlayerControlPanel from './audio/PlayerControlPanel';
 import DebugOverlay from './debug/DebugOverlay';
@@ -26,15 +25,15 @@ const Player = () => {
     presets,
     timelinePhases,
     playback
-    
   } = useAudio();
   
   // Local state for settings and UI
-  const [sessionDuration, setSessionDuration] = useState(1 * 60 * 1000); // Default 1 hour
+  const [sessionDuration, setSessionDuration] = useState(1 * 60 * 1000); // Default 1 minute
   const [timelineEnabled, setTimelineEnabled] = useState(true);
   const [transitionDuration, setTransitionDuration] = useState(4000); // Default 4 seconds
-  const [showDebugPanel, setShowDebugPanel] = useState(false); // Debug panel state
+  const [debugPanelVisible, setDebugPanelVisible] = useState(false); // Debug panel state
   const timelineComponentRef = useRef(null);
+  
   // Preset management state
   const [availablePresets, setAvailablePresets] = useState([]);
   const [newPresetName, setNewPresetName] = useState('');
@@ -47,7 +46,6 @@ const Player = () => {
   const [importError, setImportError] = useState(null);
   const fileInputRef = useRef(null);
   
-  
   // Track previous playback state
   const wasPlaying = useRef(playback.isPlaying);
 
@@ -56,7 +54,7 @@ const Player = () => {
     const handleKeyDown = (e) => {
       if (e.ctrlKey && e.shiftKey && e.key === 'D') {
         e.preventDefault();
-        setShowDebugPanel(prev => !prev);
+        setDebugPanelVisible(prev => !prev);
       }
     };
     
@@ -97,36 +95,48 @@ const Player = () => {
           setTransitionDuration(event.detail.transitionDuration);
         }
       }
-       // Effect to handle settings updates and ensure UI reactivity
-useEffect(() => {
-  // This effect will run whenever sessionDuration, timelineEnabled, or transitionDuration changes
-  console.log('Settings changed, ensuring UI updates:', {
-    sessionDuration,
-    timelineEnabled,
-    transitionDuration
-  });
+    };
+    
+    // Listen for settings updates
+    window.addEventListener('sessionSettings-update', handleSessionSettingsUpdate);
+    console.log("Listening for sessionSettings-update events...");
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('sessionSettings-update', handleSessionSettingsUpdate);
+    };
+  }, []);
   
-  // If we have a timeline component and it's available
-  if (timeline) {
-    // Ensure timeline duration is synced
-    if (timeline.setDuration) {
-      timeline.setDuration(sessionDuration);
-    }
+  // Effect to handle settings updates and ensure UI reactivity
+  useEffect(() => {
+    // This effect will run whenever sessionDuration, timelineEnabled, or transitionDuration changes
+    console.log('Settings changed, ensuring UI updates:', {
+      sessionDuration,
+      timelineEnabled,
+      transitionDuration
+    });
     
-    // Ensure transition duration is synced
-    if (timeline.setTransitionDuration) {
-      timeline.setTransitionDuration(transitionDuration);
+    // If we have a timeline component and it's available
+    if (timeline) {
+      // Ensure timeline duration is synced
+      if (timeline.setDuration) {
+        timeline.setDuration(sessionDuration);
+      }
+      
+      // Ensure transition duration is synced
+      if (timeline.setTransitionDuration) {
+        timeline.setTransitionDuration(transitionDuration);
+      }
+      
+      // Force a UI update by triggering a state refresh of the phases
+      if (timeline.phases && timeline.updatePhases) {
+        console.log('Refreshing timeline phases to trigger UI update');
+        timeline.updatePhases([...timeline.phases]);
+      }
     }
-    
-    // Force a UI update by triggering a state refresh of the phases
-    if (timeline.phases && timeline.updatePhases) {
-      console.log('Refreshing timeline phases to trigger UI update');
-      timeline.updatePhases([...timeline.phases]);
-    }
-  }
-}, [sessionDuration, timelineEnabled, transitionDuration, timeline]);
- 
-// Effect to ensure Timeline is updated when settings change
+  }, [timeline]);
+
+  // Effect to ensure Timeline is updated when settings change
   useEffect(() => {
     console.log("Session settings changed - updating timeline components");
     
@@ -141,56 +151,12 @@ useEffect(() => {
     }
     
   }, [sessionDuration, transitionDuration, timeline]);
-    };
-    
-    // Listen for settings updates
-    window.addEventListener('sessionSettings-update', handleSessionSettingsUpdate);
-    console.log("Listening for sessionSettings-update events...");
-    // Cleanup
-    return () => {
-      window.removeEventListener('sessionSettings-update', handleSessionSettingsUpdate);
-    };
-  }, []);
   
-  
-   //Stop Timeline when Audio Stops, but only when it was previously playing
+  // Update wasPlaying ref when playback changes
   useEffect(() => {
-    
-    // If we were playing before and now we're not, that's a true stop event
-    if (wasPlaying.current && !playback.isPlaying) {
-      // Audio stopped playing
-      console.log("Audio playback stopped - ensuring timeline is also stopped");
-      
-      // Stop the timeline in the service
-      if (timeline.stopTimeline) {
-        timeline.stopTimeline();
-      }
-      
-      // Reset UI state in the component
-      if (timelineComponentRef.current && timelineComponentRef.current.resetTimelinePlayback) {
-        timelineComponentRef.current.resetTimelinePlayback();
-      }
-    }
-    
-    // Update previous state for next check
     wasPlaying.current = playback.isPlaying;
-  }, [playback.isPlaying, timeline]);
-  
-  // Render audio layer controls
-  const renderLayerControls = useCallback(() => {
-    return (
-      <div className={styles.layerControlsContent}>
-        {Object.values(layers.TYPES).map(layer => (
-          <LayerControl
-            key={layer}
-            label={layer.charAt(0).toUpperCase() + layer.slice(1)}
-            layer={layer}
-          />
-        ))}
-      </div>
-    );
-  }, [layers.TYPES]);
-  
+  }, [playback.isPlaying]);
+
   // timeline settings handlers
   const handleDurationChange = useCallback((newDuration) => {
     console.log(`Player received new session duration: ${newDuration}ms`);
@@ -205,21 +171,19 @@ useEffect(() => {
       timeline.setDuration(newDuration);
 
       // Trigger a phase update to refresh the timeline display
-    if (timeline.updatePhases && timelinePhases.length > 0) {
-      console.log('Refreshing timeline phases after duration change');
-      const phasesClone = [...timelinePhases];
-      timeline.updatePhases(phasesClone);
+      if (timeline.updatePhases && timelinePhases.length > 0) {
+        console.log('Refreshing timeline phases after duration change');
+        const phasesClone = [...timelinePhases];
+        timeline.updatePhases(phasesClone);
+      }
     }
-  }
 
-
-  // Force timeline component to update
-  const timelineEvent = new CustomEvent('timeline-duration-changed', { 
-    detail: { duration: newDuration } 
-  });
-  window.dispatchEvent(timelineEvent);
-  
-}, [timeline, timelinePhases]);
+    // Force timeline component to update
+    const timelineEvent = new CustomEvent('timeline-duration-changed', { 
+      detail: { duration: newDuration } 
+    });
+    window.dispatchEvent(timelineEvent);
+  }, [timeline, timelinePhases]);
   
   const handleTransitionDurationChange = useCallback((newDuration) => {
     console.log(`Player received new transition duration: ${newDuration}ms`);
@@ -232,29 +196,29 @@ useEffect(() => {
       console.log('Updating timeline transition duration service:', newDuration);
       timeline.setTransitionDuration(newDuration);
     
-    // Trigger a custom event to force updates
-    const event = new CustomEvent('timeline-transition-changed', { 
-      detail: { duration: newDuration } 
+      // Trigger a custom event to force updates
+      const event = new CustomEvent('timeline-transition-changed', { 
+        detail: { duration: newDuration } 
+      });
+      window.dispatchEvent(event);
+    }
+  }, [timeline]);
+
+  const handleTimelineToggle = useCallback((enabled) => {
+    console.log(`Timeline toggle: ${enabled}`);
+    setTimelineEnabled(enabled);
+    
+    // Update the timeline enabled state in the audio context
+    // This is important to make sure the context knows the timeline state
+    if (timeline && timeline.setTimelineEnabled) {
+      timeline.setTimelineEnabled(enabled);
+    }
+    // Force an update by triggering a custom event
+    const event = new CustomEvent('timeline-enabled-changed', { 
+      detail: { enabled: enabled } 
     });
     window.dispatchEvent(event);
-  }
-}, [timeline]);
-
-const handleTimelineToggle = useCallback((enabled) => {
-  console.log(`Timeline toggle: ${enabled}`);
-  setTimelineEnabled(enabled);
-  
-  // Update the timeline enabled state in the audio context
-  // This is important to make sure the context knows the timeline state
-  if (timeline && timeline.setTimelineEnabled) {
-    timeline.setTimelineEnabled(enabled);
-  }
-  // Force an update by triggering a custom event
-  const event = new CustomEvent('timeline-enabled-changed', { 
-    detail: { enabled: enabled } 
-  });
-  window.dispatchEvent(event);
-}, [timeline]);
+  }, [timeline]);
   
   // Render session settings content
   const renderSessionSettings = useCallback(() => {
@@ -277,189 +241,188 @@ const handleTimelineToggle = useCallback((enabled) => {
     handleTimelineToggle
   ]);
   
+  //PRESET MANAGEMENT
 
-//PRESET MANAGEMENT
+  // Load available presets when the presets section is expanded
+  const handlePresetsExpanded = useCallback(() => {
+    const loadedPresets = presets.getAll();
+    setAvailablePresets(loadedPresets);
+  }, [presets]);
 
- // Load available presets when the presets section is expanded
- const handlePresetsExpanded = useCallback(() => {
-  const loadedPresets = presets.getAll();
-  setAvailablePresets(loadedPresets);
-}, [presets]);
+  // the validation result for the new preset name
+  const isNewPresetNameValid = useMemo(() => 
+    newPresetName.trim() !== '', 
+    [newPresetName]
+  );
 
-// the validation result for the new preset name
-const isNewPresetNameValid = useMemo(() => 
-  newPresetName.trim() !== '', 
-  [newPresetName]
-);
+  // Save current state as a preset
+  const handleSavePreset = useCallback(() => {
+    if (!isNewPresetNameValid) return;
+    
+    // Check if preset name already exists
+    const existingPreset = availablePresets.find(p => p.name === newPresetName);
+    
+    if (existingPreset) {
+      // Ask for confirmation before overwriting
+      setConfirmOperation({
+        type: 'overwrite',
+        presetName: newPresetName,
+        action: () => {
+          // Save preset and reset state
+          presets.save(newPresetName);
+          setNewPresetName('');
+          setConfirmOperation(null);
+          
+          // Refresh presets list
+          const updatedPresets = presets.getAll();
+          setAvailablePresets(updatedPresets);
+        }
+      });
+    } else {
+      // New preset, save directly
+      presets.save(newPresetName);
+      setNewPresetName('');
+      
+      // Refresh presets list
+      const updatedPresets = presets.getAll();
+      setAvailablePresets(updatedPresets);
+    }
+  }, [newPresetName, availablePresets, presets, isNewPresetNameValid]);
 
-// Save current state as a preset
-const handleSavePreset = useCallback(() => {
-  if (!isNewPresetNameValid) return;
-  
-  // Check if preset name already exists
-  const existingPreset = availablePresets.find(p => p.name === newPresetName);
-  
-  if (existingPreset) {
-    // Ask for confirmation before overwriting
+  // Load a preset
+  const handleLoadPreset = useCallback((presetName) => {
+    setSelectedPreset(presetName);
     setConfirmOperation({
-      type: 'overwrite',
-      presetName: newPresetName,
+      type: 'load',
+      presetName,
       action: () => {
-        // Save preset and reset state
-        presets.save(newPresetName);
-        setNewPresetName('');
+        presets.load(presetName);
         setConfirmOperation(null);
+        setSelectedPreset(null);
+      }
+    });
+  }, [presets]);
+
+  // Delete a preset
+  const handleDeletePreset = useCallback((presetName) => {
+    setSelectedPreset(presetName);
+    setConfirmOperation({
+      type: 'delete',
+      presetName,
+      action: () => {
+        presets.delete(presetName);
+        setConfirmOperation(null);
+        setSelectedPreset(null);
         
         // Refresh presets list
         const updatedPresets = presets.getAll();
         setAvailablePresets(updatedPresets);
       }
     });
-  } else {
-    // New preset, save directly
-    presets.save(newPresetName);
-    setNewPresetName('');
+  }, [presets]);
+
+  // Cancel operation
+  const handleCancelOperation = useCallback(() => {
+    setConfirmOperation(null);
+    setSelectedPreset(null);
+  }, []);
+
+  // Export a preset to JSON
+  const handleExportPreset = useCallback((presetName) => {
+    const presetJson = presets.export(presetName);
+    if (!presetJson) return;
     
-    // Refresh presets list
-    const updatedPresets = presets.getAll();
-    setAvailablePresets(updatedPresets);
-  }
-}, [newPresetName, availablePresets, presets, isNewPresetNameValid]);
-
-// Load a preset
-const handleLoadPreset = useCallback((presetName) => {
-  setSelectedPreset(presetName);
-  setConfirmOperation({
-    type: 'load',
-    presetName,
-    action: () => {
-      presets.load(presetName);
-      setConfirmOperation(null);
-      setSelectedPreset(null);
-    }
-  });
-}, [presets]);
-
-// Delete a preset
-const handleDeletePreset = useCallback((presetName) => {
-  setSelectedPreset(presetName);
-  setConfirmOperation({
-    type: 'delete',
-    presetName,
-    action: () => {
-      presets.delete(presetName);
-      setConfirmOperation(null);
-      setSelectedPreset(null);
-      
-      // Refresh presets list
-      const updatedPresets = presets.getAll();
-      setAvailablePresets(updatedPresets);
-    }
-  });
-}, [presets]);
-
-// Cancel operation
-const handleCancelOperation = useCallback(() => {
-  setConfirmOperation(null);
-  setSelectedPreset(null);
-}, []);
-
-// Export a preset to JSON
-const handleExportPreset = useCallback((presetName) => {
-  const presetJson = presets.export(presetName);
-  if (!presetJson) return;
-  
-  // Create a blob object to save
-  const blob = new Blob([presetJson], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  
-  // Create a temporary link element and trigger download
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${presetName.replace(/\s+/g, '_')}_preset.json`;
-  document.body.appendChild(a);
-  a.click();
-  
-  // Cleanup
-  setTimeout(() => {
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-  }, 0);
-}, [presets]);
-
-// Show import UI
-const handleShowImport = useCallback(() => {
-  setIsImporting(true);
-  setImportText('');
-  setImportError(null);
-}, []);
-
-// Hide import UI
-const handleCancelImport = useCallback(() => {
-  setIsImporting(false);
-  setImportText('');
-  setImportError(null);
-}, []);
-
-// import validation state
-const isImportTextValid = useMemo(() => 
-  importText.trim() !== '', 
-  [importText]
-);
-
-// Import from text
-const handleImportFromText = useCallback(() => {
-  if (!isImportTextValid) {
-    setImportError('Please enter valid JSON data');
-    return;
-  }
-  
-  try {
-    const result = presets.import(importText);
+    // Create a blob object to save
+    const blob = new Blob([presetJson], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
     
-    if (result.success) {
-      setIsImporting(false);
-      setImportText('');
-      setImportError(null);
-      
-      // Refresh presets list
-      const updatedPresets = presets.getAll();
-      setAvailablePresets(updatedPresets);
-    } else {
-      setImportError(result.error || 'Failed to import preset');
-    }
-  } catch (error) {
-    setImportError(`Error importing preset: ${error.message}`);
-  }
-}, [importText, presets, isImportTextValid]);
+    // Create a temporary link element and trigger download
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${presetName.replace(/\s+/g, '_')}_preset.json`;
+    document.body.appendChild(a);
+    a.click();
+    
+    // Cleanup
+    setTimeout(() => {
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    }, 0);
+  }, [presets]);
 
-// Handle file selection for import
-const handleFileSelect = useCallback((e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  
-  const reader = new FileReader();
-  
-  reader.onload = (event) => {
+  // Show import UI
+  const handleShowImport = useCallback(() => {
+    setIsImporting(true);
+    setImportText('');
+    setImportError(null);
+  }, []);
+
+  // Hide import UI
+  const handleCancelImport = useCallback(() => {
+    setIsImporting(false);
+    setImportText('');
+    setImportError(null);
+  }, []);
+
+  // import validation state
+  const isImportTextValid = useMemo(() => 
+    importText.trim() !== '', 
+    [importText]
+  );
+
+  // Import from text
+  const handleImportFromText = useCallback(() => {
+    if (!isImportTextValid) {
+      setImportError('Please enter valid JSON data');
+      return;
+    }
+    
     try {
-      const fileContent = event.target.result;
-      setImportText(fileContent);
+      const result = presets.import(importText);
       
-      // Clear file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = null;
+      if (result.success) {
+        setIsImporting(false);
+        setImportText('');
+        setImportError(null);
+        
+        // Refresh presets list
+        const updatedPresets = presets.getAll();
+        setAvailablePresets(updatedPresets);
+      } else {
+        setImportError(result.error || 'Failed to import preset');
       }
     } catch (error) {
-      setImportError(`Error reading file: ${error.message}`);
+      setImportError(`Error importing preset: ${error.message}`);
     }
-  };
-  
-  reader.onerror = () => {
-    setImportError('Error reading file');
-  };
-  
-  reader.readAsText(file);
-}, []);
+  }, [importText, presets, isImportTextValid]);
+
+  // Handle file selection for import
+  const handleFileSelect = useCallback((e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    
+    reader.onload = (event) => {
+      try {
+        const fileContent = event.target.result;
+        setImportText(fileContent);
+        
+        // Clear file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = null;
+        }
+      } catch (error) {
+        setImportError(`Error reading file: ${error.message}`);
+      }
+    };
+    
+    reader.onerror = () => {
+      setImportError('Error reading file');
+    };
+    
+    reader.readAsText(file);
+  }, []);
 
   // the confirmation dialog content
   const confirmDialogContent = useMemo(() => {
@@ -659,6 +622,21 @@ const handleFileSelect = useCallback((e) => {
     isNewPresetNameValid
   ]);
 
+  // Render audio layer controls
+  const renderLayerControls = useCallback(() => {
+    return (
+      <div className={styles.layerControlsContent}>
+        {Object.values(layers.TYPES).map(layer => (
+          <LayerControl
+            key={layer}
+            label={layer.charAt(0).toUpperCase() + layer.slice(1)}
+            layer={layer}
+          />
+        ))}
+      </div>
+    );
+  }, [layers.TYPES]);
+
   return (
     <div className={styles.simplePlayer}>
       <h1 className={styles.title}>Ensō Audio</h1>
@@ -669,12 +647,13 @@ const handleFileSelect = useCallback((e) => {
       
       {/* Main player and controls */}
       <PlayerControlPanel 
-  timelineEnabled={timelineEnabled}
-  onDurationChange={handleDurationChange}
-  ref={timelineComponentRef}
-/>
-        {/* Collapsible Section for Audio Layers */}
-        <CollapsibleSection 
+        timelineEnabled={timelineEnabled}
+        onDurationChange={handleDurationChange}
+        ref={timelineComponentRef}
+      />
+      
+      {/* Collapsible Section for Audio Layers */}
+      <CollapsibleSection 
         title="Audio Layers" 
         initialExpanded={false}
       >
