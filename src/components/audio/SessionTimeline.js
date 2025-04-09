@@ -348,7 +348,7 @@ const setTransitionState = useCallback((isTransitioning, force = false) => {
   }, [timelineIsPlaying, playback.isPlaying, timeline, setTransitionState, currentTime]);
 
 
-// Reset Timeline
+// Restart Timeline
 const handleRestartTimeline = useCallback(() => {
   console.log("[SessionTimeline: handleRestartTimeline] Restarting timeline immediately to pre-onset phase");
   
