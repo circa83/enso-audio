@@ -280,6 +280,53 @@ const setTransitionState = useCallback((isTransitioning, force = false) => {
   }, [editMode]);
  
 
+
+// Apply Pre-Onset Phase 
+const applyPreOnsetPhase = useCallback(() => {
+  console.log("[SessionTimeline: applyPreOnsetPhase] Applying pre-onset phase state immediately");
+  
+  // Find the pre-onset phase
+  const preOnsetPhase = phases.find(p => p.id === 'pre-onset');
+  
+  if (preOnsetPhase && preOnsetPhase.state) {
+    console.log("[SessionTimeline: applyPreOnsetPhase] Found pre-onset phase with saved state");
+    
+    // Immediately set volumes without transitions
+    if (preOnsetPhase.state.volumes) {
+      Object.entries(preOnsetPhase.state.volumes).forEach(([layer, vol]) => {
+        console.log(`[SessionTimeline: applyPreOnsetPhase] Setting ${layer} volume to ${vol}`);
+        volume.setLayer(layer, vol, { immediate: true });
+      });
+    }
+    
+    // Immediately switch to pre-onset tracks without crossfade
+    if (preOnsetPhase.state.activeAudio) {
+      Object.entries(preOnsetPhase.state.activeAudio).forEach(([layer, trackId]) => {
+        if (trackId !== layers.active[layer]) {
+          console.log(`[SessionTimeline: applyPreOnsetPhase] Switching ${layer} to track ${trackId}`);
+          // Use a minimal 50ms transition to prevent audio pops but still be immediate
+          transitions.crossfade(layer, trackId, 50);
+        }
+      });
+    }
+    
+    // Set pre-onset as the active phase
+    lastActivePhaseId.current = 'pre-onset';
+    setActivePhase('pre-onset');
+  } else {
+    console.log("[SessionTimeline: applyPreOnsetPhase] No pre-onset phase state found, using defaults");
+    
+    // Apply default state for layers if no pre-onset phase state exists
+    Object.values(layers.TYPES).forEach(layer => {
+      const layerKey = layer.toLowerCase();
+      // Set drone to 25%, all others to 0
+      const defaultVolume = layerKey === 'drone' ? 0.25 : 0;
+      volume.setLayer(layerKey, defaultVolume, { immediate: true });
+    });
+  }
+}, [phases, volume, layers, transitions]);
+
+
   //Toggle timeline playback
   const toggleTimelinePlayback = useCallback(() => {
     // Only allow starting timeline if audio is playing
@@ -345,53 +392,8 @@ const setTransitionState = useCallback((isTransitioning, force = false) => {
       
       setTransitionState(false, true); // Force update transition state
     }
-  }, [timelineIsPlaying, playback.isPlaying, timeline, setTransitionState, currentTime]);
+  }, [timelineIsPlaying, applyPreOnsetPhase, playback.isPlaying, timeline, setTransitionState, currentTime]);
 
-
-// Apply Pre-Onset Phase 
-const applyPreOnsetPhase = useCallback(() => {
-  console.log("[SessionTimeline: applyPreOnsetPhase] Applying pre-onset phase state immediately");
-  
-  // Find the pre-onset phase
-  const preOnsetPhase = phases.find(p => p.id === 'pre-onset');
-  
-  if (preOnsetPhase && preOnsetPhase.state) {
-    console.log("[SessionTimeline: applyPreOnsetPhase] Found pre-onset phase with saved state");
-    
-    // Immediately set volumes without transitions
-    if (preOnsetPhase.state.volumes) {
-      Object.entries(preOnsetPhase.state.volumes).forEach(([layer, vol]) => {
-        console.log(`[SessionTimeline: applyPreOnsetPhase] Setting ${layer} volume to ${vol}`);
-        volume.setLayer(layer, vol, { immediate: true });
-      });
-    }
-    
-    // Immediately switch to pre-onset tracks without crossfade
-    if (preOnsetPhase.state.activeAudio) {
-      Object.entries(preOnsetPhase.state.activeAudio).forEach(([layer, trackId]) => {
-        if (trackId !== layers.active[layer]) {
-          console.log(`[SessionTimeline: applyPreOnsetPhase] Switching ${layer} to track ${trackId}`);
-          // Use a minimal 50ms transition to prevent audio pops but still be immediate
-          transitions.crossfade(layer, trackId, 50);
-        }
-      });
-    }
-    
-    // Set pre-onset as the active phase
-    lastActivePhaseId.current = 'pre-onset';
-    setActivePhase('pre-onset');
-  } else {
-    console.log("[SessionTimeline: applyPreOnsetPhase] No pre-onset phase state found, using defaults");
-    
-    // Apply default state for layers if no pre-onset phase state exists
-    Object.values(layers.TYPES).forEach(layer => {
-      const layerKey = layer.toLowerCase();
-      // Set drone to 25%, all others to 0
-      const defaultVolume = layerKey === 'drone' ? 0.25 : 0;
-      volume.setLayer(layerKey, defaultVolume, { immediate: true });
-    });
-  }
-}, [phases, volume, layers, transitions]);
 
 
 // Restart Timeline
