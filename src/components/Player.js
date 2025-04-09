@@ -48,6 +48,10 @@ const Player = () => {
   
   // Track previous playback state
   const wasPlaying = useRef(playback.isPlaying);
+  const lastDurationRef = useRef(sessionDuration);
+  const lastTransitionRef = useRef(transitionDuration);
+  const preventUpdateCycle = useRef(false);
+  const settingsInitialized = useRef(false);
 
   // Toggle debug panel with Ctrl+Shift+D
   useEffect(() => {
@@ -106,121 +110,169 @@ const Player = () => {
       window.removeEventListener('sessionSettings-update', handleSessionSettingsUpdate);
     };
   }, []);
-  
-  // Effect to handle settings updates and ensure UI reactivity
-  useEffect(() => {
-    // This effect will run whenever sessionDuration, timelineEnabled, or transitionDuration changes
-    console.log('Settings changed, ensuring UI updates:', {
-      sessionDuration,
-      timelineEnabled,
-      transitionDuration
-    });
-    
-    // If we have a timeline component and it's available
-    if (timeline) {
-      // Ensure timeline duration is synced
-      if (timeline.setDuration) {
-        timeline.setDuration(sessionDuration);
-      }
-      
-      // Ensure transition duration is synced
-      if (timeline.setTransitionDuration) {
-        timeline.setTransitionDuration(transitionDuration);
-      }
-      
-      // Force a UI update by triggering a state refresh of the phases
-      if (timeline.phases && timeline.updatePhases) {
-        console.log('Refreshing timeline phases to trigger UI update');
-        timeline.updatePhases([...timeline.phases]);
-      }
-    }
-  }, [timeline]);
 
-  // Effect to ensure Timeline is updated when settings change
-  useEffect(() => {
-    console.log("Session settings changed - updating timeline components");
-    
-    // Force the timeline to update its duration if it exists
-    if (timeline && timeline.setDuration) {
-      timeline.setDuration(sessionDuration);
-    }
-    
-    // Force the timeline to update its transition duration if it exists
-    if (timeline && timeline.setTransitionDuration) {
-      timeline.setTransitionDuration(transitionDuration);
-    }
-    
-  }, [sessionDuration, transitionDuration, timeline]);
-  
   // Update wasPlaying ref when playback changes
   useEffect(() => {
     wasPlaying.current = playback.isPlaying;
   }, [playback.isPlaying]);
 
-  // timeline settings handlers
-  const handleDurationChange = useCallback((newDuration) => {
-    console.log(`Player received new session duration: ${newDuration}ms`);
+  // Single initialization effect - replaces multiple effects
+useEffect(() => {
+  // Only run this initialization once
+  if (!settingsInitialized.current && timeline) {
+    console.log('Initializing timeline settings');
     
-    //update local state
+    // Set the flag to prevent recursive updates during initialization
+    preventUpdateCycle.current = true;
+    
+    try {
+      // Initialize timeline duration
+      if (timeline.setDuration) {
+        console.log('Setting initial timeline duration:', sessionDuration);
+        timeline.setDuration(sessionDuration);
+      }
+      
+      // Initialize transition duration
+      if (timeline.setTransitionDuration) {
+        console.log('Setting initial transition duration:', transitionDuration);
+        timeline.setTransitionDuration(transitionDuration);
+      }
+      
+      // Initialize timeline enabled state
+      if (timeline.setTimelineEnabled) {
+        console.log('Setting initial timeline enabled state:', timelineEnabled);
+        timeline.setTimelineEnabled(timelineEnabled);
+      }
+      
+      // Mark as initialized
+      settingsInitialized.current = true;
+    } finally {
+      // Reset the prevention flag after a small delay
+      setTimeout(() => {
+        preventUpdateCycle.current = false;
+        console.log('Initialization complete, allowing updates');
+      }, 100);
+    }
+  }
+}, [timeline, sessionDuration, transitionDuration, timelineEnabled]);
+
+// Event listening effect for external updates
+useEffect(() => {
+  // Handler for external timeline settings updates
+  const handleExternalUpdate = (event) => {
+    // Skip if we're preventing update cycles
+    if (preventUpdateCycle.current) {
+      console.log('Ignoring external update during prevention period');
+      return;
+    }
+    
+    const data = event.detail;
+    console.log('Received external timeline settings update:', data);
+    
+    // Set the flag to prevent recursive updates
+    preventUpdateCycle.current = true;
+    
+    try {
+      // Update our local state to match external changes
+      if (data.sessionDuration) {
+        setSessionDuration(data.sessionDuration);
+      }
+      
+      if (data.transitionDuration) {
+        setTransitionDuration(data.transitionDuration);
+      }
+      
+      if (data.timelineEnabled !== undefined) {
+        setTimelineEnabled(data.timelineEnabled);
+      }
+    } finally {
+      // Reset the prevention flag after a delay
+      setTimeout(() => {
+        preventUpdateCycle.current = false;
+        console.log('External update handling complete');
+      }, 100);
+    }
+  };
+  
+  // Add event listeners for external updates
+  window.addEventListener('timeline-settings-update', handleExternalUpdate);
+  window.addEventListener('sessionSettings-update', handleExternalUpdate);
+  
+  return () => {
+    window.removeEventListener('timeline-settings-update', handleExternalUpdate);
+    window.removeEventListener('sessionSettings-update', handleExternalUpdate);
+  };
+}, []);
+
+
+  //======= Timeline settings handlers=====
+
+  const handleDurationChange = useCallback((newDuration) => {
+    // Prevent recursive updates
+    if (preventUpdateCycle.current) {
+      console.log('Prevented recursive duration update:', newDuration);
+      return;
+    }
+    
+    console.log('Player received new duration:', newDuration);
+    
+    // Set local state
     setSessionDuration(newDuration);
     
-    // Make sure this is passed to the timeline service
-    if (timeline.setDuration) {
-      console.log('Updating timeline duration service:', newDuration);
-      //ensure this happens synchronously
+    // Only update timeline service once, directly
+    if (timeline && timeline.setDuration) {
+      console.log('Directly updating timeline duration service:', newDuration);
       timeline.setDuration(newDuration);
-
-      // Trigger a phase update to refresh the timeline display
-      if (timeline.updatePhases && timelinePhases.length > 0) {
-        console.log('Refreshing timeline phases after duration change');
-        const phasesClone = [...timelinePhases];
-        timeline.updatePhases(phasesClone);
-      }
     }
-
-    // Force timeline component to update
-    const timelineEvent = new CustomEvent('timeline-duration-changed', { 
-      detail: { duration: newDuration } 
-    });
-    window.dispatchEvent(timelineEvent);
-  }, [timeline, timelinePhases]);
-  
-  const handleTransitionDurationChange = useCallback((newDuration) => {
-    console.log(`Player received new transition duration: ${newDuration}ms`);
     
-    //Update local state
-    setTransitionDuration(newDuration);
-    
-    // Make sure this is passed to the timeline service
-    if (timeline.setTransitionDuration) {
-      console.log('Updating timeline transition duration service:', newDuration);
-      timeline.setTransitionDuration(newDuration);
-    
-      // Trigger a custom event to force updates
-      const event = new CustomEvent('timeline-transition-changed', { 
-        detail: { duration: newDuration } 
-      });
-      window.dispatchEvent(event);
-    }
+    // Mark settings as initialized
+    settingsInitialized.current = true;
   }, [timeline]);
 
-  const handleTimelineToggle = useCallback((enabled) => {
-    console.log(`Timeline toggle: ${enabled}`);
-    setTimelineEnabled(enabled);
-    
-    // Update the timeline enabled state in the audio context
-    // This is important to make sure the context knows the timeline state
-    if (timeline && timeline.setTimelineEnabled) {
-      timeline.setTimelineEnabled(enabled);
-    }
-    // Force an update by triggering a custom event
-    const event = new CustomEvent('timeline-enabled-changed', { 
-      detail: { enabled: enabled } 
-    });
-    window.dispatchEvent(event);
-  }, [timeline]);
+const handleTransitionDurationChange = useCallback((newDuration) => {
+  // Prevent recursive updates
+  if (preventUpdateCycle.current) {
+    console.log('Prevented recursive transition update:', newDuration);
+    return;
+  }
   
-  // Render session settings content
+  console.log('Player received new transition duration:', newDuration);
+  
+  // Set local state
+  setTransitionDuration(newDuration);
+  
+  // Update timeline service directly
+  if (timeline && timeline.setTransitionDuration) {
+    console.log('Directly updating timeline transition duration:', newDuration);
+    timeline.setTransitionDuration(newDuration);
+  }
+  
+  // Mark settings as initialized
+  settingsInitialized.current = true;
+}, [timeline]);
+
+const handleTimelineToggle = useCallback((enabled) => {
+  console.log('Timeline toggle:', enabled);
+  
+  // Prevent recursive updates
+  if (preventUpdateCycle.current) {
+    console.log('Prevented recursive timeline toggle');
+    return;
+  }
+  
+  setTimelineEnabled(enabled);
+  
+  // Update the timeline enabled state in the service directly
+  if (timeline && timeline.setTimelineEnabled) {
+    timeline.setTimelineEnabled(enabled);
+  }
+  
+  // Mark settings as initialized
+  settingsInitialized.current = true;
+}, [timeline]);
+
+  //======= Render Session settings =======
+
   const renderSessionSettings = useCallback(() => {
     return (
       <SessionSettings 
