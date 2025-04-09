@@ -1,11 +1,11 @@
 // src/components/audio/SessionSettings.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import styles from '../../styles/components/SessionSettings.module.css';
 
 const SessionSettings = ({ 
   sessionDuration, 
   timelineEnabled,
-  transitionDuration = 4000, // Default to 4 seconds
+  transitionDuration, // Default to 4 seconds
   onDurationChange,
   onTransitionDurationChange,
   onTimelineToggle
@@ -16,55 +16,94 @@ const SessionSettings = ({
   const [durationSeconds, setDurationSeconds] = useState(Math.floor((sessionDuration % (60 * 1000)) / 1000));
   
   // Initialize with default 4 second transition
-  useEffect(() => {
+  /*useEffect(() => {
     if (onTransitionDurationChange && transitionDuration !== 4000) {
-      onTransitionDurationChange(4000);
+      onTransitionDurationChange(4000); // Fallback to 4 seconds if undefined
     }
-  }, []);
-  
-  // Handle duration change
-  const handleDurationChange = () => {
+  }, [onTransitionDurationChange, transitionDuration]);
+  */
+
+  // Handle duration change with useCallback
+  const handleDurationChange = useCallback(() => {
     const newDuration = (durationHours * 60 * 60 * 1000) + 
                         (durationMinutes * 60 * 1000) + 
                         (durationSeconds * 1000);
+    console.log(`Setting session duration to: ${newDuration}ms`);
     onDurationChange(newDuration);
-  };
+  }, [durationHours, durationMinutes, durationSeconds, onDurationChange]);
   
-  // Handle hours input change
-  const handleHoursChange = (e) => {
+  // Handle hours input change with useCallback
+  const handleHoursChange = useCallback((e) => {
     const value = parseInt(e.target.value, 10);
     if (!isNaN(value) && value >= 0 && value <= 12) {
       setDurationHours(value);
-    }
-  };
+    // Use a micro-task to allow state to update first
+    setTimeout(() => {
+      const newDuration = (value * 60 * 60 * 1000) + 
+                          (durationMinutes * 60 * 1000) + 
+                          (durationSeconds * 1000);
+      onDurationChange(newDuration);
+    }, 0);
+  }
+}, [onDurationChange, durationMinutes, durationSeconds]);
   
-  // Handle minutes input change
-  const handleMinutesChange = (e) => {
+  // Handle minutes input change with useCallback
+  const handleMinutesChange = useCallback((e) => {
     const value = parseInt(e.target.value, 10);
     if (!isNaN(value) && value >= 0 && value < 60) {
       setDurationMinutes(value);
-    }
-  };
+   // Use a micro-task to allow state to update first
+   setTimeout(() => {
+    const newDuration = (durationHours * 60 * 60 * 1000) + 
+                        (value * 60 * 1000) + 
+                        (durationSeconds * 1000);
+    onDurationChange(newDuration);
+  }, 0);
+}
+}, [onDurationChange, durationHours, durationSeconds]);
   
-  // Handle seconds input change
-  const handleSecondsChange = (e) => {
+  // Handle seconds input change with useCallback
+  const handleSecondsChange = useCallback((e) => {
     const value = parseInt(e.target.value, 10);
     if (!isNaN(value) && value >= 0 && value < 60) {
       setDurationSeconds(value);
+      // Use a micro-task to allow state to update first
+      setTimeout(() => {
+        const newDuration = (durationHours * 60 * 60 * 1000) + 
+                            (durationMinutes * 60 * 1000) + 
+                            (value * 1000);
+        onDurationChange(newDuration);
+      }, 0);
     }
-  };
+  }, [onDurationChange, durationHours, durationMinutes]);
   
-  // Apply changes on blur
-  const handleBlur = () => {
+  // Apply changes on blur with useCallback
+  const handleBlur = useCallback(() => {
+    console.log("Input field blur - validating values");
     handleDurationChange();
-  };
+  }, [handleDurationChange]);
   
-  // Handle transition duration change
-  const handleTransitionDurationChange = (e) => {
+  // Handle transition duration change with useCallback
+  const handleTransitionDurationChange = useCallback((e) => {
     const value = parseInt(e.target.value, 10);
+    console.log(`Setting transition duration to: ${value}ms`);
     onTransitionDurationChange(value);
-  };
+  }, [onTransitionDurationChange]);
   
+  // Handle timeline toggle with useCallback
+  const handleTimelineToggle = useCallback((enabled) => {
+    console.log(`Timeline toggle: ${enabled}`);
+    
+    if (onTimelineToggle) {
+     onTimelineToggle(enabled)
+    } 
+    // Force an update by triggering a custom event
+    const event = new CustomEvent('timeline-enabled-changed', { 
+      detail: { enabled: enabled } 
+    });
+    window.dispatchEvent(event);
+  }, [onTimelineToggle]);
+
   return (
     <div className={styles.settingsContainer}>
       <div className={styles.settingGroup}>
@@ -72,19 +111,39 @@ const SessionSettings = ({
         <div className={styles.settingToggle}>
           <button 
             className={`${styles.toggleButton} ${timelineEnabled ? styles.active : ''}`}
-            onClick={() => onTimelineToggle(true)}
+            onClick={() => handleTimelineToggle(true)}
           >
             Enabled
           </button>
           <button 
             className={`${styles.toggleButton} ${!timelineEnabled ? styles.active : ''}`}
-            onClick={() => onTimelineToggle(false)}
+            onClick={() => handleTimelineToggle(false)}
           >
             Disabled
           </button>
         </div>
       </div>
       
+       
+      <div className={styles.settingGroup}>
+            <label className={styles.settingLabel}>
+              Transition Duration: {(transitionDuration / 1000).toFixed(1)} seconds
+            </label>
+            <input 
+              type="range" 
+              min="2000" 
+              max="30000" 
+              step="1000" 
+              value={transitionDuration}
+              onChange={handleTransitionDurationChange}
+              className={styles.rangeInput}
+            />
+            <div className={styles.rangeLabels}>
+              <span>Fast (2s)</span>
+              <span>Slow (30s)</span>
+            </div>
+          </div>
+
       {timelineEnabled && (
         <>
           <div className={styles.settingGroup}>
@@ -130,25 +189,7 @@ const SessionSettings = ({
               </div>
             </div>
           </div>
-          
-          <div className={styles.settingGroup}>
-            <label className={styles.settingLabel}>
-              Transition Duration: {(transitionDuration / 1000).toFixed(1)} seconds
-            </label>
-            <input 
-              type="range" 
-              min="2000" 
-              max="30000" 
-              step="1000" 
-              value={transitionDuration}
-              onChange={handleTransitionDurationChange}
-              className={styles.rangeInput}
-            />
-            <div className={styles.rangeLabels}>
-              <span>Fast (2s)</span>
-              <span>Slow (30s)</span>
-            </div>
-          </div>
+         
         </>
       )}
       
@@ -156,8 +197,9 @@ const SessionSettings = ({
         <p className={styles.settingInfo}>
           {timelineEnabled 
             ? 'With timeline enabled, audio layers will automatically adjust during the session based on your configured phases.'
-            : 'With timeline disabled, you have complete manual control over audio layers throughout the session.'}
-        </p>
+            : 'With timeline disabled, you have complete manual control over audio layers throughout the session.Transition duration still applies to crossfades between audio variations.'}
+  </p>
+        
       </div>
     </div>
   );

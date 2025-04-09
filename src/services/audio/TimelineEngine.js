@@ -14,7 +14,7 @@ class TimelineEngine {
      * @param {Function} options.onScheduledEvent - Callback triggered when a scheduled event occurs: (event) => void
      * @param {Function} options.onProgress - Callback for timeline progress updates: (progress, time) => void
      * @param {Object} [options.defaultPhases] - Initial phase configuration
-     * @param {number} [options.sessionDuration=3600000] - Total session duration in ms (default: 1 hour)
+     * @param {number} [options.sessionDuration=60000] - Total session duration in ms (default: 1 hour)
      * @param {number} [options.transitionDuration=4000] - Default phase transition duration in ms (default: 4 seconds)
      * @param {boolean} [options.enableLogging=false] - Enable detailed console logging
      */
@@ -27,7 +27,7 @@ class TimelineEngine {
       if (!options.onScheduledEvent) {
         throw new Error('TimelineEngine requires an onScheduledEvent callback');
       }
-      
+
       // Configuration
       this.config = {
         sessionDuration: options.sessionDuration || 3600000, // 1 hour default
@@ -130,20 +130,30 @@ class TimelineEngine {
           return true;
         }
         
-        this.log('Starting timeline');
+        this.log('Starting timeline. Reset=' + reset);
         
         // Reset elapsed time if requested
         if (reset) {
+          this.log('Performing full timeline reset before starting');
+          // Stop any existing timers
+          this.stopProgressTimer();
+          this.stopEventChecking();
           this.elapsedTime = 0;
           this.nextEventIndex = 0;
-        }
+           // Ensure we trigger initial progress updates
+      if (this.onProgress) {
+        this.onProgress(0, 0);
+      }
+      
+      this.log('Timeline reset to beginning');
+    }
         
         // Set start time based on current elapsed time
         this.startTime = Date.now() - this.elapsedTime;
         this.isPlaying = true;
         
         // Start progress timer
-        this.startProgressTimer();
+        this.startProgressTimer(true); // Added parameter for immediate updat
         
         // Start event checking
         this.startEventChecking();
@@ -151,6 +161,7 @@ class TimelineEngine {
         // Check for initial phase
         this.checkCurrentPhase();
         
+        this.log(`Timeline started successfully. Current elapsed time: ${this.elapsedTime}ms`);
         return true;
       } catch (error) {
         this.log(`Error starting timeline: ${error.message}`, 'error');
@@ -165,6 +176,7 @@ class TimelineEngine {
     stop() {
       try {
         if (!this.isPlaying) {
+          this.log('Timeline already stopped', 'info');
           return true;
         }
         
@@ -173,6 +185,7 @@ class TimelineEngine {
         // Update elapsed time before stopping
         if (this.startTime) {
           this.elapsedTime = Date.now() - this.startTime;
+          this.log(`Elapsed time updated to ${this.elapsedTime}ms`);
         }
         
         this.isPlaying = false;
@@ -182,6 +195,7 @@ class TimelineEngine {
         this.stopProgressTimer();
         this.stopEventChecking();
         
+        this.log('Timeline stopped successfully');
         return true;
       } catch (error) {
         this.log(`Error stopping timeline: ${error.message}`, 'error');
@@ -189,6 +203,81 @@ class TimelineEngine {
       }
     }
     
+/**
+ * Pause the timeline without resetting elapsed time
+ * This is different from stop() as it preserves position for later resuming
+ * @returns {boolean} Success state
+ */
+pauseTimeline() {
+  try {
+    if (!this.isPlaying) {
+      this.log('Timeline already paused', 'info');
+      return true;
+    }
+    
+    this.log('Pausing timeline (preserving position)');
+    
+    // Update elapsed time before pausing
+    if (this.startTime) {
+      this.elapsedTime = Date.now() - this.startTime;
+      this.log(`Elapsed time updated to ${this.elapsedTime}ms`);
+    }
+    
+    this.isPlaying = false;
+    this.startTime = null;
+    
+    // Stop timers
+    this.stopProgressTimer();
+    this.stopEventChecking();
+    
+    this.log('Timeline paused successfully');
+    return true;
+  } catch (error) {
+    this.log(`Error pausing timeline: ${error.message}`, 'error');
+    return false;
+  }
+}
+
+
+/**
+ * Resume the timeline from the current position
+ * This continues from the current elapsed time without resetting
+ * @returns {boolean} Success state
+ */
+resumeTimeline() {
+  try {
+    if (this.isPlaying) {
+      this.log('Timeline already playing', 'info');
+      return true;
+    }
+    
+    if (!this.isEnabled) {
+      this.log('Timeline is disabled, cannot resume', 'warn');
+      return false;
+    }
+    
+    this.log(`Resuming timeline from ${this.elapsedTime}ms`);
+    
+    // Set start time based on current elapsed time to ensure continuity
+    this.startTime = Date.now() - this.elapsedTime;
+    this.isPlaying = true;
+    
+    // Start progress timer 
+    this.startProgressTimer(true); // Force immediate update
+    
+    // Start event checking
+    this.startEventChecking();
+    
+    // Check for current phase
+    this.checkCurrentPhase();
+    
+    this.log(`Timeline resumed successfully from ${this.elapsedTime}ms`);
+    return true;
+  } catch (error) {
+    this.log(`Error resuming timeline: ${error.message}`, 'error');
+    return false;
+  }
+}
     /**
      * Reset the timeline state
      * @returns {boolean} Success state
@@ -208,6 +297,12 @@ class TimelineEngine {
         this.currentPhase = null;
         this.nextEventIndex = 0;
         
+        // Force a progress update to reflect reset
+        if (this.onProgress) {
+          this.onProgress(0, 0);
+        }
+        
+        this.log('Timeline reset complete');
         return true;
       } catch (error) {
         this.log(`Error resetting timeline: ${error.message}`, 'error');
@@ -257,7 +352,7 @@ class TimelineEngine {
         this.log('Invalid session duration', 'error');
         return false;
       }
-      
+      this.log(`Changing session duration from ${this.config.sessionDuration}ms to ${duration}ms`);
       this.config.sessionDuration = duration;
       this.log(`Session duration set to ${duration}ms`);
       
@@ -381,7 +476,7 @@ class TimelineEngine {
       
       // Update phases
       this.phases = sortedPhases;
-      this.log(`Updated phase ${phaseId}`);
+      this.log(`[TIMELINE-ENGINE: updatePhase] Updated phase ${phaseId}`);
       
       // Check if this affects current phase
       this.checkCurrentPhase();
@@ -411,7 +506,7 @@ class TimelineEngine {
       };
       
       this.phases = newPhases;
-      this.log(`Updated state for phase ${phaseId}`);
+      this.log(`[TIMELINE-ENGINE: setPhaseState] Updated state for phase ${phaseId}`);
       
       return true;
     }
@@ -429,6 +524,7 @@ class TimelineEngine {
      * @returns {Object|null} Current phase or null
      */
     getCurrentPhase() {
+      console.log('[TIMELINE-ENGINE: getCurrentPhase] Current phase:', this.currentPhase);
       return this.currentPhase;
     }
     
@@ -445,6 +541,7 @@ class TimelineEngine {
       return sortedPhases.find(phase => phase.position <= progress) || null;
     }
     
+    //SCHEDULED EVENTS
     /**
      * Add a scheduled event to the timeline
      * @param {Object} event - Event object
@@ -551,6 +648,12 @@ class TimelineEngine {
       // Check for phase change
       this.checkCurrentPhase();
       
+      // Trigger progress update
+      const progress = Math.min(100, (time / this.config.sessionDuration) * 100);
+      if (this.onProgress) {
+        this.onProgress(progress, time);
+      }
+      
       return true;
     }
     
@@ -569,25 +672,23 @@ class TimelineEngine {
       return this.seekTo(Math.round(time));
     }
     
-    /**
-     * Check and update the current active phase
-     * @private
-     */
+
+    // * Check and update the current active phase
     checkCurrentPhase() {
-      const progress = this.getProgress();
-      const activePhase = this.getPhaseAtProgress(progress);
-      
-      // Check if phase changed
-      if (activePhase && (!this.currentPhase || activePhase.id !== this.currentPhase.id)) {
-        this.log(`Phase changed to: ${activePhase.name} (${activePhase.id})`);
-        this.currentPhase = activePhase;
-        
-        // Trigger callback
-        if (this.onPhaseChange) {
-          this.onPhaseChange(activePhase.id, activePhase);
-        }
-      }
+  const progress = this.getProgress();
+  const activePhase = this.getPhaseAtProgress(progress);
+  
+  // Check if phase changed
+  if (activePhase && (!this.currentPhase || activePhase.id !== this.currentPhase.id)) {
+    this.log(`[TIMELINE-ENGINE: checkCurrentPhase] Active Phase changed to: ${activePhase.name} (${activePhase.id}) at progress ${progress.toFixed(2)}%`);
+    this.currentPhase = activePhase;
+    
+    // Trigger callback
+    if (this.onPhaseChange) {
+      this.onPhaseChange(activePhase.id, activePhase);
     }
+  }
+}
     
     /**
      * Start checking for scheduled events
@@ -602,10 +703,10 @@ class TimelineEngine {
       this.nextEventIndex = this.events.findIndex(e => e.time > this.getElapsedTime());
       if (this.nextEventIndex === -1) this.nextEventIndex = this.events.length;
       
-      // Start checking for events
+      // Start checking for events every 250ms for more responsive event triggering
       this.eventCheckTimer = setInterval(() => {
         this.checkScheduledEvents();
-      }, 1000); // Check every second
+      }, 250);
     }
     
     /**
@@ -635,7 +736,7 @@ class TimelineEngine {
              currentTime >= this.events[this.nextEventIndex].time) {
         
         const event = this.events[this.nextEventIndex];
-        this.log(`Triggering event: ${event.id} (${event.action})`);
+        this.log(`Triggering event: ${event.id} (${event.action}) at ${currentTime}ms`);
         
         // Trigger event callback
         if (this.onScheduledEvent) {
@@ -651,12 +752,22 @@ class TimelineEngine {
      * Start the progress update timer
      * @private
      */
-    startProgressTimer() {
-      if (this.progressTimer) {
-        clearInterval(this.progressTimer);
-      }
+startProgressTimer(immediate = false) {
+  if (this.progressTimer) {
+    clearInterval(this.progressTimer);
+  }
+  
+  // Trigger an immediate update if requested
+  if (immediate && this.onProgress) {
+    const elapsedTime = this.getElapsedTime();
+    const progress = this.getProgress();
+    this.onProgress(progress, elapsedTime);
+    
+    // Check for phase changes
+    this.checkCurrentPhase();
+  }
       
-      // Update progress every 100ms
+      // Update progress every 100ms for smoother UI updates
       this.progressTimer = setInterval(() => {
         const elapsedTime = this.getElapsedTime();
         const progress = this.getProgress();

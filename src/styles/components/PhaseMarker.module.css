@@ -11,18 +11,17 @@
     border-radius: 50%;
     background-color: transparent !important;
     cursor: pointer; /* Default cursor */
-    /* Include cursor in transition properties */
     transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, cursor 0s;
     touch-action: none; /* Prevent browser handling of touch gestures */
-}
-
-.phaseMarker:hover {
+  }
+  
+  .phaseMarker:hover {
     transform: translate(-50%, -50%) scale(1.2);
     box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
     z-index: 5;
-}
-
-.phaseMarker::before {
+  }
+  
+  .phaseMarker::before {
     content: '';
     position: absolute;
     height: 22px;
@@ -31,30 +30,30 @@
     bottom: -24px;
     left: 50%;
     transform: translateX(-50%);
-}
-
-.activeMarker {
+  }
+  
+  .activeMarker {
     border: 2px solid #ffffff;
     box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
-}
-
-.selectedMarker {
+  }
+  
+  .selectedMarker {
     border: 2px solid #ffaa00;
     z-index: 5;
     box-shadow: 0 0 10px rgba(255, 170, 0, 0.4);
-}
-
-/* Cursor for draggable markers in edit mode */
-.draggable {
+  }
+  
+  /* Cursor for draggable markers in edit mode */
+  .draggable {
     cursor: grab;
-}
-
-.fixed {
+  }
+  
+  .fixed {
     cursor: default;
-}
-
-/* Applied during active dragging */
-.dragging {
+  }
+  
+  /* Applied during active dragging */
+  .dragging {
     cursor: grabbing !important;
     transform: translate(-50%, -50%) scale(1.3) !important;
     z-index: 10 !important;
@@ -62,24 +61,24 @@
     box-shadow: 0 0 10px rgba(255, 170, 0, 0.5) !important;
     /* No transition during active drag for responsiveness */
     transition: none !important;
-}
-
-/* Applied immediately after dragging ends for a smooth return */
-.returnFromDrag {
+  }
+  
+  /* Applied immediately after dragging ends for a smooth return */
+  .returnFromDrag {
     /* Explicitly reset cursor immediately */
     cursor: grab !important;
     transition: transform 0.2s ease-out, 
                 border-color 0.2s ease-out, 
                 box-shadow 0.2s ease-out,
                 cursor 0s !important;
-}
-
-/* When not in edit mode, reset cursor to default */
-.returnFromDrag:not(.draggable) {
+  }
+  
+  /* When not in edit mode, reset cursor to default */
+  .returnFromDrag:not(.draggable) {
     cursor: pointer !important;
-}
-
-.timeStamp {
+  }
+  
+  .timeStamp {
     position: absolute;
     top: -55px;
     left: 50%;
@@ -97,9 +96,9 @@
     border-radius: 3px;
     z-index: 3;
     text-align: center;
-}
-
-.markerLabel {
+  }
+  
+  .markerLabel {
     position: absolute;
     top: -30px;
     left: 50%;
@@ -109,29 +108,28 @@
     color: #bbb;
     font-family: 'Archivo', sans-serif;
     letter-spacing: 0.5px;
-    /* Always visible */
     transition: opacity 0.2s ease;
     pointer-events: none;
     background-color: rgba(20, 20, 20, 0.8);
     padding: 2px 6px;
     border-radius: 3px;
     text-align: center;
-}
-
-/* Updated selectors for displaying the timestamp - only show on hover, selected or dragging */
-.phaseMarker:hover .timeStamp,
-.dragging .timeStamp,
-.selectedMarker .timeStamp {
+  }
+  
+  /* Updated selectors for displaying the timestamp - only show on hover, selected or dragging */
+  .phaseMarker:hover .timeStamp,
+  .dragging .timeStamp,
+  .selectedMarker .timeStamp {
     opacity: 1;
-}
-
-.phaseMarker:hover .captureButton,
-.selectedMarker .captureButton {
+  }
+  
+  .phaseMarker:hover .captureButton,
+  .selectedMarker .captureButton {
     opacity: 1;
-}
-
-/* State indicator for captured state */
-.stateIndicator {
+  }
+  
+  /* State indicator for captured state */
+  .stateIndicator {
     position: absolute;
     bottom: -36px;
     left: 50%;
@@ -147,9 +145,9 @@
     color: #fff;
     font-size: 0.7rem;
     pointer-events: none;
-}
-
-.captureButton {
+  }
+  
+  .captureButton {
     position: absolute;
     bottom: -40px;
     left: 50%;
@@ -172,23 +170,23 @@
     display: flex;
     align-items: center;
     justify-content: center;
-}
-
-.captureButton:hover,
-.captureButton:active {
+  }
+  
+  .captureButton:hover,
+  .captureButton:active {
     background-color: #333;
     color: #fff;
     border-color: #555;
-}
-
-/* Always show the capture button when the marker is selected */
-.selectedMarker .captureButton {
+  }
+  
+  /* Always show the capture button when the marker is selected */
+  .selectedMarker .captureButton {
     opacity: 1;
     display: flex !important;
-}
-
-/* Larger touch target - invisible element to make it easier to grab on mobile */
-.phaseMarker::after {
+  }
+  
+  /* Larger touch target - invisible element to make it easier to grab on mobile */
+  .phaseMarker::after {
     content: '';
     position: absolute;
     width: 40px;
@@ -197,49 +195,49 @@
     left: 50%;
     transform: translate(-50%, -50%);
     z-index: -1;
-}
-
-@media (max-width: 768px) {
+  }
+  
+  @media (max-width: 768px) {
     .phaseMarker {
-        width: 18px; 
-        height: 18px;
+      width: 18px; 
+      height: 18px;
     }
     
     .captureButton {
-        padding: 6px 10px;
-        font-size: 0.8rem;
-        bottom: -40px;
-        min-width: 100px;
-        min-height: 36px;
+      padding: 6px 10px;
+      font-size: 0.8rem;
+      bottom: -40px;
+      min-width: 100px;
+      min-height: 36px;
     }
     
     .markerLabel {
-        font-size: 0.7rem;
-        top: -25px;
+      font-size: 0.7rem;
+      top: -25px;
     }
     
     .timeStamp {
-        font-size: 0.65rem;
-        top: -45px;
-        padding: 1px 4px;
+      font-size: 0.65rem;
+      top: -45px;
+      padding: 1px 4px;
     }
     
     .phaseMarker::before {
-        height: 18px;
-        bottom: -20px;
+      height: 18px;
+      bottom: -20px;
     }
     
     /* Even larger invisible touch target for mobile */
     .phaseMarker::after {
-        width: 50px;
-        height: 50px;
+      width: 50px;
+      height: 50px;
     }
     
     /* Adjust state indicator for mobile */
     .stateIndicator {
-        width: 18px;
-        height: 18px;
-        bottom: -38px;
-        font-size: 0.8rem;
+      width: 18px;
+      height: 18px;
+      bottom: -38px;
+      font-size: 0.8rem;
     }
-}
+  }

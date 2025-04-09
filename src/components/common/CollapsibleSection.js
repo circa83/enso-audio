@@ -1,5 +1,5 @@
 // src/components/common/CollapsibleSection.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import styles from '../../styles/components/CollapsibleSection.module.css';
 
 const CollapsibleSection = ({ 
@@ -20,11 +20,19 @@ const CollapsibleSection = ({
     }
   }, [isExpanded, onExpand]);
   
-  // Toggle expanded state
-  const toggleExpanded = () => {
+  // Toggle expanded state with useCallback
+  const toggleExpanded = useCallback(() => {
     const newExpandedState = !isExpanded;
     setIsExpanded(newExpandedState);
-  };
+
+    // Only call onExpand if truly expanding (not collapsing)
+    if (newExpandedState && onExpand) {
+      // Use setTimeout to defer the callback until after state update
+      setTimeout(() => {
+        onExpand();
+      }, 0);
+    }
+  }, [isExpanded, onExpand]);
   
   return (
     <div className={`${styles.sectionContainer} ${className}`}>
@@ -45,4 +53,5 @@ const CollapsibleSection = ({
   );
 };
 
-export default CollapsibleSection;
+// Export with memoization to prevent unnecessary re-renders
+export default React.memo(CollapsibleSection);

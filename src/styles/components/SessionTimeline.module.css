@@ -2,8 +2,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@100;200;300&family=Space+Mono&display=swap');
 
 .timelineContainer {
-  margin: 50px 0;
-  padding: 35px;
+  margin: 5px 0;
+  padding: 20px 40px;
   background-color: #1c1c1c;
   border: 1px solid #333;
   width: 100%;
@@ -25,13 +25,13 @@
   color: #aaaaaa;
   letter-spacing: 2px;
   text-transform: uppercase;
+  margin: 0;
 }
 
 .timelineControls {
   display: flex;
   gap: 10px;
 }
-
 .controlButton {
   background-color: transparent;
   border: 1px solid #555;
@@ -95,6 +95,14 @@
   color: #666;
 }
 
+/* Timeline wrapper to allow proper positioning of markers */
+.timelineWrapper {
+  position: relative;
+  width: 100%;
+  height: 40px; /* Adjust if needed to give space for markers */
+  margin: 40px 0 10px;
+}
+
 .timeline {
   position: relative;
   height: 6px;
@@ -104,8 +112,18 @@
   cursor: pointer;
   overflow: visible;
   border-radius: 3px;
+  transition: transform 0.1s ease;
 }
 
+.controlButton.active {
+  border-color: #ffaa00;
+  color: #ffaa00;
+}
+
+.controlButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 /* Slider-like appearance */
 .timeline::before {
   content: '';
@@ -179,7 +197,7 @@
   .timelineTitle {
     font-size: 1rem;
   }
-  
+
   .controlButton {
     font-size: 0.65rem;
     padding: 4px 10px;

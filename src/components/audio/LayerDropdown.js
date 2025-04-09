@@ -1,6 +1,6 @@
 // src/components/audio/LayerDropdown.js
-import React, { useState, useRef, useEffect } from 'react';
-import { useAudio } from '../../contexts/StreamingAudioContext';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useAudio } from '../../hooks/useAudio'; // Import the refactored hook
 import styles from '../../styles/components/LayerDropdown.module.css';
 
 const LayerDropdown = ({ layer }) => {
@@ -11,7 +11,8 @@ const LayerDropdown = ({ layer }) => {
     activeCrossfades,
     crossfadeProgress,
     preloadProgress,
-    isPlaying
+    isPlaying,
+    transitionDuration
   } = useAudio();
   
   const [isExpanded, setIsExpanded] = useState(false);
@@ -20,7 +21,7 @@ const LayerDropdown = ({ layer }) => {
   const toggleButtonRef = useRef(null);
   
   // Get z-index based on layer name for proper stacking
-  const getZIndexForLayer = (layerName) => {
+  const getZIndexForLayer = useCallback((layerName) => {
     // Significantly increased z-index values with wider gaps between them
     switch(layerName.toLowerCase()) {
       case 'drone':
@@ -34,10 +35,10 @@ const LayerDropdown = ({ layer }) => {
       default:
         return 8000; // Fallback
     }
-  };
+  }, []); // No dependencies since this is a pure function
 
   // Update menu position function
-  const updateMenuPosition = () => {
+  const updateMenuPosition = useCallback(() => {
     if (!toggleButtonRef.current) return;
     
     const rect = toggleButtonRef.current.getBoundingClientRect();
@@ -45,7 +46,41 @@ const LayerDropdown = ({ layer }) => {
       top: rect.bottom,
       left: rect.left
     });
-  };
+  }, [toggleButtonRef]); // Depend on the ref
+  
+  // Toggle dropdown visibility with useCallback
+  const toggleDropdown = useCallback((e) => {
+    e.stopPropagation(); // Prevent event from reaching parent elements
+    setIsExpanded(prev => !prev);
+  }, []); // No external dependencies needed
+  
+  // Handle track selection with useCallback
+  const handleTrackSelect = useCallback((e, trackId) => {
+    e.stopPropagation(); // Important: prevent event bubbling
+    e.preventDefault();
+    
+    // Don't allow selection during active crossfade
+    if (activeCrossfades && activeCrossfades[layer]) {
+      console.log(`Crossfade already in progress for ${layer}`);
+      return;
+    }
+    
+    // Skip if already selected
+    if (trackId === activeAudio[layer]) {
+      setIsExpanded(false);
+      return;
+    }
+    
+    console.log(`Selecting track ${trackId} for ${layer}`);
+    
+    // Perform crossfade with appropriate duration
+    // Use shorter crossfade if not playing to avoid long waits
+    const fadeDuration = isPlaying ? transitionDuration : 200;
+    crossfadeTo(layer, trackId, fadeDuration);
+    
+    // Close the dropdown
+    setIsExpanded(false);
+  }, [layer, activeCrossfades, activeAudio, isPlaying, crossfadeTo, transitionDuration]); // Include all external dependencies
   
   // Handle scroll event to update dropdown position
   useEffect(() => {
@@ -66,7 +101,7 @@ const LayerDropdown = ({ layer }) => {
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleScroll);
     };
-  }, [isExpanded]);
+  }, [isExpanded, updateMenuPosition]); // Now depends on the memoized function
   
   // Handle click outside
   useEffect(() => {
@@ -101,56 +136,22 @@ const LayerDropdown = ({ layer }) => {
     };
   }, [isExpanded]);
   
-  // Toggle dropdown visibility
-  const toggleDropdown = (e) => {
-    e.stopPropagation(); // Prevent event from reaching parent elements
-    setIsExpanded(!isExpanded);
-  };
-  
-  // Get active track name
-  const getActiveTrackName = () => {
+  // Get active track name - optimize with useCallback if used in multiple places
+  const getActiveTrackName = useCallback(() => {
     if (!activeAudio[layer] || !audioLibrary[layer]) return 'Default';
     
     const activeTrack = audioLibrary[layer].find(t => t.id === activeAudio[layer]);
     return activeTrack ? activeTrack.name : 'Default';
-  };
-  
-  // Handle track selection
-  const handleTrackSelect = (e, trackId) => {
-    e.stopPropagation(); // Important: prevent event bubbling
-    e.preventDefault();
-    
-    // Don't allow selection during active crossfade
-    if (activeCrossfades && activeCrossfades[layer]) {
-      console.log(`Crossfade already in progress for ${layer}`);
-      return;
-    }
-    
-    // Skip if already selected
-    if (trackId === activeAudio[layer]) {
-      setIsExpanded(false);
-      return;
-    }
-    
-    console.log(`Selecting track ${trackId} for ${layer}`);
-    
-    // Perform crossfade with appropriate duration
-    // Use shorter crossfade if not playing to avoid long waits
-    const fadeDuration = isPlaying ? 2000 : 200;
-    crossfadeTo(layer, trackId, fadeDuration);
-    
-    // Close the dropdown
-    setIsExpanded(false);
-  };
+  }, [activeAudio, audioLibrary, layer]);
   
   // Check if the layer is currently in a crossfade
   const isInCrossfade = activeCrossfades && activeCrossfades[layer];
   
   // Get progress percentage for display
-  const getProgressPercent = () => {
+  const getProgressPercent = useCallback(() => {
     if (!isInCrossfade) return 0;
     return Math.floor((crossfadeProgress[layer] || 0) * 100);
-  };
+  }, [isInCrossfade, crossfadeProgress, layer]);
 
   // If there are no options to show, don't render the component
   if (!audioLibrary[layer] || audioLibrary[layer].length <= 1) {
@@ -229,4 +230,5 @@ const LayerDropdown = ({ layer }) => {
   );
 };
 
-export default LayerDropdown;
+// Export with memoization to prevent unnecessary re-renders
+export default React.memo(LayerDropdown);

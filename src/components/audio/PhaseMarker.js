@@ -288,6 +288,7 @@ const PhaseMarker = ({
     endDragState();
     // Just stop propagation to prevent parent elements from handling
     e.stopPropagation();
+    e.preventDefault();
   };
   
   // Effect to handle edit mode changes
@@ -312,7 +313,7 @@ const PhaseMarker = ({
     };
   }, []);
   
-  // Create a separate event handler for the capture button
+  // State Capture
   const handleCaptureClick = (e) => {
     e.preventDefault();
     e.stopPropagation();

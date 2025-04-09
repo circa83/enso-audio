@@ -1,20 +1,38 @@
 // src/components/audio/PlayerControlPanel.js
-import React from 'react';
-import { useAudio } from '../../contexts/StreamingAudioContext';
+import React, { memo, useCallback, useRef } from 'react';
+import { useAudio } from '../../hooks/useAudio';
 import AudioVisualizer from './AudioVisualizer';
 import MasterVolumeControl from './MasterVolumeControl';
+import SessionTimeline from './SessionTimeline';
 import styles from '../../styles/components/PlayerControlPanel.module.css';
 
-const PlayerControlPanel = () => {
-  const { isPlaying, startSession, pauseSession } = useAudio();
+/**
+ * PlayerControlPanel component
+ * 
+ * Provides the main playback controls, audio visualization,
+ * and master volume controls for the audio player
+ * 
+ * @returns {JSX.Element} Rendered component
+ */
+const PlayerControlPanel = React.forwardRef(({ 
+  timelineEnabled, 
+  onDurationChange 
+}, ref) => {
   
-  const togglePlayPause = () => {
-    if (isPlaying) {
-      pauseSession();
+  // Use our new hook with grouped API
+  const { playback } = useAudio();
+ 
+  // Handle play/pause with useCallback for optimization
+  const togglePlayPause = useCallback(() => {
+    console.log("Play/Pause button clicked, current state:", playback.isPlaying);
+    if (playback.isPlaying) {
+      console.log("Attempting to pause playback");
+      playback.pause();
     } else {
-      startSession();
+      console.log("Attempting to start playback");
+      playback.start();
     }
-  };
+  }, [playback]);
   
   return (
     <div className={styles.playerControlPanel}>
@@ -24,16 +42,26 @@ const PlayerControlPanel = () => {
       
       <div className={styles.controlsSection}>
         <button 
-          className={`${styles.playButton} ${isPlaying ? styles.playing : ''}`}
+          className={`${styles.playButton} ${playback.isPlaying ? styles.playing : ''}`}
           onClick={togglePlayPause}
+          aria-label={playback.isPlaying ? 'Stop' : 'Play'}
+          aria-pressed={playback.isPlaying}
         >
-          {isPlaying ? 'Stop' : 'Play'}
+          {playback.isPlaying ? 'Stop' : 'Play'}
         </button>
-        
+        <SessionTimeline 
+          ref={ref}
+          enabled={timelineEnabled}
+          onDurationChange={onDurationChange}
+        />
         <MasterVolumeControl />
       </div>
     </div>
   );
-};
+});
 
-export default PlayerControlPanel;
+// Add display name for debugging
+PlayerControlPanel.displayName = 'PlayerControlPanel';
+
+// Use memo for performance optimization
+export default memo(PlayerControlPanel);

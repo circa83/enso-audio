@@ -22,7 +22,7 @@
   font-size: 2.5rem;
   text-align: center;
   color: #ffffff;
-  margin-bottom: 40px;
+  margin-bottom: 15px;
   letter-spacing: 8px;
   text-transform: uppercase;
 }
@@ -40,7 +40,7 @@
 .sessionDescription {
   font-family: 'Archivo', sans-serif;
   font-weight: 200;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   color: #aaaaaa;
   text-align: center;
   margin-bottom: 30px;
