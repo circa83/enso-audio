@@ -229,7 +229,7 @@ useEffect(() => {
     settingsInitialized.current = true;
   }, [timeline]);
 
-const handleTransitionDurationChange = useCallback((newDuration) => {
+  const handleTransitionDurationChange = useCallback((newDuration) => {
   // Prevent recursive updates
   if (preventUpdateCycle.current) {
     console.log('Prevented recursive transition update:', newDuration);
@@ -249,9 +249,9 @@ const handleTransitionDurationChange = useCallback((newDuration) => {
   
   // Mark settings as initialized
   settingsInitialized.current = true;
-}, [timeline]);
+  }, [timeline]);
 
-const handleTimelineToggle = useCallback((enabled) => {
+  const handleTimelineToggle = useCallback((enabled) => {
   console.log('Timeline toggle:', enabled);
   
   // Prevent recursive updates
@@ -269,7 +269,7 @@ const handleTimelineToggle = useCallback((enabled) => {
   
   // Mark settings as initialized
   settingsInitialized.current = true;
-}, [timeline]);
+  }, [timeline]);
 
   //======= Render Session settings =======
 
