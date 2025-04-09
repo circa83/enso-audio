@@ -4,14 +4,15 @@ import { useAudio } from '../../hooks/useAudio'; // Import the refactored hook
 import styles from '../../styles/components/LayerSelector.module.css';
 
 const LayerSelector = ({ layer }) => {
+  // Use our hook with all required functionality
   const { 
     audioLibrary, 
     activeAudio, 
     crossfadeTo,
     activeCrossfades,
     crossfadeProgress,
-    preloadProgress,  // New: track loading progress
-    transitionDuration // Added missing transitionDuration
+    preloadProgress,  // Track loading progress
+    transitionDuration // Get transition duration
   } = useAudio();
   
   const [isExpanded, setIsExpanded] = useState(false);
@@ -35,7 +36,7 @@ const LayerSelector = ({ layer }) => {
     setErrorMessage(null);
     
     try {
-      console.log(`User selected track ${trackId} for ${layer}`);
+      console.log(`[LayerSelector] User selected track ${trackId} for ${layer}`);
       
       // Attempt crossfade with the exposed function name
       const success = await crossfadeTo(layer, trackId, transitionDuration);
@@ -44,7 +45,7 @@ const LayerSelector = ({ layer }) => {
         setErrorMessage('Could not load audio track. Please try again.');
       }
     } catch (error) {
-      console.error('Error changing track:', error);
+      console.error('[LayerSelector] Error changing track:', error);
       setErrorMessage('Error during track transition. Please try again.');
     }
   }, [layer, activeAudio, activeCrossfades, crossfadeTo, transitionDuration]);
@@ -90,53 +91,8 @@ const LayerSelector = ({ layer }) => {
   // Get crossfade info if active
   const crossfadeInfo = isInCrossfade ? getCrossfadeInfo() : null;
 
-  //------- Helper functions to get audio elements and sources-------
-  const getActiveSourceNode = (layer) => {
-    // Get the currently active audio element for this layer
-    const audioElements = serviceRef.current.audioCore.getElements?.() || {};
-    const trackId = activeAudioRef.current[layer];
-    
-    if (!trackId || !audioElements[layer] || !audioElements[layer][trackId]) {
-      console.error(`No active source node found for ${layer}`);
-      return null;
-    }
-    
-    return audioElements[layer][trackId].source;
-  };
-  
-  const getActiveAudioElement = (layer) => {
-    const audioElements = serviceRef.current.audioCore.getElements?.() || {};
-    const trackId = activeAudioRef.current[layer];
-    
-    if (!trackId || !audioElements[layer] || !audioElements[layer][trackId]) {
-      console.error(`No active audio element found for ${layer}`);
-      return null;
-    }
-    
-    return audioElements[layer][trackId].element;
-  };
-  const getOrCreateSourceNode = (layer, trackId) => {
-    const audioElements = serviceRef.current.audioCore.getElements?.() || {};
-    
-    // If the track already exists, return its source node
-    if (audioElements[layer] && audioElements[layer][trackId] && audioElements[layer][trackId].source) {
-      return audioElements[layer][trackId].source;
-    }
-    
-    console.error(`Source node for ${layer}/${trackId} not found and couldn't be created dynamically`);
-    return null;
-  };
-  const getOrCreateAudioElement = (layer, trackId) => {
-    const audioElements = serviceRef.current.audioCore.getElements?.() || {};
-    
-    // If the track already exists, return its audio element
-    if (audioElements[layer] && audioElements[layer][trackId] && audioElements[layer][trackId].element) {
-      return audioElements[layer][trackId].element;
-    }
-    
-    console.error(`Audio element for ${layer}/${trackId} not found and couldn't be created dynamically`);
-    return null;
-  };
+  // Remove references to serviceRef and those functions that aren't available
+  // We'll rely on the crossfadeTo function from useAudio hook instead
 
   return (
     <div className={styles['layer-selector']}>
@@ -197,7 +153,7 @@ const LayerSelector = ({ layer }) => {
             
             // Check if this track is currently preloading but not in a crossfade yet
             const isPreloading = !isInCrossfade && preloadProgress && preloadProgress[track.id] !== undefined && preloadProgress[track.id] < 100;
-            const preloadPercent = preloadProgress &&preloadProgress[track.id] ? preloadProgress[track.id] : 0;
+            const preloadPercent = preloadProgress && preloadProgress[track.id] ? preloadProgress[track.id] : 0;
             
             return (
               <div 
