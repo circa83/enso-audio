@@ -43,6 +43,10 @@ export function useAudio() {
     // Audio transition functions
     crossfadeTo,
     preloadAudio,
+    getActiveSourceNode,
+    getActiveAudioElement,
+    getOrCreateSourceNode,
+    getOrCreateAudioElement,
     
     // Timeline state 
     timelineEvents,
@@ -125,6 +129,26 @@ export function useAudio() {
     hasSwitchable: hasSwitchableAudio,
     TYPES: LAYERS
   }), [activeAudio, audioLibrary, hasSwitchableAudio, LAYERS]);
+
+  const getActiveAudio = useCallback((layer) => {
+    return getActiveAudioElement(layer);
+  }
+  , [getActiveAudioElement]); 
+
+  const getActiveSource = useCallback((layer) => {
+    return getActiveSourceNode(layer);
+  }
+  , [getActiveSourceNode]);
+
+  const getOrCreateAudio = useCallback((layer) => {
+    return getOrCreateAudioElement(layer);
+  }
+  , [getOrCreateAudioElement]);
+
+  const getOrCreateSource = useCallback((layer) => {
+    return getOrCreateSourceNode(layer);
+  }
+  , [getOrCreateSourceNode]);
   
   // Transitions
   const transitions = useMemo(() => ({
@@ -337,7 +361,11 @@ export function useAudio() {
     deletePreset,
     getPresets,
     exportPreset,
-    importPreset
+    importPreset,
+    getActiveSourceNode,
+    getActiveAudioElement,
+    getOrCreateSourceNode,
+    getOrCreateAudioElement
   };
 }
 

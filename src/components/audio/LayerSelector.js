@@ -10,7 +10,8 @@ const LayerSelector = ({ layer }) => {
     crossfadeTo,
     activeCrossfades,
     crossfadeProgress,
-    preloadProgress  // New: track loading progress
+    preloadProgress,  // New: track loading progress
+    transitionDuration // Added missing transitionDuration
   } = useAudio();
   
   const [isExpanded, setIsExpanded] = useState(false);
@@ -89,6 +90,54 @@ const LayerSelector = ({ layer }) => {
   // Get crossfade info if active
   const crossfadeInfo = isInCrossfade ? getCrossfadeInfo() : null;
 
+  //------- Helper functions to get audio elements and sources-------
+  const getActiveSourceNode = (layer) => {
+    // Get the currently active audio element for this layer
+    const audioElements = serviceRef.current.audioCore.getElements?.() || {};
+    const trackId = activeAudioRef.current[layer];
+    
+    if (!trackId || !audioElements[layer] || !audioElements[layer][trackId]) {
+      console.error(`No active source node found for ${layer}`);
+      return null;
+    }
+    
+    return audioElements[layer][trackId].source;
+  };
+  
+  const getActiveAudioElement = (layer) => {
+    const audioElements = serviceRef.current.audioCore.getElements?.() || {};
+    const trackId = activeAudioRef.current[layer];
+    
+    if (!trackId || !audioElements[layer] || !audioElements[layer][trackId]) {
+      console.error(`No active audio element found for ${layer}`);
+      return null;
+    }
+    
+    return audioElements[layer][trackId].element;
+  };
+  const getOrCreateSourceNode = (layer, trackId) => {
+    const audioElements = serviceRef.current.audioCore.getElements?.() || {};
+    
+    // If the track already exists, return its source node
+    if (audioElements[layer] && audioElements[layer][trackId] && audioElements[layer][trackId].source) {
+      return audioElements[layer][trackId].source;
+    }
+    
+    console.error(`Source node for ${layer}/${trackId} not found and couldn't be created dynamically`);
+    return null;
+  };
+  const getOrCreateAudioElement = (layer, trackId) => {
+    const audioElements = serviceRef.current.audioCore.getElements?.() || {};
+    
+    // If the track already exists, return its audio element
+    if (audioElements[layer] && audioElements[layer][trackId] && audioElements[layer][trackId].element) {
+      return audioElements[layer][trackId].element;
+    }
+    
+    console.error(`Audio element for ${layer}/${trackId} not found and couldn't be created dynamically`);
+    return null;
+  };
+
   return (
     <div className={styles['layer-selector']}>
       <div 
@@ -148,7 +197,7 @@ const LayerSelector = ({ layer }) => {
             
             // Check if this track is currently preloading but not in a crossfade yet
             const isPreloading = !isInCrossfade && preloadProgress && preloadProgress[track.id] !== undefined && preloadProgress[track.id] < 100;
-            const preloadPercent = preloadProgress && preloadProgress[track.id] ? preloadProgress[track.id] : 0;
+            const preloadPercent = preloadProgress &&preloadProgress[track.id] ? preloadProgress[track.id] : 0;
             
             return (
               <div 

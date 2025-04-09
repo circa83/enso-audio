@@ -187,7 +187,7 @@ export const AudioProvider = ({ children }) => {
                     sourceElement: getActiveAudioElement(layer),
                     targetNode: getOrCreateSourceNode(layer, trackId),
                     targetElement: getOrCreateAudioElement(layer, trackId),
-                    currentVolume: volume.layers[layer] || 0,
+                    currentVolume: volumes[layer] || 0,
                     duration: actualDuration
                   });
                 }
