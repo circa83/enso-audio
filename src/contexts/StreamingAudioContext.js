@@ -38,6 +38,7 @@ export const AudioProvider = ({ children }) => {
     audioCore: null,
     bufferManager: null,
     volumeController: null,
+    layerController: null,
     crossfadeEngine: null,
     timelineEngine: null,
     presetManager: null

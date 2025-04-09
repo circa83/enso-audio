@@ -24,7 +24,7 @@ const Player = () => {
     timeline,
     presets,
     timelinePhases,
-    playback
+    playback,
   } = useAudio();
   
   // Local state for settings and UI
