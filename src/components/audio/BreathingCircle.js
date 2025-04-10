@@ -10,6 +10,7 @@ const BreathingCircle = () => {
   const [hold, setHold] = useState(2);
   const [exhale, setExhale] = useState(4);
 
+
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const startRef = useRef(null);
@@ -57,15 +58,24 @@ const BreathingCircle = () => {
       if (!startRef.current) startRef.current = ts;
       const elapsed = (ts - startRef.current) / 1000;
 
-      const cycleDur = inhale + hold + exhale;
+      const cycleDur = inhale + hold + exhale + hold;
       const tPhase = elapsed % cycleDur;
 
       let t; // 0‑1 breathing factor
-      if (tPhase < inhale) t = ease(tPhase / inhale);
-      else if (tPhase < inhale+hold) t = 1;
-      else {
+
+       if (tPhase < inhale) {
+        // Inhale phase - expand from min to max
+        t = ease(tPhase / inhale);
+      } else if (tPhase < inhale + hold) {
+        // Hold after inhale - stay at max expansion
+        t = 1;
+      } else if (tPhase < inhale + hold + exhale) {
+        // Exhale phase - contract from max to min
         const tEx = (tPhase - inhale - hold) / exhale;
         t = 1 - ease(tEx);
+      } else {
+        // Hold after exhale - stay at min contraction
+        t = 0;
       }
 
       const sizeP = P_MIN + (P_MAX - P_MIN) * t;
