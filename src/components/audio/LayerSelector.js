@@ -4,13 +4,15 @@ import { useAudio } from '../../hooks/useAudio'; // Import the refactored hook
 import styles from '../../styles/components/LayerSelector.module.css';
 
 const LayerSelector = ({ layer }) => {
+  // Use our hook with all required functionality
   const { 
     audioLibrary, 
     activeAudio, 
     crossfadeTo,
     activeCrossfades,
     crossfadeProgress,
-    preloadProgress  // New: track loading progress
+    preloadProgress,  // Track loading progress
+    transitionDuration: defaultTransitionDuration // Get transition duration from audio context
   } = useAudio();
   
   const [isExpanded, setIsExpanded] = useState(false);
@@ -34,19 +36,19 @@ const LayerSelector = ({ layer }) => {
     setErrorMessage(null);
     
     try {
-      console.log(`User selected track ${trackId} for ${layer}`);
+      console.log(`[LayerSelector] User selected track ${trackId} for ${layer}`);
       
-      // Attempt crossfade with the exposed function name
-      const success = await crossfadeTo(layer, trackId, transitionDuration);
+      // Use the default transition duration from the audio context
+      const success = await crossfadeTo(layer, trackId, defaultTransitionDuration);
       
       if (!success) {
         setErrorMessage('Could not load audio track. Please try again.');
       }
     } catch (error) {
-      console.error('Error changing track:', error);
+      console.error('[LayerSelector] Error changing track:', error);
       setErrorMessage('Error during track transition. Please try again.');
     }
-  }, [layer, activeAudio, activeCrossfades, crossfadeTo, transitionDuration]);
+  }, [layer, activeAudio, activeCrossfades, crossfadeTo, defaultTransitionDuration]);
 
   // Toggle expanded state with useCallback
   const toggleExpanded = useCallback(() => {

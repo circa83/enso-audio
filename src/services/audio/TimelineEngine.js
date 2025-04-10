@@ -675,6 +675,8 @@ resumeTimeline() {
 
     // * Check and update the current active phase
     checkCurrentPhase() {
+
+     
   const progress = this.getProgress();
   const activePhase = this.getPhaseAtProgress(progress);
   
