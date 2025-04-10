@@ -142,6 +142,32 @@ function AppContent({ Component, pageProps }) {
 }
 
 function MyApp({ Component, pageProps }) {
+//mobile ios detection
+  useEffect(() => {
+    // Simple iOS detection
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    
+    if (isIOS) {
+      // Force fix for iOS rendering
+      document.documentElement.style.width = '100%';
+      document.body.style.width = '100%';
+      document.body.style.left = '0';
+      document.body.style.right = '0';
+      document.body.style.position = 'relative';
+      
+      // Fix for main player container
+      const playerElements = document.querySelectorAll('[class*="Player_simplePlayer"]');
+      playerElements.forEach(el => {
+        el.style.left = '50%';
+        el.style.right = 'auto';
+        el.style.transform = 'translateX(-50%)';
+        el.style.marginLeft = '0';
+        el.style.marginRight = '0';
+        el.style.width = 'calc(100% - 20px)';
+      });
+    }
+  }, []);
+
   return (
     <>
       <Head>

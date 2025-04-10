@@ -86,3 +86,14 @@
     margin-right: auto;
   }
 }
+@supports (-webkit-overflow-scrolling: touch) {
+  .playerControlPanel {
+    width: 100%;
+    position: relative;
+    left: 0 !important;
+    right: 0 !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    transform: none !important;
+  }
+}

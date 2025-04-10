@@ -4,17 +4,19 @@
 
 /* Base styling */
 .simplePlayer {
-  max-width: 900px;
+  box-sizing: border-box;
+  max-width: min(900px, 100%);
   width: 100%;
   margin: 50px auto;
   padding: 40px;
   background-color: #181818;
   border-radius: 2px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  box-sizing: border-box;
   position: relative;
-  left: 0; /* Ensure no left offset is applied */
-  transform: translateX(0); /* Reset any transforms */
+  left: 0 !important;
+  right: 0 !important;
+  transform: none !important;
+  overflow: hidden;
 }
 
 /* Minimal typography */
@@ -474,17 +476,14 @@
 
 /* Responsive design */
 @media (max-width: 768px) {
-  @media (max-width: 768px) {
-    .simplePlayer {
-      padding: 20px;
-      margin: 10px auto;
-      width: calc(100% - 20px);
-      max-width: 100%;
-      left: 0;
-      right: 0;
-      position: relative;
-      transform: none; /* Ensure no transforms are applied */
-    }
+  .simplePlayer {
+    width: calc(100% - 20px);
+    max-width: calc(100% - 20px);
+    margin: 10px auto;
+    padding: 15px;
+    left: 0 !important;
+    right: 0 !important;
+  }
   
   .title {
     font-size: 1.8rem;
@@ -517,27 +516,24 @@
     max-width: none;
   }
 }
-}
-/* iOS-specific fixes */
-@supports (-webkit-touch-callout: none) {
+
+@supports (-webkit-overflow-scrolling: touch) {
   .simplePlayer {
-    /* iOS-specific adjustments */
-    width: 100%;
-    left: 0;
-    right: 0;
-    transform: none;
-    margin-left: auto;
-    margin-right: auto;
+    width: min(calc(100% - 10px), 900px);
+    position: relative;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    margin-left: 0;
+    margin-right: 0;
   }
   
   @media (max-width: 768px) {
     .simplePlayer {
       width: calc(100% - 20px);
       padding: 15px;
-      margin: 10px auto;
-      left: 0 !important; /* Override any inline styles */
-      right: 0 !important;
-      position: relative !important;
+      left: 50% !important;
+      transform: translateX(-50%) !important;
     }
   }
 }

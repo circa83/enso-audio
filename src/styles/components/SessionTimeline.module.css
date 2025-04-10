@@ -203,3 +203,14 @@
     padding: 4px 10px;
   }
 }
+@supports (-webkit-overflow-scrolling: touch) {
+  .timelineContainer {
+    width: 100%;
+    position: relative;
+    left: 0 !important;
+    right: 0 !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    transform: none !important;
+  }
+}
