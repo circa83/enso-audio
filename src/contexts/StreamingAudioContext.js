@@ -179,28 +179,7 @@ export const AudioProvider = ({ children }) => {
               
               console.log('Timeline event triggered:', event);
               
-              // Handle events via appropriate services
-              if (event.action === 'crossfade' && event.data) {
-                const { layer, trackId, duration } = event.data;
-                if (layer && trackId) {
-                  const actualDuration = duration || transitionDuration;
-                  serviceRef.current.crossfadeEngine.crossfade({
-                    layer,
-                    sourceNode: getActiveSourceNode(layer),
-                    sourceElement: getActiveAudioElement(layer),
-                    targetNode: getOrCreateSourceNode(layer, trackId),
-                    targetElement: getOrCreateAudioElement(layer, trackId),
-                    currentVolume: volumes[layer] || 0,
-                    duration: actualDuration
-                  });
-                }
-              } else if (event.action === 'volume' && event.data) {
-                const { layer, volume } = event.data;
-                if (layer !== undefined && volume !== undefined) {
-                  console.log(`[STREAMINGAUDIOCONTEXT: onPhaseChange] Setting volume for ${layer} to ${volume}`);
-                  serviceRef.current.volumeController.setVolume(layer, volume);
-                }
-              }
+             
             },
             onProgress: (progress, elapsedTime) => {
               if (isMounted) setProgress(progress);
