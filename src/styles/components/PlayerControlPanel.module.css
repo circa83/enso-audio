@@ -59,7 +59,11 @@
 @media (max-width: 768px) {
   .playerControlPanel {
     padding: 20px;
+    width: 100%; /* Take full width */
+    margin-left: auto;
+    margin-right: auto;
   }
+
   
   .playButton {
     width: 50px;

@@ -61,7 +61,11 @@
     .sectionHeader {
       padding: 12px 15px;
     }
-    
+    .sectionContainer {
+      width: 100%;
+      margin-left: auto;
+      margin-right: auto;
+    }
     .sectionTitle {
       font-size: 0.9rem;
     }

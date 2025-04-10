@@ -22,6 +22,7 @@ html, body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  align-items: center;
   margin: 0 auto;
   position: relative;
   left: 0;
@@ -31,6 +32,10 @@ main {
   flex: 1;
   display: flex;
   flex-direction: column;
+}
+
+main, div, section, article {
+  max-width: 100%;
 }
 
 button {

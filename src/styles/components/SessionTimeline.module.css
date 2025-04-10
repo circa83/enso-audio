@@ -191,9 +191,9 @@
 @media (max-width: 768px) {
   .timelineContainer {
     padding: 25px 20px;
-    margin: 30px 0;
+    margin: 30px auto; /* Add 'auto' to center horizontally */
+    width: calc(100% - 40px); /* Account for padding */
   }
-  
   .timelineTitle {
     font-size: 1rem;
   }
