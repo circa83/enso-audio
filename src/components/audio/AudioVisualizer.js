@@ -98,6 +98,7 @@ const AudioVisualizer = () => {
           alt="Ensō circle" 
           className={styles.visualizerImage}
         />
+        
      {/*   <div className={`${styles.circle} ${styles.bass}`}></div>
         <div className={`${styles.circle} ${styles.mid}`}></div>
         <div className={`${styles.circle} ${styles.high}`}></div>

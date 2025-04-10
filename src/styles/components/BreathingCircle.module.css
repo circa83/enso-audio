@@ -1,0 +1,94 @@
+/* Ensō Audio Style Guide */
+@import url("https://fonts.googleapis.com/css2?family=Archivo:wght@100;200;300&family=Space+Mono:wght@400&display=swap");
+
+:root {
+  --bg-primary: #181818;
+  --bg-secondary: #1c1c1c;
+  --border: #333333;
+  --text-primary: #ffffff;
+  --text-secondary: #aaaaaa;
+  --accent: #ffffff;
+}
+
+* { box-sizing: border-box; }
+
+.panel {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 8px rgba(0,0,0,.3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  color: var(--text-primary);
+  font-family: "Archivo", sans-serif;
+  font-weight: 200;
+}
+
+.info {
+  font-family: "Space Mono", monospace;
+  font-size: .9rem;
+  letter-spacing: 2px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: .5rem;
+  width: 100%;
+  text-align: center;
+}
+
+.canvas {
+  width: 100%;
+  max-width: 400px;
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--border);
+  background: transparent;
+}
+
+.controls {
+  display: flex;
+  justify-content: center;
+  gap: 1.25rem;
+  width: 100%;
+}
+
+.label {
+  font-size: .7rem;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .25rem;
+}
+
+.slider {
+  -webkit-appearance: none;
+  width: 120px;
+  height: 4px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+.slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: var(--accent);
+  border: none;
+  cursor: pointer;
+}
+
+.slider:hover { background: #444; }
