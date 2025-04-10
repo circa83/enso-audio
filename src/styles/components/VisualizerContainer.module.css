@@ -10,7 +10,7 @@
   
   .visualizerWrapper {
     width: 100%;
-    height: inherit;
+    
     display: flex;
     justify-content: center;
     align-items: center;

@@ -1,7 +1,7 @@
 /* src/styles/components/BreathingCircle.module.css */
 .container {
     width: 100%;
-    max-width: 100%; /* Updated to take full width */
+    max-width: 100%;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
@@ -9,7 +9,7 @@
     gap: 15px;
     padding: 10px;
     box-sizing: border-box;
-  }
+}
   
   .info {
     font-family: "Space Mono", monospace;
@@ -25,21 +25,22 @@
   
   .canvas {
     width: 100%;
-    max-width: 100%; /* Updated to take full width */
-    aspect-ratio: 1 / 1;
+    max-width: 75%; /* Explicit width limit */
+    height: 75%; /* Explicit height to match width */
     border: 1px solid #333333;
     background: transparent;
-    max-height: 400px; /* Add max-height to keep aspect ratio reasonable */
-  }
-  
-  .controls {
+    /* Remove aspect-ratio property that might be causing issues */
+}
+.controls {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
+    flex-direction: row; /* Change from column to row */
+    gap: 15px; /* Increase gap between controls */
     width: 100%;
-  }
+    max-width: 300px; /* Match canvas width */
+    justify-content: space-between; /* Space items evenly */
+}
   
-  .label {
+.label {
     font-size: 0.7rem;
     letter-spacing: 1px;
     color: #aaaaaa;
@@ -48,7 +49,8 @@
     flex-direction: column;
     align-items: center;
     gap: 5px;
-  }
+    width: 30%; /* Take roughly a third of the space */
+}
   
   .slider {
     appearance: none;
@@ -81,15 +83,28 @@
   /* Responsive adjustments */
   @media (max-width: 768px) {
     .container {
-      width: 100%;
-      padding: 5px;
+        width: 100%;
+        padding: 5px;
     }
     
     .info {
-      font-size: 0.75rem;
+        font-size: 0.75rem;
     }
     
     .canvas {
-      max-height: 300px; /* Limit height on smaller screens */
+        width: 100%;
+        height: auto;
+        max-width: 100%;
+        max-height: 100%;
     }
-  }
+    
+    /* Ensure controls stay in a row on mobile */
+    .controls {
+        flex-direction: row; 
+        flex-wrap: wrap; /* Allow wrapping on very small screens */
+    }
+    
+    .label {
+        min-width: 80px; /* Ensure minimum width on small screens */
+    }
+}

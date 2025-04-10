@@ -93,9 +93,9 @@ const BreathingCircle = () => {
 
   return (
     <div className={styles.container} ref={containerRef}>
-      <div className={styles.info}>
+      {/* <div className={styles.info}>
         {inhale}s&nbsp;·&nbsp;{hold}s&nbsp;·&nbsp;{exhale}s
-      </div>
+      </div> */}
 
       <canvas ref={canvasRef} className={styles.canvas} />
 
@@ -108,6 +108,7 @@ const BreathingCircle = () => {
             onChange={e => setInhale(+e.target.value)}
             className={styles.slider}
           />
+            <div className={styles.valueDisplay}>{inhale}s</div>
         </label>
 
         <label className={styles.label}>
@@ -118,6 +119,7 @@ const BreathingCircle = () => {
             onChange={e => setHold(+e.target.value)}
             className={styles.slider}
           />
+          <div className={styles.valueDisplay}>{hold}s</div>
         </label>
 
         <label className={styles.label}>
@@ -128,6 +130,7 @@ const BreathingCircle = () => {
             onChange={e => setExhale(+e.target.value)}
             className={styles.slider}
           />
+                  <div className={styles.valueDisplay}>{exhale}s</div>
         </label>
       </div>
     </div>
