@@ -13,6 +13,8 @@
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   box-sizing: border-box;
   position: relative;
+  left: 0; /* Ensure no left offset is applied */
+  transform: translateX(0); /* Reset any transforms */
 }
 
 /* Minimal typography */
@@ -472,12 +474,17 @@
 
 /* Responsive design */
 @media (max-width: 768px) {
-  .simplePlayer {
-    padding: 20px;
-    margin: 10px auto; /* Keep the auto for horizontal centering */
-    width: calc(100% - 20px); /* Account for the left and right margins */
-    max-width: 100%; /* Allow it to take full width minus margins */
-  }
+  @media (max-width: 768px) {
+    .simplePlayer {
+      padding: 20px;
+      margin: 10px auto;
+      width: calc(100% - 20px);
+      max-width: 100%;
+      left: 0;
+      right: 0;
+      position: relative;
+      transform: none; /* Ensure no transforms are applied */
+    }
   
   .title {
     font-size: 1.8rem;
@@ -508,5 +515,29 @@
   .importContainer {
     width: 95%;
     max-width: none;
+  }
+}
+}
+/* iOS-specific fixes */
+@supports (-webkit-touch-callout: none) {
+  .simplePlayer {
+    /* iOS-specific adjustments */
+    width: 100%;
+    left: 0;
+    right: 0;
+    transform: none;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  
+  @media (max-width: 768px) {
+    .simplePlayer {
+      width: calc(100% - 20px);
+      padding: 15px;
+      margin: 10px auto;
+      left: 0 !important; /* Override any inline styles */
+      right: 0 !important;
+      position: relative !important;
+    }
   }
 }
