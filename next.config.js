@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: false, // Temporarily disable strict mode for debugging
+  reactStrictMode: true, // Temporarily disable strict mode for debugging
+  poweredByHeader: false, // Add this to prevent Vercel from adding extra styles or scripts that might affect layout
   experimental: {
     // Increase timeout for API routes - helps with auth timeouts
     serverTimeout: 15000, // 15 seconds in milliseconds (equivalent to maxDuration in vercel.json)
@@ -13,8 +14,8 @@ const nextConfig = {
         source: '/pages/api/:path*',
         headers: [
           {
-            key: 'Cache-Control',
-            value: 'no-store, max-age=0',
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
           },
         ],
       },

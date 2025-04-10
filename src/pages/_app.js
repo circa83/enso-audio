@@ -146,9 +146,12 @@ function MyApp({ Component, pageProps }) {
   useEffect(() => {
     // Simple iOS detection
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    
+  
+    // Only apply these fixes on iOS
     if (isIOS) {
-      // Force fix for iOS rendering
+      console.log("iOS detected - applying special fixes");
+      
+      // Fix for iOS rendering
       document.documentElement.style.width = '100%';
       document.body.style.width = '100%';
       document.body.style.left = '0';

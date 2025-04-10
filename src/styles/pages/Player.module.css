@@ -516,24 +516,17 @@
     max-width: none;
   }
 }
-
-@supports (-webkit-overflow-scrolling: touch) {
+/* iOS-specific fix */
+@media (max-width: 768px) and (-webkit-touch-callout: none) {
+  /* This media query only applies to iOS devices with small screens */
   .simplePlayer {
-    width: min(calc(100% - 10px), 900px);
+    /* iOS-specific overrides */
     position: relative;
-    left: 50% !important;
-    right: auto !important;
-    transform: translateX(-50%) !important;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
     margin-left: 0;
     margin-right: 0;
-  }
-  
-  @media (max-width: 768px) {
-    .simplePlayer {
-      width: calc(100% - 20px);
-      padding: 15px;
-      left: 50% !important;
-      transform: translateX(-50%) !important;
-    }
+    width: calc(100% - 20px);
   }
 }

@@ -15,10 +15,7 @@ html, body {
   background-color: #121212;
   color: #eeeeee;
   overflow-x: hidden;
-  width: 100%;
-  height: 100%;
-  position: static;
-  -webkit-overflow-scrolling: touch;
+ 
 }
 body {
   display: flex;
@@ -124,6 +121,7 @@ body.modal-open {
     max-width: 100vw;
     position: relative;
     left: 0;
+    right: 0;
     margin: 0 auto;
   }
 }
