@@ -18,20 +18,20 @@ import styles from '../styles/pages/Player.module.css';
  * @returns {JSX.Element} Rendered component
  */
 const Player = () => {
-  // Fix for iOS rendering
-  useLayoutEffect(() => {
-    // Fix for iOS rendering
-    const rootElement = document.querySelector('[class*="Player_simplePlayer"]');
-    if (rootElement) {
-      // Force centering
-      rootElement.style.left = '50%';
-      rootElement.style.right = 'auto';
-      rootElement.style.transform = 'translateX(-50%)';
-      rootElement.style.marginLeft = '0';
-      rootElement.style.marginRight = '0';
-      rootElement.style.width = 'calc(100% - 20px)';
-    }
-  }, []);
+  // // Fix for iOS rendering
+  // useLayoutEffect(() => {
+  //   // Fix for iOS rendering
+  //   const rootElement = document.querySelector('[class*="Player_simplePlayer"]');
+  //   if (rootElement) {
+  //     // Force centering
+  //     rootElement.style.left = '50%';
+  //     rootElement.style.right = 'auto';
+  //     rootElement.style.transform = 'translateX(-50%)';
+  //     rootElement.style.marginLeft = '0';
+  //     rootElement.style.marginRight = '0';
+  //     rootElement.style.width = 'calc(100% - 20px)';
+  //   }
+  // }, []);
   // Use our new hook with structured API approach
   const { 
     layers,
