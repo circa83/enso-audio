@@ -145,7 +145,7 @@ function MyApp({ Component, pageProps }) {
   return (
     <>
       <Head>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
         <title>Ensō Audio</title>
         <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@100;200;300&family=Space+Mono&family=Noto+Sans+JP:wght@300&display=swap" rel="stylesheet" />
       </Head>
