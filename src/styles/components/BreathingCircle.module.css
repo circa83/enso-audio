@@ -1,94 +1,93 @@
-/* Ensō Audio Style Guide */
-@import url("https://fonts.googleapis.com/css2?family=Archivo:wght@100;200;300&family=Space+Mono:wght@400&display=swap");
-
-:root {
-  --bg-primary: #181818;
-  --bg-secondary: #1c1c1c;
-  --border: #333333;
-  --text-primary: #ffffff;
-  --text-secondary: #aaaaaa;
-  --accent: #ffffff;
-}
-
-* { box-sizing: border-box; }
-
-.panel {
-  width: 100%;
-  max-width: 480px;
-  margin: 0 auto;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  box-shadow: 0 4px 8px rgba(0,0,0,.3);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1.25rem;
-  padding: 1.5rem;
-  color: var(--text-primary);
-  font-family: "Archivo", sans-serif;
-  font-weight: 200;
-}
-
-.info {
-  font-family: "Space Mono", monospace;
-  font-size: .9rem;
-  letter-spacing: 2px;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: .5rem;
-  width: 100%;
-  text-align: center;
-}
-
-.canvas {
-  width: 100%;
-  max-width: 400px;
-  aspect-ratio: 1 / 1;
-  border: 1px solid var(--border);
-  background: transparent;
-}
-
-.controls {
-  display: flex;
-  justify-content: center;
-  gap: 1.25rem;
-  width: 100%;
-}
-
-.label {
-  font-size: .7rem;
-  letter-spacing: 1px;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: .25rem;
-}
-
-.slider {
-  -webkit-appearance: none;
-  width: 120px;
-  height: 4px;
-  background: var(--border);
-  border: 1px solid var(--border);
-}
-
-.slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 12px;
-  height: 12px;
-  background: var(--accent);
-  cursor: pointer;
-}
-
-.slider::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
-  background: var(--accent);
-  border: none;
-  cursor: pointer;
-}
-
-.slider:hover { background: #444; }
+/* src/styles/components/BreathingCircle.module.css */
+.container {
+    width: 100%;
+    max-width: 280px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    padding: 10px;
+    box-sizing: border-box;
+  }
+  
+  .info {
+    font-family: "Space Mono", monospace;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+    color: #aaaaaa;
+    text-transform: uppercase;
+    text-align: center;
+    padding-bottom: 5px;
+    width: 100%;
+    border-bottom: 1px solid #333333;
+  }
+  
+  .canvas {
+    width: 100%;
+    max-width: 280px;
+    aspect-ratio: 1 / 1;
+    border: 1px solid #333333;
+    background: transparent;
+  }
+  
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+  }
+  
+  .label {
+    font-size: 0.7rem;
+    letter-spacing: 1px;
+    color: #aaaaaa;
+    text-transform: uppercase;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+  }
+  
+  .slider {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 3px;
+    background: #333333;
+    outline: none;
+    border: none;
+  }
+  
+  .slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #ffffff;
+    cursor: pointer;
+  }
+  
+  .slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #ffffff;
+    cursor: pointer;
+    border: none;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .container {
+      max-width: 220px;
+      padding: 5px;
+    }
+    
+    .info {
+      font-size: 0.75rem;
+    }
+    
+    .canvas {
+      max-width: 200px;
+    }
+  }

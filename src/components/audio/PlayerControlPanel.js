@@ -1,7 +1,7 @@
 // src/components/audio/PlayerControlPanel.js
 import React, { memo, useCallback, useRef } from 'react';
 import { useAudio } from '../../hooks/useAudio';
-import AudioVisualizer from './AudioVisualizer';
+import VisualizerContainer from './VisualizerContainer';
 import MasterVolumeControl from './MasterVolumeControl';
 import SessionTimeline from './SessionTimeline';
 import styles from '../../styles/components/PlayerControlPanel.module.css';
@@ -18,18 +18,19 @@ const PlayerControlPanel = React.forwardRef(({
   timelineEnabled, 
   onDurationChange 
 }, ref) => {
+  console.log('[PlayerControlPanel] Component rendering');
   
   // Use our new hook with grouped API
   const { playback } = useAudio();
  
   // Handle play/pause with useCallback for optimization
   const togglePlayPause = useCallback(() => {
-    console.log("Play/Pause button clicked, current state:", playback.isPlaying);
+    console.log("[PlayerControlPanel] Play/Pause button clicked, current state:", playback.isPlaying);
     if (playback.isPlaying) {
-      console.log("Attempting to pause playback");
+      console.log("[PlayerControlPanel] Attempting to pause playback");
       playback.pause();
     } else {
-      console.log("Attempting to start playback");
+      console.log("[PlayerControlPanel] Attempting to start playback");
       playback.start();
     }
   }, [playback]);
@@ -37,7 +38,7 @@ const PlayerControlPanel = React.forwardRef(({
   return (
     <div className={styles.playerControlPanel}>
       <div className={styles.visualizerSection}>
-        <AudioVisualizer />
+        <VisualizerContainer />
       </div>
       
       <div className={styles.controlsSection}>

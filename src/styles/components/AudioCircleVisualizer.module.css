@@ -1,11 +1,10 @@
-/* src/styles/components/AudioVisualizer.module.css */
+/* src/styles/components/AudioCircleVisualizer.module.css */
 .visualizerContainer {
   position: relative;
   width: 100%;
   max-width: 300px;
   aspect-ratio: 1;
-  margin: 40px auto;
-  overflow: hidden; 
+  margin: 0 auto;
   background-color: #1c1c1c;
   border-radius: 2px;
   box-sizing: border-box;
@@ -18,16 +17,6 @@
   display: flex;
   justify-content: center;
   align-items: center;
-}
-
-/* Add this to src/styles/components/AudioVisualizer.module.css */
-.visualizerImage {
-  max-width: 100%;
-  height: auto;
-  display: block;
-  margin: 0 auto;
-  opacity: 1;
-  transition: opacity 0.3s ease;
 }
 
 .circle {
@@ -81,6 +70,5 @@
 @media (max-width: 768px) {
   .visualizerContainer {
     max-width: 250px;
-    margin: 30px auto;
   }
 }
