@@ -118,6 +118,8 @@ export const AudioProvider = ({ children }) => {
   const [sessionDuration, setSessionDuration] = useState( 1 * 60 * 1000); // 1 min
   const [transitionDuration, setTransitionDuration] = useState(4000); // 4 seconds
   const [timelineIsPlaying, setTimelineIsPlaying] = useState(false);
+ 
+ 
   // Preset management
   const [presets, setPresets] = useState({});
   const stateProviders = useRef({});
@@ -277,177 +279,166 @@ export const AudioProvider = ({ children }) => {
   }, [masterVolume]);
   
   // Initialize audio elements with default tracks
-const initializeDefaultAudio = useCallback(async () => {
-  const { audioCore, bufferManager, volumeController } = serviceRef.current;
-  if (!audioCore || !bufferManager || !volumeController) {
-    console.error('[StreamingAudioContext: initializeDefaultAudio] Cannot initialize audio, services not ready');
-    return false;
-  }
-
-  const audioCtx = audioCore.getContext();
-  const masterGain = audioCore.getMasterGain();
-  
-  const totalFiles = Object.values(LAYERS).length;
-  let loadedFilesCount = 0;
-  
-  const newActiveAudio = {};
-  const newAudioElements = {};
-  
-  // Initialize the audio elements structure for each layer
-  Object.values(LAYERS).forEach(layer => {
-    newAudioElements[layer] = {};
-  });
-  
-  // Build initial basic library
-  const basicLibrary = {};
-  Object.values(LAYERS).forEach(layer => {
-    const trackId = `${layer}1`;
-    basicLibrary[layer] = [{
-      id: trackId,
-      name: `${layer.charAt(0).toUpperCase() + layer.slice(1)}`,
-      path: DEFAULT_AUDIO[layer]
-    }];
-    newActiveAudio[layer] = trackId;
-  });
-
-  // IMPORTANT: Also update the ref to ensure state persistence
-  audioLibraryRef.current = {...basicLibrary};
-  console.log("[StreamingAudioContext: initializeDefaultAudio] Set audio library reference:", audioLibraryRef.current);
-
-  // Update audio library state
-  console.log("[StreamingAudioContext: initializeDefaultAudio] Setting basic audio library:", basicLibrary);
-  setAudioLibrary(basicLibrary);
-  setLoadingProgress(20);
-  
-  console.log("[StreamingAudioContext: initializeDefaultAudio] Initializing audio with track IDs:", newActiveAudio);
-  
-  // For each layer, create and load the default audio element
-  for (const layer of Object.values(LAYERS)) {
-    // Always use the first track as default
-    console.log(`[StreamingAudioContext: initializeDefaultAudio] Attempting to load audio for ${layer} from path:`, DEFAULT_AUDIO[layer]);
-    
-    const defaultTrack = basicLibrary[layer][0];
-    const trackId = defaultTrack.id;
-
-    console.log(`[StreamingAudioContext: initializeDefaultAudio] Loading audio for ${layer}, track ID: ${trackId}, path: ${defaultTrack.path}`);
-    
-    try {
-      // Create new audio element
-      const audioElement = new Audio();
-      
-      // Set up load handler
-      const loadPromise = new Promise((resolve) => {
-        const loadHandler = () => {
-          loadedFilesCount++;
-          const progress = Math.round((loadedFilesCount / totalFiles) * 70) + 20;
-          setLoadingProgress(progress);
-          console.log(`[StreamingAudioContext: initializeDefaultAudio] Loaded audio for ${layer}, progress: ${progress}%`);
-          resolve();
-        };
-        
-        // Set up event listeners
-        audioElement.addEventListener('canplaythrough', loadHandler, { once: true });
-        
-        // Handle errors
-        audioElement.addEventListener('error', (e) => {
-          console.error(`[StreamingAudioContext: initializeDefaultAudio] Error loading audio for ${layer}:`, e);
-          console.error(`[StreamingAudioContext: initializeDefaultAudio] Audio src was:`, audioElement.src);
-          console.error(`[StreamingAudioContext: initializeDefaultAudio] Error code:`, audioElement.error ? audioElement.error.code : 'unknown');
-          loadHandler(); // Still mark as loaded so we don't hang
-        }, { once: true });
-        
-        // Set a timeout in case nothing happens
-        setTimeout(() => {
-          if (!audioElement.readyState) {
-            console.warn(`[StreamingAudioContext: initializeDefaultAudio] Loading audio for ${layer} timed out, continuing anyway`);
-            loadHandler();
-          }
-        }, 5000);
-      });
-      
-      // Start loading - IMPORTANT: Set crossOrigin to allow CORS if needed
-      audioElement.crossOrigin = "anonymous";
-      audioElement.src = defaultTrack.path;
-      audioElement.loop = true;
-      audioElement.preload = "auto"; // Force preloading
-      audioElement.load();
-      
-      // Create media element source
-      const source = audioCtx.createMediaElementSource(audioElement);
-      
-      // Connect source to volume controller
-      volumeController.connectToLayer(layer, source, masterGain);
-      
-      // Store the audio element and its source
-      newAudioElements[layer][trackId] = {
-        element: audioElement,
-        source: source,
-        track: defaultTrack,
-        isActive: true
-      };
-      
-      console.log(`[StreamingAudioContext: initializeDefaultAudio] Audio element created for ${layer}:`, 
-        {trackId, path: defaultTrack.path, connected: true});
-      
-      // Set as active audio for this layer
-      newActiveAudio[layer] = trackId;
-      
-      // Wait for this layer to load
-      await loadPromise;
-      
-    } catch (error) {
-      console.error(`[StreamingAudioContext: initializeDefaultAudio] Error initializing audio for layer ${layer}:`, error);
-      // Increment progress anyway to avoid getting stuck
-      loadedFilesCount++;
-      const progress = Math.round((loadedFilesCount / totalFiles) * 70) + 20;
-      setLoadingProgress(progress);
+  const initializeDefaultAudio = useCallback(async () => {
+    const { audioCore, volumeController } = serviceRef.current;
+    if (!audioCore || !volumeController) {
+      console.error('[StreamingAudioContext: initializeDefaultAudio] Cannot initialize audio, services not ready');
+      return false;
     }
-  }
-
-  // Store audio elements in AudioCore
-  console.log("[StreamingAudioContext: initializeDefaultAudio] Registering audio elements with AudioCore:", 
-    Object.keys(newAudioElements).map(layer => 
-      `${layer}: ${Object.keys(newAudioElements[layer]).join(', ')}`
-    )
-  );
   
-  // Store audio elements in AudioCore
-  if (audioCore.registerElements) {
-    const registered = audioCore.registerElements(newAudioElements);
-    console.log("[StreamingAudioContext: initializeDefaultAudio] AudioCore registration result:", registered);
-  } else {
-    console.error("[StreamingAudioContext: initializeDefaultAudio] AudioCore.registerElements is not defined");
-  }
-  
-  // Use a more reliable state update approach to ensure synchronization
-  const updatedLibrary = {...basicLibrary};
-  
-  // Double-check all tracks are in the library (defensive programming)
-  Object.values(LAYERS).forEach(layer => {
-    if (!updatedLibrary[layer].some(track => track.id === newActiveAudio[layer])) {
-      const trackId = newActiveAudio[layer];
-      updatedLibrary[layer].push({
+    const audioCtx = audioCore.getContext();
+    const masterGain = audioCore.getMasterGain();
+    
+    const totalFiles = Object.values(LAYERS).length;
+    let loadedFilesCount = 0;
+    
+    const newActiveAudio = {};
+    const newAudioElements = {};
+    
+    // Initialize the audio elements structure for each layer
+    Object.values(LAYERS).forEach(layer => {
+      newAudioElements[layer] = {};
+    });
+    
+    // Build initial basic library
+    const basicLibrary = {};
+    Object.values(LAYERS).forEach(layer => {
+      const trackId = `${layer}1`;
+      basicLibrary[layer] = [{
         id: trackId,
         name: `${layer.charAt(0).toUpperCase() + layer.slice(1)}`,
         path: DEFAULT_AUDIO[layer]
-      });
+      }];
+      newActiveAudio[layer] = trackId;
+    });
+  
+    // Update audio library state and reference
+    audioLibraryRef.current = {...basicLibrary};
+    setAudioLibrary(basicLibrary);
+    setLoadingProgress(20);
+    
+    console.log("[StreamingAudioContext: initializeDefaultAudio] Initializing audio with track IDs:", newActiveAudio);
+    
+    // For each layer, create and load the default audio element
+    // We'll wrap this in a Promise.all to ensure all layers are properly initialized
+    const layerInitPromises = Object.values(LAYERS).map(async layer => {
+      const defaultTrack = basicLibrary[layer][0];
+      const trackId = defaultTrack.id;
+  
+      console.log(`[StreamingAudioContext: initializeDefaultAudio] Loading audio for ${layer}, track ID: ${trackId}, path: ${defaultTrack.path}`);
+      
+      try {
+        // Create new audio element
+        const audioElement = new Audio();
+        
+        // Set up load handler
+        const loadPromise = new Promise((resolve) => {
+          const loadHandler = () => {
+            loadedFilesCount++;
+            const progress = Math.round((loadedFilesCount / totalFiles) * 70) + 20;
+            setLoadingProgress(progress);
+            console.log(`[StreamingAudioContext: initializeDefaultAudio] Loaded audio for ${layer}, progress: ${progress}%`);
+            resolve();
+          };
+          
+          // Set up event listeners
+          audioElement.addEventListener('canplaythrough', loadHandler, { once: true });
+          
+          // Handle errors
+          audioElement.addEventListener('error', (e) => {
+            console.error(`[StreamingAudioContext: initializeDefaultAudio] Error loading audio for ${layer}:`, e);
+            console.error(`[StreamingAudioContext: initializeDefaultAudio] Audio src was:`, audioElement.src);
+            console.error(`[StreamingAudioContext: initializeDefaultAudio] Error code:`, audioElement.error ? audioElement.error.code : 'unknown');
+            loadHandler(); // Still mark as loaded so we don't hang
+          }, { once: true });
+          
+          // Set a timeout in case nothing happens
+          setTimeout(() => {
+            if (!audioElement.readyState) {
+              console.warn(`[StreamingAudioContext: initializeDefaultAudio] Loading audio for ${layer} timed out, continuing anyway`);
+              loadHandler();
+            }
+          }, 5000);
+        });
+        
+        // Start loading - IMPORTANT: Set crossOrigin to allow CORS if needed
+        audioElement.crossOrigin = "anonymous";
+        audioElement.src = defaultTrack.path;
+        audioElement.loop = true;
+        audioElement.preload = "auto"; // Force preloading
+        audioElement.load();
+        
+        // Create media element source
+        const source = audioCtx.createMediaElementSource(audioElement);
+        
+        // Connect source to volume controller - THIS IS CRITICAL
+        const connected = volumeController.connectToLayer(layer, source, masterGain);
+        console.log(`[StreamingAudioContext: initializeDefaultAudio] Connected ${layer} to volume controller:`, connected);
+        
+        // Store the audio element and its source
+        newAudioElements[layer][trackId] = {
+          element: audioElement,
+          source: source,
+          track: defaultTrack,
+          isActive: true
+        };
+        
+        console.log(`[StreamingAudioContext: initializeDefaultAudio] Audio element created for ${layer}:`, 
+          {trackId, path: defaultTrack.path, connected: true});
+        
+        // Set as active audio for this layer
+        newActiveAudio[layer] = trackId;
+        
+        // Wait for this layer to load
+        await loadPromise;
+        
+        return { layer, success: true };
+        
+      } catch (error) {
+        console.error(`[StreamingAudioContext: initializeDefaultAudio] Error initializing audio for layer ${layer}:`, error);
+        // Increment progress anyway to avoid getting stuck
+        loadedFilesCount++;
+        const progress = Math.round((loadedFilesCount / totalFiles) * 70) + 20;
+        setLoadingProgress(progress);
+        
+        return { layer, success: false, error };
+      }
+    });
+  
+    // Wait for all layers to initialize
+    const results = await Promise.all(layerInitPromises);
+    
+    // Log initialization results
+    results.forEach(result => {
+      console.log(`[StreamingAudioContext: initializeDefaultAudio] Layer ${result.layer} initialization ${result.success ? 'succeeded' : 'failed'}`);
+    });
+  
+    // Store audio elements in AudioCore
+    console.log("[StreamingAudioContext: initializeDefaultAudio] Registering audio elements with AudioCore:", 
+      Object.keys(newAudioElements).map(layer => 
+        `${layer}: ${Object.keys(newAudioElements[layer]).join(', ')}`
+      )
+    );
+    
+    // Store audio elements in AudioCore
+    if (audioCore.registerElements) {
+      const registered = audioCore.registerElements(newAudioElements);
+      console.log("[StreamingAudioContext: initializeDefaultAudio] AudioCore registration result:", registered);
+    } else {
+      console.error("[StreamingAudioContext: initializeDefaultAudio] AudioCore.registerElements is not defined");
     }
-  });
-  
-  console.log("[StreamingAudioContext: initializeDefaultAudio] Final audio library:", updatedLibrary);
-  
-  // Update both states together
-  setAudioLibrary(updatedLibrary);
-  setActiveAudio(newActiveAudio);
-  setIsLoading(false);
-  setLoadingProgress(100);
-  
-  console.log("[StreamingAudioContext: initializeDefaultAudio] Final active audio state:", newActiveAudio);
-  console.log("[StreamingAudioContext: initializeDefaultAudio] All audio loaded successfully");
-  
-  return true;
-}, []); // No dependencies needed as we're using refs
-
+    
+    // Update both states together
+    setAudioLibrary(prev => ({...basicLibrary}));
+    setActiveAudio(prev => ({...newActiveAudio}));
+    setIsLoading(false);
+    setLoadingProgress(100);
+    
+    console.log("[StreamingAudioContext: initializeDefaultAudio] Final active audio state:", newActiveAudio);
+    console.log("[StreamingAudioContext: initializeDefaultAudio] All audio loaded successfully");
+    
+    return true;
+  }, []);
   // Try to load variation files in background
   const tryLoadVariationFiles = useCallback(() => {
     setTimeout(async () => {
@@ -494,7 +485,7 @@ const initializeDefaultAudio = useCallback(async () => {
 
   // Set volume for a specific layer
   const handleSetVolume = useCallback((layer, value, options = {}) => {
-  //console.log(`handleSetVolume called for ${layer}: ${value}`);
+    console.log(`[StreamingAudioContext: handleSetVolume] Setting volume for ${layer} to ${value}`);
   
   if (!serviceRef.current.volumeController) {
     console.error("Cannot set volume: VolumeController not available");
@@ -515,7 +506,7 @@ const initializeDefaultAudio = useCallback(async () => {
     
     // Apply volume using the VolumeController
   const result = serviceRef.current.volumeController.setVolume(layer, value, options);
-  //console.log(`VolumeController.setVolume result for ${layer}: ${result}`);
+  console.log(`[StreamingAudioContext: handleSetVolume] Volume controller result: ${result}`);
   
   // If there's an active crossfade for this layer, update its volume too
   if (serviceRef.current.crossfadeEngine?.isActive(layer)) {
@@ -547,7 +538,6 @@ const handleSetTimelineEnabled = useCallback((enabled) => {
 
   // Start the session 
   const handleStartSession = useCallback(() => {
-   
     // Use ref for current state check to avoid race conditions
     if (!serviceRef.current.audioCore || isPlayingRef.current) {
       console.log("Can't start: AudioCore missing or already playing");
@@ -560,61 +550,63 @@ const handleSetTimelineEnabled = useCallback((enabled) => {
       // Resume AudioCore
       serviceRef.current.audioCore.resume().catch(err => {
         console.error('Error resuming audio context:', err);
-        
       });
       
       // Get currently active audio elements
       const audioElements = serviceRef.current.audioCore.getElements?.() || {};
-
-     console.log("Starting session - Audio Elements:", 
-      Object.keys(audioElements).map(layer => 
-        `${layer}: ${Object.keys(audioElements[layer] || {}).join(', ')}`
-      )
-    );
-    console.log("Active Audio Mapping:", JSON.stringify(activeAudio));
-    console.log("Audio elements retrieved from AudioCore:", 
-      Object.keys(audioElements).length === 0 ? "{}" : "Found elements"
-    );
-       // Make sure all audio elements are reset to beginning
-    Object.entries(activeAudio).forEach(([layer, trackId]) => {
-      const track = audioElements[layer]?.[trackId];
-      console.log(`Layer ${layer} - Attempting to play track ${trackId}:`, track ? 'Found' : 'Not found');
+  
+      console.log("Starting session - Audio Elements:", 
+        Object.keys(audioElements).map(layer => 
+          `${layer}: ${Object.keys(audioElements[layer] || {}).join(', ')}`
+        )
+      );
       
-      if (track?.element) {
-        // Log volume level
-        console.log(`Layer ${layer} - Volume level:`, volumes[layer]);
-        console.log(`Layer ${layer} - Audio element readyState:`, track.element.readyState);
+      // Log active layer info
+      Object.values(LAYERS).forEach(layer => {
+        const trackId = activeAudio[layer];
+        console.log(`Layer ${layer} - Active track: ${trackId}, Volume: ${volumes[layer]}`);
+      });
+  
+      // Make sure all audio elements are reset to beginning
+      Object.entries(activeAudio).forEach(([layer, trackId]) => {
+        const track = audioElements[layer]?.[trackId];
+        console.log(`Layer ${layer} - Attempting to play track ${trackId}:`, track ? 'Found' : 'Not found');
         
-        // Reset to beginning of track
-        track.element.currentTime = 0;
-      }
-    });
-      
-         // Play all active audio elements
-    let allPlayPromises = [];
-    
-    Object.entries(activeAudio).forEach(([layer, trackId]) => {
-      const track = audioElements[layer]?.[trackId];
-      if (track?.element) {
-        // Play and collect the promise
-        try {
-          console.log(`Layer ${layer} - Initiating play() for track ${trackId}`);
-          const playPromise = track.element.play();
-          if (playPromise !== undefined) {
-            allPlayPromises.push(
-              playPromise.catch(err => {
-                console.error(`Error playing ${layer}:`, err);
-                return null;
-              })
-            );
-          }
-        } catch (err) {
-          console.error(`Error starting ${layer}:`, err);
+        if (track?.element) {
+          // Log volume level
+          console.log(`Layer ${layer} - Volume level:`, volumes[layer]);
+          console.log(`Layer ${layer} - Audio element readyState:`, track.element.readyState);
+          
+          // Reset to beginning of track
+          track.element.currentTime = 0;
         }
-      } else {
-        console.error(`No track found for ${layer}/${trackId}`);
-      }
-    });
+      });
+      
+      // Play all active audio elements
+      let allPlayPromises = [];
+      
+      Object.entries(activeAudio).forEach(([layer, trackId]) => {
+        const track = audioElements[layer]?.[trackId];
+        if (track?.element) {
+          // Play and collect the promise
+          try {
+            console.log(`Layer ${layer} - Initiating play() for track ${trackId}`);
+            const playPromise = track.element.play();
+            if (playPromise !== undefined) {
+              allPlayPromises.push(
+                playPromise.catch(err => {
+                  console.error(`Error playing ${layer}:`, err);
+                  return null;
+                })
+              );
+            }
+          } catch (err) {
+            console.error(`Error starting ${layer}:`, err);
+          }
+        } else {
+          console.error(`No track found for ${layer}/${trackId}`);
+        }
+      });
       
       // Wait for all play operations to complete
       Promise.all(allPlayPromises)
@@ -638,8 +630,8 @@ const handleSetTimelineEnabled = useCallback((enabled) => {
       console.error('Error starting session:', error);
       updatePlayingState(false);
     }
-  }, [activeAudio, updatePlayingState, timelineIsEnabled]);
-
+  }, [activeAudio, volumes, updatePlayingState, LAYERS]);
+ 
   // Pause/Stop session
   const handlePauseSession = useCallback(() => {
     if (!isPlayingRef.current) {
