@@ -474,7 +474,9 @@
 @media (max-width: 768px) {
   .simplePlayer {
     padding: 20px;
-    margin: 10px;
+    margin: 10px auto; /* Keep the auto for horizontal centering */
+    width: calc(100% - 20px); /* Account for the left and right margins */
+    max-width: 100%; /* Allow it to take full width minus margins */
   }
   
   .title {

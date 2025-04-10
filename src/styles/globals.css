@@ -8,6 +8,9 @@ html, body {
   background-color: #121212;
   color: #eeeeee;
   overflow-x: hidden;
+  width: 100%;
+  height: 100%;
+  position: relative;
 }
 
 * {
@@ -19,8 +22,11 @@ html, body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  margin: 0 auto;
+  position: relative;
+  left: 0;
+  right: 0;
 }
-
 main {
   flex: 1;
   display: flex;
