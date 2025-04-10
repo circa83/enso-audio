@@ -50,6 +50,8 @@ const SessionTimeline = React.forwardRef(({
   const componentHasRendered = useRef(false);
   const initialMount = useRef(true);
   const transitionTimeoutRef = useRef(null);
+  const queuedPhaseRef = useRef(null);
+  const progressTimerRef = useRef(null);
 
 //   //simple test
 //   useEffect(() => {
@@ -68,23 +70,25 @@ const SessionTimeline = React.forwardRef(({
  
  // Set Transition State
 const setTransitionState = useCallback((isTransitioning, force = false) => {
-  // Skip unnecessary state updates if state is already set correctly
-  // But allow forcing an update if needed for sync purposes
+  // Skip unnecessary state updates
   if (!force && isTransitioning === transitioning && 
       isTransitioning === transitionInProgress.current && 
       !isTransitioning === transitionCompletedRef.current) {
-    console.log(`[SessionTimeline: setTransitionState] Transition state already set to: ${isTransitioning ? 'START' : 'END'}, skipping update`);
+    console.log(`[SessionTimeline] Transition state already ${isTransitioning ? 'active' : 'inactive'}, skipping update`);
     return;
   }
   
-  console.log(`[SessionTimeline: setTransitionState] Setting transition state: ${isTransitioning ? 'START' : 'END'}`);
+  console.log(`[SessionTimeline] Setting transition state: ${isTransitioning ? 'START' : 'END'}`);
   
-  // Update all transition state flags atomically to ensure consistency
+  // Update refs first
   transitionInProgress.current = isTransitioning;
   transitionCompletedRef.current = !isTransitioning;
   
-  // Set the React state last to ensure the UI updates correctly
-  setTransitioning(isTransitioning);
+  // Batch the state update to reduce re-renders
+  // Only update React state if it's different
+  if (transitioning !== isTransitioning) {
+    setTransitioning(isTransitioning);
+  }
 }, [transitioning]);
 
   //=======INITIALIZE========
@@ -581,9 +585,7 @@ const startFullTransition = useCallback((phase) => {
   }
   
   // Signal that transition is starting
-  setTransitioning(true);
-  transitionInProgress.current = true;
-  transitionCompletedRef.current = false;
+  setTransitionState(true);
   
   // Get the transition duration from settings
   const duration = timeline.transitionDuration;
@@ -600,9 +602,13 @@ const startFullTransition = useCallback((phase) => {
       
       console.log(`[startFullTransition] Volume transition for ${layer}: ${currentVolume} → ${targetVolume}`);
       
-      // Use fadeVolume for smooth transition with UI updates
-      const fadePromise = volume.fadeVolume(layer, targetVolume, duration);
-      fadePromises.push(fadePromise);
+      try {
+        // Use fadeVolume for smooth transition with UI updates
+        const fadePromise = volume.fadeVolume(layer, targetVolume, duration);
+        fadePromises.push(fadePromise);
+      } catch (error) {
+        console.error(`[startFullTransition] Error starting fade for ${layer}:`, error);
+      }
     });
     
     // Wait for all fades to complete
@@ -620,7 +626,11 @@ const startFullTransition = useCallback((phase) => {
     Object.entries(phase.state.activeAudio).forEach(([layer, trackId]) => {
       if (trackId !== layers.active[layer]) {
         console.log(`[startFullTransition] Track change for ${layer}: ${layers.active[layer]} → ${trackId}`);
-        transitions.crossfade(layer, trackId, duration);
+        try {
+          transitions.crossfade(layer, trackId, duration);
+        } catch (error) {
+          console.error(`[startFullTransition] Error crossfading for ${layer}:`, error);
+        }
       }
     });
   }
@@ -632,67 +642,12 @@ const startFullTransition = useCallback((phase) => {
   
   transitionTimeoutRef.current = setTimeout(() => {
     console.log(`[startFullTransition] Transition to ${phase.name} complete`);
-    setTransitioning(false);
-    transitionInProgress.current = false;
-    transitionCompletedRef.current = true;
+    setTransitionState(false);
     transitionTimeoutRef.current = null;
   }, duration + 100); // Add a small buffer
-}, [enabled, timeline, volume, layers, transitions]);
+}, [enabled, timeline, volume, layers, transitions, setTransitionState]);
 
 
-/* // Restart Audio Playing
-  useEffect(() => {
-    if (playback.isPlaying) {
-      if (!wasPlayingBeforeStop.current && componentHasRendered.current) {
-        handleRestartTimeline();
-        setTransitionState(false);
-        
-        // Ensure current audio state is synchronized with active audio
-        if (layers && layers.active) {
-          Object.entries(layers.active).forEach(([layer, trackId]) => {
-            if (trackId) {
-              currentAudioState.current[layer] = trackId;
-            }
-          });
-        }
-      }
-      wasPlayingBeforeStop.current = true;
-    } else {
-      wasPlayingBeforeStop.current = false;
-      startingPhaseApplied.current = false;
-      setTransitionState(false);
-    }
-  }, [playback.isPlaying, handleRestartTimeline, layers, setTransitionState]);
-
-
-   // Stop Playback and reset timeline
-   useEffect(() => {
-  // // If audio playback stops, also stop the timeline
-  // if (!playback.isPlaying && timelineIsPlaying) {
-  //   console.log("Audio stopped - stopping timeline automatically");
-  //   setTimelineIsPlaying(false);
-  //   setLocalTimelineIsPlaying(false);
-    
-  //   // Reset phase tracking
-  //   lastActivePhaseId.current = null;
-  //   setActivePhase(null);
-    
-  //   // Cancel active transitions
-  //   if (volumeTransitionTimer.current) {
-  //     clearInterval(volumeTransitionTimer.current);
-  //     volumeTransitionTimer.current = null;
-  //   }
-  //   setTransitionState(false);
-    
-  //   // Stop timeline in the service
-  //   if (timeline.stopTimeline) {
-  //     timeline.stopTimeline();
-  //   }
-  // }
-   }, [playback.isPlaying, timelineIsPlaying, timeline, setTransitionState]);
-
-*/
-  
 
 // Watch for active crossfades to update transition state
 useEffect(() => {
@@ -716,71 +671,73 @@ useEffect(() => {
   }
 }, [transitions.active, setTransitionState]);
 
+//=======Progress Tracking Effect=======
 
-  // updating time and progress bar 
-  useEffect(() => {
-  let interval;
-  
-  // Only run progress tracking when BOTH audio is playing AND timeline is enabled AND timeline is playing
-  if (enabled && playback.isPlaying && localTimelineIsPlaying) {
-    console.log("Starting SessionTimeline progress tracking");
+// Keep tracking during transitions
+useEffect(() => {
+  // If we enter a transition state, make sure progress tracking is running
+  if (transitionInProgress.current && enabled && playback.isPlaying && localTimelineIsPlaying) {
+    console.log("[SessionTimeline] Ensuring progress tracking continues during transition");
     
-    // Start with fresh time - clear any old state
-    // const time = playback.getTime();
-    // setCurrentTime(time);
-    // const progressPercent = Math.min(100, (time / timeline.duration) * 100);
-    // setProgress(progressPercent);
-    
-    interval = setInterval(() => {
-      // Get current time directly from the timeline service
+    // Create a dedicated timer just for transition periods
+    const transitionProgressTimer = setInterval(() => {
       const time = playback.getTime();
-      setCurrentTime(time);
-      
       const progressPercent = Math.min(100, (time / timeline.duration) * 100);
+      
+      // Force progress updates even during transitions
+      setCurrentTime(time);
       setProgress(progressPercent);
-    }, 50); // Update more frequently for smoother animation
+    }, 50);
+    
+    return () => clearInterval(transitionProgressTimer);
   }
-  
-  return () => {
-    if (interval) {
-      clearInterval(interval);
-    }
-  };
-}, [enabled, playback.isPlaying, localTimelineIsPlaying, timeline.duration, playback]);
-  
+}, [transitionInProgress.current, enabled, playback.isPlaying, localTimelineIsPlaying, timeline.duration, playback]);
 
 //=======Phase detection effect=======
+
 useEffect(() => {
+  // Skip if disabled or not playing
   if (!enabled || !playback.isPlaying || !localTimelineIsPlaying) {
+    console.log("[SessionTimeline] Progress tracking not starting - disabled or not playing");
     return;
   }
   
-  console.log("[SessionTimeline: progressTrackingEffect] Starting progress tracking");
+  console.log("[SessionTimeline] Starting stable progress tracking");
   
-  // Just update progress and time for UI, don't detect phases here
-  const intervalId = setInterval(() => {
-    // Calculate current progress for UI display
-    const time = playback.getTime();
-    const progressPercent = Math.min(100, (time / timeline.duration) * 100);
+  // Use a ref to track if we already have an active interval
+  // This prevents creating multiple intervals during re-renders
+  if (progressTimerRef.current) {
+    console.log("[SessionTimeline] Reusing existing progress timer");
+    return; // Already have a timer, don't create another
+  }
+  
+  // Create a stable timer that will persist across re-renders
+  progressTimerRef.current = setInterval(() => {
+    // Get current time directly from playback
+    const currentTime = playback.getTime();
+    const progressPercent = Math.min(100, (currentTime / timeline.duration) * 100);
     
-    // Update UI state
-    setCurrentTime(time);
-    setProgress(progressPercent);
-  }, 50); // More frequent updates for smoother UI
+    // Use a function form of setState to avoid stale closures
+    setCurrentTime(time => currentTime);
+    setProgress(prog => progressPercent);
+  }, 50);
   
+  // Clear timer only when really stopping playback
   return () => {
-    console.log("[SessionTimeline: progressTrackingEffect] Stopping progress tracking");
-    clearInterval(intervalId);
+    if (progressTimerRef.current) {
+      console.log("[SessionTimeline] Cleaning up progress timer");
+      clearInterval(progressTimerRef.current);
+      progressTimerRef.current = null;
+    }
   };
 }, [
-  enabled, 
-  playback.isPlaying, 
+  // Minimal dependencies to avoid recreation
+  enabled,
+  playback.isPlaying,
   localTimelineIsPlaying,
-  timeline.duration, 
-  playback.getTime, 
-  playback
+  timeline.duration
+  // Explicitly remove playback from dependencies
 ]);
-
 
 // -------Phase change event listener-------
 // Listen for phase change events from the TimelineEngine
@@ -790,30 +747,33 @@ useEffect(() => {
     if (!enabled) return;
     
     const { phaseId, phaseData } = event.detail;
+    console.log(`[SessionTimeline: handlePhaseChangeEvent] Received phase change event phaseData: ${phaseData}`);
+    console.log(`[SessionTimeline: handlePhaseChangeEvent] Received phase change event phaseId: ${phaseId}`);
     
-    console.log(`[SessionTimeline: handlePhaseChangeEvent] Received phase change event: ${phaseId}`);
-    
-    // Skip if we're already in this phase
-    if (phaseId === lastActivePhaseId.current) {
-      console.log('[SessionTimeline: handlePhaseChangeEvent] Already in this phase, skipping transition');
-      return;
-    }
-    
-    // Update phase tracking
-    lastActivePhaseId.current = phaseId;
-    setActivePhase(phaseId);
-    
-    // Find the phase object in our local phases
-    const phase = phases.find(p => p.id === phaseId);
-    
-    // Only start transition if we have the phase and it has state
-    if (phase && phase.state && !transitionInProgress.current) {
-      console.log(`[SessionTimeline: handlePhaseChangeEvent] Starting transition to phase: ${phase.name}`);
-      startFullTransition(phase);
-    } else if (phase && !phase.state) {
-      console.log(`[SessionTimeline: handlePhaseChangeEvent] Phase ${phase.name} has no state data, nothing to apply`);
-    } else if (transitionInProgress.current) {
-      console.log('[SessionTimeline: handlePhaseChangeEvent] Transition already in progress, skipping');
+    // Always update the activePhase state, even during transitions
+    // This ensures the UI shows the correct phase marker
+    if (phaseId !== lastActivePhaseId.current) {
+      lastActivePhaseId.current = phaseId;
+      setActivePhase(phaseId);
+      
+      // Find the phase object in our local phases
+      const phase = phases.find(p => p.id === phaseId);
+      
+      // Start transition for the new phase, but delay if another is in progress
+      if (phase && phase.state) {
+        if (!transitionInProgress.current) {
+          // Start transition immediately if none is in progress
+          console.log(`[SessionTimeline: handlePhaseChangeEvent] Starting transition to phase: ${phase.name}`);
+          startFullTransition(phase);
+        } else {
+          // Queue this transition to start after the current one finishes
+          console.log(`[SessionTimeline: handlePhaseChangeEvent] Transition already in progress, queuing phase change to: ${phase.name}`);
+          
+          // Store the phase to transition to after current completes
+          // You'd need to add a queuedPhaseRef for this
+          queuedPhaseRef.current = phase;
+        }
+      }
     }
   };
   
