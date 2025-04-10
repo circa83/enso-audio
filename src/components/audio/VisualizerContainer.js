@@ -17,6 +17,20 @@ const VisualizerContainer = () => {
     setCurrentMode(mode);
   };
   
+  // Render the current visualizer component with full width
+  const renderVisualizer = () => {
+    switch(currentMode) {
+      case 'audioVisualizer':
+        return <AudioCircleVisualizer />;
+      case 'breathingCircle':
+        return <BreathingCircle />;
+      case 'albumArt':
+        return <AlbumArt />;
+      default:
+        return <AudioCircleVisualizer />;
+    }
+  };
+  
   return (
     <div className={styles.container}>
       <VisualizerSelector 
@@ -25,9 +39,7 @@ const VisualizerContainer = () => {
       />
       
       <div className={styles.visualizerWrapper}>
-        {currentMode === 'audioVisualizer' && <AudioCircleVisualizer />}
-        {currentMode === 'breathingCircle' && <BreathingCircle />}
-        {currentMode === 'albumArt' && <AlbumArt />}
+        {renderVisualizer()}
       </div>
     </div>
   );

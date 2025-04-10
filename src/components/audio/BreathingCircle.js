@@ -11,6 +11,7 @@ const BreathingCircle = () => {
   const [exhale, setExhale] = useState(4);
 
   const canvasRef = useRef(null);
+  const containerRef = useRef(null);
   const startRef = useRef(null);
 
   // redraw on every animation frame
@@ -36,11 +37,20 @@ const BreathingCircle = () => {
       console.log('[BreathingCircle] Resizing canvas');
       if (!canvas.parentElement) return;
       
-      const size = Math.min(canvas.parentElement.clientWidth, 280);
-      canvas.width = size;
-      canvas.height = size;
+      // Get the container width but maintain aspect ratio with max height constraint
+      const containerWidth = containerRef.current ? containerRef.current.clientWidth : 600;
+      const maxSize = Math.min(containerWidth, 400); // Limit maximum size for larger screens
+      
+      canvas.width = maxSize;
+      canvas.height = maxSize;
+      
+      console.log(`[BreathingCircle] Canvas resized to: ${maxSize}x${maxSize}`);
     };
+    
+    // Initial resize
     resize();
+    
+    // Add resize listener
     window.addEventListener("resize", resize);
 
     const frame = ts => {
@@ -82,7 +92,7 @@ const BreathingCircle = () => {
   }, [inhale, hold, exhale]);
 
   return (
-    <div className={styles.container}>
+    <div className={styles.container} ref={containerRef}>
       <div className={styles.info}>
         {inhale}s&nbsp;·&nbsp;{hold}s&nbsp;·&nbsp;{exhale}s
       </div>

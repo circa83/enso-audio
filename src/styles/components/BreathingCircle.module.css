@@ -1,7 +1,7 @@
 /* src/styles/components/BreathingCircle.module.css */
 .container {
     width: 100%;
-    max-width: 280px;
+    max-width: 100%; /* Updated to take full width */
     margin: 0 auto;
     display: flex;
     flex-direction: column;
@@ -25,10 +25,11 @@
   
   .canvas {
     width: 100%;
-    max-width: 280px;
+    max-width: 100%; /* Updated to take full width */
     aspect-ratio: 1 / 1;
     border: 1px solid #333333;
     background: transparent;
+    max-height: 400px; /* Add max-height to keep aspect ratio reasonable */
   }
   
   .controls {
@@ -50,6 +51,7 @@
   }
   
   .slider {
+    appearance: none;
     -webkit-appearance: none;
     width: 100%;
     height: 3px;
@@ -79,7 +81,7 @@
   /* Responsive adjustments */
   @media (max-width: 768px) {
     .container {
-      max-width: 220px;
+      width: 100%;
       padding: 5px;
     }
     
@@ -88,6 +90,6 @@
     }
     
     .canvas {
-      max-width: 200px;
+      max-height: 300px; /* Limit height on smaller screens */
     }
   }

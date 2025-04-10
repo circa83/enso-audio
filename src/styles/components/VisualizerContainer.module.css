@@ -5,15 +5,22 @@
     align-items: center;
     margin: 20px 0;
     width: 100%;
+    
   }
   
   .visualizerWrapper {
     width: 100%;
+    height: inherit;
     display: flex;
     justify-content: center;
     align-items: center;
     margin-top: 20px;
     min-height: 300px;
+  }
+  
+  /* Ensure all visualizers can take full width */
+  .visualizerWrapper > div {
+    width: 100%;
   }
   
   /* Responsive adjustments */
