@@ -18,7 +18,7 @@ const PlayerControlPanel = React.forwardRef(({
   timelineEnabled, 
   onDurationChange 
 }, ref) => {
-  console.log('[PlayerControlPanel] Component rendering');
+  //console.log('[PlayerControlPanel] Component rendering');
   
   // Use our new hook with grouped API
   const { playback } = useAudio();
