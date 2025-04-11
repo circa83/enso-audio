@@ -1078,7 +1078,7 @@ console.log(`Current track for ${layer}: ${currentTrackId}`);
   }
 }, [audioLibrary, activeAudio, transitionDuration]);
 
-// Fade volume for a specific layerh
+// Fade volume for a specific layer
 const handleFadeVolume = useCallback((layer, targetVolume, durationMs) => {
   if (!serviceRef.current.volumeController) {
     console.error("[StreamingAudioContext] Cannot fade volume: VolumeController not available");
