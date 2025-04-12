@@ -2,7 +2,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudio } from '../../hooks/useAudio';
 import PhaseMarker from './PhaseMarker';
-import styles from '../../styles/components/SessionTimeline.module.css';
+import SessionSettings from './SessionSettings'
+import timelinestyles from '../../styles/components/SessionTimeline.module.css';
+import settingsStyles from '../../styles/components/SessionSettings.module.css';
 
 const DEFAULT_PHASES = [
   { id: 'pre-onset', name: 'Pre-Onset', position: 0, color: '#4A6670', state: null, locked: true },
@@ -12,7 +14,9 @@ const DEFAULT_PHASES = [
 ];
 
 const SessionTimeline = React.forwardRef(({ 
-  onDurationChange 
+  onDurationChange,
+  transitionDuration,
+  onTransitionDurationChange, 
 }, ref) => {
   
   // Use our hook with grouped functionality
@@ -535,19 +539,6 @@ const refreshVolumeStateReference = useCallback(() => {
   }
 }, [volume, layers]);
   
-
-// // Define default pre-onset phase state - used if no saved state exists
-//   const DEFAULT_PRE_ONSET_STATE = {
-//     volumes: {
-//       [layers.TYPES.DRONE.toLowerCase()]: 0.25,
-//       [layers.TYPES.MELODY.toLowerCase()]: 0.0,
-//       [layers.TYPES.RHYTHM.toLowerCase()]: 0.0,
-//       [layers.TYPES.NATURE.toLowerCase()]: 0.0
-//     },
-//     // We'll use whatever tracks are currently active
-//     activeAudio: {}
-//   };
-
 //the Finish Transition function
 const finishTransition = useCallback((phase) => {
   console.log('[SessionTimeline: finishTransition] Finishing transition to phase:', phase.name);
@@ -997,13 +988,13 @@ React.useImperativeHandle(ref, () => ({
 
 
   return (
-    <div className={styles.timelineContainer}>
-      <div className={styles.timelineHeader}>
-        <h2 className={styles.timelineTitle}>Session Timeline</h2>
+    <div className={timelinestyles.timelineContainer}>
+      <div className={timelinestyles.timelineHeader}>
+        <h2 className={timelinestyles.timelineTitle}>Session Timeline</h2>
         
-        <div className={styles.timelineControls}>
+        <div className={timelinestyles.timelineControls}>
           <button 
-            className={`${styles.controlButton} ${editMode ? styles.active : ''}`}
+            className={`${timelinestyles.controlButton} ${editMode ? timelinestyles.active : ''}`}
             onClick={toggleEditMode}
           >
             {editMode ? 'Done' : 'Edit Timeline'}
@@ -1012,24 +1003,24 @@ React.useImperativeHandle(ref, () => ({
       </div>
       
       {activePhase && (
-        <div className={styles.phaseIndicator}>
-          Current Phase: <span className={styles.activePhase}>
+        <div className={timelinestyles.phaseIndicator}>
+          Current Phase: <span className={timelinestyles.activePhase}>
             {phases.find(p => p.id === activePhase)?.name}
           </span>
-          {transitioning && <span className={styles.transitioningLabel}> (Transitioning)</span>}
+          {transitioning && <span className={timelinestyles.transitioningLabel}> (Transitioning)</span>}
         </div>
       )}
       
       <div 
-        className={styles.timelineWrapper}
+        className={timelinestyles.timelineWrapper}
       >
         <div 
-          className={styles.timeline} 
+          className={timelinestyles.timeline} 
           ref={timelineRef}
           onClick={handleBackgroundClick}
         >
           <div 
-            className={styles.progressBar} 
+            className={timelinestyles.progressBar} 
             style={{ width: `${progress}%` }}
           />
           
@@ -1055,13 +1046,13 @@ React.useImperativeHandle(ref, () => ({
           ))}
         </div>
       </div>
-      <div className={styles.timelineControls}>
+      <div className={timelinestyles.timelineControls}>
   
   
   {/* Add timeline playback controls */}
  {/* Add debug info to the button */}
 <button 
-  className={`${styles.controlButton} ${timelineIsPlaying ? styles.active : ''}`}
+  className={`${timelinestyles.controlButton} ${timelineIsPlaying ? timelinestyles.active : ''}`}
   onClick={() => {
     console.log("Timeline button clicked!");
     toggleTimelinePlayback();
@@ -1071,7 +1062,7 @@ React.useImperativeHandle(ref, () => ({
   {timelineIsPlaying ? 'Pause Timeline' : 'Start Timeline'}
 </button>
 <button 
-    className={styles.controlButton}
+    className={timelinestyles.controlButton}
     onClick={handleRestartTimeline}
     disabled={!playback.isPlaying}
   >
@@ -1079,20 +1070,31 @@ React.useImperativeHandle(ref, () => ({
   </button>
 </div>
       {/* Time info below the timeline */}
-      <div className={styles.timeInfo}>
+      <div className={timelinestyles.timeInfo}>
         <span>{formatTime(currentTime)}</span>
-        <span className={styles.remainingTime}>-{formatTimeRemaining()}</span>
+        <span className={timelinestyles.remainingTime}>-{formatTimeRemaining()}</span>
       </div>
       
-      <div className={styles.timelineLabels}>
+      <div className={timelinestyles.timelineLabels}>
         <span>Start</span>
         <span>End</span>
       </div>
       
       {editMode && (
-        <div className={styles.editInstructions}>
-          Press and hold a marker to drag it. Tap a marker to select it, then tap "Capture State" to save current audio settings.
-        </div>
+        <>
+          <div className={timelinestyles.editInstructions}>
+            Press and hold a marker to drag it. Tap a marker to select it, then tap "Capture State" to save current audio settings.
+          </div>
+          
+          {/* Add SessionSettings here when in edit mode */}
+          <SessionSettings 
+            sessionDuration={timeline.duration}
+            transitionDuration={transitionDuration}
+            onDurationChange={onDurationChange}
+            onTransitionDurationChange={onTransitionDurationChange}
+            className={settingsStyles.timelineSettings}
+          />
+        </>
       )}
     </div>
   );

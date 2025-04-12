@@ -686,6 +686,8 @@ useEffect(() => {
       {/* Main player and controls */}
       <PlayerControlPanel 
         onDurationChange={handleDurationChange}
+        transitionDuration={transitionDuration}
+        onTransitionDurationChange={handleTransitionDurationChange}
         ref={timelineComponentRef}
       />
       
@@ -698,13 +700,15 @@ useEffect(() => {
       </CollapsibleSection>
           
       {/* Collapsible Section for Session Settings */}
-      <CollapsibleSection 
+        {/* <CollapsibleSection 
         title="Session Settings" 
         initialExpanded={false}
       >
         {renderSessionSettings()}
       </CollapsibleSection>
+      */}
       
+        {/* <CollapsibleSection 
       {/* Collapsible Section for Presets */}
       <CollapsibleSection 
         title="Presets" 

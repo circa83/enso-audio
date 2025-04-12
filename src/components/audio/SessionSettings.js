@@ -9,7 +9,6 @@ const SessionSettings = ({
   onTransitionDurationChange,
 
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
   const [durationHours, setDurationHours] = useState(Math.floor(sessionDuration / (60 * 60 * 1000)));
   const [durationMinutes, setDurationMinutes] = useState(Math.floor((sessionDuration % (60 * 60 * 1000)) / (60 * 1000)));
   const [durationSeconds, setDurationSeconds] = useState(Math.floor((sessionDuration % (60 * 1000)) / 1000));

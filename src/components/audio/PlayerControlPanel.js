@@ -15,7 +15,9 @@ import styles from '../../styles/components/PlayerControlPanel.module.css';
  * @returns {JSX.Element} Rendered component
  */
 const PlayerControlPanel = React.forwardRef(({ 
-  onDurationChange 
+  onDurationChange,
+  transitionDuration,
+  onTransitionDurationChange
 }, ref) => {
   //console.log('[PlayerControlPanel] Component rendering');
   
@@ -52,6 +54,8 @@ const PlayerControlPanel = React.forwardRef(({
         <SessionTimeline 
           ref={ref}
           onDurationChange={onDurationChange}
+          transitionDuration={transitionDuration}
+          onTransitionDurationChange={onTransitionDurationChange}
         />
         <MasterVolumeControl />
       </div>
