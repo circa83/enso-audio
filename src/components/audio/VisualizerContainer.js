@@ -27,19 +27,25 @@ const VisualizerContainer = () => {
       case 'albumArt':
         return <AlbumArt />;
       default:
-        return <AudioCircleVisualizer />;
+        return <AlbumArt />;
     }
   };
   
   return (
     <div className={styles.container}>
+     
+     {/* 
       <VisualizerSelector 
         currentMode={currentMode} 
         onModeChange={handleModeChange} 
       />
-      
       <div className={styles.visualizerWrapper}>
-        {renderVisualizer()}
+       {renderVisualizer()} 
+      </div>
+      */}
+    
+    <div className={styles.fullWidthVisualizer}>
+        <AlbumArt />
       </div>
     </div>
   );
