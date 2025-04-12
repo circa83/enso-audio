@@ -329,7 +329,7 @@ Object.values(layers.TYPES).forEach(layer => {
   // Assign different default volumes based on layer type
   switch(layerKey) {
     case 'drone':
-      defaultVolume = 0.01; // Keep your existing drone default
+      defaultVolume = 0.10; // Keep your existing drone default
       break;
     case 'melody':
       defaultVolume = 0.15; // New default for melody
@@ -466,30 +466,30 @@ const handleRestartTimeline = useCallback(() => {
       });
     }
     
-    // Immediately switch to pre-onset tracks without crossfade
-    if (preOnsetPhase.state.activeAudio) {
-      Object.entries(preOnsetPhase.state.activeAudio).forEach(([layer, trackId]) => {
-        if (trackId !== layers.active[layer]) {
-          // Use a minimal 50ms transition to prevent audio pops but still be immediate
-          transitions.crossfade(layer, trackId, 50);
-        }
-      });
-    }
-    
+    // // Immediately switch to pre-onset tracks without crossfade
+    // if (preOnsetPhase.state.activeAudio) {
+    //   Object.entries(preOnsetPhase.state.activeAudio).forEach(([layer, trackId]) => {
+    //     if (trackId !== layers.active[layer]) {
+    //       // Use a minimal 50ms transition to prevent audio pops but still be immediate
+    //       transitions.crossfade(layer, trackId, 50);
+    //     }
+    //   });
+    // }
+    applyPreOnsetPhase();
     // Set pre-onset as the active phase
     lastActivePhaseId.current = 'pre-onset';
     setActivePhase('pre-onset');
   } else {
     console.log("[SessionTimeline: handleRestartTimeline] No pre-onset phase state found, using defaults");
-    
-    // Apply default state for layers if no pre-onset phase state exists
-    Object.values(layers.TYPES).forEach(layer => {
-      const layerKey = layer.toLowerCase();
-      // Set drone to 25%, all others to 0
-      const defaultVolume = layerKey === 'drone' ? 0.25 : 0;
-      volume.setLayer(layerKey, defaultVolume, { immediate: true });
-    });
   }
+  //   // Apply default state for layers if no pre-onset phase state exists
+  //   Object.values(layers.TYPES).forEach(layer => {
+  //     const layerKey = layer.toLowerCase();
+  //     // Set drone to 25%, all others to 0
+  //     const defaultVolume = layerKey === 'drone' ? 0.25 : 0;
+  //     volume.setLayer(layerKey, defaultVolume, { immediate: true });
+  //   });
+  // }
   
   // Reset timeline in the service
   if (timeline.reset) {
@@ -545,17 +545,17 @@ const refreshVolumeStateReference = useCallback(() => {
 }, [volume, layers]);
   
 
-// Define default pre-onset phase state - used if no saved state exists
-  const DEFAULT_PRE_ONSET_STATE = {
-    volumes: {
-      [layers.TYPES.DRONE.toLowerCase()]: 0.25,
-      [layers.TYPES.MELODY.toLowerCase()]: 0.0,
-      [layers.TYPES.RHYTHM.toLowerCase()]: 0.0,
-      [layers.TYPES.NATURE.toLowerCase()]: 0.0
-    },
-    // We'll use whatever tracks are currently active
-    activeAudio: {}
-  };
+// // Define default pre-onset phase state - used if no saved state exists
+//   const DEFAULT_PRE_ONSET_STATE = {
+//     volumes: {
+//       [layers.TYPES.DRONE.toLowerCase()]: 0.25,
+//       [layers.TYPES.MELODY.toLowerCase()]: 0.0,
+//       [layers.TYPES.RHYTHM.toLowerCase()]: 0.0,
+//       [layers.TYPES.NATURE.toLowerCase()]: 0.0
+//     },
+//     // We'll use whatever tracks are currently active
+//     activeAudio: {}
+//   };
 
 //the Finish Transition function
 const finishTransition = useCallback((phase) => {
