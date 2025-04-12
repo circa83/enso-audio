@@ -108,13 +108,13 @@
 
 .durationInputs {
   display: flex;
-  gap: 15px;
+  gap: 5px;
 }
 
 .inputGroup {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
 }
 
 .timeInput {
@@ -187,9 +187,9 @@
 }
 
 /* Responsive adjustments */
-@media (max-width: 768px) {
+/* @media (max-width: 768px) {
   .durationInputs {
     flex-direction: column;
     gap: 10px;
   }
-}
+} */

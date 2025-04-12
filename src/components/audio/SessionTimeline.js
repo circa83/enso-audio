@@ -1083,7 +1083,7 @@ React.useImperativeHandle(ref, () => ({
       {editMode && (
         <>
           <div className={timelinestyles.editInstructions}>
-            Press and hold a marker to drag it. Tap a marker to select it, then tap "Capture State" to save current audio settings.
+            Press and hold a marker to drag it. Tap "Capture State" to save current audio layers and volumes.
           </div>
           
           {/* Add SessionSettings here when in edit mode */}
