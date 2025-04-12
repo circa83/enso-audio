@@ -48,7 +48,6 @@ const Player = () => {
   
   // Local state for settings and UI
   const [sessionDuration, setSessionDuration] = useState(1 * 60 * 1000); // Default 1 minute
-  const [timelineEnabled, setTimelineEnabled] = useState(true);
   const [transitionDuration, setTransitionDuration] = useState(4000); // Default 4 seconds
   const [debugPanelVisible, setDebugPanelVisible] = useState(false); // Debug panel state
   const timelineComponentRef = useRef(null);
@@ -87,10 +86,10 @@ const Player = () => {
   
   // the session settings state object for the preset system
   const sessionSettingsState = useMemo(() => ({
-    timelineEnabled,
+  
     sessionDuration,
     transitionDuration
-  }), [timelineEnabled, sessionDuration, transitionDuration]);
+  }), [ sessionDuration, transitionDuration]);
   
   // Register our session settings with the preset system
   useEffect(() => {
@@ -106,9 +105,6 @@ const Player = () => {
     const handleSessionSettingsUpdate = (event) => {
       if (event.detail) {
         // Update session settings
-        if (event.detail.timelineEnabled !== undefined) {
-          setTimelineEnabled(event.detail.timelineEnabled);
-        }
         
         if (event.detail.sessionDuration) {
           setSessionDuration(event.detail.sessionDuration);
@@ -157,11 +153,7 @@ useEffect(() => {
         timeline.setTransitionDuration(transitionDuration);
       }
       
-      // Initialize timeline enabled state
-      if (timeline.setTimelineEnabled) {
-        console.log('Setting initial timeline enabled state:', timelineEnabled);
-        timeline.setTimelineEnabled(timelineEnabled);
-      }
+    
       
       // Mark as initialized
       settingsInitialized.current = true;
@@ -173,7 +165,7 @@ useEffect(() => {
       }, 100);
     }
   }
-}, [timeline, sessionDuration, transitionDuration, timelineEnabled]);
+}, [timeline, sessionDuration, transitionDuration]);
 
 // Event listening effect for external updates
 useEffect(() => {
@@ -201,9 +193,6 @@ useEffect(() => {
         setTransitionDuration(data.transitionDuration);
       }
       
-      if (data.timelineEnabled !== undefined) {
-        setTimelineEnabled(data.timelineEnabled);
-      }
     } finally {
       // Reset the prevention flag after a delay
       setTimeout(() => {
@@ -270,25 +259,7 @@ useEffect(() => {
   settingsInitialized.current = true;
   }, [timeline]);
 
-  const handleTimelineToggle = useCallback((enabled) => {
-  console.log('Timeline toggle:', enabled);
-  
-  // Prevent recursive updates
-  if (preventUpdateCycle.current) {
-    console.log('Prevented recursive timeline toggle');
-    return;
-  }
-  
-  setTimelineEnabled(enabled);
-  
-  // Update the timeline enabled state in the service directly
-  if (timeline && timeline.setTimelineEnabled) {
-    timeline.setTimelineEnabled(enabled);
-  }
-  
-  // Mark settings as initialized
-  settingsInitialized.current = true;
-  }, [timeline]);
+
 
   //======= Render Session settings =======
 
@@ -296,20 +267,16 @@ useEffect(() => {
     return (
       <SessionSettings 
         sessionDuration={sessionDuration}
-        timelineEnabled={timelineEnabled}
         transitionDuration={transitionDuration}
         onDurationChange={handleDurationChange}
         onTransitionDurationChange={handleTransitionDurationChange}
-        onTimelineToggle={handleTimelineToggle}
       />
     );
   }, [
     sessionDuration, 
-    timelineEnabled, 
     transitionDuration, 
     handleDurationChange, 
     handleTransitionDurationChange, 
-    handleTimelineToggle
   ]);
   
   //PRESET MANAGEMENT
@@ -718,7 +685,6 @@ useEffect(() => {
       
       {/* Main player and controls */}
       <PlayerControlPanel 
-        timelineEnabled={timelineEnabled}
         onDurationChange={handleDurationChange}
         ref={timelineComponentRef}
       />

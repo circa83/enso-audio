@@ -110,7 +110,6 @@ export const AudioProvider = ({ children }) => {
   const [preloadProgress, setPreloadProgress] = useState({});
   
   // Timeline features
-  const[timelineIsEnabled, setTimelineIsEnabled] = useState(true);
   const [timelineEvents, setTimelineEvents] = useState([]);
   const [timelinePhases, setTimelinePhases] = useState([]);
   const [activePhase, setActivePhase] = useState(null);
@@ -509,11 +508,6 @@ export const AudioProvider = ({ children }) => {
     console.log(`Updated playing state, ref is now: ${isPlayingRef.current}`);
   }, []);
 
-  // Handler for Enable Timeline
-const handleSetTimelineEnabled = useCallback((enabled) => {
-  console.log(`Setting timeline enabled: ${enabled}`);
-  setTimelineIsEnabled(enabled);
-}, []);
 
   // Start the session 
   const handleStartSession = useCallback(() => {
@@ -1414,8 +1408,6 @@ const contextValue = useMemo(() => {
     seekToPercent: handleSeekToPercent,
     setSessionDuration: handleSetSessionDuration,
     setTransitionDuration: handleSetTransitionDuration,
-    timelineIsEnabled,
-    setTimelineIsEnabled: handleSetTimelineEnabled,
     startTimeline: handleStartTimeline,
     pauseTimeline: handlePauseTimeline,
     resumeTimeline: handleResumeTimeline,
@@ -1463,7 +1455,7 @@ const contextValue = useMemo(() => {
   progress,
   sessionDuration,
   transitionDuration,
-  timelineIsEnabled,
+  
   
   // Timeline functions
   handleResetTimelineEventIndex,
@@ -1474,7 +1466,6 @@ const contextValue = useMemo(() => {
   handleSeekToPercent,
   handleSetSessionDuration,
   handleSetTransitionDuration,
-  handleSetTimelineEnabled,
   
   // Preset functions
   handleRegisterPresetStateProvider,

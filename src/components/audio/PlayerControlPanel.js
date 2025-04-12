@@ -15,7 +15,6 @@ import styles from '../../styles/components/PlayerControlPanel.module.css';
  * @returns {JSX.Element} Rendered component
  */
 const PlayerControlPanel = React.forwardRef(({ 
-  timelineEnabled, 
   onDurationChange 
 }, ref) => {
   //console.log('[PlayerControlPanel] Component rendering');
@@ -52,7 +51,6 @@ const PlayerControlPanel = React.forwardRef(({
         </button>
         <SessionTimeline 
           ref={ref}
-          enabled={timelineEnabled}
           onDurationChange={onDurationChange}
         />
         <MasterVolumeControl />

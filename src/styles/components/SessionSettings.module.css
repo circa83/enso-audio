@@ -1,6 +1,7 @@
 /* src/styles/components/SessionSettings.module.css */
 .settingsContainer {
   margin-bottom: 20px;
+  padding: 20px;
   background-color: #1c1c1c;
   border: 1px solid #333;
   overflow: hidden;
@@ -138,8 +139,9 @@
 }
 
 .rangeInput {
-  width: 100%;
+  width: 30%;
   height: 4px;
+  appearance: none;
   -webkit-appearance: none;
   background-color: #333;
   border-radius: 2px;

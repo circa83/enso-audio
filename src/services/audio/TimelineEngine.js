@@ -44,7 +44,6 @@ class TimelineEngine {
       this.startTime = null;
       this.elapsedTime = 0;
       this.isPlaying = false;
-      this.isEnabled = true;
       
       // Timeline data
       this.phases = [];
@@ -120,10 +119,6 @@ class TimelineEngine {
       const { reset = false } = options;
       
       try {
-        if (!this.isEnabled) {
-          this.log('Timeline is disabled, cannot start', 'warn');
-          return false;
-        }
         
         if (this.isPlaying) {
           this.log('Timeline is already playing', 'warn');
@@ -251,10 +246,6 @@ resumeTimeline() {
       return true;
     }
     
-    if (!this.isEnabled) {
-      this.log('Timeline is disabled, cannot resume', 'warn');
-      return false;
-    }
     
     this.log(`Resuming timeline from ${this.elapsedTime}ms`);
     
@@ -310,24 +301,6 @@ resumeTimeline() {
       }
     }
     
-    /**
-     * Enable or disable the timeline
-     * @param {boolean} enabled - Whether timeline should be enabled
-     * @returns {boolean} New enabled state
-     */
-    setEnabled(enabled) {
-      const wasEnabled = this.isEnabled;
-      this.isEnabled = Boolean(enabled);
-      
-      this.log(`Timeline ${this.isEnabled ? 'enabled' : 'disabled'}`);
-      
-      // If disabling while playing, stop the timeline
-      if (wasEnabled && !this.isEnabled && this.isPlaying) {
-        this.stop();
-      }
-      
-      return this.isEnabled;
-    }
     
     /**
      * Get the current elapsed time of the session

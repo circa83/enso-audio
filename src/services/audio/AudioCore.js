@@ -69,7 +69,7 @@ class AudioCore {
         this._analyzer.smoothingTimeConstant = 0.8;
         this._masterGain.connect(this._analyzer);
   
-        // Set up auto-resume if enabled
+        // Set up auto-resume 
         if (this.options.autoResume) {
           this._setupAutoResume();
         }

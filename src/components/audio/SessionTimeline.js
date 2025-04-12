@@ -12,7 +12,6 @@ const DEFAULT_PHASES = [
 ];
 
 const SessionTimeline = React.forwardRef(({ 
-  enabled = true, 
   onDurationChange 
 }, ref) => {
   
@@ -260,14 +259,6 @@ const setTransitionState = useCallback((isTransitioning, force = false) => {
   }, [onDurationChange]);
   
 
-  // Handle enabling/disabling timeline
-  useEffect(() => {
-    if (!enabled && volumeTransitionTimer.current) {
-      clearInterval(volumeTransitionTimer.current);
-      volumeTransitionTimer.current = null;
-      setTransitionState(false);
-    }
-  }, [enabled, setTransitionState]);
   
 
   // Effect to track edit mode changes and ensure deselection
@@ -598,7 +589,7 @@ const startFullTransition = useCallback((phase) => {
   console.log(`[startFullTransition] Starting transition to phase: ${phase.name}`);
   
   // Skip transition if already in progress or no state available
-  if (!enabled || !phase.state || transitionInProgress.current) {
+  if (!phase.state || transitionInProgress.current) {
     console.log('[startFullTransition] Skipping transition - disabled, no state, or already in progress');
     return;
   }
@@ -664,7 +655,7 @@ const startFullTransition = useCallback((phase) => {
     setTransitionState(false);
     transitionTimeoutRef.current = null;
   }, duration + 100); // Add a small buffer
-}, [enabled, timeline, volume, layers, transitions, setTransitionState]);
+}, [ timeline, volume, layers, transitions, setTransitionState]);
 
 
 
@@ -695,7 +686,7 @@ useEffect(() => {
 // Keep tracking during transitions
 useEffect(() => {
   // If we enter a transition state, make sure progress tracking is running
-  if (transitionInProgress.current && enabled && playback.isPlaying && localTimelineIsPlaying) {
+  if (transitionInProgress.current && playback.isPlaying && localTimelineIsPlaying) {
     console.log("[SessionTimeline] Ensuring progress tracking continues during transition");
     
     // Create a dedicated timer just for transition periods
@@ -710,13 +701,13 @@ useEffect(() => {
     
     return () => clearInterval(transitionProgressTimer);
   }
-}, [transitionInProgress.current, enabled, playback.isPlaying, localTimelineIsPlaying, timeline.duration, playback]);
+}, [transitionInProgress.current,  playback.isPlaying, localTimelineIsPlaying, timeline.duration, playback]);
 
 //=======Phase detection effect=======
 
 useEffect(() => {
   // Skip if disabled or not playing
-  if (!enabled || !playback.isPlaying || !localTimelineIsPlaying) {
+  if ( !playback.isPlaying || !localTimelineIsPlaying) {
     console.log("[SessionTimeline] Progress tracking not starting - disabled or not playing");
     return;
   }
@@ -751,7 +742,6 @@ useEffect(() => {
   };
 }, [
   // Minimal dependencies to avoid recreation
-  enabled,
   playback.isPlaying,
   localTimelineIsPlaying,
   timeline.duration
@@ -763,7 +753,6 @@ useEffect(() => {
 useEffect(() => {
   // Listen for phase change events from the TimelineEngine
   const handlePhaseChangeEvent = (event) => {
-    if (!enabled) return;
     
     const { phaseId, phaseData } = event.detail;
     console.log(`[SessionTimeline: handlePhaseChangeEvent] Received phase change event phaseData: ${phaseData}`);
@@ -803,7 +792,7 @@ useEffect(() => {
   return () => {
     window.removeEventListener('timeline-phase-changed', handlePhaseChangeEvent);
   };
-}, [enabled, phases, startFullTransition]);
+}, [ phases, startFullTransition]);
 
 
 // Cleanup transitions when playback stops
@@ -1005,7 +994,7 @@ React.useImperativeHandle(ref, () => ({
  restartTimeline: () => handleRestartTimeline()
 }));
   
-  if (!enabled) return null;
+
 
   return (
     <div className={styles.timelineContainer}>
