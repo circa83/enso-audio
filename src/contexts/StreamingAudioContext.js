@@ -510,134 +510,178 @@ export const AudioProvider = ({ children }) => {
 
 
   // Start the session 
-  const handleStartSession = useCallback(() => {
-    // Use ref for current state check to avoid race conditions
-    if (!serviceRef.current.audioCore || isPlayingRef.current) {
-      console.log("Can't start: AudioCore missing or already playing");
-      return;
+const handleStartSession = useCallback(() => {
+  // Use ref for current state check to avoid race conditions
+  if (!serviceRef.current.audioCore || isPlayingRef.current) {
+    console.log("Can't start: AudioCore missing or already playing");
+    return;
+  }
+  
+  try {
+    console.log("[StreamingAudioContext: handleStartSession] Starting session...");
+    
+    // Resume AudioCore
+    serviceRef.current.audioCore.resume().catch(err => {
+      console.error('[StreamingAudioContext: handleStartSession] Error resuming audio context:', err);
+    });
+    
+    // Get currently active audio elements
+    const audioElements = serviceRef.current.audioCore.getElements?.() || {};
+
+    console.log("[StreamingAudioContext: handleStartSession] Audio Elements:", 
+      Object.keys(audioElements).map(layer => 
+        `${layer}: ${Object.keys(audioElements[layer] || {}).join(', ')}`
+      )
+    );
+    
+    // Log active layer info
+    Object.values(LAYERS).forEach(layer => {
+      const trackId = activeAudio[layer];
+      console.log(`[StreamingAudioContext: handleStartSession] Layer ${layer} - Active track: ${trackId}, Volume: ${volumes[layer]}`);
+    });
+
+    // Make sure all audio elements are reset to beginning
+    Object.entries(activeAudio).forEach(([layer, trackId]) => {
+      const track = audioElements[layer]?.[trackId];
+      console.log(`[StreamingAudioContext: handleStartSession] Layer ${layer} - Attempting to play track ${trackId}:`, track ? 'Found' : 'Not found');
+      
+      if (track?.element) {
+        // Log volume level
+        console.log(`[StreamingAudioContext: handleStartSession] Layer ${layer} - Volume level:`, volumes[layer]);
+        console.log(`[StreamingAudioContext: handleStartSession] Layer ${layer} - Audio element readyState:`, track.element.readyState);
+        
+        // Reset to beginning of track
+        track.element.currentTime = 0;
+        
+        // Set volume to 0 for fade-in
+        if (track.source && track.source.gain) {
+          track.source.gain.value = 0;
+        }
+      }
+    });
+    
+    // Play all active audio elements
+    let allPlayPromises = [];
+    
+    Object.entries(activeAudio).forEach(([layer, trackId]) => {
+      const track = audioElements[layer]?.[trackId];
+      if (track?.element) {
+        // Play and collect the promise
+        try {
+          console.log(`[StreamingAudioContext: handleStartSession] Layer ${layer} - Initiating play() for track ${trackId}`);
+          const playPromise = track.element.play();
+          if (playPromise !== undefined) {
+            allPlayPromises.push(
+              playPromise.catch(err => {
+                console.error(`[StreamingAudioContext: handleStartSession] Error playing ${layer}:`, err);
+                return null;
+              })
+            );
+          }
+        } catch (err) {
+          console.error(`[StreamingAudioContext: handleStartSession] Error starting ${layer}:`, err);
+        }
+      } else {
+        console.error(`[StreamingAudioContext: handleStartSession] No track found for ${layer}/${trackId}`);
+      }
+    });
+    
+    // Wait for all play operations to complete, then fade in
+    Promise.all(allPlayPromises)
+      .then(() => {
+        // Fade in all layers
+        Object.entries(activeAudio).forEach(([layer, trackId]) => {
+          const layerKey = layer.toLowerCase();
+          if (serviceRef.current.volumeController) {
+            // Fade in using the volume controller with 50ms duration
+            const targetVolume = volumes[layer] || 0;
+            console.log(`[StreamingAudioContext: handleStartSession] Fading in ${layer} to ${targetVolume}`);
+            serviceRef.current.volumeController.setVolume(layerKey, targetVolume, {
+              immediate: false,
+              transitionTime: 0.05 // 50ms
+            });
+          }
+        });
+        
+        if (!isPlayingRef.current) {
+          updatePlayingState(true);
+        }
+      })
+      .catch(error => {
+        console.error('[StreamingAudioContext: handleStartSession] Error in play promises:', error);
+        // Try to update state anyway
+        updatePlayingState(true);
+      });
+    
+    // Set state immediately as a fallback
+    if (!isPlayingRef.current) {
+      updatePlayingState(true);
     }
     
-    try {
-      console.log("Starting session...");
-      
-      // Resume AudioCore
-      serviceRef.current.audioCore.resume().catch(err => {
-        console.error('Error resuming audio context:', err);
-      });
-      
-      // Get currently active audio elements
-      const audioElements = serviceRef.current.audioCore.getElements?.() || {};
-  
-      console.log("Starting session - Audio Elements:", 
-        Object.keys(audioElements).map(layer => 
-          `${layer}: ${Object.keys(audioElements[layer] || {}).join(', ')}`
-        )
-      );
-      
-      // Log active layer info
-      Object.values(LAYERS).forEach(layer => {
-        const trackId = activeAudio[layer];
-        console.log(`Layer ${layer} - Active track: ${trackId}, Volume: ${volumes[layer]}`);
-      });
-  
-      // Make sure all audio elements are reset to beginning
-      Object.entries(activeAudio).forEach(([layer, trackId]) => {
-        const track = audioElements[layer]?.[trackId];
-        console.log(`Layer ${layer} - Attempting to play track ${trackId}:`, track ? 'Found' : 'Not found');
-        
-        if (track?.element) {
-          // Log volume level
-          console.log(`Layer ${layer} - Volume level:`, volumes[layer]);
-          console.log(`Layer ${layer} - Audio element readyState:`, track.element.readyState);
-          
-          // Reset to beginning of track
-          track.element.currentTime = 0;
-        }
-      });
-      
-      // Play all active audio elements
-      let allPlayPromises = [];
-      
-      Object.entries(activeAudio).forEach(([layer, trackId]) => {
-        const track = audioElements[layer]?.[trackId];
-        if (track?.element) {
-          // Play and collect the promise
-          try {
-            console.log(`Layer ${layer} - Initiating play() for track ${trackId}`);
-            const playPromise = track.element.play();
-            if (playPromise !== undefined) {
-              allPlayPromises.push(
-                playPromise.catch(err => {
-                  console.error(`Error playing ${layer}:`, err);
-                  return null;
-                })
-              );
-            }
-          } catch (err) {
-            console.error(`Error starting ${layer}:`, err);
-          }
-        } else {
-          console.error(`No track found for ${layer}/${trackId}`);
-        }
-      });
-      
-      // Wait for all play operations to complete
-      Promise.all(allPlayPromises)
-        .then(() => {
-          if (!isPlayingRef.current) {
-            updatePlayingState(true);
-          }
-        })
-        .catch(error => {
-          console.error('Error in play promises:', error);
-          // Try to update state anyway
-          updatePlayingState(true);
-        });
-      
-      // Set state immediately as a fallback
-      if (!isPlayingRef.current) {
-        updatePlayingState(true);
-      }
-      
-    } catch (error) {
-      console.error('Error starting session:', error);
-      updatePlayingState(false);
-    }
-  }, [activeAudio, volumes, updatePlayingState, LAYERS]);
+  } catch (error) {
+    console.error('[StreamingAudioContext: handleStartSession] Error starting session:', error);
+    updatePlayingState(false);
+  }
+}, [activeAudio, volumes, updatePlayingState, LAYERS]);
  
   // Pause/Stop session
-  const handlePauseSession = useCallback(() => {
-    if (!isPlayingRef.current) {
-      console.log("Not playing, nothing to pause");
-      return;
+// Inside handlePauseSession() to implement fade out
+const handlePauseSession = useCallback(() => {
+  if (!isPlayingRef.current) {
+    console.log("[StreamingAudioContext: handlePauseSession] Not playing, nothing to pause");
+    return;
+  }
+  
+  try {
+    console.log("[StreamingAudioContext: handlePauseSession] Fading out and pausing session...");
+    
+    // First, cancel any active crossfades
+    if (serviceRef.current.crossfadeEngine) {
+      serviceRef.current.crossfadeEngine.cancelAllCrossfades({
+        reconnectSource: true,
+        reconnectTarget: true
+      });
     }
     
-    try {
-      console.log("Pausing session...");
-      
-      // First, cancel any active crossfades
-      if (serviceRef.current.crossfadeEngine) {
-        serviceRef.current.crossfadeEngine.cancelAllCrossfades({
-          reconnectSource: true,
-          reconnectTarget: true
-        });
+    // Clear UI state for crossfades
+    setActiveCrossfades({});
+    setCrossfadeProgress({});
+    
+    // Get audio elements from AudioCore
+    const audioElements = serviceRef.current.audioCore.getElements?.() || {};
+    
+    // Fade out all active layers first
+    const fadeDuration = 50; // 50ms fade duration
+    const layerFadePromises = [];
+    
+    Object.entries(activeAudio).forEach(([layer, trackId]) => {
+      const track = audioElements[layer]?.[trackId];
+      if (track?.element && serviceRef.current.volumeController) {
+        try {
+          // Use VolumeController to fade out
+          const fadePromise = serviceRef.current.volumeController.setVolume(layer, 0, {
+            immediate: false,
+            transitionTime: fadeDuration / 1000 // Convert ms to seconds
+          });
+          
+          layerFadePromises.push(fadePromise);
+          console.log(`[StreamingAudioContext: handlePauseSession] Fading out ${layer}`);
+        } catch (err) {
+          console.error(`[StreamingAudioContext: handlePauseSession] Error fading out ${layer}:`, err);
+        }
       }
-      
-      // Clear UI state for crossfades
-      setActiveCrossfades({});
-      setCrossfadeProgress({});
-      
-      // Get audio elements from AudioCore
-      const audioElements = serviceRef.current.audioCore.getElements?.() || {};
-      
-      // Pause all active audio elements
+    });
+    
+    // After a short delay to allow fade out, pause all audio elements
+    setTimeout(() => {
       Object.entries(activeAudio).forEach(([layer, trackId]) => {
         const track = audioElements[layer]?.[trackId];
         if (track?.element) {
           try {
             track.element.pause();
+            console.log(`[StreamingAudioContext: handlePauseSession] Paused ${layer}`);
           } catch (err) {
-            console.error(`Error pausing ${layer}:`, err);
+            console.error(`[StreamingAudioContext: handlePauseSession] Error pausing ${layer}:`, err);
           }
         }
       });
@@ -650,20 +694,22 @@ export const AudioProvider = ({ children }) => {
       // Suspend the AudioCore context
       if (serviceRef.current.audioCore) {
         serviceRef.current.audioCore.suspend().catch(err => {
-          console.warn('Error suspending audio context:', err);
+          console.warn('[StreamingAudioContext: handlePauseSession] Error suspending audio context:', err);
         });
       }
       
-     // Check for proper state update
-console.log("Before updatePlayingState in handlePauseSession, current state:", isPlayingRef.current);
-updatePlayingState(false);
-console.log("After updatePlayingState in handlePauseSession, new state:", isPlayingRef.current);
-    } catch (error) {
-      console.error('Error pausing session:', error);
-      // Still try to update state even if an error occurs
+      // Check for proper state update
+      console.log("[StreamingAudioContext: handlePauseSession] Before updatePlayingState, current state:", isPlayingRef.current);
       updatePlayingState(false);
-    }
-  }, [activeAudio, updatePlayingState]);
+      console.log("[StreamingAudioContext: handlePauseSession] After updatePlayingState, new state:", isPlayingRef.current);
+    }, fadeDuration + 10); // Add a small buffer to ensure fade completes
+    
+  } catch (error) {
+    console.error('[StreamingAudioContext: handlePauseSession] Error pausing session:', error);
+    // Still try to update state even if an error occurs
+    updatePlayingState(false);
+  }
+}, [activeAudio, updatePlayingState]);
 
   // Preload audio using BufferManager
   const handlePreloadAudio = useCallback(async (layer, trackId) => {
