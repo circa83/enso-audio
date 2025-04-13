@@ -4,15 +4,19 @@
 
 /* Base styling */
 .simplePlayer {
-  max-width: 900px;
+  box-sizing: border-box;
+  max-width: min(900px, 100%);
   width: 100%;
   margin: 50px auto;
   padding: 40px;
   background-color: #181818;
   border-radius: 2px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  box-sizing: border-box;
   position: relative;
+  left: 0 !important;
+  right: 0 !important;
+  transform: none !important;
+  overflow: hidden;
 }
 
 /* Minimal typography */
@@ -473,8 +477,12 @@
 /* Responsive design */
 @media (max-width: 768px) {
   .simplePlayer {
-    padding: 20px;
-    margin: 10px;
+    width: calc(100% - 20px);
+    max-width: calc(100% - 20px);
+    margin: 10px auto;
+    padding: 15px;
+    left: 0 !important;
+    right: 0 !important;
   }
   
   .title {
@@ -506,5 +514,19 @@
   .importContainer {
     width: 95%;
     max-width: none;
+  }
+}
+/* iOS-specific fix */
+@media (max-width: 768px) and (-webkit-touch-callout: none) {
+  /* This media query only applies to iOS devices with small screens */
+  .simplePlayer {
+    /* iOS-specific overrides */
+    position: relative;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    margin-left: 0;
+    margin-right: 0;
+    width: calc(100% - 20px);
   }
 }

@@ -345,9 +345,21 @@ class VolumeController {
    */
  // In src/services/audio/VolumeController.js
 // Updated VolumeController.fadeVolume method
+/**
+ * Fade volume over time from current to target value with improved UI updates
+ * 
+ * @param {string} layerId - Identifier for the audio layer
+ * @param {number} targetVolume - Target volume level (0-1)
+ * @param {number} duration - Fade duration in seconds
+ * @param {Function} progressCallback - Callback for progress updates
+ * @returns {Promise<boolean>} - Resolves to success status when fade completes
+ */
 fadeVolume(layerId, targetVolume, duration, progressCallback) {
   return new Promise((resolve) => {
     try {
+      // Log start of fade with duration
+      this.log(`Starting volume fade for "${layerId}" from ${this.getVolume(layerId)} to ${targetVolume} over ${duration}s`);
+      
       // Get the gain node
       const gainNode = this.getGainNode(layerId);
       
@@ -360,7 +372,7 @@ fadeVolume(layerId, targetVolume, duration, progressCallback) {
       // Calculate volume difference
       const volumeDiff = safeTarget - currentVolume;
       
-      // Set up the fade
+      // Set up the fade with Web Audio API
       const now = this.audioContext.currentTime;
       
       // Cancel any scheduled values
@@ -372,17 +384,40 @@ fadeVolume(layerId, targetVolume, duration, progressCallback) {
       // Linear ramp to target
       gainNode.gain.linearRampToValueAtTime(safeTarget, now + duration);
       
-      // Set up interval for UI updates during transition
-      const updateInterval = 30; // Update every 30ms for smooth UI
+      // Calculate appropriate update interval based on duration
+      // Longer durations should have more frequent updates
+      // For long transitions (>5s), update every 16ms (60fps)
+      // For medium transitions (1-5s), update every 30ms
+      // For short transitions (<1s), update every 50ms
+      let updateInterval = 30; // Default: 30ms
+      
+      if (duration > 5) {
+        updateInterval = 16; // ~60fps for long transitions
+      } else if (duration < 1) {
+        updateInterval = 50; // Less frequent for very short transitions
+      }
+      
+      this.log(`Using UI update interval of ${updateInterval}ms for ${duration}s transition`);
+      
       const totalUpdates = Math.floor((duration * 1000) / updateInterval);
       let updateCount = 0;
       
       const updateIntervalId = setInterval(() => {
         updateCount++;
         
-        // Calculate intermediate volume value
+        // Calculate elapsed ratio (0-1)
         const progress = updateCount / totalUpdates;
+        
+        // Instead of linear interpolation, calculate actual current value
+        // based on the Web Audio API's timing curve
+        // This more closely matches what the user actually hears
+        const elapsedTime = progress * duration;
         const currentIntermediate = currentVolume + (volumeDiff * progress);
+        
+        // Every 10th update, log the progress to help with debugging
+        if (updateCount % 10 === 0 || updateCount === 1) {
+          this.log(`Volume fade progress for "${layerId}": ${Math.round(progress * 100)}% - Volume: ${currentIntermediate.toFixed(3)}`, 'info');
+        }
         
         // Update stored volume level for UI consistency
         this.volumeLevels.set(layerId, currentIntermediate);
@@ -404,12 +439,12 @@ fadeVolume(layerId, targetVolume, duration, progressCallback) {
             progressCallback(layerId, safeTarget, 1);
           }
           
+          this.log(`Volume fade complete for "${layerId}": final volume ${safeTarget}`, 'info');
+          
           // Resolve the promise
           resolve(true);
         }
       }, updateInterval);
-      
-      this.log(`Fading volume for "${layerId}" from ${currentVolume} to ${safeTarget} over ${duration}s with UI updates`);
       
     } catch (error) {
       this.log(`Error fading volume for "${layerId}": ${error.message}`, 'error');

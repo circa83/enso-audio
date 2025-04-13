@@ -18,6 +18,25 @@ import styles from '../styles/pages/Player.module.css';
  * @returns {JSX.Element} Rendered component
  */
 const Player = () => {
+  // // // Fix for iOS rendering
+  // useEffect(() => {
+  //   // Fix for iOS rendering
+  //   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    
+  //   if (isIOS) {
+  //     // Get the player element
+  //     const rootElement = document.querySelector('[class*="Player_simplePlayer"]');
+  //     if (rootElement) {
+  //       // Force centering only on iOS
+  //       rootElement.style.left = '50%';
+  //       rootElement.style.right = 'auto';
+  //       rootElement.style.transform = 'translateX(-50%)';
+  //       rootElement.style.marginLeft = '0';
+  //       rootElement.style.marginRight = '0';
+  //       rootElement.style.width = 'calc(100% - 20px)';
+  //     }
+  //   }
+  // }, []);
   // Use our new hook with structured API approach
   const { 
     layers,
@@ -29,7 +48,6 @@ const Player = () => {
   
   // Local state for settings and UI
   const [sessionDuration, setSessionDuration] = useState(1 * 60 * 1000); // Default 1 minute
-  const [timelineEnabled, setTimelineEnabled] = useState(true);
   const [transitionDuration, setTransitionDuration] = useState(4000); // Default 4 seconds
   const [debugPanelVisible, setDebugPanelVisible] = useState(false); // Debug panel state
   const timelineComponentRef = useRef(null);
@@ -68,10 +86,10 @@ const Player = () => {
   
   // the session settings state object for the preset system
   const sessionSettingsState = useMemo(() => ({
-    timelineEnabled,
+  
     sessionDuration,
     transitionDuration
-  }), [timelineEnabled, sessionDuration, transitionDuration]);
+  }), [ sessionDuration, transitionDuration]);
   
   // Register our session settings with the preset system
   useEffect(() => {
@@ -87,9 +105,6 @@ const Player = () => {
     const handleSessionSettingsUpdate = (event) => {
       if (event.detail) {
         // Update session settings
-        if (event.detail.timelineEnabled !== undefined) {
-          setTimelineEnabled(event.detail.timelineEnabled);
-        }
         
         if (event.detail.sessionDuration) {
           setSessionDuration(event.detail.sessionDuration);
@@ -138,11 +153,7 @@ useEffect(() => {
         timeline.setTransitionDuration(transitionDuration);
       }
       
-      // Initialize timeline enabled state
-      if (timeline.setTimelineEnabled) {
-        console.log('Setting initial timeline enabled state:', timelineEnabled);
-        timeline.setTimelineEnabled(timelineEnabled);
-      }
+    
       
       // Mark as initialized
       settingsInitialized.current = true;
@@ -154,7 +165,7 @@ useEffect(() => {
       }, 100);
     }
   }
-}, [timeline, sessionDuration, transitionDuration, timelineEnabled]);
+}, [timeline, sessionDuration, transitionDuration]);
 
 // Event listening effect for external updates
 useEffect(() => {
@@ -182,9 +193,6 @@ useEffect(() => {
         setTransitionDuration(data.transitionDuration);
       }
       
-      if (data.timelineEnabled !== undefined) {
-        setTimelineEnabled(data.timelineEnabled);
-      }
     } finally {
       // Reset the prevention flag after a delay
       setTimeout(() => {
@@ -251,25 +259,7 @@ useEffect(() => {
   settingsInitialized.current = true;
   }, [timeline]);
 
-  const handleTimelineToggle = useCallback((enabled) => {
-  console.log('Timeline toggle:', enabled);
-  
-  // Prevent recursive updates
-  if (preventUpdateCycle.current) {
-    console.log('Prevented recursive timeline toggle');
-    return;
-  }
-  
-  setTimelineEnabled(enabled);
-  
-  // Update the timeline enabled state in the service directly
-  if (timeline && timeline.setTimelineEnabled) {
-    timeline.setTimelineEnabled(enabled);
-  }
-  
-  // Mark settings as initialized
-  settingsInitialized.current = true;
-  }, [timeline]);
+
 
   //======= Render Session settings =======
 
@@ -277,20 +267,16 @@ useEffect(() => {
     return (
       <SessionSettings 
         sessionDuration={sessionDuration}
-        timelineEnabled={timelineEnabled}
         transitionDuration={transitionDuration}
         onDurationChange={handleDurationChange}
         onTransitionDurationChange={handleTransitionDurationChange}
-        onTimelineToggle={handleTimelineToggle}
       />
     );
   }, [
     sessionDuration, 
-    timelineEnabled, 
     transitionDuration, 
     handleDurationChange, 
     handleTransitionDurationChange, 
-    handleTimelineToggle
   ]);
   
   //PRESET MANAGEMENT
@@ -699,8 +685,9 @@ useEffect(() => {
       
       {/* Main player and controls */}
       <PlayerControlPanel 
-        timelineEnabled={timelineEnabled}
         onDurationChange={handleDurationChange}
+        transitionDuration={transitionDuration}
+        onTransitionDurationChange={handleTransitionDurationChange}
         ref={timelineComponentRef}
       />
       
@@ -713,13 +700,15 @@ useEffect(() => {
       </CollapsibleSection>
           
       {/* Collapsible Section for Session Settings */}
-      <CollapsibleSection 
+        {/* <CollapsibleSection 
         title="Session Settings" 
         initialExpanded={false}
       >
         {renderSessionSettings()}
       </CollapsibleSection>
+      */}
       
+        {/* <CollapsibleSection 
       {/* Collapsible Section for Presets */}
       <CollapsibleSection 
         title="Presets" 

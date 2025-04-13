@@ -1,17 +1,10 @@
-// src/components/audio/AudioVisualizer.js
+// src/components/audio/AudioCircleVisualizer.js
 import React, { useEffect, useRef, memo } from 'react';
 import { useAudio } from '../../hooks/useAudio';
-import styles from '../../styles/components/AudioVisualizer.module.css';
+import styles from '../../styles/components/AudioCircleVisualizer.module.css';
 
-/**
- * AudioVisualizer component
- * Creates a visual representation of the currently playing audio
- * Uses reactive circles that respond to different frequency bands
- * 
- * @returns {JSX.Element} Rendered component
- */
-const AudioVisualizer = () => {
-  // Use our new hook with grouped API
+const AudioCircleVisualizer = () => {
+  // Use our hook with grouped API
   const { playback, volume, layers } = useAudio();
   
   // References
@@ -93,20 +86,14 @@ const AudioVisualizer = () => {
   return (
     <div className={styles.visualizerContainer} ref={visualizerRef}>
       <div className={styles.audioVisualizer}>
-      <img 
-          src="../../images/Stillness_EnsōAudio_bkcp.png" 
-          alt="Ensō circle" 
-          className={styles.visualizerImage}
-        />
-     {/*   <div className={`${styles.circle} ${styles.bass}`}></div>
+        <div className={`${styles.circle} ${styles.bass}`}></div>
         <div className={`${styles.circle} ${styles.mid}`}></div>
         <div className={`${styles.circle} ${styles.high}`}></div>
         <div className={`${styles.circle} ${styles.overlay}`}></div>
-      </div> */}
       </div>
     </div>
   );
 };
 
 // Use memo for performance optimization
-export default memo(AudioVisualizer);
+export default memo(AudioCircleVisualizer);

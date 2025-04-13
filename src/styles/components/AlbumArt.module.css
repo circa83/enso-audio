@@ -1,0 +1,35 @@
+/* src/styles/components/AlbumArt.module.css */
+.albumArtContainer {
+    position: relative;
+    width: 100%;
+    max-width: 300px;
+    aspect-ratio: 1;
+    margin: 0 auto;
+    background-color: #1c1c1c;
+    border-radius: 2px;
+    box-sizing: border-box;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .albumImage {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+    opacity: 0.9;
+    transition: opacity 0.3s ease;
+  }
+  
+  .albumImage:hover {
+    opacity: 1;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .albumArtContainer {
+      max-width: 250px;
+    }
+  }

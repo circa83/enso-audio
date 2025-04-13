@@ -142,11 +142,41 @@ function AppContent({ Component, pageProps }) {
 }
 
 function MyApp({ Component, pageProps }) {
+//mobile ios detection
+  useEffect(() => {
+    // Simple iOS detection
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  
+    // Only apply these fixes on iOS
+    if (isIOS) {
+      console.log("iOS detected - applying special fixes");
+      
+      // Fix for iOS rendering
+      document.documentElement.style.width = '100%';
+      document.body.style.width = '100%';
+      document.body.style.left = '0';
+      document.body.style.right = '0';
+      document.body.style.position = 'relative';
+      
+      // Fix for main player container
+      const playerElements = document.querySelectorAll('[class*="Player_simplePlayer"]');
+      playerElements.forEach(el => {
+        el.style.left = '50%';
+        el.style.right = 'auto';
+        el.style.transform = 'translateX(-50%)';
+        el.style.marginLeft = '0';
+        el.style.marginRight = '0';
+        el.style.width = 'calc(100% - 20px)';
+      });
+    }
+  }, []);
+
   return (
     <>
       <Head>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Ensō Audio</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Ensō Audio</title>
         <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@100;200;300&family=Space+Mono&family=Noto+Sans+JP:wght@300&display=swap" rel="stylesheet" />
       </Head>
       

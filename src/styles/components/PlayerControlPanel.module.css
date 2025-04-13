@@ -9,6 +9,9 @@
   border: 1px solid #333;
   width: 100%;
   box-sizing: border-box;
+  position: relative;
+  left: 0;
+  right: 0;
 }
 
 .visualizerSection {
@@ -58,12 +61,39 @@
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .playerControlPanel {
-    padding: 20px;
+    padding: 15px;
+    margin: 15px 0;
+    width: 100%;
+    left: 0;
+    right: 0;
+    position: relative;
   }
+
   
   .playButton {
     width: 50px;
     height: 50px;
     font-size: 0.7rem;
+  }
+}
+/* iOS-specific fix */
+@supports (-webkit-touch-callout: none) {
+  .playerControlPanel {
+    width: 100%;
+    left: 0;
+    right: 0;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+@supports (-webkit-overflow-scrolling: touch) {
+  .playerControlPanel {
+    width: 100%;
+    position: relative;
+    left: 0 !important;
+    right: 0 !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    transform: none !important;
   }
 }

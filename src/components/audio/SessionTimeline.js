@@ -2,7 +2,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudio } from '../../hooks/useAudio';
 import PhaseMarker from './PhaseMarker';
-import styles from '../../styles/components/SessionTimeline.module.css';
+import SessionSettings from './SessionSettings'
+import timelinestyles from '../../styles/components/SessionTimeline.module.css';
+import settingsStyles from '../../styles/components/SessionSettings.module.css';
 
 const DEFAULT_PHASES = [
   { id: 'pre-onset', name: 'Pre-Onset', position: 0, color: '#4A6670', state: null, locked: true },
@@ -12,8 +14,9 @@ const DEFAULT_PHASES = [
 ];
 
 const SessionTimeline = React.forwardRef(({ 
-  enabled = true, 
-  onDurationChange 
+  onDurationChange,
+  transitionDuration,
+  onTransitionDurationChange, 
 }, ref) => {
   
   // Use our hook with grouped functionality
@@ -260,14 +263,6 @@ const setTransitionState = useCallback((isTransitioning, force = false) => {
   }, [onDurationChange]);
   
 
-  // Handle enabling/disabling timeline
-  useEffect(() => {
-    if (!enabled && volumeTransitionTimer.current) {
-      clearInterval(volumeTransitionTimer.current);
-      volumeTransitionTimer.current = null;
-      setTransitionState(false);
-    }
-  }, [enabled, setTransitionState]);
   
 
   // Effect to track edit mode changes and ensure deselection
@@ -321,12 +316,31 @@ const applyPreOnsetPhase = useCallback(() => {
     console.log("[SessionTimeline: applyPreOnsetPhase] No pre-onset phase state found, using defaults");
     
     // Apply default state for layers if no pre-onset phase state exists
-    Object.values(layers.TYPES).forEach(layer => {
-      const layerKey = layer.toLowerCase();
-      // Set drone to 25%, all others to 0
-      const defaultVolume = layerKey === 'drone' ? 0.25 : 0;
-      volume.setLayer(layerKey, defaultVolume, { immediate: true });
-    });
+Object.values(layers.TYPES).forEach(layer => {
+  const layerKey = layer.toLowerCase();
+  // Set default volumes for each layer
+  let defaultVolume = 0;
+  
+  // Assign different default volumes based on layer type
+  switch(layerKey) {
+    case 'drone':
+      defaultVolume = 0.10; // Keep your existing drone default
+      break;
+    case 'melody':
+      defaultVolume = 0.15; // New default for melody
+      break;
+    case 'rhythm':
+      defaultVolume = 0.10; // New default for rhythm
+      break;
+    case 'nature':
+      defaultVolume = 0.20; // New default for nature
+      break;
+    default:
+      defaultVolume = 0; // Fallback
+  }
+  
+  volume.setLayer(layerKey, defaultVolume, { immediate: true });
+});
   }
 }, [phases, volume, layers, transitions]);
 
@@ -447,30 +461,30 @@ const handleRestartTimeline = useCallback(() => {
       });
     }
     
-    // Immediately switch to pre-onset tracks without crossfade
-    if (preOnsetPhase.state.activeAudio) {
-      Object.entries(preOnsetPhase.state.activeAudio).forEach(([layer, trackId]) => {
-        if (trackId !== layers.active[layer]) {
-          // Use a minimal 50ms transition to prevent audio pops but still be immediate
-          transitions.crossfade(layer, trackId, 50);
-        }
-      });
-    }
-    
+    // // Immediately switch to pre-onset tracks without crossfade
+    // if (preOnsetPhase.state.activeAudio) {
+    //   Object.entries(preOnsetPhase.state.activeAudio).forEach(([layer, trackId]) => {
+    //     if (trackId !== layers.active[layer]) {
+    //       // Use a minimal 50ms transition to prevent audio pops but still be immediate
+    //       transitions.crossfade(layer, trackId, 50);
+    //     }
+    //   });
+    // }
+    applyPreOnsetPhase();
     // Set pre-onset as the active phase
     lastActivePhaseId.current = 'pre-onset';
     setActivePhase('pre-onset');
   } else {
     console.log("[SessionTimeline: handleRestartTimeline] No pre-onset phase state found, using defaults");
-    
-    // Apply default state for layers if no pre-onset phase state exists
-    Object.values(layers.TYPES).forEach(layer => {
-      const layerKey = layer.toLowerCase();
-      // Set drone to 25%, all others to 0
-      const defaultVolume = layerKey === 'drone' ? 0.25 : 0;
-      volume.setLayer(layerKey, defaultVolume, { immediate: true });
-    });
   }
+  //   // Apply default state for layers if no pre-onset phase state exists
+  //   Object.values(layers.TYPES).forEach(layer => {
+  //     const layerKey = layer.toLowerCase();
+  //     // Set drone to 25%, all others to 0
+  //     const defaultVolume = layerKey === 'drone' ? 0.25 : 0;
+  //     volume.setLayer(layerKey, defaultVolume, { immediate: true });
+  //   });
+  // }
   
   // Reset timeline in the service
   if (timeline.reset) {
@@ -525,19 +539,6 @@ const refreshVolumeStateReference = useCallback(() => {
   }
 }, [volume, layers]);
   
-
-// Define default pre-onset phase state - used if no saved state exists
-  const DEFAULT_PRE_ONSET_STATE = {
-    volumes: {
-      [layers.TYPES.DRONE.toLowerCase()]: 0.25,
-      [layers.TYPES.MELODY.toLowerCase()]: 0.0,
-      [layers.TYPES.RHYTHM.toLowerCase()]: 0.0,
-      [layers.TYPES.NATURE.toLowerCase()]: 0.0
-    },
-    // We'll use whatever tracks are currently active
-    activeAudio: {}
-  };
-
 //the Finish Transition function
 const finishTransition = useCallback((phase) => {
   console.log('[SessionTimeline: finishTransition] Finishing transition to phase:', phase.name);
@@ -579,7 +580,7 @@ const startFullTransition = useCallback((phase) => {
   console.log(`[startFullTransition] Starting transition to phase: ${phase.name}`);
   
   // Skip transition if already in progress or no state available
-  if (!enabled || !phase.state || transitionInProgress.current) {
+  if (!phase.state || transitionInProgress.current) {
     console.log('[startFullTransition] Skipping transition - disabled, no state, or already in progress');
     return;
   }
@@ -645,7 +646,7 @@ const startFullTransition = useCallback((phase) => {
     setTransitionState(false);
     transitionTimeoutRef.current = null;
   }, duration + 100); // Add a small buffer
-}, [enabled, timeline, volume, layers, transitions, setTransitionState]);
+}, [ timeline, volume, layers, transitions, setTransitionState]);
 
 
 
@@ -676,7 +677,7 @@ useEffect(() => {
 // Keep tracking during transitions
 useEffect(() => {
   // If we enter a transition state, make sure progress tracking is running
-  if (transitionInProgress.current && enabled && playback.isPlaying && localTimelineIsPlaying) {
+  if (transitionInProgress.current && playback.isPlaying && localTimelineIsPlaying) {
     console.log("[SessionTimeline] Ensuring progress tracking continues during transition");
     
     // Create a dedicated timer just for transition periods
@@ -691,13 +692,13 @@ useEffect(() => {
     
     return () => clearInterval(transitionProgressTimer);
   }
-}, [transitionInProgress.current, enabled, playback.isPlaying, localTimelineIsPlaying, timeline.duration, playback]);
+}, [transitionInProgress.current,  playback.isPlaying, localTimelineIsPlaying, timeline.duration, playback]);
 
 //=======Phase detection effect=======
 
 useEffect(() => {
   // Skip if disabled or not playing
-  if (!enabled || !playback.isPlaying || !localTimelineIsPlaying) {
+  if ( !playback.isPlaying || !localTimelineIsPlaying) {
     console.log("[SessionTimeline] Progress tracking not starting - disabled or not playing");
     return;
   }
@@ -732,7 +733,6 @@ useEffect(() => {
   };
 }, [
   // Minimal dependencies to avoid recreation
-  enabled,
   playback.isPlaying,
   localTimelineIsPlaying,
   timeline.duration
@@ -744,7 +744,6 @@ useEffect(() => {
 useEffect(() => {
   // Listen for phase change events from the TimelineEngine
   const handlePhaseChangeEvent = (event) => {
-    if (!enabled) return;
     
     const { phaseId, phaseData } = event.detail;
     console.log(`[SessionTimeline: handlePhaseChangeEvent] Received phase change event phaseData: ${phaseData}`);
@@ -784,7 +783,7 @@ useEffect(() => {
   return () => {
     window.removeEventListener('timeline-phase-changed', handlePhaseChangeEvent);
   };
-}, [enabled, phases, startFullTransition]);
+}, [ phases, startFullTransition]);
 
 
 // Cleanup transitions when playback stops
@@ -986,16 +985,16 @@ React.useImperativeHandle(ref, () => ({
  restartTimeline: () => handleRestartTimeline()
 }));
   
-  if (!enabled) return null;
+
 
   return (
-    <div className={styles.timelineContainer}>
-      <div className={styles.timelineHeader}>
-        <h2 className={styles.timelineTitle}>Session Timeline</h2>
+    <div className={timelinestyles.timelineContainer}>
+      <div className={timelinestyles.timelineHeader}>
+        <h2 className={timelinestyles.timelineTitle}>Session Timeline</h2>
         
-        <div className={styles.timelineControls}>
+        <div className={timelinestyles.timelineControls}>
           <button 
-            className={`${styles.controlButton} ${editMode ? styles.active : ''}`}
+            className={`${timelinestyles.controlButton} ${editMode ? timelinestyles.active : ''}`}
             onClick={toggleEditMode}
           >
             {editMode ? 'Done' : 'Edit Timeline'}
@@ -1004,24 +1003,24 @@ React.useImperativeHandle(ref, () => ({
       </div>
       
       {activePhase && (
-        <div className={styles.phaseIndicator}>
-          Current Phase: <span className={styles.activePhase}>
+        <div className={timelinestyles.phaseIndicator}>
+          Current Phase: <span className={timelinestyles.activePhase}>
             {phases.find(p => p.id === activePhase)?.name}
           </span>
-          {transitioning && <span className={styles.transitioningLabel}> (Transitioning)</span>}
+          {transitioning && <span className={timelinestyles.transitioningLabel}> (Transitioning)</span>}
         </div>
       )}
       
       <div 
-        className={styles.timelineWrapper}
+        className={timelinestyles.timelineWrapper}
       >
         <div 
-          className={styles.timeline} 
+          className={timelinestyles.timeline} 
           ref={timelineRef}
           onClick={handleBackgroundClick}
         >
           <div 
-            className={styles.progressBar} 
+            className={timelinestyles.progressBar} 
             style={{ width: `${progress}%` }}
           />
           
@@ -1047,13 +1046,13 @@ React.useImperativeHandle(ref, () => ({
           ))}
         </div>
       </div>
-      <div className={styles.timelineControls}>
+      <div className={timelinestyles.timelineControls}>
   
   
   {/* Add timeline playback controls */}
  {/* Add debug info to the button */}
 <button 
-  className={`${styles.controlButton} ${timelineIsPlaying ? styles.active : ''}`}
+  className={`${timelinestyles.controlButton} ${timelineIsPlaying ? timelinestyles.active : ''}`}
   onClick={() => {
     console.log("Timeline button clicked!");
     toggleTimelinePlayback();
@@ -1063,7 +1062,7 @@ React.useImperativeHandle(ref, () => ({
   {timelineIsPlaying ? 'Pause Timeline' : 'Start Timeline'}
 </button>
 <button 
-    className={styles.controlButton}
+    className={timelinestyles.controlButton}
     onClick={handleRestartTimeline}
     disabled={!playback.isPlaying}
   >
@@ -1071,20 +1070,31 @@ React.useImperativeHandle(ref, () => ({
   </button>
 </div>
       {/* Time info below the timeline */}
-      <div className={styles.timeInfo}>
+      <div className={timelinestyles.timeInfo}>
         <span>{formatTime(currentTime)}</span>
-        <span className={styles.remainingTime}>-{formatTimeRemaining()}</span>
+        <span className={timelinestyles.remainingTime}>-{formatTimeRemaining()}</span>
       </div>
       
-      <div className={styles.timelineLabels}>
+      <div className={timelinestyles.timelineLabels}>
         <span>Start</span>
         <span>End</span>
       </div>
       
       {editMode && (
-        <div className={styles.editInstructions}>
-          Press and hold a marker to drag it. Tap a marker to select it, then tap "Capture State" to save current audio settings.
-        </div>
+        <>
+          <div className={timelinestyles.editInstructions}>
+            Press and hold a marker to drag it. Tap "Capture State" to save current audio layers and volumes.
+          </div>
+          
+          {/* Add SessionSettings here when in edit mode */}
+          <SessionSettings 
+            sessionDuration={timeline.duration}
+            transitionDuration={transitionDuration}
+            onDurationChange={onDurationChange}
+            onTransitionDurationChange={onTransitionDurationChange}
+            className={settingsStyles.timelineSettings}
+          />
+        </>
       )}
     </div>
   );

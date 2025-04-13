@@ -4,13 +4,11 @@ import styles from '../../styles/components/SessionSettings.module.css';
 
 const SessionSettings = ({ 
   sessionDuration, 
-  timelineEnabled,
   transitionDuration, // Default to 4 seconds
   onDurationChange,
   onTransitionDurationChange,
-  onTimelineToggle
+
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
   const [durationHours, setDurationHours] = useState(Math.floor(sessionDuration / (60 * 60 * 1000)));
   const [durationMinutes, setDurationMinutes] = useState(Math.floor((sessionDuration % (60 * 60 * 1000)) / (60 * 1000)));
   const [durationSeconds, setDurationSeconds] = useState(Math.floor((sessionDuration % (60 * 1000)) / 1000));
@@ -90,38 +88,11 @@ const SessionSettings = ({
     onTransitionDurationChange(value);
   }, [onTransitionDurationChange]);
   
-  // Handle timeline toggle with useCallback
-  const handleTimelineToggle = useCallback((enabled) => {
-    console.log(`Timeline toggle: ${enabled}`);
-    
-    if (onTimelineToggle) {
-     onTimelineToggle(enabled)
-    } 
-    // Force an update by triggering a custom event
-    const event = new CustomEvent('timeline-enabled-changed', { 
-      detail: { enabled: enabled } 
-    });
-    window.dispatchEvent(event);
-  }, [onTimelineToggle]);
 
   return (
     <div className={styles.settingsContainer}>
       <div className={styles.settingGroup}>
-        <label className={styles.settingLabel}>Timeline</label>
-        <div className={styles.settingToggle}>
-          <button 
-            className={`${styles.toggleButton} ${timelineEnabled ? styles.active : ''}`}
-            onClick={() => handleTimelineToggle(true)}
-          >
-            Enabled
-          </button>
-          <button 
-            className={`${styles.toggleButton} ${!timelineEnabled ? styles.active : ''}`}
-            onClick={() => handleTimelineToggle(false)}
-          >
-            Disabled
-          </button>
-        </div>
+        
       </div>
       
        
@@ -144,7 +115,7 @@ const SessionSettings = ({
             </div>
           </div>
 
-      {timelineEnabled && (
+     
         <>
           <div className={styles.settingGroup}>
             <label className={styles.settingLabel}>Session Duration</label>
@@ -191,15 +162,10 @@ const SessionSettings = ({
           </div>
          
         </>
-      )}
+      
       
       <div className={styles.settingGroup}>
-        <p className={styles.settingInfo}>
-          {timelineEnabled 
-            ? 'With timeline enabled, audio layers will automatically adjust during the session based on your configured phases.'
-            : 'With timeline disabled, you have complete manual control over audio layers throughout the session.Transition duration still applies to crossfades between audio variations.'}
-  </p>
-        
+  
       </div>
     </div>
   );
