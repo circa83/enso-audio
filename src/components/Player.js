@@ -18,25 +18,7 @@ import styles from '../styles/pages/Player.module.css';
  * @returns {JSX.Element} Rendered component
  */
 const Player = () => {
-  // // // Fix for iOS rendering
-  // useEffect(() => {
-  //   // Fix for iOS rendering
-  //   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    
-  //   if (isIOS) {
-  //     // Get the player element
-  //     const rootElement = document.querySelector('[class*="Player_simplePlayer"]');
-  //     if (rootElement) {
-  //       // Force centering only on iOS
-  //       rootElement.style.left = '50%';
-  //       rootElement.style.right = 'auto';
-  //       rootElement.style.transform = 'translateX(-50%)';
-  //       rootElement.style.marginLeft = '0';
-  //       rootElement.style.marginRight = '0';
-  //       rootElement.style.width = 'calc(100% - 20px)';
-  //     }
-  //   }
-  // }, []);
+
   // Use our new hook with structured API approach
   const { 
     layers,

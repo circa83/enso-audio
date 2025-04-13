@@ -1,0 +1,61 @@
+[
+  {
+    "id": "stillness",
+    "name": "Stillness",
+    "description": "A collection of ambient layers for creating peaceful soundscapes",
+    "coverImage": "/collections/Stillness/cover/Stillness_EnsōAudio_bkcp.png",
+    "tracks": [
+      {
+        "id": "layer1",
+        "title": "Layer 1",
+        "audioUrl": "/collections/Stillness/Layer_1/drone.mp3",
+        "variations": [
+          {
+            "id": "layer1-01",
+            "title": "Layer 1 Variation 1",
+            "audioUrl": "/collections/Stillness/Layer_1/drone_01.mp3"
+          },
+          {
+            "id": "layer1-02",
+            "title": "Layer 1 Variation 2",
+            "audioUrl": "/collections/Stillness/Layer_1/drone_02.mp3"
+          }
+        ]
+      },
+      {
+        "id": "layer2",
+        "title": "Layer 2",
+        "audioUrl": "/collections/Stillness/Layer_2/melody.mp3",
+        "variations": [
+          {
+            "id": "layer2-01",
+            "title": "Layer 2 Variation 1",
+            "audioUrl": "/collections/Stillness/Layer_2/melody_01.mp3"
+          }
+        ]
+      },
+      {
+        "id": "layer3",
+        "title": "Layer 3",
+        "audioUrl": "/collections/Stillness/Layer_3/rhythm.mp3",
+        "variations": [
+          {
+            "id": "layer3-01",
+            "title": "Layer 3 Variation 1",
+            "audioUrl": "/collections/Stillness/Layer_3/rhythm_01.mp3"
+          }
+        ]
+      },
+      {
+        "id": "layer4",
+        "title": "Layer 4",
+        "audioUrl": "/collections/Stillness/Layer_4/nature.mp3"
+      }
+    ],
+    "metadata": {
+      "artist": "Ensō Audio",
+      "year": 2024,
+      "tags": ["ambient", "meditation", "peaceful", "soundscape"]
+    }
+  }
+] 
