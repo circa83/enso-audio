@@ -10,7 +10,7 @@ export default function Home() {
   useEffect(() => {
     if (!isLoading) {
       if (isAuthenticated) {
-        router.push('/');
+        router.push('/ambient-archive');
       } else {
         router.push('/login');
       }

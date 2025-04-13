@@ -38,18 +38,21 @@ const DashboardLayout = ({ children, activePage }) => {
         )}
         
         <nav className={styles.navigation}>
-          <Link href="/dashboard" className={`${styles.navLink} ${activePage === 'dashboard' ? styles.active : ''}`}>
-            Dashboard
-          </Link>
-          <Link href="/dashboard/sessions" className={`${styles.navLink} ${activePage === 'sessions' ? styles.active : ''}`}>
+        <Link href="/ambient-archive" className={`${styles.navLink} ${activePage === 'ambient-archive' ? styles.active : ''}`}>
+  Ambient Archive
+</Link>
+<Link href="/dashboard/player" className={`${styles.navLink} ${activePage === 'player' ? styles.active : ''}`}>
+  Audio Player
+</Link>
+          {/* <Link href="/dashboard/sessions" className={`${styles.navLink} ${activePage === 'sessions' ? styles.active : ''}`}>
             Sessions
           </Link>
           <Link href="/dashboard/library" className={`${styles.navLink} ${activePage === 'library' ? styles.active : ''}`}>
             Audio Library
-          </Link>
+          </Link> 
           <Link href="/dashboard/settings" className={`${styles.navLink} ${activePage === 'settings' ? styles.active : ''}`}>
             Settings
-          </Link>
+          </Link> */}
         </nav>
         
         <div className={styles.sidebarFooter}>

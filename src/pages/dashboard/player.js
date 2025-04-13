@@ -14,8 +14,8 @@ const PlayerPage = () => {
       </Head>
       
       <div className={styles.playerTopBar}>
-        <Link href="/dashboard" className={styles.backButton}>
-          ← Back to Dashboard
+        <Link href="/ambient-archive" className={styles.backButton}>
+          ← Back to Ambient Archive
         </Link>
         
         <div className={styles.sessionControls}>

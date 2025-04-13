@@ -1,0 +1,172 @@
+/* src/styles/pages/AmbientArchive.module.css */
+.archiveHeader {
+    margin-bottom: 40px;
+  }
+  
+  .archiveTitle {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 1.8rem;
+    color: #ffffff;
+    margin-bottom: 10px;
+    letter-spacing: 2px;
+  }
+  
+  .archiveDescription {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 1rem;
+    color: #aaaaaa;
+    letter-spacing: 1px;
+  }
+  
+  .collectionsGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 30px;
+    margin-bottom: 40px;
+  }
+  
+  .collectionCard {
+    background-color: #1c1c1c;
+    border: 1px solid #333;
+    transition: all 0.2s ease;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .collectionCard:hover {
+    border-color: #555;
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  }
+  
+  .collectionImageContainer {
+    width: 100%;
+    height: 200px;
+    overflow: hidden;
+    position: relative;
+    background-color: #111;
+  }
+  
+  .collectionImage {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.2s ease;
+  }
+  
+  .collectionCard:hover .collectionImage {
+    transform: scale(1.05);
+  }
+  
+  .collectionInfo {
+    padding: 20px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .collectionName {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 1.2rem;
+    color: #ffffff;
+    margin-bottom: 10px;
+    letter-spacing: 1px;
+  }
+  
+  .collectionDescription {
+    font-size: 0.9rem;
+    color: #aaaaaa;
+    margin-bottom: 15px;
+    flex-grow: 1;
+  }
+  
+  .collectionMeta {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 15px;
+    font-size: 0.8rem;
+    color: #777;
+  }
+  
+  .collectionArtist {
+    font-style: italic;
+  }
+  
+  .collectionControls {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .playButton, .detailsButton {
+    flex: 1;
+    background-color: transparent;
+    padding: 8px 0;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    text-align: center;
+  }
+  
+  .playButton {
+    border: 1px solid #ffffff;
+    color: #ffffff;
+  }
+  
+  .playButton:hover {
+    background-color: #ffffff;
+    color: #111111;
+  }
+  
+  .detailsButton {
+    border: 1px solid #444;
+    color: #aaaaaa;
+  }
+  
+  .detailsButton:hover {
+    border-color: #ffffff;
+    color: #ffffff;
+  }
+  
+  .loadingContainer, .errorContainer, .emptyState {
+    background-color: #1c1c1c;
+    border: 1px solid #333;
+    padding: 40px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .emptyState {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.9rem;
+    color: #aaaaaa;
+    letter-spacing: 1px;
+  }
+  
+  /* Responsive styles */
+  @media (max-width: 1024px) {
+    .collectionsGrid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  
+  @media (max-width: 576px) {
+    .collectionsGrid {
+      grid-template-columns: 1fr;
+    }
+    
+    .archiveTitle {
+      font-size: 1.5rem;
+    }
+  }
