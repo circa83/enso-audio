@@ -1,6 +1,8 @@
 // src/pages/api/upload.js
-import { put, list, del } from '@vercel/blob';
-import { NextApiRequest, NextApiResponse } from 'next';
+import { put } from '@vercel/blob';
+import { IncomingForm } from 'formidable';
+import fs from 'fs';
+import util from 'util';
 
 // Allowed MIME types for audio files
 const ALLOWED_AUDIO_MIME_TYPES = [
@@ -26,336 +28,254 @@ const ALLOWED_IMAGE_MIME_TYPES = [
 // Maximum file size (100 MB)
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
-// Add at the top with other constants
-const STORE_ID = process.env.BLOB_STORE_ID || 'store_uGGTZAuWx9gzThtf';
-const BASE_URL = process.env.BLOB_BASE_URL || 'https://uggtzauwx9gzthtf.public.blob.vercel-storage.com';
-
 export const config = {
   api: {
-    bodyParser: false, // Disable bodyParser to handle FormData correctly
-    responseLimit: false, // Remove the response size limit
+    bodyParser: false, // Disable bodyParser for file uploads
   },
 };
 
 export default async function handler(req, res) {
+  console.log("[API: upload] Handling upload request", { method: req.method });
+  
   // Only allow POST method
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
-  
-  console.log('[API: upload] Processing upload request');
-  
+
   try {
-    // Check for multipart/form-data content-type
-    const contentType = req.headers['content-type'];
-    if (!contentType || !contentType.includes('multipart/form-data')) {
-      return res.status(400).json({ error: 'Content-Type must be multipart/form-data' });
-    }
-    
-    // Create a FormData parser
-    const formData = await req.formData();
-    
-    // Get the upload type
-    const uploadType = formData.get('uploadType');
+    // Create a formidable instance with the correct constructor
+    const form = new IncomingForm({
+      maxFileSize: MAX_FILE_SIZE,
+      keepExtensions: true,
+      multiples: true,
+    });
+
+    // Parse the form
+    const [fields, files] = await new Promise((resolve, reject) => {
+      form.parse(req, (err, fields, files) => {
+        if (err) reject(err);
+        resolve([fields, files]);
+      });
+    });
+
+    console.log("[API: upload] Form parsed", { 
+      fields: Object.keys(fields), 
+      files: Object.keys(files) 
+    });
+
+    // Get upload type
+    const uploadType = fields.uploadType?.[0] || 'single';
     console.log(`[API: upload] Upload type: ${uploadType}`);
-    
-    // Handle different upload types
-    switch (uploadType) {
-      case 'single':
-        return handleSingleFileUpload(formData, res);
-      
-      case 'multiple':
-        return handleMultipleFileUpload(formData, res);
-        
-      case 'collection':
-        return handleCollectionUpload(formData, res);
-        
-      default:
-        return res.status(400).json({ error: 'Invalid upload type' });
-    }
-  } catch (error) {
-    console.error(`[API: upload] Error processing upload: ${error.message}`);
-    return res.status(500).json({ error: 'Failed to process upload', message: error.message });
-  }
-}
 
-/**
- * Handle single file upload
- */
-async function handleSingleFileUpload(formData, res) {
-  try {
-    const file = formData.get('file');
-    if (!file) {
-      return res.status(400).json({ error: 'No file provided' });
-    }
-    
-    // Validate file
-    const validationResult = validateFile(file, {
-      allowedMimeTypes: [...ALLOWED_AUDIO_MIME_TYPES, ...ALLOWED_IMAGE_MIME_TYPES],
-      maxSize: MAX_FILE_SIZE
-    });
-    
-    if (!validationResult.valid) {
-      return res.status(400).json({ error: validationResult.error });
-    }
-    
-    // Get folder path
-    const folder = formData.get('folder') || '';
-    
-    // Upload file
-    console.log(`[API: upload] Uploading single file to folder: ${folder}`);
-    
-    // Generate a clean filename
-    const originalName = file.name;
-    const cleanName = originalName.replace(/[^a-zA-Z0-9_.-]/g, '_');
-    
-    // Create the full path including store ID
-    const pathname = `${STORE_ID}/${folder ? `${folder}/${cleanName}` : cleanName}`;
-    
-    // Execute the upload
-    const blob = await put(pathname, file, {
-      access: 'public',
-      addRandomSuffix: false
-    });
-    
-    // Ensure the URL uses your store's base URL
-    const url = `${BASE_URL}/${blob.pathname}`;
-    
-    return res.status(200).json({
-      success: true,
-      file: {
-        url,
-        pathname: blob.pathname,
-        contentType: file.type,
+    // Get folder path if provided
+    const folder = fields.folder?.[0] || '';
+
+    // Handle single file upload
+    if (uploadType === 'single') {
+      const file = files.file?.[0];
+      if (!file) {
+        return res.status(400).json({ error: 'No file provided' });
+      }
+
+      console.log("[API: upload] Uploading single file", { 
+        name: file.originalFilename, 
+        type: file.mimetype,
         size: file.size
-      }
-    });
-  } catch (error) {
-    console.error(`[API: upload/single] Error: ${error.message}`);
-    return res.status(500).json({ error: 'Failed to upload file', message: error.message });
-  }
-}
-
-/**
- * Handle multiple file upload
- */
-async function handleMultipleFileUpload(formData, res) {
-  try {
-    const files = formData.getAll('files');
-    if (!files || files.length === 0) {
-      return res.status(400).json({ error: 'No files provided' });
-    }
-    
-    // Get folder path
-    const folder = formData.get('folder') || '';
-    
-    // Validate each file
-    for (const file of files) {
-      const validationResult = validateFile(file, {
-        allowedMimeTypes: [...ALLOWED_AUDIO_MIME_TYPES, ...ALLOWED_IMAGE_MIME_TYPES],
-        maxSize: MAX_FILE_SIZE
       });
-      
-      if (!validationResult.valid) {
+
+      // Validate file type
+      if (![...ALLOWED_AUDIO_MIME_TYPES, ...ALLOWED_IMAGE_MIME_TYPES].includes(file.mimetype)) {
         return res.status(400).json({ 
-          error: `File validation failed for ${file.name}: ${validationResult.error}` 
+          error: `Invalid file type: ${file.mimetype}` 
         });
       }
+
+      // Generate a clean filename
+      const cleanName = file.originalFilename.replace(/[^a-zA-Z0-9_.-]/g, '_');
+      const pathname = folder ? `${folder}/${cleanName}` : cleanName;
+
+      // Read the file
+      const fileData = await fs.promises.readFile(file.filepath);
+
+      // Upload to Vercel Blob
+      console.log(`[API: upload] Uploading to Vercel Blob: ${pathname}`);
+      const blob = await put(pathname, fileData, {
+        access: 'public',
+        contentType: file.mimetype
+      });
+
+      console.log(`[API: upload] Upload successful: ${blob.url}`);
+      return res.status(200).json({
+        success: true,
+        file: {
+          url: blob.url,
+          pathname: blob.pathname,
+          contentType: file.mimetype,
+          size: file.size
+        }
+      });
     }
-    
-    // Upload files
-    console.log(`[API: upload] Uploading ${files.length} files to folder: ${folder}`);
-    
-    // Process files with concurrency limit
-    const concurrentLimit = 3;
-    const results = [];
-    
-    // Process in batches for better handling
-    for (let i = 0; i < files.length; i += concurrentLimit) {
-      const batch = files.slice(i, i + concurrentLimit);
-      
-      const batchPromises = batch.map(file => {
+
+    // Handle multiple file upload
+    if (uploadType === 'multiple') {
+      const fileArray = files.files || [];
+      if (fileArray.length === 0) {
+        return res.status(400).json({ error: 'No files provided' });
+      }
+
+      console.log(`[API: upload] Uploading ${fileArray.length} files`);
+
+      const uploadPromises = fileArray.map(async (file) => {
+        // Validate file type
+        if (![...ALLOWED_AUDIO_MIME_TYPES, ...ALLOWED_IMAGE_MIME_TYPES].includes(file.mimetype)) {
+          // Skip invalid files and log them
+          console.log(`[API: upload] Skipping invalid file type: ${file.mimetype}`);
+          return null;
+        }
+
         // Generate a clean filename
-        const originalName = file.name;
-        const cleanName = originalName.replace(/[^a-zA-Z0-9_.-]/g, '_');
-        
-        // Create path
+        const cleanName = file.originalFilename.replace(/[^a-zA-Z0-9_.-]/g, '_');
         const pathname = folder ? `${folder}/${cleanName}` : cleanName;
-        
-        // Upload file
-        return put(pathname, file, {
-          access: 'public',
-        });
-      });
-      
-      const batchResults = await Promise.all(batchPromises);
-      results.push(...batchResults);
-    }
-    
-    // Format response
-    const fileResults = results.map(result => ({
-      url: result.url,
-      pathname: result.pathname
-    }));
-    
-    return res.status(200).json({
-      success: true,
-      files: fileResults
-    });
-  } catch (error) {
-    console.error(`[API: upload/multiple] Error: ${error.message}`);
-    return res.status(500).json({ error: 'Failed to upload files', message: error.message });
-  }
-}
 
-/**
- * Handle collection structure upload
- */
-async function handleCollectionUpload(formData, res) {
-  try {
-    const collectionId = formData.get('collectionId');
-    if (!collectionId) {
-      return res.status(400).json({ error: 'Collection ID is required' });
-    }
-    
-    console.log(`[API: upload] Processing collection upload for: ${collectionId}`);
-    
-    // Extract files per category
-    const coverFiles = formData.getAll('cover');
-    
-    // Structure to hold layer files
-    const layerFiles = {};
-    
-    // Get layer names from form data
-    const layerKeys = Array.from(formData.keys())
-      .filter(key => key.startsWith('layer_'))
-      .map(key => key.replace('layer_', ''));
-    
-    // Populate layer files
-    for (const layerKey of layerKeys) {
-      const files = formData.getAll(`layer_${layerKey}`);
-      if (files.length > 0) {
-        layerFiles[layerKey] = files;
-      }
-    }
-    
-    // Validate all files
-    const allFiles = [
-      ...coverFiles,
-      ...Object.values(layerFiles).flat()
-    ];
-    
-    for (const file of allFiles) {
-      // Cover images should be images, layer files should be audio
-      const isLayerFile = Object.values(layerFiles).some(files => 
-        files.some(f => f.name === file.name)
-      );
-      const allowedTypes = isLayerFile ? ALLOWED_AUDIO_MIME_TYPES : ALLOWED_IMAGE_MIME_TYPES;
-      
-      const validationResult = validateFile(file, {
-        allowedMimeTypes: allowedTypes,
-        maxSize: MAX_FILE_SIZE
-      });
-      
-      if (!validationResult.valid) {
-        return res.status(400).json({ 
-          error: `File validation failed for ${file.name}: ${validationResult.error}` 
-        });
-      }
-    }
-    
-    const results = {
-      cover: [],
-      layers: {}
-    };
-    
-    // Upload cover images
-    if (coverFiles.length > 0) {
-      console.log(`[API: upload] Uploading ${coverFiles.length} cover files`);
-      
-      const coverPromises = coverFiles.map(file => {
-        const cleanName = file.name.replace(/[^a-zA-Z0-9_.-]/g, '_');
-        const pathname = `collections/${collectionId}/cover/${cleanName}`;
-        
-        return put(pathname, file, {
-          access: 'public',
-        });
-      });
-      
-      results.cover = await Promise.all(coverPromises);
-    }
-    
-    // Upload layer files
-    for (const [layerName, files] of Object.entries(layerFiles)) {
-      if (files.length > 0) {
-        console.log(`[API: upload] Uploading ${files.length} files for layer ${layerName}`);
-        
-        const layerPromises = files.map(file => {
-          const cleanName = file.name.replace(/[^a-zA-Z0-9_.-]/g, '_');
-          const pathname = `collections/${collectionId}/${layerName}/${cleanName}`;
-          
-          return put(pathname, file, {
-            access: 'public',
-          });
-        });
-        
-        results.layers[layerName] = await Promise.all(layerPromises);
-      }
-    }
-    
-    // Format the results for response
-    const formattedResults = {
-      cover: results.cover.map(result => ({
-        url: result.url,
-        pathname: result.pathname
-      })),
-      layers: {}
-    };
-    
-    for (const [layerName, layerResults] of Object.entries(results.layers)) {
-      formattedResults.layers[layerName] = layerResults.map(result => ({
-        url: result.url,
-        pathname: result.pathname
-      }));
-    }
-    
-    return res.status(200).json({
-      success: true,
-      collection: {
-        id: collectionId,
-        results: formattedResults
-      }
-    });
-  } catch (error) {
-    console.error(`[API: upload/collection] Error: ${error.message}`);
-    return res.status(500).json({ error: 'Failed to upload collection', message: error.message });
-  }
-}
+        // Read the file
+        const fileData = await fs.promises.readFile(file.filepath);
 
-/**
- * Validate a file based on MIME type and size
- */
-function validateFile(file, options = {}) {
-  const { allowedMimeTypes, maxSize } = options;
-  
-  // Check file type
-  if (allowedMimeTypes && allowedMimeTypes.length > 0) {
-    if (!allowedMimeTypes.includes(file.type)) {
-      return {
-        valid: false,
-        error: `Invalid file type: ${file.type}. Allowed types: ${allowedMimeTypes.join(', ')}`
+        // Upload to Vercel Blob
+        console.log(`[API: upload] Uploading file: ${pathname}`);
+        const blob = await put(pathname, fileData, {
+          access: 'public',
+          contentType: file.mimetype
+        });
+
+        return {
+          url: blob.url,
+          pathname: blob.pathname,
+          contentType: file.mimetype,
+          size: file.size
+        };
+      });
+
+      // Wait for all uploads to complete
+      const results = (await Promise.all(uploadPromises)).filter(Boolean);
+
+      console.log(`[API: upload] Uploaded ${results.length} files successfully`);
+      return res.status(200).json({
+        success: true,
+        files: results
+      });
+    }
+
+    // Handle collection upload
+    if (uploadType === 'collection') {
+      const collectionId = fields.collectionId?.[0];
+      if (!collectionId) {
+        return res.status(400).json({ error: 'Collection ID is required' });
+      }
+
+      console.log(`[API: upload] Processing collection upload: ${collectionId}`);
+
+      // Extract cover files
+      const coverFiles = files.cover || [];
+      
+      // Create results object
+      const results = {
+        cover: [],
+        layers: {}
       };
+
+      // Upload cover images
+      if (coverFiles.length > 0) {
+        console.log(`[API: upload] Uploading ${coverFiles.length} cover files`);
+
+        const coverPromises = coverFiles.map(async (file) => {
+          // Validate file type
+          if (!ALLOWED_IMAGE_MIME_TYPES.includes(file.mimetype)) {
+            console.log(`[API: upload] Skipping invalid cover file: ${file.mimetype}`);
+            return null;
+          }
+
+          const cleanName = file.originalFilename.replace(/[^a-zA-Z0-9_.-]/g, '_');
+          const pathname = `collections/${collectionId}/cover/${cleanName}`;
+
+          // Read the file
+          const fileData = await fs.promises.readFile(file.filepath);
+
+          // Upload to Vercel Blob
+          console.log(`[API: upload] Uploading cover file: ${pathname}`);
+          const blob = await put(pathname, fileData, {
+            access: 'public',
+            contentType: file.mimetype
+          });
+
+          return {
+            url: blob.url,
+            pathname: blob.pathname
+          };
+        });
+
+        results.cover = (await Promise.all(coverPromises)).filter(Boolean);
+      }
+
+      // Find and process layer files
+      const layerKeys = Object.keys(files)
+        .filter(key => key.startsWith('layer_'))
+        .map(key => key.replace('layer_', ''));
+
+      for (const layerKey of layerKeys) {
+        const layerFiles = files[`layer_${layerKey}`] || [];
+        
+        if (layerFiles.length > 0) {
+          console.log(`[API: upload] Uploading ${layerFiles.length} files for layer ${layerKey}`);
+          
+          const layerPromises = layerFiles.map(async (file) => {
+            // Validate file type
+            if (!ALLOWED_AUDIO_MIME_TYPES.includes(file.mimetype)) {
+              console.log(`[API: upload] Skipping invalid audio file: ${file.mimetype}`);
+              return null;
+            }
+
+            const cleanName = file.originalFilename.replace(/[^a-zA-Z0-9_.-]/g, '_');
+            const pathname = `collections/${collectionId}/${layerKey}/${cleanName}`;
+
+            // Read the file
+            const fileData = await fs.promises.readFile(file.filepath);
+
+            // Upload to Vercel Blob
+            console.log(`[API: upload] Uploading layer file: ${pathname}`);
+            const blob = await put(pathname, fileData, {
+              access: 'public',
+              contentType: file.mimetype
+            });
+
+            return {
+              url: blob.url,
+              pathname: blob.pathname
+            };
+          });
+
+          results.layers[layerKey] = (await Promise.all(layerPromises)).filter(Boolean);
+        }
+      }
+
+      console.log(`[API: upload] Collection upload complete`);
+      return res.status(200).json({
+        success: true,
+        collection: {
+          id: collectionId,
+          results
+        }
+      });
     }
+
+    // If we get here, it's an unsupported upload type
+    return res.status(400).json({ error: 'Invalid upload type' });
+
+  } catch (error) {
+    console.error(`[API: upload] Error: ${error.message}`, error);
+    return res.status(500).json({ 
+      error: 'Failed to process upload',
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
-  
-  // Check file size
-  if (maxSize && file.size > maxSize) {
-    const maxSizeMB = maxSize / (1024 * 1024);
-    return {
-      valid: false,
-      error: `File size exceeds maximum allowed size of ${maxSizeMB} MB`
-    };
-  }
-  
-  return { valid: true };
 }

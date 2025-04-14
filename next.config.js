@@ -24,7 +24,11 @@ const nextConfig = {
   // For Vercel deployment
   poweredByHeader: false,
   // Your other config settings
-  devIndicators: false
+  devIndicators: false,
+  webpack: (config) => {
+    config.externals = [...config.externals, 'formidable'];
+    return config;
+  },
 }
   
 module.exports = nextConfig

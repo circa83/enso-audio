@@ -1,5 +1,5 @@
 // src/pages/test-blob-upload.js
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import Head from 'next/head';
 
 export default function TestBlobUpload() {
@@ -9,6 +9,7 @@ export default function TestBlobUpload() {
   const [error, setError] = useState(null);
   const [collectionId, setCollectionId] = useState('');
   const [folder, setFolder] = useState('');
+  const [uploadDetails, setUploadDetails] = useState(null);
   
   const fileInputRef = useRef(null);
   const coverInputRef = useRef(null);
@@ -19,6 +20,24 @@ export default function TestBlobUpload() {
     Layer_4: useRef(null)
   };
   
+  // Handle file selection logging
+  const logFileSelection = useCallback((files, type) => {
+    if (!files || files.length === 0) return;
+    
+    const fileDetails = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      fileDetails.push({
+        name: file.name,
+        type: file.type,
+        size: `${(file.size / 1024 / 1024).toFixed(2)} MB`
+      });
+    }
+    
+    console.log(`[test-blob-upload] Selected ${files.length} ${type} files:`, fileDetails);
+    return fileDetails;
+  }, []);
+  
   const handleUpload = async (e) => {
     e.preventDefault();
     
@@ -26,10 +45,14 @@ export default function TestBlobUpload() {
       setUploading(true);
       setError(null);
       setResult(null);
+      setUploadDetails(null);
       
-      // Create appropriate FormData based on upload type
+      // Create FormData for the upload
       const formData = new FormData();
       formData.append('uploadType', uploadType);
+      console.log(`[test-blob-upload] Starting ${uploadType} upload`);
+      
+      let fileDetails = null;
       
       switch (uploadType) {
         case 'single': {
@@ -38,9 +61,12 @@ export default function TestBlobUpload() {
             throw new Error('Please select a file to upload');
           }
           
+          fileDetails = logFileSelection([file], 'single');
           formData.append('file', file);
+          
           if (folder) {
             formData.append('folder', folder);
+            console.log(`[test-blob-upload] Using folder: ${folder}`);
           }
           break;
         }
@@ -51,12 +77,15 @@ export default function TestBlobUpload() {
             throw new Error('Please select files to upload');
           }
           
+          fileDetails = logFileSelection(files, 'multiple');
+          
           for (let i = 0; i < files.length; i++) {
             formData.append('files', files[i]);
           }
           
           if (folder) {
             formData.append('folder', folder);
+            console.log(`[test-blob-upload] Using folder: ${folder}`);
           }
           break;
         }
@@ -67,17 +96,26 @@ export default function TestBlobUpload() {
           }
           
           formData.append('collectionId', collectionId);
+          console.log(`[test-blob-upload] Collection ID: ${collectionId}`);
           
-          // Append cover files
+          // Cover files
           const coverFiles = coverInputRef.current.files;
+          fileDetails = {
+            cover: logFileSelection(coverFiles, 'cover')
+          };
+          
           for (let i = 0; i < coverFiles.length; i++) {
             formData.append('cover', coverFiles[i]);
           }
           
-          // Append layer files
+          // Layer files
+          fileDetails.layers = {};
+          
           Object.entries(layerInputRefs).forEach(([layerName, ref]) => {
             const layerFiles = ref.current.files;
             if (layerFiles.length > 0) {
+              fileDetails.layers[layerName] = logFileSelection(layerFiles, layerName);
+              
               for (let i = 0; i < layerFiles.length; i++) {
                 formData.append(`layer_${layerName}`, layerFiles[i]);
               }
@@ -87,17 +125,45 @@ export default function TestBlobUpload() {
         }
       }
       
-      // Send upload request
-      console.log(`[test-blob-upload] Sending ${uploadType} upload request`);
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData
-      });
+      // Store upload details for display
+      setUploadDetails(fileDetails);
       
-      const data = await response.json();
+      // Configure fetch options
+      const fetchOptions = {
+        method: 'POST',
+        body: formData,
+        // Important: No Content-Type header, let the browser set it with boundary
+      };
+      
+      // Send upload request
+      console.log(`[test-blob-upload] Sending request to /api/upload`);
+      const response = await fetch('/api/upload', fetchOptions);
+      
+      // Get response as text first to debug any JSON parsing errors
+      const responseText = await response.text();
+
+      console.log('[test-blob-upload] Raw response:', responseText.substring(0, 500) + (responseText.length > 500 ? '...' : ''));
+
+// Check if response is HTML (indicating an error page)
+if (responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+  console.error('[test-blob-upload] Received HTML response instead of JSON');
+  throw new Error('Server returned an HTML error page. Check server logs for details.');
+}
+      let data;
+      
+      try {
+        // Try to parse the response text as JSON
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error(`[test-blob-upload] Error parsing response:`, parseError);
+        console.log('Response text:', responseText);
+        throw new Error(`Failed to parse server response: ${parseError.message}`);
+      }
       
       if (!response.ok) {
-        throw new Error(data.error || data.message || 'Upload failed');
+        const errorMessage = data.error || data.message || `Server error: ${response.status}`;
+        console.error(`[test-blob-upload] Upload failed:`, data);
+        throw new Error(errorMessage);
       }
       
       console.log(`[test-blob-upload] Upload successful:`, data);
@@ -152,6 +218,7 @@ export default function TestBlobUpload() {
                 ref={fileInputRef}
                 multiple={uploadType === 'multiple'}
                 style={{ display: 'block', marginBottom: '10px' }}
+                onChange={(e) => logFileSelection(e.target.files, uploadType)}
               />
               <small style={{ color: '#aaa' }}>
                 Allowed audio formats: MP3, WAV, OGG, AAC, FLAC, WebM<br />
@@ -217,6 +284,7 @@ export default function TestBlobUpload() {
                 multiple
                 accept="image/*"
                 style={{ display: 'block', marginBottom: '10px' }}
+                onChange={(e) => logFileSelection(e.target.files, 'cover')}
               />
               <small style={{ color: '#aaa' }}>
                 Upload cover images for the collection
@@ -235,6 +303,7 @@ export default function TestBlobUpload() {
                   multiple
                   accept="audio/*"
                   style={{ display: 'block', marginBottom: '10px' }}
+                  onChange={(e) => logFileSelection(e.target.files, layerName)}
                 />
                 <small style={{ color: '#aaa' }}>
                   Upload audio files for {layerName.replace('_', ' ')}
@@ -261,6 +330,17 @@ export default function TestBlobUpload() {
         </button>
       </form>
       
+      {/* Upload details display */}
+      {uploadDetails && !error && !result && (
+        <div style={{ marginTop: '20px', padding: '15px', background: 'rgba(70, 130, 180, 0.1)', border: '1px solid #4682b4', color: '#add8e6' }}>
+          <h3>Upload in Progress</h3>
+          <p>Uploading the following files to Vercel Blob:</p>
+          <pre style={{ overflow: 'auto', maxHeight: '200px', background: '#111', padding: '10px', color: '#ddd' }}>
+            {JSON.stringify(uploadDetails, null, 2)}
+          </pre>
+        </div>
+      )}
+      
       {error && (
         <div style={{ marginTop: '20px', padding: '15px', background: 'rgba(255, 107, 107, 0.1)', border: '1px solid #ff6b6b', color: '#ff6b6b' }}>
           <h3>Error</h3>
@@ -276,6 +356,21 @@ export default function TestBlobUpload() {
           </pre>
         </div>
       )}
+      
+      {/* Debug information */}
+      <div style={{ marginTop: '30px', borderTop: '1px solid #333', paddingTop: '20px' }}>
+        <h3 style={{ color: '#aaa', fontSize: '0.9rem' }}>Debug Information</h3>
+        <ul style={{ color: '#888', fontSize: '0.8rem' }}>
+          <li>Upload Type: {uploadType}</li>
+          {folder && <li>Folder Path: {folder}</li>}
+          {collectionId && <li>Collection ID: {collectionId}</li>}
+          <li>API Endpoint: /api/upload</li>
+          <li>Store ID: {process.env.BLOB_STORE_ID || 'Not set in environment (using default)'}</li>
+        </ul>
+        <p style={{ color: '#777', fontSize: '0.8rem', fontStyle: 'italic', marginTop: '10px' }}>
+          Check the browser console for detailed logs
+        </p>
+      </div>
     </div>
   );
 }

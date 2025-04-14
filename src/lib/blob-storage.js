@@ -1,19 +1,14 @@
 // src/lib/blob-storage.js
 import { put, list, del } from '@vercel/blob';
 
-// Add these constants at the top of the file
+// Add constants for your Blob store
 const STORE_ID = process.env.BLOB_STORE_ID || 'store_uGGTZAuWx9gzThtf';
 const BASE_URL = process.env.BLOB_BASE_URL || 'https://uggtzauwx9gzthtf.public.blob.vercel-storage.com';
 
 /**
- * Utility for managing audio file storage with Vercel Blob
- * Handles uploading, listing, and deleting audio files
- */
-
-/**
  * Upload a file to Vercel Blob storage
- * @param {File|Blob} file - The file to upload
- * @param {string} folder - The folder path for the file (e.g., 'collections/Stillness/Layer_1')
+ * @param {File|Blob|Buffer} file - The file to upload
+ * @param {string} folder - The folder path for the file
  * @param {Object} options - Additional options
  * @returns {Promise<Object>} The upload result with URL
  */
@@ -26,16 +21,15 @@ export async function uploadFile(file, folder, options = {}) {
     }
     
     // Generate a clean filename (remove special characters, spaces)
-    const originalName = options.filename || file.name;
+    const originalName = options.filename || file.name || 'file';
     const cleanName = originalName.replace(/[^a-zA-Z0-9_.-]/g, '_');
     
     // Create the full path including folder and store prefix
-    const pathname = `${STORE_ID}/${folder ? `${folder}/${cleanName}` : cleanName}`;
+    const pathname = folder ? `${folder}/${cleanName}` : cleanName;
     
     // Prepare upload options
     const uploadOptions = {
       access: 'public',
-      addRandomSuffix: false, // Prevent random suffixes
       ...options
     };
     
@@ -101,7 +95,7 @@ export async function deleteFile(url) {
 
 /**
  * Upload multiple files to a folder
- * @param {Array<File|Blob>} files - Array of files to upload
+ * @param {Array<File|Blob|Buffer>} files - Array of files to upload
  * @param {string} folder - The folder path for the files
  * @param {Object} options - Additional options
  * @returns {Promise<Array<Object>>} Array of upload results
@@ -118,12 +112,12 @@ export async function uploadMultipleFiles(files, folder, options = {}) {
     for (let i = 0; i < files.length; i += concurrentLimit) {
       const batch = files.slice(i, i + concurrentLimit);
       
-      console.log(`[blob-storage: uploadMultipleFiles] Processing batch ${i/concurrentLimit + 1} (${batch.length} files)`);
+      console.log(`[blob-storage: uploadMultipleFiles] Processing batch ${Math.floor(i/concurrentLimit) + 1} (${batch.length} files)`);
       
       const batchPromises = batch.map(file => 
         uploadFile(file, folder, {
           ...options,
-          filename: file.name
+          filename: file.name || `file_${Date.now()}`
         })
       );
       
