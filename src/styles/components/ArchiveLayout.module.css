@@ -1,0 +1,188 @@
+/* src/styles/components/ArchiveLayout.module.css */
+.archiveContainer {
+    min-height: 100vh;
+    background-color: #121212;
+    position: relative;
+    overflow-x: hidden;
+  }
+  
+  /* Main content */
+  .mainContent {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  
+  .topBar {
+    height: 70px;
+    background-color: #1c1c1c;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    border-bottom: 1px solid #333;
+    position: sticky;
+    top: 0;
+    z-index: 90;
+  }
+  
+  .topBarTitle {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 1.2rem;
+    color: #fff;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  
+  .playerButton {
+    background-color: transparent;
+    border: 1px solid #444;
+    color: #aaaaaa;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.8rem;
+    padding: 8px 15px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    letter-spacing: 1px;
+    text-decoration: none;
+    display: inline-block;
+  }
+  
+  .playerButton:hover {
+    border-color: #ffffff;
+    color: #ffffff;
+  }
+  
+  .hamburgerMenu {
+    width: 30px;
+    height: 24px;
+    background: transparent;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    cursor: pointer;
+    padding: 0;
+  }
+  
+  .hamburgerMenu span {
+    width: 100%;
+    height: 2px;
+    background-color: #ffffff;
+    display: block;
+    transition: all 0.3s ease;
+  }
+  
+  .content {
+    padding: 30px;
+    flex-grow: 1;
+    overflow-y: auto;
+  }
+  
+  /* Menu Overlay */
+  .menuOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+    z-index: 95;
+  }
+  
+  .menuOverlay.menuOpen {
+    opacity: 1;
+    visibility: visible;
+  }
+  
+  /* Simplified Menu Dropdown */
+  .menuDropdown {
+    position: fixed;
+    top: 70px;
+    left: 20px;
+    width: 180px;
+    background-color: rgba(30, 30, 30, 0.9);
+    backdrop-filter: blur(10px);
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 10px 0;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition: all 0.2s ease;
+    z-index: 100;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  }
+  
+  .menuDropdown.menuOpen {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+  
+  .dropdownNav {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .dropdownLink {
+    padding: 10px 15px;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.9rem;
+    color: #ddd;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    letter-spacing: 1px;
+  }
+  
+  .dropdownLink:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #fff;
+  }
+  
+  .dropdownButton {
+    width: calc(100% - 20px);
+    margin: 5px 10px;
+    background-color: transparent;
+    border: 1px solid #444;
+    color: #ddd;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.9rem;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  
+  .dropdownButton:hover {
+    border-color: #fff;
+    color: #fff;
+  }
+  
+  /* Responsive styles */
+  @media (max-width: 768px) {
+    .topBarTitle {
+      font-size: 1rem;
+    }
+    
+    .hamburgerMenu {
+      width: 24px;
+      height: 20px;
+    }
+    
+    .playerButton {
+      font-size: 0.7rem;
+      padding: 6px 12px;
+    }
+  } 

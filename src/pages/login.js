@@ -39,7 +39,7 @@ const Login = () => {
   // Redirect to dashboard if already authenticated
   useEffect(() => {
     if (status === 'authenticated' && session) {
-      router.replace('/dashboard/player');
+      router.replace('/ambient-archive');
     }
   }, [status, session, router]);
   
@@ -102,7 +102,7 @@ const Login = () => {
         setIsLoading(false);
       } else if (result?.ok) {
         // Success! Redirect to dashboard
-        router.push('/dashboard');
+        router.push('/ambient-archive');
       } else {
         // Unexpected result
         setFormError('Something went wrong. Please try again.');

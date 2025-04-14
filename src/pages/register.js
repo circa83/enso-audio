@@ -16,10 +16,10 @@ const Register = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [formError, setFormError] = useState('');
   
-  // Redirect to dashboard if already authenticated
+  // Redirect to ambient archive if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      router.replace('/dashboard');
+      router.replace('/ambient-archive');
     }
   }, [isAuthenticated, router]);
   
@@ -55,7 +55,7 @@ const Register = () => {
     const success = await register(name, email, password);
     
     if (success) {
-      router.push('/dashboard');
+      router.push('/ambient-archive');
     }
   };
   
