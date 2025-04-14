@@ -33,7 +33,7 @@ const ArchiveLayout = ({ children, activePage }) => {
           </div>
           
           <Link href="/player" className={styles.playerButton}>
-            Audio Player →
+           Player →
           </Link>
         </div>
         
