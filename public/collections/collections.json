@@ -1,8 +1,72 @@
 [
   {
-    "id": "stillness",
+    "id": "Elevate",
+    "name": "Elevate",
+    "description": "A collection of ambient layers for creating elevate soundscapes",
+    "coverImage": "/collections/Elevate/cover/Elevate_EnsōAudio_bkcp.png",
+    "tracks": [
+      {
+        "id": "layer1",
+        "title": "Layer 1",
+        "audioUrl": "/collections/Elevate/Layer_1/drone.mp3",
+        "variations": [
+          {
+            "id": "layer1-01",
+            "title": "Layer 1 Variation 1",
+            "audioUrl": "/collections/Elevate/Layer_1/drone_01.mp3"
+          },
+          {
+            "id": "layer1-02",
+            "title": "Layer 1 Variation 2",
+            "audioUrl": "/collections/Elevate/Layer_1/drone_02.mp3"
+          }
+        ]
+      },
+      {
+        "id": "layer2",
+        "title": "Layer 2",
+        "audioUrl": "/collections/Elevate/Layer_2/melody.mp3",
+        "variations": [
+          {
+            "id": "layer2-01",
+            "title": "Layer 2 Variation 1",
+            "audioUrl": "/collections/Elevate/Layer_2/melody_01.mp3"
+          }
+        ]
+      },
+      {
+        "id": "layer3",
+        "title": "Layer 3",
+        "audioUrl": "/collections/Elevate/Layer_3/rhythm.mp3",
+        "variations": [
+          {
+            "id": "layer3-01",
+            "title": "Layer 3 Variation 1",
+            "audioUrl": "/collections/Elevate/Layer_3/rhythm_01.mp3"
+          }
+        ]
+      },
+      {
+        "id": "layer4",
+        "title": "Layer 4",
+        "audioUrl": "/collections/Elevate/Layer_4/nature.mp3"
+      }
+    ],
+    "metadata": {
+      "artist": "Ensō Audio",
+      "year": 2025,
+      "tags": [
+        "ambient",
+        "meditation",
+        "peaceful",
+        "soundscape"
+      ]
+    }
+  },
+  {
+    "id": "Stillness",
     "name": "Stillness",
-    "description": "A collection of ambient layers for creating peaceful soundscapes",
+    "description": "A collection of ambient layers for creating stillness soundscapes",
     "coverImage": "/collections/Stillness/cover/Stillness_EnsōAudio_bkcp.png",
     "tracks": [
       {
@@ -54,8 +118,13 @@
     ],
     "metadata": {
       "artist": "Ensō Audio",
-      "year": 2024,
-      "tags": ["ambient", "meditation", "peaceful", "soundscape"]
+      "year": 2025,
+      "tags": [
+        "ambient",
+        "meditation",
+        "peaceful",
+        "soundscape"
+      ]
     }
   }
-] 
+]

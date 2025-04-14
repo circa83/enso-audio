@@ -9,6 +9,7 @@
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^13.5.0",
     "bcrypt": "^5.1.1",
+    "chokidar": "^4.0.3",
     "ffmpeg": "^0.0.4",
     "howler": "^2.2.4",
     "mongodb": "^5.9.2",
@@ -24,10 +25,14 @@
     "web-audio-api": "^0.2.2",
     "web-vitals": "^2.1.4"
   },
+  "devDependencies": {
+    "chokidar": "^3.5.3"
+  },
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "watch:collections": "node scripts/updateCollections.js"
   },
   "eslintConfig": {
     "extends": [
