@@ -35,7 +35,7 @@ const PlayerPage = () => {
           </div>
         
         <Link href="/ambient-archive" className={styles.backButton}>
-          Ambient Archive →
+        Archive →
         </Link>
       </div>
       
