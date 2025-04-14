@@ -30,6 +30,9 @@ const PlayerPage = () => {
           <span></span>
           <span></span>
         </button>
+        <div className={styles.topBarTitle}>
+        Ensō Audio
+          </div>
         
         <Link href="/ambient-archive" className={styles.backButton}>
           Ambient Archive →

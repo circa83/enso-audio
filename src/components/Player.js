@@ -659,11 +659,11 @@ useEffect(() => {
 
   return (
     <div className={styles.simplePlayer}>
-      <h1 className={styles.title}>Ensō Audio</h1>
+      {/* <h1 className={styles.title}>Ensō Audio</h1>
       
       <div className={styles.sessionDescription}>
         Adjust audio layers in real-time to guide the therapeutic journey
-      </div>
+      </div> */}
       
       {/* Main player and controls */}
       <PlayerControlPanel 

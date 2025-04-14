@@ -62,12 +62,12 @@ const AmbientArchive = () => {
         <title>Ambient Archive | Ensō Audio</title>
       </Head>
       
-      <div className={styles.archiveHeader}>
+      {/* <div className={styles.archiveHeader}>
         <h1 className={styles.archiveTitle}>The Ambient Archive</h1>
         <p className={styles.archiveDescription}>
           Browse and select audio collections for your therapeutic sessions
         </p>
-      </div>
+      </div> */}
       
       <div className={styles.collectionsGrid}>
         {collections.map(collection => (
