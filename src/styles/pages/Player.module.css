@@ -19,8 +19,10 @@
   overflow: hidden;
 }
 
+
+
 /* Minimal typography */
-.title {
+/* .title {
   font-family: 'Archivo', sans-serif;
   font-weight: 100;
   font-size: 2.5rem;
@@ -29,7 +31,7 @@
   margin-bottom: 15px;
   letter-spacing: 8px;
   text-transform: uppercase;
-}
+} */
 
 .topBarTitle {
   font-family: 'Archivo', sans-serif;
@@ -43,7 +45,85 @@
   transform: translateX(-50%);
 }
 
-.sectionTitle {
+.backButton {
+  background-color: transparent;
+  border: 1px solid #444;
+  color: #aaaaaa;
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 0.8rem;
+  padding: 8px 15px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 1px;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.backButton:hover {
+  border-color: #ffffff;
+  color: #ffffff;
+}
+
+.playerContainer {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #111111;
+}
+
+.playerTopBar {
+  height: 70px;
+  background-color: #1c1c1c;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  border-bottom: 1px solid #333;
+  position: sticky;
+  top: 0;
+  z-index: 90;
+}
+
+.hamburgerMenu {
+  width: 30px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: 0;
+}
+
+.hamburgerMenu span {
+  width: 100%;
+  height: 2px;
+  background-color: #ffffff;
+  display: block;
+  transition: all 0.3s ease;
+}
+
+/* Menu Overlay */
+.menuOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  z-index: 95;
+}
+
+.menuOverlay.menuOpen {
+  opacity: 1;
+  visibility: visible;
+}
+/* .sectionTitle {
   font-family: 'Archivo', sans-serif;
   font-weight: 200;
   font-size: 1rem;
@@ -51,9 +131,9 @@
   margin-bottom: 20px;
   letter-spacing: 2px;
   text-transform: uppercase;
-}
+} */
 
-.sessionDescription {
+/* .sessionDescription {
   font-family: 'Archivo', sans-serif;
   font-weight: 200;
   font-size: 0.8rem;
@@ -61,7 +141,7 @@
   text-align: center;
   margin-bottom: 30px;
   letter-spacing: 1px;
-}
+} */
 
 /* Layer controls content container */
 .layerControlsContent {
@@ -69,13 +149,13 @@
 }
 
 /* Timeline disabled message */
-.timelineDisabled {
+/* .timelineDisabled {
   text-align: center;
   padding: 30px;
   color: #666;
   font-style: italic;
   font-size: 0.9rem;
-}
+} */
 
 /* Geometric line for section separation */
 .geometricLine {
@@ -410,407 +490,6 @@
   color: #fff;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/*journey phases section */
-.journeyGuide {
-  margin: 40px 0 20px;
-  padding: 25px;
-  background-color: #1c1c1c;
-  border: 1px solid #333;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.journeyGuide h3 {
-  font-family: 'Archivo', sans-serif;
-  font-weight: 200;
-  font-size: 1rem;
-  color: #aaaaaa;
-  margin-bottom: 15px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  text-align: center;
-}
-
-.journeyPhases {
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.journeyPhase {
-  flex: 1;
-  min-width: 120px;
-  padding: 12px;
-  background-color: #191919;
-  border-left: 2px solid #333;
-  transition: background-color 0.2s ease;
-}
-
-.journeyPhase:hover {
-  background-color: #222222;
-}
-
-.journeyPhase h4 {
-  font-family: 'Archivo', sans-serif;
-  font-weight: 300;
-  font-size: 0.85rem;
-  color: #ffffff;
-  margin-bottom: 8px;
-  letter-spacing: 0.5px;
-}
-
-.journeyPhase p {
-  font-size: 0.75rem;
-  color: #aaaaaa;
-  line-height: 1.4;
-}
-
-.debugNote {
-  text-align: center;
-  font-size: 0.7rem;
-  color: #555;
-  margin-top: 30px;
-  font-style: italic;
-  opacity: 0.5;
-}
-
-/* Responsive design */
-@media (max-width: 768px) {
-  .simplePlayer {
-    width: calc(100% - 20px);
-    max-width: calc(100% - 20px);
-    margin: 10px auto;
-    padding: 15px;
-    left: 0 !important;
-    right: 0 !important;
-  }
-  
-  .title {
-    font-size: 1.8rem;
-    letter-spacing: 5px;
-  }
-  
-  .presetsContent {
-    padding: 10px;
-  }
-  
-  .presetControls {
-    flex-direction: column;
-  }
-  
-  .journeyPhases {
-    flex-direction: column;
-  }
-  
-  .presetItem {
-    padding: 12px;
-  }
-  
-  .presetButtons {
-    flex-direction: column;
-    gap: 5px;
-  }
-  
-  .importContainer {
-    width: 95%;
-    max-width: none;
-  }
-}
-/* iOS-specific fix */
-@media (max-width: 768px) and (-webkit-touch-callout: none) {
-  /* This media query only applies to iOS devices with small screens */
-  .simplePlayer {
-    /* iOS-specific overrides */
-    position: relative;
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-    margin-left: 0;
-    margin-right: 0;
-    width: calc(100% - 20px);
-  }
-}
-
-.playerContainer {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-    background-color: #111111;
-  }
-  
-  .playerTopBar {
-    height: 60px;
-    background-color: #181818;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 20px;
-    border-bottom: 1px solid #333;
-  }
-  
-  .backButton {
-    background-color: transparent;
-    border: 1px solid #444;
-    color: #aaaaaa;
-    font-family: 'Archivo', sans-serif;
-    font-weight: 200;
-    font-size: 0.8rem;
-    padding: 8px 15px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    letter-spacing: 1px;
-    text-decoration: none;
-    display: inline-block;
-  }
-  
-  .backButton:hover {
-    border-color: #ffffff;
-    color: #ffffff;
-  }
-  
-  .sessionControls {
-    display: flex;
-    gap: 10px;
-  }
-  
-  .sessionButton {
-    background-color: transparent;
-    border: 1px solid #ffffff;
-    color: #ffffff;
-    font-family: 'Archivo', sans-serif;
-    font-weight: 200;
-    font-size: 0.8rem;
-    padding: 8px 15px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-  }
-  
-  .sessionButton:hover {
-    background-color: #ffffff;
-    color: #111111;
-  }
-  
-  /* Responsive styles */
-  @media (max-width: 768px) {
-    .playerTopBar {
-      padding: 0 15px;
-      height: 50px;
-    }
-    
-    .backButton, .sessionButton {
-      font-size: 0.7rem;
-      padding: 6px 12px;
-    }
-  }
-
-/* Additional styles for Player page */
-.hamburgerMenu {
-  width: 30px;
-  height: 24px;
-  background: transparent;
-  border: none;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  cursor: pointer;
-  padding: 0;
-}
-
-.hamburgerMenu span {
-  width: 100%;
-  height: 2px;
-  background-color: #ffffff;
-  display: block;
-  transition: all 0.3s ease;
-}
-
-/* Menu Overlay */
-.menuOverlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  opacity: 0;
-  visibility: hidden;
-  transition: all 0.3s ease;
-  z-index: 95;
-}
-
-.menuOverlay.menuOpen {
-  opacity: 1;
-  visibility: visible;
-}
-
-/* Side Menu */
-.sideMenu {
-  position: fixed;
-  top: 0;
-  left: 0;
-  height: 100vh;
-  width: 280px;
-  background-color: #181818;
-  color: #eaeaea;
-  display: flex;
-  flex-direction: column;
-  z-index: 100;
-  transform: translateX(-100%);
-  transition: transform 0.3s ease;
-  box-shadow: 5px 0 15px rgba(0, 0, 0, 0.2);
-}
-
-.sideMenu.menuOpen {
-  transform: translateX(0);
-}
-
-.sidebarHeader {
-  padding: 25px 20px;
-  border-bottom: 1px solid #333;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.sidebarTitle {
-  font-family: 'Archivo', sans-serif;
-  font-weight: 100;
-  font-size: 1.4rem;
-  letter-spacing: 4px;
-  margin: 0;
-  color: #ffffff;
-  text-transform: uppercase;
-}
-
-.closeMenuButton {
-  background: none;
-  border: none;
-  color: #aaa;
-  font-size: 1.5rem;
-  cursor: pointer;
-}
-
-.closeMenuButton:hover {
-  color: #fff;
-}
-
-.userInfo {
-  padding: 20px;
-  border-bottom: 1px solid #333;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.userInitials {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background-color: #2c2c2c;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-family: 'Archivo', sans-serif;
-  font-size: 1.5rem;
-  color: #fff;
-  margin-bottom: 15px;
-}
-
-.userName {
-  font-family: 'Archivo', sans-serif;
-  font-weight: 300;
-  font-size: 1rem;
-  color: #fff;
-  margin-bottom: 5px;
-  text-align: center;
-}
-
-.navigation {
-  padding: 20px 0;
-  flex-grow: 1;
-}
-
-.navLink {
-  display: block;
-  padding: 12px 20px;
-  font-family: 'Archivo', sans-serif;
-  font-weight: 200;
-  font-size: 0.9rem;
-  color: #aaa;
-  text-decoration: none;
-  transition: all 0.2s ease;
-  letter-spacing: 1px;
-  margin-bottom: 5px;
-  border-left: 3px solid transparent;
-}
-
-.navLink:hover {
-  background-color: #242424;
-  color: #fff;
-}
-
-.navLink.active {
-  background-color: #242424;
-  color: #fff;
-  border-left-color: #fff;
-}
-
-.sidebarFooter {
-  padding: 20px;
-  border-top: 1px solid #333;
-}
-
-.logoutButton {
-  width: 100%;
-  background-color: transparent;
-  border: 1px solid #444;
-  color: #aaa;
-  font-family: 'Archivo', sans-serif;
-  font-weight: 200;
-  font-size: 0.8rem;
-  padding: 10px 15px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-}
-
-.logoutButton:hover {
-  border-color: #fff;
-  color: #fff;
-}
-
-/* Update the existing play Collection button with more padding */
-.playButton {
-  background-color: transparent;
-  border: 1px solid #ffffff;
-  color: #ffffff;
-  font-family: 'Archivo', sans-serif;
-  font-weight: 200;
-  font-size: 0.8rem;
-  padding: 12px 20px; /* Increased padding here */
-  cursor: pointer;
-  transition: all 0.2s ease;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  margin-right: 10px;
-}
-
-/* Add simplified dropdown menu styles for Player page */
 .menuDropdown {
   position: fixed;
   top: 60px;
@@ -876,3 +555,361 @@
   border-color: #fff;
   color: #fff;
 }
+
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/*journey phases section */
+/* .journeyGuide {
+  margin: 40px 0 20px;
+  padding: 25px;
+  background-color: #1c1c1c;
+  border: 1px solid #333;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.journeyGuide h3 {
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 1rem;
+  color: #aaaaaa;
+  margin-bottom: 15px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.journeyPhases {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.journeyPhase {
+  flex: 1;
+  min-width: 120px;
+  padding: 12px;
+  background-color: #191919;
+  border-left: 2px solid #333;
+  transition: background-color 0.2s ease;
+}
+
+.journeyPhase:hover {
+  background-color: #222222;
+}
+
+.journeyPhase h4 {
+  font-family: 'Archivo', sans-serif;
+  font-weight: 300;
+  font-size: 0.85rem;
+  color: #ffffff;
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+
+.journeyPhase p {
+  font-size: 0.75rem;
+  color: #aaaaaa;
+  line-height: 1.4;
+} */
+
+.debugNote {
+  text-align: center;
+  font-size: 0.7rem;
+  color: #555;
+  margin-top: 30px;
+  font-style: italic;
+  opacity: 0.5;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .simplePlayer {
+    width: calc(100% - 20px);
+    max-width: calc(100% - 20px);
+    margin: 10px auto;
+    padding: 15px;
+    left: 0 !important;
+    right: 0 !important;
+  }
+  
+  .topBarTitle {
+    font-size: 1rem;
+  }
+  .backButton {
+    font-size: 0.7rem;
+    padding: 6px 12px;
+  }
+  .hamburgerMenu {
+    width: 24px;
+    height: 20px;
+  }
+  
+  .title {
+    font-size: 1.8rem;
+    letter-spacing: 5px;
+  }
+  
+  .presetsContent {
+    padding: 10px;
+  }
+  
+  .presetControls {
+    flex-direction: column;
+  }
+  
+  .journeyPhases {
+    flex-direction: column;
+  }
+  
+  .presetItem {
+    padding: 12px;
+  }
+  
+  .presetButtons {
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  .importContainer {
+    width: 95%;
+    max-width: none;
+  }
+}
+/* iOS-specific fix */
+@media (max-width: 768px) and (-webkit-touch-callout: none) {
+  /* This media query only applies to iOS devices with small screens */
+  .simplePlayer {
+    /* iOS-specific overrides */
+    position: relative;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    margin-left: 0;
+    margin-right: 0;
+    width: calc(100% - 20px);
+  }
+}
+
+
+
+  /* .topBar {
+    height: 70px;
+    background-color: #1c1c1c;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    border-bottom: 1px solid #333;
+    position: sticky;
+    top: 0;
+    z-index: 90;
+  } */
+  
+
+  
+  .sessionControls {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .sessionButton {
+    background-color: transparent;
+    border: 1px solid #ffffff;
+    color: #ffffff;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.8rem;
+    padding: 8px 15px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  
+  .sessionButton:hover {
+    background-color: #ffffff;
+    color: #111111;
+  }
+  
+  /* Responsive styles */
+  /* @media (max-width: 768px) {
+    .playerTopBar {
+      padding: 0 15px;
+      height: 50px;
+    }
+    
+    .backButton, .sessionButton {
+      font-size: 0.7rem;
+      padding: 6px 12px;
+    }
+  } */
+
+/* Additional styles for Player page */
+
+
+/* Side Menu */
+/* .sideMenu {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 280px;
+  background-color: #181818;
+  color: #eaeaea;
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+  box-shadow: 5px 0 15px rgba(0, 0, 0, 0.2);
+}
+
+.sideMenu.menuOpen {
+  transform: translateX(0);
+}
+
+.sidebarHeader {
+  padding: 25px 20px;
+  border-bottom: 1px solid #333;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sidebarTitle {
+  font-family: 'Archivo', sans-serif;
+  font-weight: 100;
+  font-size: 1.4rem;
+  letter-spacing: 4px;
+  margin: 0;
+  color: #ffffff;
+  text-transform: uppercase;
+} */
+
+/* .closeMenuButton {
+  background: none;
+  border: none;
+  color: #aaa;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.closeMenuButton:hover {
+  color: #fff;
+} */
+
+/* .userInfo {
+  padding: 20px;
+  border-bottom: 1px solid #333;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.userInitials {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background-color: #2c2c2c;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: 'Archivo', sans-serif;
+  font-size: 1.5rem;
+  color: #fff;
+  margin-bottom: 15px;
+}
+
+.userName {
+  font-family: 'Archivo', sans-serif;
+  font-weight: 300;
+  font-size: 1rem;
+  color: #fff;
+  margin-bottom: 5px;
+  text-align: center;
+} */
+
+/* .navigation {
+  padding: 20px 0;
+  flex-grow: 1;
+} */
+
+/* .navLink {
+  display: block;
+  padding: 12px 20px;
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 0.9rem;
+  color: #aaa;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  letter-spacing: 1px;
+  margin-bottom: 5px;
+  border-left: 3px solid transparent;
+} */
+
+/* .navLink:hover {
+  background-color: #242424;
+  color: #fff;
+}
+
+.navLink.active {
+  background-color: #242424;
+  color: #fff;
+  border-left-color: #fff;
+}
+
+.sidebarFooter {
+  padding: 20px;
+  border-top: 1px solid #333;
+}
+
+.logoutButton {
+  width: 100%;
+  background-color: transparent;
+  border: 1px solid #444;
+  color: #aaa;
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 0.8rem;
+  padding: 10px 15px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.logoutButton:hover {
+  border-color: #fff;
+  color: #fff;
+} */
+
+/* Update the existing play Collection button with more padding */
+/* .playButton {
+  background-color: transparent;
+  border: 1px solid #ffffff;
+  color: #ffffff;
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 0.8rem;
+  padding: 12px 20px; 
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-right: 10px;
+} */
+
+/* Add simplified dropdown menu styles for Player page */
