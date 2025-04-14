@@ -1,15 +1,17 @@
 /* src/styles/pages/AmbientArchive.module.css */
 .archiveHeader {
-    margin-bottom: 40px;
+    margin-bottom: 30px;
+    text-align: center;
   }
   
   .archiveTitle {
     font-family: 'Archivo', sans-serif;
     font-weight: 200;
-    font-size: 1.8rem;
+    font-size: 2rem;
     color: #ffffff;
     margin-bottom: 10px;
-    letter-spacing: 2px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
   }
   
   .archiveDescription {
@@ -17,7 +19,9 @@
     font-weight: 200;
     font-size: 1rem;
     color: #aaaaaa;
-    letter-spacing: 1px;
+    line-height: 1.6;
+    max-width: 600px;
+    margin: 0 auto;
   }
   
   .collectionsGrid {
@@ -44,7 +48,7 @@
   
   .collectionImageContainer {
     width: 100%;
-    height: 200px;
+    height: auto;
     overflow: hidden;
     position: relative;
     background-color: #111;
@@ -116,8 +120,18 @@
   }
   
   .playButton {
+    background-color: transparent;
     border: 1px solid #ffffff;
     color: #ffffff;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 0.8rem;
+    padding: 12px 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-right: 10px;
   }
   
   .playButton:hover {

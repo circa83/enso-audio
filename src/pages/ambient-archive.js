@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import withAuth from '../components/auth/ProtectedRoute';
-import DashboardLayout from '../components/layout/DashboardLayout';
+import ArchiveLayout from '../components/layout/ArchiveLayout';
 import styles from '../styles/pages/AmbientArchive.module.css';
 
 const AmbientArchive = () => {
@@ -38,26 +38,26 @@ const AmbientArchive = () => {
   
   if (loading) {
     return (
-      <DashboardLayout activePage="archive">
+      <ArchiveLayout activePage="ambient-archive">
         <div className={styles.loadingContainer}>
           <p>Loading collections...</p>
         </div>
-      </DashboardLayout>
+      </ArchiveLayout>
     );
   }
   
   if (error) {
     return (
-      <DashboardLayout activePage="archive">
+      <ArchiveLayout activePage="ambient-archive">
         <div className={styles.errorContainer}>
           <p>{error}</p>
         </div>
-      </DashboardLayout>
+      </ArchiveLayout>
     );
   }
   
   return (
-    <DashboardLayout activePage="archive">
+    <ArchiveLayout activePage="ambient-archive">
       <Head>
         <title>Ambient Archive | Ensō Audio</title>
       </Head>
@@ -118,7 +118,7 @@ const AmbientArchive = () => {
           <p>No collections found in the Ambient Archive.</p>
         </div>
       )}
-    </DashboardLayout>
+    </ArchiveLayout>
   );
 };
 
