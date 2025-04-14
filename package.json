@@ -8,6 +8,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^13.5.0",
+    "@vercel/blob": "^1.0.0",
     "bcrypt": "^5.1.1",
     "chokidar": "^4.0.3",
     "ffmpeg": "^0.0.4",
