@@ -1,4 +1,4 @@
-// src/pages/test-blob-upload.js
+// src/pages/blob-upload.js
 import React, { useState, useRef, useCallback } from 'react';
 import Head from 'next/head';
 
@@ -182,7 +182,7 @@ if (responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWit
         <title>Test Blob Upload | Ensō Audio</title>
       </Head>
       
-      <h1 style={{ fontWeight: 200, letterSpacing: '2px' }}>Test Vercel Blob Upload</h1>
+      <h1 style={{ fontWeight: 200, letterSpacing: '2px' }}>Vercel Blob Upload</h1>
       
       <div style={{ marginBottom: '20px' }}>
         <label style={{ display: 'block', marginBottom: '10px' }}>Upload Type:</label>
