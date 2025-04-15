@@ -1,4 +1,4 @@
-// src/scripts/import-collections.js
+// scripts/import-collections.js
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');

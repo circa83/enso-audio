@@ -349,6 +349,20 @@ class BufferManager {
     }
     
     /**
+     * Check if a URL is a Vercel Blob URL
+     * @private
+     * @param {string} url - URL to check
+     * @returns {boolean} True if the URL is a Vercel Blob URL
+     */
+    _isBlobUrl(url) {
+      const blobBaseUrl = process.env.NEXT_PUBLIC_BLOB_BASE_URL;
+      return url && 
+             typeof url === 'string' && 
+             blobBaseUrl && 
+             url.includes(blobBaseUrl);
+    }
+    
+    /**
      * Internal method to load and decode an audio file
      * 
      * @private
@@ -363,11 +377,21 @@ class BufferManager {
         // Initialize progress tracking for this URL
         this.loadingProgress.set(url, 0);
         
-        // Create fetch request with progress tracking
+        // Check if it's a Blob URL and requires special handling
+        const isBlobUrl = this._isBlobUrl(url);
+        const isStreamingOptimized = isBlobUrl; // Use streaming optimization for Blob URLs
+        
+        if (isBlobUrl) {
+          this.log(`Detected Blob URL: ${url}, using streaming fetch`);
+        }
+        
+        // Use optimized fetch for Blob URLs
         const response = await this._fetchWithProgress(url, (progress) => {
-          this.loadingProgress.set(url, Math.floor(progress * 0.8)); // Reserve 20% for decoding
-          if (onProgress) onProgress(Math.floor(progress * 0.8), url);
-        });
+          // Reserve 20% for decoding as before
+          const loadProgress = Math.floor(progress * 0.8);
+          this.loadingProgress.set(url, loadProgress);
+          if (onProgress) onProgress(loadProgress, url);
+        }, isStreamingOptimized);
         
         if (!response.ok) {
           throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
@@ -408,9 +432,10 @@ class BufferManager {
      * @private
      * @param {string} url - URL to fetch
      * @param {Function} progressCallback - Callback for progress updates
+     * @param {boolean} isStreamingOptimized - Whether to use streaming-optimized handling
      * @returns {Promise<Response>} Fetch response
      */
-    async _fetchWithProgress(url, progressCallback) {
+    async _fetchWithProgress(url, progressCallback, isStreamingOptimized = false) {
       return new Promise((resolve, reject) => {
         // Create the request
         const xhr = new XMLHttpRequest();
@@ -420,6 +445,11 @@ class BufferManager {
           if (event.lengthComputable) {
             const progress = (event.loaded / event.total) * 100;
             progressCallback(progress);
+          } else if (isStreamingOptimized) {
+            // For non-lengthComputable streaming (common with some Blob storage)
+            // Provide a pulse-based progress indicator
+            const pulseProgress = (Date.now() % 6000) / 60; // 0-100 over 6 seconds
+            progressCallback(pulseProgress);
           }
         });
         
@@ -438,7 +468,20 @@ class BufferManager {
         
         // Set up error handling
         xhr.addEventListener('error', () => {
-          reject(new Error('Network error'));
+          // Add specific error handling for Blob URLs
+          if (isStreamingOptimized) {
+            this.log(`Error loading Blob URL: ${url}. Attempting fallback...`, 'warn');
+            // Try fallback to regular fetch if XHR fails for Blob URL
+            fetch(url)
+              .then(response => {
+                if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+                return response;
+              })
+              .then(response => resolve(response))
+              .catch(err => reject(new Error(`Fallback fetch failed: ${err.message}`)));
+          } else {
+            reject(new Error('Network error'));
+          }
         });
         
         xhr.addEventListener('abort', () => {
@@ -448,6 +491,12 @@ class BufferManager {
         // Open and send the request
         xhr.open('GET', url, true);
         xhr.responseType = 'arraybuffer';
+        
+        // Add cache control for Blob URLs to improve caching
+        if (isStreamingOptimized) {
+          xhr.setRequestHeader('Cache-Control', 'max-age=3600');
+        }
+        
         xhr.send();
       });
     }

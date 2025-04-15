@@ -37,7 +37,10 @@
     "watch:collections": "node scripts/updateCollections.js",
     "import:collections": "node scripts/run-import.js",
     "import:collections:force": "node scripts/run-import.js --force",
-    "import:collections:dry": "node scripts/run-import.js --dry-run"
+    "import:collections:dry": "node scripts/run-import.js --dry-run",
+    "test:blob": "node scripts/blobIntegrationTest.js",
+    "test:blob:streaming": "node scripts/blobIntegrationTest.js --streaming",
+    "test:blob:concurrent": "node scripts/blobIntegrationTest.js --concurrent"
   },
   "eslintConfig": {
     "extends": [
