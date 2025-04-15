@@ -34,7 +34,7 @@ const TrackSchema = new mongoose.Schema({
     required: true,
   },
   // Reference to the collection this track belongs to
-  collection: {
+  collectionId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Collection',
     required: true,
@@ -66,8 +66,8 @@ TrackSchema.pre('save', function(next) {
 });
 
 // Create compound indexes for frequent query patterns
-TrackSchema.index({ collection: 1, layerType: 1 });
-TrackSchema.index({ id: 1, collection: 1 }, { unique: true });
+TrackSchema.index({ collectionId: 1, layerType: 1 });
+TrackSchema.index({ id: 1, collectionId: 1 }, { unique: true });
 
 // Prevent mongoose error when model is already defined
 const Track = mongoose.models.Track || mongoose.model('Track', TrackSchema);

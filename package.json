@@ -34,7 +34,10 @@
     "dev": "next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
-    "watch:collections": "node scripts/updateCollections.js"
+    "watch:collections": "node scripts/updateCollections.js",
+    "import:collections": "node scripts/run-import.js",
+    "import:collections:force": "node scripts/run-import.js --force",
+    "import:collections:dry": "node scripts/run-import.js --dry-run"
   },
   "eslintConfig": {
     "extends": [
