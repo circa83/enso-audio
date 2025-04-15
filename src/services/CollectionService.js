@@ -18,13 +18,83 @@ class CollectionService {
       this.config = {
         apiBasePath: options.apiBasePath || '/api',
         cacheDuration: options.cacheDuration || 60000, // 1 minute default
-        enableLogging: options.enableLogging || false
+        enableLogging: options.enableLogging || false,
+        blobBaseUrl: 'https://uggtzauwx9gzthtf.public.blob.vercel-storage.com'
       };
       
       // Internal state
       this.collectionsCache = null;
       this.lastCacheTime = 0;
       this.pendingRequests = new Map();
+    }
+    
+    /**
+     * Get list of available collection folders from Vercel Blob Storage
+     * @private
+     * @returns {Promise<string[]>} Array of collection folder names
+     */
+    async _getBlobCollectionFolders() {
+      try {
+        const response = await fetch('/api/blob/list?prefix=collections/');
+        if (!response.ok) {
+          throw new Error(`Failed to fetch blob folders: ${response.status}`);
+        }
+        
+        const blobs = await response.json();
+        
+        // Extract unique collection folder names from blob paths
+        const folders = new Set();
+        blobs.forEach(blob => {
+          // Remove the 'collections/' prefix and get the first part of the path
+          const path = blob.pathname.replace('collections/', '');
+          const folder = path.split('/')[0];
+          if (folder) {
+            folders.add(folder);
+          }
+        });
+        
+        this.log(`[_getBlobCollectionFolders] Found folders: ${Array.from(folders).join(', ')}`);
+        return Array.from(folders);
+      } catch (error) {
+        this.log(`[_getBlobCollectionFolders] Error: ${error.message}`, 'error');
+        return [];
+      }
+    }
+    
+    /**
+     * Verify if a collection's audio files exist in Vercel Blob Storage
+     * @private
+     * @param {Object} collection - Collection data
+     * @returns {Promise<boolean>} True if all audio files exist
+     */
+    async _verifyBlobFiles(collection) {
+      if (!collection || !collection.tracks) return false;
+      
+      try {
+        // Check each track's audio URL
+        for (const track of collection.tracks) {
+          if (!track.audioUrl) return false;
+          
+          // Verify the URL is accessible
+          const response = await fetch(track.audioUrl, { method: 'HEAD' });
+          if (!response.ok) return false;
+          
+          // Check variations if they exist
+          if (track.variations) {
+            for (const variation of track.variations) {
+              if (!variation.audioUrl) return false;
+              
+              const varResponse = await fetch(variation.audioUrl, { method: 'HEAD' });
+              if (!varResponse.ok) return false;
+            }
+          }
+        }
+        
+        return true;
+      } catch (error) {
+        this.log(`[_verifyBlobFiles] Error verifying files: ${error.message}`, 'error');
+        return false;
+      }
     }
     
     /**
@@ -64,21 +134,37 @@ class CollectionService {
         return this.pendingRequests.get(cacheKey);
       }
       
-      // Build query string for filters
-      const queryParams = new URLSearchParams();
-      if (tag) queryParams.append('tag', tag);
-      if (artist) queryParams.append('artist', artist);
-      if (limit) queryParams.append('limit', limit);
-      if (page) queryParams.append('page', page);
-      
-      const queryString = queryParams.toString();
-      const endpoint = `${this.config.apiBasePath}/collections${queryString ? `?${queryString}` : ''}`;
-      
-      this.log(`[getCollections] Fetching collections from: ${endpoint}`);
-      
       // Create request promise
       const requestPromise = (async () => {
         try {
+          // First, get the list of collections from Vercel Blob Storage
+          const blobFolders = await this._getBlobCollectionFolders();
+          this.log(`[getCollections] Found ${blobFolders.length} collections in Blob Storage: ${blobFolders.join(', ')}`);
+          
+          if (blobFolders.length === 0) {
+            return {
+              success: true,
+              data: [],
+              pagination: {
+                total: 0,
+                page: 1,
+                limit: parseInt(limit) || 20,
+                pages: 0
+              }
+            };
+          }
+          
+          // Then, fetch the corresponding collections from MongoDB
+          const queryParams = new URLSearchParams();
+          if (tag) queryParams.append('tag', tag);
+          if (artist) queryParams.append('artist', artist);
+          if (limit) queryParams.append('limit', limit);
+          if (page) queryParams.append('page', page);
+          
+          const queryString = queryParams.toString();
+          const endpoint = `${this.config.apiBasePath}/collections${queryString ? `?${queryString}` : ''}`;
+          
+          this.log(`[getCollections] Fetching collections from: ${endpoint}`);
           const response = await fetch(endpoint);
           
           if (!response.ok) {
@@ -87,6 +173,21 @@ class CollectionService {
           }
           
           const data = await response.json();
+          
+          // Filter collections to only include those that exist in Blob Storage
+          const validCollections = data.data.filter(collection => {
+            if (!collection || !collection.id) return false;
+            return blobFolders.some(folder => 
+              folder.toLowerCase() === collection.id.toLowerCase()
+            );
+          });
+          
+          this.log(`[getCollections] Filtered to ${validCollections.length} valid collections`);
+          
+          // Update data with only valid collections
+          data.data = validCollections;
+          data.pagination.total = validCollections.length;
+          data.pagination.pages = Math.ceil(validCollections.length / (parseInt(limit) || 20));
           
           // Update cache if this was a full request (no filters)
           if (!tag && !artist && !limit && !page) {
@@ -282,11 +383,11 @@ class CollectionService {
             // Skip tracks with invalid layer type
             if (!layers[layerType]) return;
             
-            // Format track for player
+            // Format track for player with full Blob Storage URL
             const formattedTrack = {
               id: track.id,
               name: track.title,
-              path: track.audioUrl
+              path: track.audioUrl.startsWith('http') ? track.audioUrl : `${this.config.blobBaseUrl}${track.audioUrl}`
             };
             
             // Add to appropriate layer
@@ -298,7 +399,7 @@ class CollectionService {
                 const variationTrack = {
                   id: variation.id,
                   name: variation.title,
-                  path: variation.audioUrl
+                  path: variation.audioUrl.startsWith('http') ? variation.audioUrl : `${this.config.blobBaseUrl}${variation.audioUrl}`
                 };
                 
                 layers[layerType].push(variationTrack);
@@ -311,7 +412,7 @@ class CollectionService {
           id: collection.id,
           name: collection.name,
           description: collection.description,
-          coverImage: collection.coverImage,
+          coverImage: collection.coverImage.startsWith('http') ? collection.coverImage : `${this.config.blobBaseUrl}${collection.coverImage}`,
           metadata: collection.metadata,
           layers
         };
