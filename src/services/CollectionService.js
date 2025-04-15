@@ -249,7 +249,7 @@ class CollectionService {
       }
       
       // Otherwise, fetch collections first
-      const collections = await this.getCollections();
+      await this.getCollections();
       
       // Then perform client-side search
       return this.searchCollections(query, options);

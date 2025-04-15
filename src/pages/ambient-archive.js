@@ -4,74 +4,101 @@ import Head from 'next/head';
 import Link from 'next/link';
 import withAuth from '../components/auth/ProtectedRoute';
 import ArchiveLayout from '../components/layout/ArchiveLayout';
+import { useCollections } from '../hooks/useCollections';
 import styles from '../styles/pages/AmbientArchive.module.css';
 
 const AmbientArchive = () => {
-  const [collections, setCollections] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  
-  // Fetch collections on mount
-  useEffect(() => {
-    const fetchCollections = async () => {
-      try {
-        console.log('[AmbientArchive] Fetching collections...');
-        const response = await fetch('/collections/collections.json');
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch collections: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log('[AmbientArchive] Fetched collections:', data);
-        setCollections(data);
-        setLoading(false);
-      } catch (err) {
-        console.error('[AmbientArchive] Error fetching collections:', err);
-        setError('Failed to load audio collections. Please try again later.');
-        setLoading(false);
-      }
-    };
-    
-    fetchCollections();
-  }, []);
-  
-  if (loading) {
+  // Use the useCollections hook with loadOnMount set to true
+  const {
+    collections,
+    isLoading,
+    error,
+    filters,
+    updateFilters,
+    loadCollections
+  } = useCollections({
+    loadOnMount: true,
+    filters: {} // Initial empty filters
+  });
+
+  // Handle filter changes
+  const handleFilterChange = (newFilters) => {
+    updateFilters(newFilters);
+  };
+
+  // Handle collection selection
+  const handleCollectionSelect = (collectionId) => {
+    // Navigate to player with collection ID
+    window.location.href = `/player?collection=${collectionId}`;
+  };
+
+  if (isLoading) {
     return (
       <ArchiveLayout activePage="ambient-archive">
         <div className={styles.loadingContainer}>
+          <div className={styles.loadingSpinner}></div>
           <p>Loading collections...</p>
         </div>
       </ArchiveLayout>
     );
   }
-  
+
   if (error) {
     return (
       <ArchiveLayout activePage="ambient-archive">
         <div className={styles.errorContainer}>
+          <h3>Error Loading Collections</h3>
           <p>{error}</p>
+          <button 
+            className={styles.retryButton}
+            onClick={() => loadCollections(1)}
+          >
+            Retry
+          </button>
         </div>
       </ArchiveLayout>
     );
   }
-  
+
   return (
     <ArchiveLayout activePage="ambient-archive">
       <Head>
         <title>Ambient Archive | Ensō Audio</title>
       </Head>
       
-      {/* <div className={styles.archiveHeader}>
+      <div className={styles.archiveHeader}>
         <h1 className={styles.archiveTitle}>The Ambient Archive</h1>
         <p className={styles.archiveDescription}>
           Browse and select audio collections for your therapeutic sessions
         </p>
-      </div> */}
+      </div>
+
+      {/* Filter controls */}
+      <div className={styles.filterControls}>
+        <input
+          type="text"
+          placeholder="Search collections..."
+          className={styles.searchInput}
+          onChange={(e) => handleFilterChange({ search: e.target.value })}
+        />
+        <select
+          className={styles.filterSelect}
+          onChange={(e) => handleFilterChange({ tag: e.target.value })}
+        >
+          <option value="">All Tags</option>
+          <option value="meditation">Meditation</option>
+          <option value="focus">Focus</option>
+          <option value="relaxation">Relaxation</option>
+        </select>
+      </div>
       
       <div className={styles.collectionsGrid}>
         {collections.map(collection => (
-          <div key={collection.id} className={styles.collectionCard}>
+          <div 
+            key={collection.id} 
+            className={styles.collectionCard}
+            onClick={() => handleCollectionSelect(collection.id)}
+          >
             <div className={styles.collectionImageContainer}>
               {collection.coverImage && (
                 <img 
@@ -99,11 +126,9 @@ const AmbientArchive = () => {
               </div>
               
               <div className={styles.collectionControls}>
-                <Link href={`/player?collection=${collection.id}`} passHref>
-                  <button className={styles.playButton}>
-                    Play Collection
-                  </button>
-                </Link>
+                <button className={styles.playButton}>
+                  Play Collection
+                </button>
                 <button className={styles.detailsButton}>
                   Details
                 </button>

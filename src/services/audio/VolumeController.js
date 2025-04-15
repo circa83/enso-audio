@@ -411,7 +411,6 @@ fadeVolume(layerId, targetVolume, duration, progressCallback) {
         // Instead of linear interpolation, calculate actual current value
         // based on the Web Audio API's timing curve
         // This more closely matches what the user actually hears
-        const elapsedTime = progress * duration;
         const currentIntermediate = currentVolume + (volumeDiff * progress);
         
         // Every 10th update, log the progress to help with debugging

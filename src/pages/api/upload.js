@@ -3,6 +3,7 @@ import { put } from '@vercel/blob';
 import { IncomingForm } from 'formidable';
 import fs from 'fs';
 import util from 'util';
+import { Collection } from '../../models/Collection';
 
 // Allowed MIME types for audio files
 const ALLOWED_AUDIO_MIME_TYPES = [
