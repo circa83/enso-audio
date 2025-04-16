@@ -1,3 +1,4 @@
+// src/pages/api/blob/list.js
 import { list } from '@vercel/blob';
 import { getToken } from 'next-auth/jwt';
 
@@ -8,14 +9,20 @@ export default async function handler(req, res) {
   }
 
   try {
+    console.log('[API: blob/list] Processing blob list request');
+    
     // Get the prefix from query parameters
     const { prefix = '' } = req.query;
+    
+    console.log(`[API: blob/list] Listing blobs with prefix: "${prefix}"`);
     
     // List blobs with the given prefix
     const { blobs } = await list({
       prefix,
       limit: 1000 // Adjust this limit as needed
     });
+    
+    console.log(`[API: blob/list] Found ${blobs.length} blobs`);
     
     return res.status(200).json(blobs);
   } catch (error) {
@@ -25,4 +32,4 @@ export default async function handler(req, res) {
       message: error.message
     });
   }
-} 
+}

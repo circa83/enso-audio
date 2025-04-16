@@ -75,6 +75,80 @@ export async function listFiles(prefix, options = {}) {
 }
 
 /**
+ * Get all collection folders from Blob storage
+ * @returns {Promise<string[]>} Array of collection folder names
+ */
+export async function listCollectionFolders() {
+  try {
+    console.log('[blob-storage: listCollectionFolders] Fetching collection folders');
+    
+    // Use the listFiles function with a collections/ prefix
+    const response = await fetch('/api/blob/list?prefix=collections/');
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}`);
+    }
+    
+    const blobs = await response.json();
+    
+    // Extract unique folder names
+    const folders = new Set();
+    blobs.forEach(blob => {
+      const pathParts = blob.pathname.split('/');
+      if (pathParts.length > 1) {
+        folders.add(pathParts[1]); // collections/[folder-name]/...
+      }
+    });
+    
+    console.log(`[blob-storage: listCollectionFolders] Found ${folders.size} collections`);
+    return Array.from(folders);
+  } catch (error) {
+    console.error(`[blob-storage: listCollectionFolders] Error: ${error.message}`);
+    return [];
+  }
+}
+
+/**
+ * Get sub-folders within a collection
+ * @param {string} collectionId - The collection identifier
+ * @returns {Promise<string[]>} Array of subfolder names (e.g., 'cover', 'Layer_1', etc.)
+ */
+export async function listCollectionSubfolders(collectionId) {
+  try {
+    console.log(`[blob-storage: listCollectionSubfolders] Fetching subfolders for collection: ${collectionId}`);
+    
+    if (!collectionId) {
+      throw new Error('Collection ID is required');
+    }
+    
+    const prefix = `collections/${collectionId}/`;
+    const response = await fetch(`/api/blob/list?prefix=${encodeURIComponent(prefix)}`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}`);
+    }
+    
+    const blobs = await response.json();
+    
+    // Extract unique subfolder names
+    const subfolders = new Set();
+    blobs.forEach(blob => {
+      const path = blob.pathname.replace(prefix, '');
+      const subfolder = path.split('/')[0];
+      if (subfolder) {
+        subfolders.add(subfolder);
+      }
+    });
+    
+    console.log(`[blob-storage: listCollectionSubfolders] Found ${subfolders.size} subfolders`);
+    return Array.from(subfolders);
+  } catch (error) {
+    console.error(`[blob-storage: listCollectionSubfolders] Error: ${error.message}`);
+    return [];
+  }
+}
+
+/**
  * Delete a file from Vercel Blob storage
  * @param {string} url - The URL of the file to delete
  * @returns {Promise<Object>} The deletion result
@@ -180,5 +254,35 @@ export async function uploadCollectionFiles(collectionFiles, collectionId) {
   } catch (error) {
     console.error(`[blob-storage: uploadCollectionFiles] Collection upload failed: ${error.message}`);
     throw error;
+  }
+}
+
+/**
+ * Verify if a collection has all necessary files in Blob storage
+ * @param {string} collectionId - The collection identifier
+ * @param {Array<string>} requiredFolders - Array of required folder names (e.g., ['cover', 'Layer_1'])
+ * @returns {Promise<boolean>} True if collection has all required folders
+ */
+export async function verifyCollectionStructure(collectionId, requiredFolders = ['cover']) {
+  try {
+    console.log(`[blob-storage: verifyCollectionStructure] Verifying collection: ${collectionId}`);
+    
+    if (!collectionId) {
+      return false;
+    }
+    
+    // Get collection subfolders
+    const subfolders = await listCollectionSubfolders(collectionId);
+    
+    // Check if all required folders exist
+    const hasAllRequired = requiredFolders.every(folder => 
+      subfolders.includes(folder)
+    );
+    
+    console.log(`[blob-storage: verifyCollectionStructure] Collection ${collectionId} validation: ${hasAllRequired}`);
+    return hasAllRequired;
+  } catch (error) {
+    console.error(`[blob-storage: verifyCollectionStructure] Error verifying collection: ${error.message}`);
+    return false;
   }
 }
