@@ -63,6 +63,12 @@ const handleRetryLoad = () => {
   // Handle showing collection details
   const handleShowDetails = (collection, e) => {
     e.stopPropagation(); // Prevent triggering the card click
+  
+    // Debug logs
+    console.log('[AmbientArchive] Collection data for details modal:', collection);
+    console.log('[AmbientArchive] Tracks data:', collection.tracks);
+    console.log('[AmbientArchive] Metadata:', collection.metadata);
+    
     setSelectedCollection(collection);
     setShowDetails(true);
   };
@@ -72,6 +78,8 @@ const handleRetryLoad = () => {
     setShowDetails(false);
     setSelectedCollection(null);
   };
+
+  
 
   if (isLoading) {
     return (
@@ -188,50 +196,113 @@ const handleRetryLoad = () => {
         </div>
       )}
 
-      {/* Details Modal */}
-      {showDetails && selectedCollection && (
-        <div className={styles.modalOverlay} onClick={handleCloseDetails}>
-          <div className={styles.modal} onClick={e => e.stopPropagation()}>
-            <button className={styles.modalClose} onClick={handleCloseDetails}>×</button>
-            
-            <div className={styles.modalContent}>
-              <h2>{selectedCollection.name}</h2>
-              <p className={styles.modalDescription}>{selectedCollection.description}</p>
-              
-              {selectedCollection.metadata && (
-                <div className={styles.modalMetadata}>
-                  <p><strong>Artist:</strong> {selectedCollection.metadata.artist}</p>
-                  <p><strong>Year:</strong> {selectedCollection.metadata.year}</p>
-                  {selectedCollection.metadata.tags && (
-                    <p><strong>Tags:</strong> {selectedCollection.metadata.tags.join(', ')}</p>
-                  )}
-                </div>
-              )}
-              
-              <div className={styles.trackList}>
-                <h3>Tracks</h3>
-                {selectedCollection.tracks && selectedCollection.tracks.map(track => (
-                  <div key={track.id} className={styles.track}>
-                    <div className={styles.trackInfo}>
-                      <span className={styles.trackTitle}>{track.title}</span>
-                      <span className={styles.trackType}>{track.layerFolder}</span>
-                    </div>
-                    {track.variations && track.variations.length > 0 && (
-                      <div className={styles.variations}>
-                        {track.variations.map(variation => (
-                          <div key={variation.id} className={styles.variation}>
-                            <span className={styles.variationTitle}>{variation.title}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+   {/* Details Modal */}
+{showDetails && selectedCollection && (
+  <div className={styles.modalOverlay} onClick={handleCloseDetails}>
+    <div className={styles.modal} onClick={e => e.stopPropagation()}>
+      <button className={styles.modalClose} onClick={handleCloseDetails}>×</button>
+      
+      <div className={styles.modalContent}>
+        {/* Header with collection info */}
+        <div className={styles.modalHeader}>
+          {selectedCollection.coverImage && (
+            <div className={styles.modalCoverImage}>
+              <img 
+                src={selectedCollection.coverImage} 
+                alt={`${selectedCollection.name} cover`} 
+              />
             </div>
+          )}
+          <div className={styles.modalHeadContent}>
+            <h2>{selectedCollection.name || 'Unnamed Collection'}</h2>
+            <p className={styles.modalDescription}>{selectedCollection.description || 'No description available'}</p>
           </div>
         </div>
-      )}
+        
+        {/* Metadata section */}
+        <div className={styles.modalMetadata}>
+          <p><strong>Artist:</strong> {selectedCollection.metadata?.artist || 'Unknown'}</p>
+          <p><strong>Year:</strong> {selectedCollection.metadata?.year || 'N/A'}</p>
+          {selectedCollection.metadata?.tags && (
+            <p><strong>Tags:</strong> {selectedCollection.metadata.tags.join(', ')}</p>
+          )}
+        </div>
+        
+        {/* Track list organized by layer */}
+        <div className={styles.trackListContainer}>
+          <h3>Audio Layers</h3>
+          
+          {/* Debug information for tracks */}
+          {!selectedCollection.tracks || selectedCollection.tracks.length === 0 ? (
+            <div className={styles.emptyState}>
+              <p>No tracks found for this collection.</p>
+              <p className={styles.debugInfo}>Raw collection data: {JSON.stringify(selectedCollection).substring(0, 200)}...</p>
+            </div>
+          ) : (
+            /* Group tracks by layer folder for better organization */
+            ['Layer_1', 'Layer_2', 'Layer_3', 'Layer_4'].map(layerFolder => {
+              // Filter tracks for this layer with multiple property checks
+              const layerTracks = selectedCollection.tracks?.filter(track => {
+                // Check for layerFolder property first
+                if (track.layerFolder === layerFolder) return true;
+                
+                // Then check for layerType property
+                if (track.layerType === layerFolder) return true;
+                
+                // Finally, check if the track path includes the layer folder name
+                if (track.audioUrl && track.audioUrl.includes(`/${layerFolder}/`)) return true;
+                
+                return false;
+              }) || [];
+              
+              if (layerTracks.length === 0) return null;
+              
+              return (
+                <div key={layerFolder} className={styles.layerSection}>
+                  <h4 className={styles.layerTitle}>
+                    {layerFolder.replace('_', ' ')} 
+                    <span className={styles.trackCount}>({layerTracks.length} tracks)</span>
+                  </h4>
+                  
+                  <div className={styles.layerTracks}>
+                    {layerTracks.map(track => (
+                      <div key={track.id} className={styles.track}>
+                        <div className={styles.trackInfo}>
+                          <span className={styles.trackTitle}>{track.title}</span>
+                        </div>
+                        
+                        {track.variations && track.variations.length > 0 && (
+                          <div className={styles.variations}>
+                            <span className={styles.variationsLabel}>Variations:</span>
+                            {track.variations.map(variation => (
+                              <div key={variation.id} className={styles.variation}>
+                                <span className={styles.variationTitle}>{variation.title}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+        
+        {/* Action buttons */}
+        <div className={styles.modalActions}>
+          <button 
+            className={styles.playCollectionButton}
+            onClick={() => handleCollectionSelect(selectedCollection.id)}
+          >
+            Load in Player
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
     </ArchiveLayout>
   );
 };
