@@ -38,6 +38,7 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    cursor: pointer;
   }
   
   .collectionCard:hover {
@@ -168,6 +169,190 @@
     letter-spacing: 1px;
   }
   
+  /* Modal styles */
+  .modalOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.85);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+  
+  .modal {
+    background-color: #1c1c1c;
+    border: 1px solid #333;
+    border-radius: 4px;
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .modalClose {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: none;
+    border: none;
+    color: #aaaaaa;
+    font-size: 24px;
+    cursor: pointer;
+    z-index: 2;
+    transition: color 0.2s ease;
+  }
+  
+  .modalClose:hover {
+    color: #ffffff;
+  }
+  
+  .modalContent {
+    padding: 30px;
+    overflow-y: auto;
+  }
+  
+  .modalContent h2 {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 1.8rem;
+    color: #ffffff;
+    margin-bottom: 15px;
+    letter-spacing: 2px;
+  }
+  
+  .modalDescription {
+    font-size: 1rem;
+    color: #aaaaaa;
+    line-height: 1.6;
+    margin-bottom: 25px;
+  }
+  
+  .modalMetadata {
+    background-color: #252525;
+    padding: 20px;
+    border-radius: 4px;
+    margin-bottom: 25px;
+  }
+  
+  .modalMetadata p {
+    color: #aaaaaa;
+    margin: 8px 0;
+    font-size: 0.9rem;
+  }
+  
+  .modalMetadata strong {
+    color: #ffffff;
+    font-weight: normal;
+    margin-right: 10px;
+  }
+  
+  .trackList {
+    margin-top: 30px;
+  }
+  
+  .trackList h3 {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 200;
+    font-size: 1.2rem;
+    color: #ffffff;
+    margin-bottom: 20px;
+    letter-spacing: 1px;
+  }
+  
+  .track {
+    background-color: #252525;
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 15px;
+  }
+  
+  .trackInfo {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  
+  .trackTitle {
+    color: #ffffff;
+    font-size: 1rem;
+  }
+  
+  .trackType {
+    color: #aaaaaa;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    background-color: #333;
+    padding: 4px 8px;
+    border-radius: 3px;
+  }
+  
+  .variations {
+    margin-top: 10px;
+    padding-left: 20px;
+    border-left: 1px solid #333;
+  }
+  
+  .variation {
+    padding: 8px 0;
+  }
+  
+  .variationTitle {
+    color: #aaaaaa;
+    font-size: 0.9rem;
+  }
+  
+  /* Filter controls */
+  .filterControls {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 30px;
+  }
+  
+  .searchInput {
+    flex: 1;
+    background-color: #252525;
+    border: 1px solid #333;
+    color: #ffffff;
+    padding: 12px 15px;
+    font-family: 'Archivo', sans-serif;
+    font-size: 0.9rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+  }
+  
+  .searchInput:focus {
+    border-color: #555;
+    outline: none;
+  }
+  
+  .filterSelect {
+    background-color: #252525;
+    border: 1px solid #333;
+    color: #ffffff;
+    padding: 12px 15px;
+    font-family: 'Archivo', sans-serif;
+    font-size: 0.9rem;
+    border-radius: 4px;
+    min-width: 150px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .filterSelect:focus {
+    border-color: #555;
+    outline: none;
+  }
+  
   /* Responsive styles */
   @media (max-width: 1024px) {
     .collectionsGrid {
@@ -182,5 +367,18 @@
     
     .archiveTitle {
       font-size: 1.5rem;
+    }
+    
+    .filterControls {
+      flex-direction: column;
+    }
+    
+    .modal {
+      width: 95%;
+      max-height: 95vh;
+    }
+    
+    .modalContent {
+      padding: 20px;
     }
   }

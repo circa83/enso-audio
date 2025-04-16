@@ -1,6 +1,7 @@
 // src/pages/api/collections/[id].js
 import dbConnect from '../../../lib/mongodb';
 import Collection from '../../../models/Collection';
+import Track from '../../../models/Track';
 
 export default async function handler(req, res) {
   console.log('[API: collections/[id]] Processing request', { 
@@ -54,7 +55,7 @@ async function getCollection(req, res, id) {
     console.log(`[API: collections/[id]/GET] Fetching collection with ID: ${id}`);
     
     // Find collection by ID
-    const collection = await Collection.findOne({ id }).populate('tracks');
+    const collection = await Collection.findOne({ id });
     
     if (!collection) {
       return res.status(404).json({
@@ -62,12 +63,21 @@ async function getCollection(req, res, id) {
         message: `Collection with ID '${id}' not found`
       });
     }
+
+    // Fetch tracks for this collection
+    const tracks = await Track.find({ collectionId: id });
     
-    console.log(`[API: collections/[id]/GET] Found collection: ${collection.name}`);
+    // Add tracks to collection
+    const collectionWithTracks = {
+      ...collection.toObject(),
+      tracks: tracks
+    };
+    
+    console.log(`[API: collections/[id]/GET] Found collection: ${collection.name} with ${tracks.length} tracks`);
     
     return res.status(200).json({
       success: true,
-      data: collection
+      data: collectionWithTracks
     });
   } catch (error) {
     console.error(`[API: collections/[id]/GET] Error fetching collection:`, error);
@@ -152,13 +162,14 @@ async function deleteCollection(req, res, id) {
       });
     }
     
-    console.log(`[API: collections/[id]/DELETE] Deleted collection: ${deletedCollection.name}`);
+    // Delete all tracks associated with this collection
+    await Track.deleteMany({ collectionId: id });
     
-    // Note: You may want to also delete related tracks and files here
+    console.log(`[API: collections/[id]/DELETE] Deleted collection: ${deletedCollection.name} and its tracks`);
     
     return res.status(200).json({
       success: true,
-      message: `Collection '${deletedCollection.name}' deleted successfully`
+      message: `Collection '${deletedCollection.name}' and its tracks deleted successfully`
     });
   } catch (error) {
     console.error(`[API: collections/[id]/DELETE] Error deleting collection:`, error);

@@ -19,7 +19,7 @@ class CollectionService {
         apiBasePath: options.apiBasePath || '/api',
         cacheDuration: options.cacheDuration || 60000, // 1 minute default
         enableLogging: options.enableLogging || false,
-        blobBaseUrl: 'https://uggtzauwx9gzthtf.public.blob.vercel-storage.com'
+        blobBaseUrl: process.env.NEXT_PUBLIC_BLOB_BASE_URL || 'https://uggtzauwx9gzthtf.public.blob.vercel-storage.com'
       };
       
       // Internal state

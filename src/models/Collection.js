@@ -28,8 +28,8 @@ const CollectionSchema = new mongoose.Schema({
   },
   // Reference to tracks that belong to this collection
   tracks: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Track'
+    type: String,  // Changed from ObjectId to String to match Track schema
+    required: true
   }],
   // Timestamps for when the record was created/updated
   createdAt: {
@@ -51,7 +51,8 @@ CollectionSchema.pre('save', function(next) {
 // Create a compound index for improved query performance
 CollectionSchema.index({ name: 1, 'metadata.artist': 1 });
 
-// Prevent mongoose error when model is already defined
+// Export both the model and schema
 const Collection = mongoose.models.Collection || mongoose.model('Collection', CollectionSchema);
 
 export default Collection;
+export { CollectionSchema };

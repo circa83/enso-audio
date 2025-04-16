@@ -2,12 +2,19 @@
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import withAuth from '../components/auth/ProtectedRoute';
 import ArchiveLayout from '../components/layout/ArchiveLayout';
 import { useCollections } from '../hooks/useCollections';
 import styles from '../styles/pages/AmbientArchive.module.css';
 
 const AmbientArchive = () => {
+  const router = useRouter();
+  
+  // State for details modal
+  const [selectedCollection, setSelectedCollection] = useState(null);
+  const [showDetails, setShowDetails] = useState(false);
+  
   // Use the useCollections hook with loadOnMount set to true
   const {
     collections,
@@ -28,8 +35,24 @@ const AmbientArchive = () => {
 
   // Handle collection selection
   const handleCollectionSelect = (collectionId) => {
-    // Navigate to player with collection ID
-    window.location.href = `/player?collection=${collectionId}`;
+    // Use Next.js router for client-side navigation
+    router.push({
+      pathname: '/player',
+      query: { collection: collectionId }
+    });
+  };
+
+  // Handle showing collection details
+  const handleShowDetails = (collection, e) => {
+    e.stopPropagation(); // Prevent triggering the card click
+    setSelectedCollection(collection);
+    setShowDetails(true);
+  };
+
+  // Handle closing details modal
+  const handleCloseDetails = () => {
+    setShowDetails(false);
+    setSelectedCollection(null);
   };
 
   if (isLoading) {
@@ -129,7 +152,10 @@ const AmbientArchive = () => {
                 <button className={styles.playButton}>
                   Play Collection
                 </button>
-                <button className={styles.detailsButton}>
+                <button 
+                  className={styles.detailsButton}
+                  onClick={(e) => handleShowDetails(collection, e)}
+                >
                   Details
                 </button>
               </div>
@@ -141,6 +167,51 @@ const AmbientArchive = () => {
       {collections.length === 0 && (
         <div className={styles.emptyState}>
           <p>No collections found in the Ambient Archive.</p>
+        </div>
+      )}
+
+      {/* Details Modal */}
+      {showDetails && selectedCollection && (
+        <div className={styles.modalOverlay} onClick={handleCloseDetails}>
+          <div className={styles.modal} onClick={e => e.stopPropagation()}>
+            <button className={styles.modalClose} onClick={handleCloseDetails}>×</button>
+            
+            <div className={styles.modalContent}>
+              <h2>{selectedCollection.name}</h2>
+              <p className={styles.modalDescription}>{selectedCollection.description}</p>
+              
+              {selectedCollection.metadata && (
+                <div className={styles.modalMetadata}>
+                  <p><strong>Artist:</strong> {selectedCollection.metadata.artist}</p>
+                  <p><strong>Year:</strong> {selectedCollection.metadata.year}</p>
+                  {selectedCollection.metadata.tags && (
+                    <p><strong>Tags:</strong> {selectedCollection.metadata.tags.join(', ')}</p>
+                  )}
+                </div>
+              )}
+              
+              <div className={styles.trackList}>
+                <h3>Tracks</h3>
+                {selectedCollection.tracks && selectedCollection.tracks.map(track => (
+                  <div key={track.id} className={styles.track}>
+                    <div className={styles.trackInfo}>
+                      <span className={styles.trackTitle}>{track.title}</span>
+                      <span className={styles.trackType}>{track.layerType}</span>
+                    </div>
+                    {track.variations && track.variations.length > 0 && (
+                      <div className={styles.variations}>
+                        {track.variations.map(variation => (
+                          <div key={variation.id} className={styles.variation}>
+                            <span className={styles.variationTitle}>{variation.title}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </ArchiveLayout>

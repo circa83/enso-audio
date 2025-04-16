@@ -35,8 +35,7 @@ const TrackSchema = new mongoose.Schema({
   },
   // Reference to the collection this track belongs to
   collectionId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Collection',
+    type: String,  // Changed from ObjectId to String to match Collection schema
     required: true,
     index: true,
   },
@@ -69,7 +68,8 @@ TrackSchema.pre('save', function(next) {
 TrackSchema.index({ collectionId: 1, layerType: 1 });
 TrackSchema.index({ id: 1, collectionId: 1 }, { unique: true });
 
-// Prevent mongoose error when model is already defined
+// Export both the model and schema
 const Track = mongoose.models.Track || mongoose.model('Track', TrackSchema);
 
 export default Track;
+export { TrackSchema };
