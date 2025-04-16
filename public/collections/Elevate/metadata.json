@@ -1,0 +1,58 @@
+{
+  "id": "Elevate",
+  "name": "Elevate",
+  "description": "A collection of ambient audio tracks for elevate",
+  "coverImage": "/collections/Elevate/cover/Elevate_EnsoAudio_bkcp.png",
+  "metadata": {
+    "artist": "Ensō Audio",
+    "year": 2025,
+    "tags": [
+      "ambient",
+      "meditation",
+      "peaceful",
+      "soundscape"
+    ]
+  },
+  "tracks": [
+    {
+      "id": "layer_1",
+      "title": "February1(sf) 2025",
+      "audioUrl": "/collections/Elevate/Layer_1/February1(sf)_2025.mp3",
+      "layerFolder": "Layer_1",
+      "variations": [
+        {
+          "id": "layer_1-2025",
+          "title": "February2(short) 2025",
+          "audioUrl": "/collections/Elevate/Layer_1/February2(short)_2025.mp3"
+        }
+      ]
+    },
+    {
+      "id": "layer_2",
+      "title": "February3(short) 2025",
+      "audioUrl": "/collections/Elevate/Layer_2/February3(short)_2025.mp3",
+      "layerFolder": "Layer_2",
+      "variations": [
+        {
+          "id": "layer_2-2025",
+          "title": "February4(short) 2025",
+          "audioUrl": "/collections/Elevate/Layer_2/February4(short)_2025.mp3"
+        }
+      ]
+    },
+    {
+      "id": "layer_3",
+      "title": "February6(short) 2025",
+      "audioUrl": "/collections/Elevate/Layer_3/February6(short)_2025.mp3",
+      "layerFolder": "Layer_3",
+      "variations": []
+    },
+    {
+      "id": "layer_4",
+      "title": "February7(short) 2025",
+      "audioUrl": "/collections/Elevate/Layer_4/February7(short)_2025.mp3",
+      "layerFolder": "Layer_4",
+      "variations": []
+    }
+  ]
+}

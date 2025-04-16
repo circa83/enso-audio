@@ -39,10 +39,10 @@ const TrackSchema = new mongoose.Schema({
     required: true,
     index: true,
   },
-  // Layer type (e.g., 'drone', 'melody', 'rhythm', 'nature')
-  layerType: {
+  // Layer folder (e.g., 'Layer_1', 'Layer_2', 'Layer_3', 'Layer_4')
+  layerFolder: {
     type: String,
-    enum: ['drone', 'melody', 'rhythm', 'nature'],
+    enum: ['Layer_1', 'Layer_2', 'Layer_3', 'Layer_4'],
     required: true,
   },
   // Track variations
@@ -65,7 +65,7 @@ TrackSchema.pre('save', function(next) {
 });
 
 // Create compound indexes for frequent query patterns
-TrackSchema.index({ collectionId: 1, layerType: 1 });
+TrackSchema.index({ collectionId: 1, layerFolder: 1 });
 TrackSchema.index({ id: 1, collectionId: 1 }, { unique: true });
 
 // Export both the model and schema

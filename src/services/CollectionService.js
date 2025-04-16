@@ -383,22 +383,23 @@ class CollectionService {
     try {
       console.log(`[CollectionService: formatCollectionForPlayer] Formatting collection: ${collection.id}`);
       
-      // Group tracks by layer type
+      // Group tracks by layer folder
       const layers = {
-        drone: [],
-        melody: [],
-        rhythm: [],
-        nature: []
+        Layer_1: [], // Drone
+        Layer_2: [], // Melody
+        Layer_3: [], // Rhythm
+        Layer_4: []  // Nature
       };
       
       // Process tracks if they exist
       if (collection.tracks && Array.isArray(collection.tracks)) {
         collection.tracks.forEach(track => {
-          const layerType = track.layerType?.toLowerCase() || this._deriveLayerType(track);
+          // Determine layer from folder structure
+          const layerFolder = this._getLayerFromFolder(track.audioUrl);
           
-          // Skip tracks with invalid layer type
-          if (!layers[layerType]) {
-            console.log(`[CollectionService: formatCollectionForPlayer] Skipping track with invalid layer type: ${layerType}`);
+          // Skip tracks with invalid layer folder
+          if (!layers[layerFolder]) {
+            console.log(`[CollectionService: formatCollectionForPlayer] Skipping track with invalid layer folder: ${layerFolder}`);
             return;
           }
           
@@ -414,7 +415,7 @@ class CollectionService {
           };
           
           // Add to appropriate layer
-          layers[layerType].push(formattedTrack);
+          layers[layerFolder].push(formattedTrack);
           
           // Process variations if they exist
           if (track.variations && Array.isArray(track.variations)) {
@@ -436,7 +437,7 @@ class CollectionService {
                 path: variationUrl
               };
               
-              layers[layerType].push(variationTrack);
+              layers[layerFolder].push(variationTrack);
             });
           }
         });
@@ -460,23 +461,31 @@ class CollectionService {
         layers
       };
     } catch (error) {
-      console.error(`[CollectionService: formatCollectionForPlayer] Error: ${error.message}`, 'error');
+      console.error(`[CollectionService: formatCollectionForPlayer] Error: ${error.message}`);
       throw new Error(`Failed to format collection: ${error.message}`);
     }
   }
   
-  // Add this helper method to derive layer type from other properties
-  _deriveLayerType(track) {
-    // Try to derive from track id, title, or path patterns
-    const trackString = `${track.id} ${track.title || ''} ${track.audioUrl || ''}`.toLowerCase();
+  /**
+   * Helper method to determine layer from folder structure
+   * @private
+   * @param {string} audioUrl - Audio file URL or path
+   * @returns {string} Layer folder (Layer_1, Layer_2, etc.)
+   */
+  _getLayerFromFolder(audioUrl) {
+    if (!audioUrl) return 'Layer_1'; // Default to Layer_1 if no URL
     
-    if (trackString.includes('drone')) return 'drone';
-    if (trackString.includes('melody')) return 'melody';
-    if (trackString.includes('rhythm')) return 'rhythm';
-    if (trackString.includes('nature')) return 'nature';
+    // Convert to lowercase for case-insensitive matching
+    const url = audioUrl.toLowerCase();
     
-    // Default to drone if we can't determine
-    return 'drone';
+    // Check for layer folders in the path
+    if (url.includes('/layer_1/') || url.includes('/drone/')) return 'Layer_1';
+    if (url.includes('/layer_2/') || url.includes('/melody/')) return 'Layer_2';
+    if (url.includes('/layer_3/') || url.includes('/rhythm/')) return 'Layer_3';
+    if (url.includes('/layer_4/') || url.includes('/nature/')) return 'Layer_4';
+    
+    // Default to Layer_1 if no match found
+    return 'Layer_1';
   }
   
   /**

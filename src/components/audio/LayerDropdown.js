@@ -1,8 +1,15 @@
 // src/components/audio/LayerDropdown.js
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useAudio } from '../../hooks/useAudio'; // Import the refactored hook
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { useAudio } from '../../hooks/useAudio';
 import styles from '../../styles/components/LayerDropdown.module.css';
 
+/**
+ * LayerDropdown component for selecting different audio variations for a layer
+ * 
+ * @param {Object} props Component props
+ * @param {string} props.layer Layer identifier (e.g., 'Layer_1', 'Layer_2')
+ * @returns {JSX.Element} Rendered component
+ */
 const LayerDropdown = ({ layer }) => {
   const { 
     audioLibrary, 
@@ -23,15 +30,15 @@ const LayerDropdown = ({ layer }) => {
   // Get z-index based on layer name for proper stacking
   const getZIndexForLayer = useCallback((layerName) => {
     // Significantly increased z-index values with wider gaps between them
-    switch(layerName.toLowerCase()) {
-      case 'drone':
-        return 10000; // Drone is at the top 
-      case 'melody':
-        return 9500; // Melody is below Drone
-      case 'rhythm':
-        return 9000; // Rhythm is below Melody
-      case 'nature':
-        return 8500; // Nature is at the bottom
+    switch(layerName) {
+      case 'Layer_1':
+        return 10000; // 1 is at the top 
+      case 'Layer_2':
+        return 9500; // 2 is below 1
+      case 'Layer_3':
+        return 9000; // 3 is below 2
+      case 'Layer_4':
+        return 8500; // 4 is at the bottom
       default:
         return 8000; // Fallback
     }
@@ -231,4 +238,4 @@ const LayerDropdown = ({ layer }) => {
 };
 
 // Export with memoization to prevent unnecessary re-renders
-export default React.memo(LayerDropdown);
+export default memo(LayerDropdown);

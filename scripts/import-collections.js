@@ -48,36 +48,50 @@ async function importCollections(force = false) {
   };
   
   try {
-    // Read the collections.json file from public directory
-    const collectionsFilePath = path.join(process.cwd(), 'public', 'collections', 'collections.json');
-    console.log(`[import-collections] Reading collections from: ${collectionsFilePath}`);
+    // Read the collections directory to find all collection folders
+    const collectionsDir = path.join(process.cwd(), 'public', 'collections');
+    console.log(`[import-collections] Scanning collections directory: ${collectionsDir}`);
     
-    if (!fs.existsSync(collectionsFilePath)) {
-      throw new Error(`Collections file not found at: ${collectionsFilePath}`);
+    if (!fs.existsSync(collectionsDir)) {
+      throw new Error(`Collections directory not found at: ${collectionsDir}`);
     }
     
-    const collectionsData = JSON.parse(fs.readFileSync(collectionsFilePath, 'utf8'));
-    console.log(`[import-collections] Found ${collectionsData.length} collections in file`);
+    // Get all directories in the collections folder
+    const collectionFolders = fs.readdirSync(collectionsDir, { withFileTypes: true })
+      .filter(dirent => dirent.isDirectory())
+      .map(dirent => dirent.name)
+      .filter(name => name !== 'assets' && !name.startsWith('.')); // Exclude non-collection directories
     
-    // Process each collection
-    for (const collectionData of collectionsData) {
+    console.log(`[import-collections] Found ${collectionFolders.length} potential collection folders`);
+    
+    // Process each collection folder
+    for (const collectionId of collectionFolders) {
       stats.collectionsProcessed++;
       
       try {
-        console.log(`[import-collections] Processing collection: ${collectionData.id}`);
+        console.log(`[import-collections] Processing collection: ${collectionId}`);
+        
+        // Load collection metadata from the individual metadata.json file
+        const collectionData = loadCollectionMetadata(collectionId);
+        
+        if (!collectionData) {
+          console.log(`[import-collections] No valid metadata found for collection ${collectionId}, skipping`);
+          stats.collectionsSkipped++;
+          continue;
+        }
         
         // Check if collection already exists
-        const existingCollection = await Collection.findOne({ id: collectionData.id });
+        const existingCollection = await Collection.findOne({ id: collectionId });
         
         if (existingCollection && !force) {
-          console.log(`[import-collections] Collection ${collectionData.id} already exists, skipping`);
+          console.log(`[import-collections] Collection ${collectionId} already exists, skipping`);
           stats.collectionsSkipped++;
           continue;
         }
         
         // Create or update the collection
         const collection = existingCollection || new Collection({
-          id: collectionData.id,
+          id: collectionId,
           name: collectionData.name,
           description: collectionData.description,
           coverImage: collectionData.coverImage,
@@ -99,14 +113,14 @@ async function importCollections(force = false) {
         
         // Process tracks
         if (collectionData.tracks && Array.isArray(collectionData.tracks)) {
-          console.log(`[import-collections] Processing ${collectionData.tracks.length} tracks for collection ${collectionData.id}`);
+          console.log(`[import-collections] Processing ${collectionData.tracks.length} tracks for collection ${collectionId}`);
           
           for (const trackData of collectionData.tracks) {
             stats.tracksProcessed++;
             
             try {
-              // Create a unique track ID if not provided
-              const trackId = trackData.id || `${collectionData.id}_${trackData.title.replace(/\s+/g, '_').toLowerCase()}`;
+              // Use the track ID from metadata or create one
+              const trackId = trackData.id || `${collectionId}_${trackData.title.replace(/\s+/g, '_').toLowerCase()}`;
               
               // Check if track already exists
               const existingTrack = await Track.findOne({ 
@@ -120,17 +134,9 @@ async function importCollections(force = false) {
                 continue;
               }
               
-              // Determine layer type based on track title or data
-              let layerType = 'drone'; // Default
-              if (trackData.title.toLowerCase().includes('melody')) {
-                layerType = 'melody';
-              } else if (trackData.title.toLowerCase().includes('rhythm')) {
-                layerType = 'rhythm';
-              } else if (trackData.title.toLowerCase().includes('nature')) {
-                layerType = 'nature';
-              } else if (trackData.layerType) {
-                layerType = trackData.layerType;
-              }
+              // Get layer folder from the track data
+              // This is now our primary organization method
+              const layerFolder = trackData.layerFolder || determineLayerFolder(trackData);
               
               // Format variations if they exist
               const variations = trackData.variations || [];
@@ -140,8 +146,8 @@ async function importCollections(force = false) {
                 id: trackId,
                 title: trackData.title,
                 audioUrl: trackData.audioUrl,
-                layerType,
-                variations,
+                layerFolder: layerFolder,  // Use layerFolder instead of layerType
+                variations: variations,
                 collectionId: collection._id
               });
               
@@ -149,7 +155,7 @@ async function importCollections(force = false) {
               if (existingTrack) {
                 track.title = trackData.title;
                 track.audioUrl = trackData.audioUrl;
-                track.layerType = layerType;
+                track.layerFolder = layerFolder;
                 track.variations = variations;
               }
               
@@ -166,7 +172,7 @@ async function importCollections(force = false) {
               console.error(`[import-collections] Error processing track ${trackData.title}:`, trackError);
               stats.errors.push({
                 type: 'track',
-                collectionId: collectionData.id,
+                collectionId: collectionId,
                 trackTitle: trackData.title,
                 error: trackError.message
               });
@@ -178,10 +184,10 @@ async function importCollections(force = false) {
         }
         
       } catch (collectionError) {
-        console.error(`[import-collections] Error processing collection ${collectionData.id}:`, collectionError);
+        console.error(`[import-collections] Error processing collection ${collectionId}:`, collectionError);
         stats.errors.push({
           type: 'collection',
-          collectionId: collectionData.id,
+          collectionId: collectionId,
           error: collectionError.message
         });
       }
@@ -224,6 +230,90 @@ function loadCollectionMetadata(collectionId) {
   } catch (error) {
     console.error(`[import-collections] Error loading metadata for collection ${collectionId}:`, error);
     return null;
+  }
+}
+
+/**
+ * Determine layer folder based on track data
+ * @param {Object} trackData - Track metadata
+ * @returns {string} - Layer folder (Layer_1, Layer_2, etc.)
+ */
+function determineLayerFolder(trackData) {
+  // First check if we can determine from the URL
+  if (trackData.audioUrl) {
+    const url = trackData.audioUrl.toLowerCase();
+    
+    // Check if URL contains layer folder information
+    if (url.includes('/layer_1/')) return 'Layer_1';
+    if (url.includes('/layer_2/')) return 'Layer_2';
+    if (url.includes('/layer_3/')) return 'Layer_3';
+    if (url.includes('/layer_4/')) return 'Layer_4';
+  }
+  
+  // Check track ID if available
+  if (trackData.id) {
+    const id = trackData.id.toLowerCase();
+    if (id.startsWith('layer_1') || id === 'layer1') return 'Layer_1';
+    if (id.startsWith('layer_2') || id === 'layer2') return 'Layer_2';
+    if (id.startsWith('layer_3') || id === 'layer3') return 'Layer_3';
+    if (id.startsWith('layer_4') || id === 'layer4') return 'Layer_4';
+  }
+  
+  // Fallback based on track title (less reliable)
+  if (trackData.title) {
+    const title = trackData.title.toLowerCase();
+    if (title.includes('layer 1') || title.includes('layer1')) return 'Layer_1';
+    if (title.includes('layer 2') || title.includes('layer2')) return 'Layer_2';
+    if (title.includes('layer 3') || title.includes('layer3')) return 'Layer_3';
+    if (title.includes('layer 4') || title.includes('layer4')) return 'Layer_4';
+  }
+  
+  // Default to Layer_1 if we can't determine
+  return 'Layer_1';
+}
+
+// If this script is run directly
+if (require.main === module) {
+  const args = process.argv.slice(2);
+  const force = args.includes('--force');
+  const dryRun = args.includes('--dry-run');
+  
+  if (dryRun) {
+    console.log('[import-collections] DRY RUN: No data will be written to the database');
+    console.log('[import-collections] Scanning collections...');
+    
+    // Just print the collections that would be imported
+    const collectionsDir = path.join(process.cwd(), 'public', 'collections');
+    if (fs.existsSync(collectionsDir)) {
+      const collectionFolders = fs.readdirSync(collectionsDir, { withFileTypes: true })
+        .filter(dirent => dirent.isDirectory())
+        .map(dirent => dirent.name)
+        .filter(name => name !== 'assets' && !name.startsWith('.'));
+      
+      console.log(`Found ${collectionFolders.length} collections to process:`);
+      
+      for (const collectionId of collectionFolders) {
+        const metadata = loadCollectionMetadata(collectionId);
+        if (metadata) {
+          console.log(`- ${collectionId}: ${metadata.name} (${metadata.tracks?.length || 0} tracks)`);
+        } else {
+          console.log(`- ${collectionId}: No valid metadata found`);
+        }
+      }
+    } else {
+      console.error(`Collections directory not found at: ${collectionsDir}`);
+    }
+  } else {
+    // Run the import
+    importCollections(force)
+      .then(stats => {
+        console.log('Import completed successfully with stats:', stats);
+        process.exit(0);
+      })
+      .catch(error => {
+        console.error('Import failed:', error);
+        process.exit(1);
+      });
   }
 }
 

@@ -40,10 +40,11 @@ export function useCollectionLoader(options = {}) {
       autoPlay = false,
       fadeInDuration = 2000,
       initialVolumes = {
-        drone: 0.6,
-        melody: 0,
-        rhythm: 0,
-        nature: 0
+        // Updated to use Layer folders instead of types
+        Layer_1: 0.6,
+        Layer_2: 0,
+        Layer_3: 0,
+        Layer_4: 0
       }
     } = options;
     
@@ -90,10 +91,10 @@ export function useCollectionLoader(options = {}) {
       // Track successful layer loads
       const loadedLayers = {};
       
-      // For each layer type, load the first track
-      for (const [layerType, tracks] of Object.entries(formattedCollection.layers)) {
+      // For each layer folder, load the first track
+      for (const [layerFolder, tracks] of Object.entries(formattedCollection.layers)) {
         if (!tracks || tracks.length === 0) {
-          console.log(`[useCollectionLoader] No tracks for layer: ${layerType}`);
+          console.log(`[useCollectionLoader] No tracks for layer: ${layerFolder}`);
           continue;
         }
         
@@ -102,22 +103,22 @@ export function useCollectionLoader(options = {}) {
           const track = tracks[0];
           
           // Get desired volume for this layer
-          const layerVolume = initialVolumes[layerType] !== undefined 
-            ? initialVolumes[layerType]
-            : layerType === 'drone' ? 0.6 : 0; // Default: drone on, others off
+          const layerVolume = initialVolumes[layerFolder] !== undefined 
+            ? initialVolumes[layerFolder]
+            : layerFolder === 'Layer_1' ? 0.6 : 0; // Default: Layer_1 on, others off
           
-          console.log(`[useCollectionLoader] Loading ${layerType}: ${track.id} at volume ${layerVolume}`);
+          console.log(`[useCollectionLoader] Loading ${layerFolder}: ${track.id} at volume ${layerVolume}`);
           
           // Set volume for layer using the grouped API
-          volume.setLayer(layerType, layerVolume, { immediate: true });
+          volume.setLayer(layerFolder, layerVolume, { immediate: true });
           
           // Use crossfade engine to load the track with very short duration
-          await layers.crossfadeTo(layerType, track.id, 100);
+          await layers.crossfadeTo(layerFolder, track.id, 100);
           
           // Track successful load
-          loadedLayers[layerType] = track.id;
+          loadedLayers[layerFolder] = track.id;
         } catch (layerError) {
-          console.error(`[useCollectionLoader] Error loading ${layerType}: ${layerError.message}`);
+          console.error(`[useCollectionLoader] Error loading ${layerFolder}: ${layerError.message}`);
         }
       }
       
@@ -150,16 +151,16 @@ export function useCollectionLoader(options = {}) {
   ]);
   
   // Change track for a specific layer
-  const switchTrack = useCallback((layerType, trackId, options = {}) => {
+  const switchTrack = useCallback((layerFolder, trackId, options = {}) => {
     const { transitionDuration = 2000 } = options;
     
-    if (!layerType || !trackId) {
-      console.error('[useCollectionLoader] Layer type and track ID required');
+    if (!layerFolder || !trackId) {
+      console.error('[useCollectionLoader] Layer folder and track ID required');
       return false;
     }
     
     try {
-      return layers.crossfadeTo(layerType, trackId, transitionDuration);
+      return layers.crossfadeTo(layerFolder, trackId, transitionDuration);
     } catch (err) {
       console.error(`[useCollectionLoader] Error switching track: ${err.message}`);
       return false;

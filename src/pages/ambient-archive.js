@@ -214,7 +214,7 @@ const handleRetryLoad = () => {
                   <div key={track.id} className={styles.track}>
                     <div className={styles.trackInfo}>
                       <span className={styles.trackTitle}>{track.title}</span>
-                      <span className={styles.trackType}>{track.layerType}</span>
+                      <span className={styles.trackType}>{track.layerFolder}</span>
                     </div>
                     {track.variations && track.variations.length > 0 && (
                       <div className={styles.variations}>

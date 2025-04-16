@@ -2,6 +2,9 @@ const fs = require('fs');
 const path = require('path');
 const { Blob } = require('@vercel/blob');
 
+// Import the generateCollectionMetadata function from the existing script
+const { generateCollectionMetadata } = require('./generateCollectionMetadata');
+
 // Configuration
 const COLLECTIONS_DIR = path.join(__dirname, '../public/collections');
 const BLOB_STORAGE_URL = process.env.BLOB_STORAGE_URL;
@@ -39,7 +42,7 @@ async function uploadCollection(collectionDir) {
   const collectionId = path.basename(collectionDir);
   console.log(`Uploading collection: ${collectionId}`);
   
-  // Generate metadata
+  // Generate metadata using the imported function
   const metadata = generateCollectionMetadata(collectionDir);
   
   // Upload all files
@@ -78,7 +81,7 @@ async function uploadCollection(collectionDir) {
   await Promise.all(uploadPromises);
   
   // Upload metadata
-  const metadataBlobPath = `collections/${collectionId}/index.json`;
+  const metadataBlobPath = `collections/${collectionId}/metadata.json`;
   const metadataBuffer = Buffer.from(JSON.stringify(metadata, null, 2));
   const metadataBlob = await Blob.put(metadataBlobPath, metadataBuffer, {
     access: 'public',
@@ -114,4 +117,4 @@ async function main() {
   }
 }
 
-main(); 
+main();

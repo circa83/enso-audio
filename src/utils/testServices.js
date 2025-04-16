@@ -33,8 +33,8 @@ export async function testCollectionService() {
       const formattedCollection = collectionService.formatCollectionForPlayer(singleCollection.data);
       
       console.log('Formatted collection layers:');
-      Object.entries(formattedCollection.layers).forEach(([layerType, tracks]) => {
-        console.log(`  ${layerType}: ${tracks.length} tracks`);
+      Object.entries(formattedCollection.layers).forEach(([layerFolder, tracks]) => {
+        console.log(`  ${layerFolder}: ${tracks.length} tracks`);
       });
     }
     

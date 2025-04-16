@@ -103,15 +103,15 @@ async function addTrackToCollection(req, res, id) {
       id: trackId, 
       title, 
       audioUrl, 
-      layerType, 
+      layerFolder, 
       variations 
     } = req.body;
     
     // Validate required fields
-    if (!trackId || !title || !audioUrl || !layerType) {
+    if (!trackId || !title || !audioUrl || !layerFolder) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: id, title, audioUrl, and layerType are required'
+        message: 'Missing required fields: id, title, audioUrl, and layerFolder are required'
       });
     }
     
@@ -133,7 +133,7 @@ async function addTrackToCollection(req, res, id) {
       id: trackId,
       title,
       audioUrl,
-      layerType,
+      layerFolder,
       variations: variations || [],
       collection: collection._id
     });

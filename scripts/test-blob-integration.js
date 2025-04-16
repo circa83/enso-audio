@@ -67,8 +67,8 @@ async function testBlobIntegration() {
           const formattedCollection = collectionService.formatCollectionForPlayer(singleCollection.data);
           
           console.log('Formatted collection layers:');
-          Object.entries(formattedCollection.layers).forEach(([layerType, tracks]) => {
-            console.log(`  ${layerType}: ${tracks.length} tracks`);
+          Object.entries(formattedCollection.layers).forEach(([layerFolder, tracks]) => {
+            console.log(`  ${layerFolder}: ${tracks.length} tracks`);
             tracks.forEach(track => {
               console.log(`    - ${track.title} (${track.path})`);
             });

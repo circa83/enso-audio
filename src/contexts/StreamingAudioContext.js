@@ -9,18 +9,18 @@ import { mapCollectionToLayers } from '../utils/collectionUtils';
 
 // Define our audio layers as a frozen object to prevent modifications
 const LAYERS = Object.freeze({
-  DRONE: 'drone',
-  MELODY: 'melody',
-  RHYTHM: 'rhythm',
-  NATURE: 'nature'
+  Layer_1: 'Layer 1',
+  Layer_2: 'Layer 2',
+  Layer_3: 'Layer 3',
+  Layer_4: 'Layer 4'
 });
 
 // Default audio files for each layer
 const DEFAULT_AUDIO = Object.freeze({
-  [LAYERS.DRONE]: '/samples/default/drone.mp3',
-  [LAYERS.MELODY]: '/samples/default/melody.mp3',
-  [LAYERS.RHYTHM]: '/samples/default/rhythm.mp3',
-  [LAYERS.NATURE]: '/samples/default/nature.mp3'
+  [LAYERS.Layer_1]: '/samples/default/drone.mp3',
+  [LAYERS.Layer_2]: '/samples/default/melody.mp3',
+  [LAYERS.Layer_3]: '/samples/default/rhythm.mp3',
+  [LAYERS.Layer_4]: '/samples/default/nature.mp3'
 });
 
 // Create the context
@@ -71,10 +71,10 @@ export const AudioProvider = ({ children }) => {
   
   // Layer volumes
   const [volumes, setVolumes] = useState({
-    [LAYERS.DRONE]: 0.25,
-    [LAYERS.MELODY]: 0.0,
-    [LAYERS.RHYTHM]: 0.0,
-    [LAYERS.NATURE]: 0.0
+    [LAYERS.Layer_1]: 0.25,
+    [LAYERS.Layer_2]: 0.0,
+    [LAYERS.Layer_3]: 0.0,
+    [LAYERS.Layer_4]: 0.0
   });
   
   // Track currently active audio elements for each layer
@@ -83,32 +83,32 @@ export const AudioProvider = ({ children }) => {
   
   // Audio library - will store available tracks for each layer
   const [audioLibrary, setAudioLibrary] = useState({
-    [LAYERS.DRONE]: [],
-    [LAYERS.MELODY]: [],
-    [LAYERS.RHYTHM]: [],
-    [LAYERS.NATURE]: []
+    [LAYERS.Layer_1]: [],
+    [LAYERS.Layer_2]: [],
+    [LAYERS.Layer_3]: [],
+    [LAYERS.Layer_4]: []
   });
  
   const audioLibraryRef = useRef({
-    [LAYERS.DRONE]: [{
-      id: `${LAYERS.DRONE}1`,
-      name: `${LAYERS.DRONE.charAt(0).toUpperCase() + LAYERS.DRONE.slice(1)}`,
-      path: DEFAULT_AUDIO[LAYERS.DRONE]
+    [LAYERS.Layer_1]: [{
+      id: `${LAYERS.Layer_1}1`,
+      name: `${LAYERS.Layer_1.charAt(0).toUpperCase() + LAYERS.Layer_1.slice(1)}`,
+      path: DEFAULT_AUDIO[LAYERS.Layer_1]
     }],
-    [LAYERS.MELODY]: [{
-      id: `${LAYERS.MELODY}1`,
-      name: `${LAYERS.MELODY.charAt(0).toUpperCase() + LAYERS.MELODY.slice(1)}`,
-      path: DEFAULT_AUDIO[LAYERS.MELODY]
+    [LAYERS.Layer_2]: [{
+      id: `${LAYERS.Layer_2}1`,
+      name: `${LAYERS.Layer_2.charAt(0).toUpperCase() + LAYERS.Layer_2.slice(1)}`,
+      path: DEFAULT_AUDIO[LAYERS.Layer_2]
     }],
-    [LAYERS.RHYTHM]: [{
-      id: `${LAYERS.RHYTHM}1`,
-      name: `${LAYERS.RHYTHM.charAt(0).toUpperCase() + LAYERS.RHYTHM.slice(1)}`,
-      path: DEFAULT_AUDIO[LAYERS.RHYTHM]
+    [LAYERS.Layer_3]: [{
+      id: `${LAYERS.Layer_3}1`,
+      name: `${LAYERS.Layer_3.charAt(0).toUpperCase() + LAYERS.Layer_3.slice(1)}`,
+      path: DEFAULT_AUDIO[LAYERS.Layer_3]
     }],
-    [LAYERS.NATURE]: [{
-      id: `${LAYERS.NATURE}1`, 
-      name: `${LAYERS.NATURE.charAt(0).toUpperCase() + LAYERS.NATURE.slice(1)}`,
-      path: DEFAULT_AUDIO[LAYERS.NATURE]
+    [LAYERS.Layer_4]: [{
+      id: `${LAYERS.Layer_4}1`, 
+      name: `${LAYERS.Layer_4.charAt(0).toUpperCase() + LAYERS.Layer_4.slice(1)}`,
+      path: DEFAULT_AUDIO[LAYERS.Layer_4]
     }]
   });
  
@@ -1256,9 +1256,9 @@ const handlePauseSession = useCallback(() => {
         const loadedLayers = {};
         
         // For each layer type, load the first track
-        for (const [layerType, tracks] of Object.entries(resolvedCollection.layers)) {
+        for (const [layerFolder, tracks] of Object.entries(resolvedCollection.layers)) {
           if (!tracks || tracks.length === 0) {
-            console.log(`[StreamingAudioContext: handleLoadCollection] No tracks for layer: ${layerType}`);
+            console.log(`[StreamingAudioContext: handleLoadCollection] No tracks for layer: ${layerFolder}`);
             continue;
           }
           
@@ -1267,22 +1267,22 @@ const handlePauseSession = useCallback(() => {
             const track = tracks[0];
             
             // Get desired volume for this layer
-            const layerVolume = options.initialVolumes?.[layerType] !== undefined 
-              ? options.initialVolumes[layerType]
-              : layerType === 'drone' ? 0.6 : 0; // Default: drone on, others off
+            const layerVolume = options.initialVolumes?.[layerFolder] !== undefined 
+              ? options.initialVolumes[layerFolder]
+              : layerFolder === 'Layer_1' ? 0.6 : 0; // Default: drone on, others off
             
-            console.log(`[StreamingAudioContext: handleLoadCollection] Loading ${layerType}: ${track.id} at volume ${layerVolume}`);
+            console.log(`[StreamingAudioContext: handleLoadCollection] Loading ${layerFolder}: ${track.id} at volume ${layerVolume}`);
             
             // Set volume for layer
-            handleSetVolume(layerType, layerVolume, { immediate: true });
+            handleSetVolume(layerFolder, layerVolume, { immediate: true });
             
             // Use crossfade engine to load the track with very short duration
-            await handleCrossfadeTo(layerType, track.id, 100);
+            await handleCrossfadeTo(layerFolder, track.id, 100);
             
             // Track successful load
-            loadedLayers[layerType] = track.id;
+            loadedLayers[layerFolder] = track.id;
           } catch (layerError) {
-            console.error(`[StreamingAudioContext: handleLoadCollection] Error loading ${layerType}: ${layerError.message}`);
+            console.error(`[StreamingAudioContext: handleLoadCollection] Error loading ${layerFolder}: ${layerError.message}`);
           }
         }
         
@@ -1323,16 +1323,16 @@ const handlePauseSession = useCallback(() => {
     audioFileService
   ]);
 
-  const handleSwitchTrack = useCallback((layerType, trackId, options = {}) => {
+  const handleSwitchTrack = useCallback((layerFolder, trackId, options = {}) => {
     const { transitionDuration = 2000 } = options;
     
-    if (!layerType || !trackId) {
-      console.error('[StreamingAudioContext: handleSwitchTrack] Layer type and track ID required');
+    if (!layerFolder || !trackId) {
+      console.error('[StreamingAudioContext: handleSwitchTrack] Layer folder and track ID required');
       return false;
     }
     
     try {
-      return handleCrossfadeTo(layerType, trackId, transitionDuration);
+      return handleCrossfadeTo(layerFolder, trackId, transitionDuration);
     } catch (err) {
       console.error(`[StreamingAudioContext: handleSwitchTrack] Error switching track: ${err.message}`);
       return false;

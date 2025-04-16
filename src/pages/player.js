@@ -38,10 +38,11 @@ const PlayerPage = () => {
           await loadCollection(collectionId, {
             autoPlay: true,
             initialVolumes: {
-              drone: 0.6,
-              melody: 0.3,
-              rhythm: 0.2,
-              nature: 0.1
+              // Updated to use Layer folders instead of types
+              Layer_1: 0.6,
+              Layer_2: 0.3,
+              Layer_3: 0.2,
+              Layer_4: 0.1
             }
           });
           
@@ -141,4 +142,4 @@ const PlayerPage = () => {
   );
 };
 
-export default withAuth(PlayerPage); 
+export default withAuth(PlayerPage);

@@ -8,70 +8,128 @@ const COLLECTIONS_DIR = path.join(__dirname, '../public/collections');
 function formatTrackName(filename) {
   return filename
     .replace(/\.mp3$/, '')
+    .replace(/_/g, ' ')
     .replace(/-/g, ' ')
     .split(' ')
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 }
 
-// Helper function to determine layer type from path
-function getLayerType(filePath) {
-  const pathParts = filePath.split('/');
-  const layerDir = pathParts[pathParts.length - 2];
-  return layerDir.toLowerCase();
-}
-
 // Generate metadata for a collection
 function generateCollectionMetadata(collectionDir) {
   const collectionId = path.basename(collectionDir);
+  
+  // Create metadata structure
   const metadata = {
     id: collectionId,
     name: collectionId.charAt(0).toUpperCase() + collectionId.slice(1),
     description: `A collection of ambient audio tracks for ${collectionId.toLowerCase()}`,
-    tracks: {
-      Layer_1: [],
-      Layer_2: [],
-      Layer_3: [],
-      Layer_4: []
+    coverImage: null,
+    metadata: {
+      artist: "Ensō Audio",
+      year: 2025,
+      tags: ["ambient", "meditation", "peaceful", "soundscape"]
     },
-    coverImage: null
+    tracks: []
   };
 
-  // Process all files in the collection
-  function processFiles(dir) {
-    const items = fs.readdirSync(dir);
-    items.forEach(item => {
-      const itemPath = path.join(dir, item);
-      const relativePath = path.relative(collectionDir, itemPath);
-      
-      if (fs.statSync(itemPath).isDirectory()) {
-        processFiles(itemPath);
-      } else {
-        const ext = path.extname(item).toLowerCase();
-        
-        // Handle audio files
-        if (ext === '.mp3') {
-          const layerType = getLayerType(relativePath);
-          if (metadata.tracks[layerType]) {
-            metadata.tracks[layerType].push({
-              id: `${collectionId}-${layerType}-${path.basename(item, '.mp3')}`,
-              name: formatTrackName(item),
-              audioUrl: `collections/${collectionId}/${relativePath}`,
-              duration: 0 // You might want to add duration calculation
-            });
-          }
-        }
-        
-        // Handle cover image
-        if (['.jpg', '.jpeg', '.png'].includes(ext) && 
-            item.toLowerCase().includes('cover')) {
-          metadata.coverImage = `collections/${collectionId}/${relativePath}`;
+  console.log(`[generateCollectionMetadata.js] Processing collection: ${collectionId}`);
+  
+  // Process all files in the collection directory
+  const layerFolders = ['Layer_1', 'Layer_2', 'Layer_3', 'Layer_4'];
+  
+  // Process cover images first
+  const coverDir = path.join(collectionDir, 'cover');
+  if (fs.existsSync(coverDir)) {
+    try {
+      const coverFiles = fs.readdirSync(coverDir);
+      for (const file of coverFiles) {
+        const ext = path.extname(file).toLowerCase();
+        if (['.jpg', '.jpeg', '.png'].includes(ext)) {
+          metadata.coverImage = `/collections/${collectionId}/cover/${file}`;
+          console.log(`[generateCollectionMetadata.js] Found cover image: ${file}`);
+          break; // Just use the first image found
         }
       }
-    });
+    } catch (err) {
+      console.warn(`[generateCollectionMetadata.js] Error reading cover directory: ${err.message}`);
+    }
   }
-
-  processFiles(collectionDir);
+  
+  // Process each layer folder
+  for (const layerFolder of layerFolders) {
+    const layerPath = path.join(collectionDir, layerFolder);
+    if (!fs.existsSync(layerPath)) {
+      console.log(`[generateCollectionMetadata.js] Layer folder not found: ${layerFolder}`);
+      continue;
+    }
+    
+    try {
+      console.log(`[generateCollectionMetadata.js] Processing layer folder: ${layerFolder}`);
+      const files = fs.readdirSync(layerPath);
+      const mp3Files = files.filter(file => file.endsWith('.mp3'));
+      
+      if (mp3Files.length === 0) {
+        console.log(`[generateCollectionMetadata.js] No MP3 files found in: ${layerFolder}`);
+        continue;
+      }
+      
+      // Find the main track (either named same as folder or first mp3)
+      const mainFileName = mp3Files.find(file => 
+        file.toLowerCase() === `${layerFolder.toLowerCase()}.mp3`
+      ) || mp3Files[0];
+      
+      // Create the main track entry
+      const trackEntry = {
+        id: layerFolder.toLowerCase(),
+        title: formatTrackName(mainFileName),
+        audioUrl: `/collections/${collectionId}/${layerFolder}/${mainFileName}`,
+        layerFolder: layerFolder,  // Store the layer folder instead of a "type"
+        variations: []
+      };
+      
+      // Add variations (all other MP3s in the folder)
+      const variationFiles = mp3Files.filter(file => file !== mainFileName);
+      
+      if (variationFiles.length > 0) {
+        console.log(`[generateCollectionMetadata.js] Found ${variationFiles.length} variations for ${layerFolder}`);
+        
+        for (let i = 0; i < variationFiles.length; i++) {
+          const varFile = variationFiles[i];
+          // Create variation ID based on file naming pattern if available
+          let variationId;
+          
+          if (varFile.includes('_')) {
+            // Use existing numbering from filename (e.g. "drone_01.mp3" -> "layer_1-01")
+            const suffix = varFile.replace(/.*_(\d+)\.mp3$/i, '$1');
+            if (suffix && suffix !== varFile) {
+              variationId = `${layerFolder.toLowerCase()}-${suffix}`;
+            } else {
+              variationId = `${layerFolder.toLowerCase()}-${i + 1}`;
+            }
+          } else {
+            // Simple sequential numbering
+            variationId = `${layerFolder.toLowerCase()}-${i + 1}`;
+          }
+          
+          trackEntry.variations.push({
+            id: variationId,
+            title: formatTrackName(varFile),
+            audioUrl: `/collections/${collectionId}/${layerFolder}/${varFile}`
+          });
+        }
+      }
+      
+      metadata.tracks.push(trackEntry);
+      
+    } catch (err) {
+      console.warn(`[generateCollectionMetadata.js] Error processing layer ${layerFolder}: ${err.message}`);
+    }
+  }
+  
+  console.log(`[generateCollectionMetadata.js] Finished processing collection: ${collectionId}`);
+  console.log(`[generateCollectionMetadata.js] Found ${metadata.tracks.length} tracks with a total of ${metadata.tracks.reduce((acc, track) => acc + (track.variations ? track.variations.length : 0), 0)} variations`);
+  
   return metadata;
 }
 
@@ -95,7 +153,7 @@ function main() {
     const metadata = generateCollectionMetadata(collectionDir);
     
     // Write metadata to file
-    const metadataPath = path.join(collectionDir, 'index.json');
+    const metadataPath = path.join(collectionDir, 'metadata.json');
     fs.writeFileSync(
       metadataPath,
       JSON.stringify(metadata, null, 2)
@@ -108,4 +166,12 @@ function main() {
   }
 }
 
-main(); 
+// Only run main if this script is directly executed
+if (require.main === module) {
+  main();
+}
+
+// Export the function so it can be imported by other scripts
+module.exports = {
+  generateCollectionMetadata
+};

@@ -33,7 +33,7 @@ export async function prepareCollectionAudio(collection, services, onProgress) {
   const urlToTrackMap = new Map();
   
   // Process each layer
-  Object.entries(layers).forEach(([layerType, tracks]) => {
+  Object.entries(layers).forEach(([layerFolder, tracks]) => {
     tracks.forEach(track => {
       if (track.path) {
         urlsToPreload.push(track.path);
@@ -146,9 +146,9 @@ export async function loadCollectionIntoAudioEngine(collection, audioServices, o
     const errors = [];
     
     // For each layer type, load the first track
-    for (const [layerType, tracks] of Object.entries(layers)) {
+    for (const [layerFolder, tracks] of Object.entries(layers)) {
       if (!tracks || tracks.length === 0) {
-        console.log(`[audioCollectionHelper: loadCollectionIntoAudioEngine] No tracks for layer: ${layerType}`);
+        console.log(`[audioCollectionHelper: loadCollectionIntoAudioEngine] No tracks for layer: ${layerFolder}`);
         continue;
       }
       
@@ -157,15 +157,15 @@ export async function loadCollectionIntoAudioEngine(collection, audioServices, o
         const track = tracks[0];
         
         // Get desired volume for this layer
-        const layerVolume = initialVolumes[layerType] !== undefined 
-          ? initialVolumes[layerType]
-          : layerType === 'drone' ? 0.6 : 0; // Default: drone on, others off
+        const layerVolume = initialVolumes[layerFolder] !== undefined 
+            ? initialVolumes[layerFolder]
+          : layerFolder === 'Layer_1' ? 0.6 : 0; // Default: drone on, others off
         
-        console.log(`[audioCollectionHelper: loadCollectionIntoAudioEngine] Loading ${layerType}: ${track.id} at volume ${layerVolume}`);
+        console.log(`[audioCollectionHelper: loadCollectionIntoAudioEngine] Loading ${layerFolder}: ${track.id} at volume ${layerVolume}`);
         
         // Set volume for layer
         if (audioServices.volumeController) {
-          audioServices.volumeController.setVolume(layerType, layerVolume, {
+          audioServices.volumeController.setVolume(layerFolder, layerVolume, {
             immediate: true // Set immediately initially
           });
         }
@@ -173,18 +173,18 @@ export async function loadCollectionIntoAudioEngine(collection, audioServices, o
         // If crossfade engine is available, use it to properly load the track
         if (audioServices.crossfadeEngine && audioServices.crossfadeEngine.crossfadeTo) {
           // Use crossfade with very short duration for initial load
-          await audioServices.crossfadeEngine.crossfadeTo(layerType, track.id, 100);
+          await audioServices.crossfadeEngine.crossfadeTo(layerFolder, track.id, 100);
         } else {
           // Fallback if crossfadeEngine not available
-          console.warn(`[audioCollectionHelper: loadCollectionIntoAudioEngine] No crossfade engine available for ${layerType}`);
+          console.warn(`[audioCollectionHelper: loadCollectionIntoAudioEngine] No crossfade engine available for ${layerFolder}`);
           // Here we'd need a direct loading mechanism, but it depends on app structure
         }
         
         // Track successful load
-        loadedLayers[layerType] = track.id;
+        loadedLayers[layerFolder] = track.id;
       } catch (error) {
-        console.error(`[audioCollectionHelper: loadCollectionIntoAudioEngine] Error loading ${layerType}: ${error.message}`);
-        errors.push({ layer: layerType, error: error.message });
+        console.error(`[audioCollectionHelper: loadCollectionIntoAudioEngine] Error loading ${layerFolder}: ${error.message}`);
+        errors.push({ layer: layerFolder, error: error.message });
       }
     }
     
@@ -236,26 +236,26 @@ export async function updateCollectionActiveTracks(collection, audioServices, ac
     const changes = [];
     
     // Check each layer
-    for (const [layerType, tracks] of Object.entries(layers)) {
+    for (const [layerFolder, tracks] of Object.entries(layers)) {
       if (!tracks || tracks.length === 0) continue;
       
-      const currentTrackId = activeAudio[layerType];
+      const currentTrackId = activeAudio[layerFolder];
       
       // If current track not found in collection, update to first track
       if (currentTrackId) {
         const foundInCollection = tracks.some(t => t.id === currentTrackId);
         
         if (!foundInCollection) {
-          console.log(`[audioCollectionHelper: updateCollectionActiveTracks] Track ${currentTrackId} not found in collection for ${layerType}, updating`);
+          console.log(`[audioCollectionHelper: updateCollectionActiveTracks] Track ${currentTrackId} not found in collection for ${layerFolder}, updating`);
           
           // Update to first track
-          updatedAudio[layerType] = tracks[0].id;
-          changes.push({ layer: layerType, from: currentTrackId, to: tracks[0].id });
+          updatedAudio[layerFolder] = tracks[0].id;
+          changes.push({ layer: layerFolder, from: currentTrackId, to: tracks[0].id });
         }
       } else {
         // No track set, set to first track
-        updatedAudio[layerType] = tracks[0].id;
-        changes.push({ layer: layerType, from: null, to: tracks[0].id });
+        updatedAudio[layerFolder] = tracks[0].id;
+        changes.push({ layer: layerFolder, from: null, to: tracks[0].id });
       }
     }
     
@@ -305,9 +305,9 @@ export async function testCollectionAudioLoading(collection, audioServices) {
     const layers = mapCollectionToLayers(collection);
     
     // Test loading audio for each layer
-    for (const [layerType, tracks] of Object.entries(layers)) {
+    for (const [layerFolder, tracks] of Object.entries(layers)) {
       if (!tracks || tracks.length === 0) {
-        testResults.layerResults[layerType] = { 
+        testResults.layerResults[layerFolder] = { 
           tracks: 0, 
           message: 'No tracks found'
         };
@@ -325,7 +325,7 @@ export async function testCollectionAudioLoading(collection, audioServices) {
       // Test first track in each layer
       try {
         const track = tracks[0];
-        console.log(`[audioCollectionHelper: testCollectionAudioLoading] Testing ${layerType}: ${track.id}`);
+        console.log(`[audioCollectionHelper: testCollectionAudioLoading] Testing ${layerFolder}: ${track.id}`);
         
         // Try to load buffer
         const buffer = await audioServices.bufferManager.loadAudioBuffer(track.path);
@@ -334,7 +334,7 @@ export async function testCollectionAudioLoading(collection, audioServices) {
         if (buffer) {
           testResults.bufferResults.push({
             trackId: track.id,
-            layer: layerType,
+            layer: layerFolder,
             duration: buffer.duration,
             sampleRate: buffer.sampleRate,
             channels: buffer.numberOfChannels
@@ -349,7 +349,7 @@ export async function testCollectionAudioLoading(collection, audioServices) {
         }
       } catch (error) {
         testResults.errors.push({
-          layer: layerType,
+          layer: layerFolder,
           trackId: tracks[0].id,
           error: error.message
         });
@@ -363,7 +363,7 @@ export async function testCollectionAudioLoading(collection, audioServices) {
       }
       
       // Store results for this layer
-      testResults.layerResults[layerType] = layerResult;
+      testResults.layerResults[layerFolder] = layerResult;
     }
     
     // Final success determination

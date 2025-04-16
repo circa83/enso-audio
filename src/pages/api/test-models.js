@@ -39,7 +39,7 @@ export default async function handler(req, res) {
       title: 'Test Track',
       audioUrl: '/collections/test/Layer_1/test.mp3',
       collection: collection._id,
-      layerType: 'drone',
+      layerFolder: 'Layer_1',
       variations: [
         {
           id: 'test-track-01',

@@ -94,8 +94,8 @@ export default function TestServices() {
           const formatted = collectionService.formatCollectionForPlayer(collection.data);
           
           console.log('Formatted collection layers:');
-          Object.entries(formatted.layers).forEach(([layerType, tracks]) => {
-            console.log(`  ${layerType}: ${tracks.length} tracks`);
+          Object.entries(formatted.layers).forEach(([layerFolder, tracks]) => {
+            console.log(`  ${layerFolder}: ${tracks.length} tracks`);
           });
         }
       }
