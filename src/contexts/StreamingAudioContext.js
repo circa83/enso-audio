@@ -1207,7 +1207,7 @@ const handlePauseSession = useCallback(() => {
       
       // Load collection data using CollectionService
       const result = await collectionService.getCollection(collectionId);
-      console.log('[StreamingAudioContext: handleLoadCollection] Collection from collectionService result:', result);
+      console.log('[StreamingAudioContext: handleLoadCollection] Collection result:', result);
       
       if (!result.success || !result.data) {
         throw new Error(result.error || 'Failed to load collection');
@@ -1216,67 +1216,97 @@ const handlePauseSession = useCallback(() => {
       const collection = result.data;
       setCollectionLoadProgress(20);
       
-      // Format collection for player using CollectionService
-      const formattedCollection = collectionService.formatCollectionForPlayer(collection);
-      setCollectionLoadProgress(40);
-      
-      // Resolve audio URLs using AudioFileService
-      let resolvedCollection = formattedCollection;
-      if (options.autoResolveUrls !== false) {
-        resolvedCollection = await audioFileService.resolveCollectionUrls(formattedCollection);
-        setCollectionLoadProgress(60);
+      // Validate collection has tracks
+      if (!collection.tracks || !Array.isArray(collection.tracks) || collection.tracks.length === 0) {
+        console.error(`[StreamingAudioContext: handleLoadCollection] Collection "${collectionId}" has no tracks`);
+        throw new Error(`Collection "${collection.name || collectionId}" has no audio tracks`);
       }
       
-      // Map collection to layers
-      const mappedCollection = mapCollectionToLayers(resolvedCollection);
-      setCollectionLoadProgress(80);
+      console.log(`[StreamingAudioContext: handleLoadCollection] Loaded collection: ${collection.name} with ${collection.tracks.length} tracks`);
       
-      // Track successful layer loads
-      const loadedLayers = {};
-      
-      // For each layer type, load the first track
-      for (const [layerType, tracks] of Object.entries(mappedCollection.layers)) {
-        if (!tracks || tracks.length === 0) {
-          console.log(`[StreamingAudioContext: handleLoadCollection] No tracks for layer: ${layerType}`);
-          continue;
+      // Format collection for player using CollectionService
+      try {
+        const formattedCollection = collectionService.formatCollectionForPlayer(collection);
+        setCollectionLoadProgress(40);
+        
+        // Verify layers were properly formatted
+        const hasAnyTracks = Object.values(formattedCollection.layers || {}).some(
+          tracks => Array.isArray(tracks) && tracks.length > 0
+        );
+        
+        if (!hasAnyTracks) {
+          console.error('[StreamingAudioContext: handleLoadCollection] No tracks found in formatted collection');
+          throw new Error('No compatible audio tracks found in this collection');
         }
         
-        try {
-          // Get first track for this layer
-          const track = tracks[0];
-          
-          // Get desired volume for this layer
-          const layerVolume = options.initialVolumes?.[layerType] !== undefined 
-            ? options.initialVolumes[layerType]
-            : layerType === 'drone' ? 0.6 : 0; // Default: drone on, others off
-          
-          console.log(`[StreamingAudioContext: handleLoadCollection] Loading ${layerType}: ${track.id} at volume ${layerVolume}`);
-          
-          // Set volume for layer
-          handleSetVolume(layerType, layerVolume, { immediate: true });
-          
-          // Use crossfade engine to load the track with very short duration
-          await handleCrossfadeTo(layerType, track.id, 100);
-          
-          // Track successful load
-          loadedLayers[layerType] = track.id;
-        } catch (layerError) {
-          console.error(`[StreamingAudioContext: handleLoadCollection] Error loading ${layerType}: ${layerError.message}`);
+        console.log('[StreamingAudioContext: handleLoadCollection] Formatted collection layers:', 
+          Object.entries(formattedCollection.layers).map(([layer, tracks]) => 
+            `${layer}: ${tracks.length} tracks`
+          ).join(', ')
+        );
+        
+        // Resolve audio URLs using AudioFileService
+        let resolvedCollection = formattedCollection;
+        if (options.autoResolveUrls !== false) {
+          resolvedCollection = await audioFileService.resolveCollectionUrls(formattedCollection);
+          setCollectionLoadProgress(60);
         }
+        
+        // Track successful layer loads
+        const loadedLayers = {};
+        
+        // For each layer type, load the first track
+        for (const [layerType, tracks] of Object.entries(resolvedCollection.layers)) {
+          if (!tracks || tracks.length === 0) {
+            console.log(`[StreamingAudioContext: handleLoadCollection] No tracks for layer: ${layerType}`);
+            continue;
+          }
+          
+          try {
+            // Get first track for this layer
+            const track = tracks[0];
+            
+            // Get desired volume for this layer
+            const layerVolume = options.initialVolumes?.[layerType] !== undefined 
+              ? options.initialVolumes[layerType]
+              : layerType === 'drone' ? 0.6 : 0; // Default: drone on, others off
+            
+            console.log(`[StreamingAudioContext: handleLoadCollection] Loading ${layerType}: ${track.id} at volume ${layerVolume}`);
+            
+            // Set volume for layer
+            handleSetVolume(layerType, layerVolume, { immediate: true });
+            
+            // Use crossfade engine to load the track with very short duration
+            await handleCrossfadeTo(layerType, track.id, 100);
+            
+            // Track successful load
+            loadedLayers[layerType] = track.id;
+          } catch (layerError) {
+            console.error(`[StreamingAudioContext: handleLoadCollection] Error loading ${layerType}: ${layerError.message}`);
+          }
+        }
+        
+        setCollectionLoadProgress(90);
+        
+        // If no layers were loaded successfully, throw an error
+        if (Object.keys(loadedLayers).length === 0) {
+          throw new Error('Failed to load any audio tracks from this collection');
+        }
+        
+        // Start playback if requested
+        if (options.autoPlay && Object.keys(loadedLayers).length > 0) {
+          handleStartSession();
+        }
+        
+        setCollectionLoadProgress(100);
+        setCurrentCollection(collection);
+        
+        console.log(`[StreamingAudioContext: handleLoadCollection] Successfully loaded collection: ${collection.name}`);
+        return true;
+      } catch (formatError) {
+        console.error(`[StreamingAudioContext: handleLoadCollection] Error formatting collection: ${formatError.message}`);
+        throw new Error(`Error preparing collection audio: ${formatError.message}`);
       }
-      
-      setCollectionLoadProgress(90);
-      
-      // Start playback if requested
-      if (options.autoPlay && Object.keys(loadedLayers).length > 0) {
-        handleStartSession();
-      }
-      
-      setCollectionLoadProgress(100);
-      setCurrentCollection(collection);
-      
-      console.log(`[StreamingAudioContext: handleLoadCollection] Successfully loaded collection: ${collection.name}`);
-      return true;
     } catch (err) {
       console.error(`[StreamingAudioContext: handleLoadCollection] Error: ${err.message}`);
       setCollectionError(err.message);
@@ -1284,7 +1314,14 @@ const handlePauseSession = useCallback(() => {
     } finally {
       setLoadingCollection(false);
     }
-  }, [handleSetVolume, handleCrossfadeTo, handleStartSession, handlePauseSession]);
+  }, [
+    handleSetVolume, 
+    handleCrossfadeTo, 
+    handleStartSession, 
+    handlePauseSession, 
+    collectionService, 
+    audioFileService
+  ]);
 
   const handleSwitchTrack = useCallback((layerType, trackId, options = {}) => {
     const { transitionDuration = 2000 } = options;

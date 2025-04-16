@@ -29,10 +29,10 @@ function generateCollectionMetadata(collectionDir) {
     name: collectionId.charAt(0).toUpperCase() + collectionId.slice(1),
     description: `A collection of ambient audio tracks for ${collectionId.toLowerCase()}`,
     tracks: {
-      drone: [],
-      melody: [],
-      rhythm: [],
-      nature: []
+      Layer_1: [],
+      Layer_2: [],
+      Layer_3: [],
+      Layer_4: []
     },
     coverImage: null
   };
