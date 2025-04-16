@@ -1,19 +1,22 @@
 // src/hooks/useCollections.js
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import CollectionService from '../services/CollectionService';
 
 /**
- * Hook for browsing and filtering collections
+ * Enhanced hook for browsing and filtering collections
+ * Provides improved logging and UI integration
  * 
  * @param {Object} options - Configuration options
  * @param {boolean} [options.loadOnMount=true] - Whether to load collections on mount
  * @param {Object} [options.filters] - Initial filters to apply
+ * @param {number} [options.pageSize=20] - Number of items per page
  * @returns {Object} Collection data and functions
  */
 export function useCollections(options = {}) {
   const {
     loadOnMount = true,
-    filters: initialFilters = {}
+    filters: initialFilters = {},
+    pageSize = 20
   } = options;
   
   const [collections, setCollections] = useState([]);
@@ -23,55 +26,91 @@ export function useCollections(options = {}) {
   const [pagination, setPagination] = useState({
     total: 0,
     page: 1,
-    limit: 20,
+    limit: pageSize,
     pages: 0
   });
   
-  // Use a ref to track current filters without causing re-renders
+  // Use refs to track state without causing re-renders
   const filtersRef = useRef(initialFilters);
   const isMountedRef = useRef(false);
+  const retriesRef = useRef(0);
+  const maxRetries = 3;
   
-  const collectionService = new CollectionService({
+  const collectionService = useMemo(() => new CollectionService({
     enableLogging: true
-  });
+  }), []);
   
-  // Load collections with current filters
+  /**
+   * Load collections with current filters and pagination
+   * Includes retry logic for better reliability
+   */
   const loadCollections = useCallback(async (page = 1, currentFilters = filtersRef.current) => {
-    if (!isMountedRef.current) return;
+    if (!isMountedRef.current) {
+      console.log('[useCollections] Component not mounted, skipping load');
+      return;
+    }
     
     try {
       setIsLoading(true);
       setError(null);
       
-      console.log(`[useCollections] Loading collections with filters:`, currentFilters);
+      console.log(`[useCollections] Loading collections page ${page} with filters:`, currentFilters);
       
       const result = await collectionService.getCollections({
         ...currentFilters,
         page,
+        limit: pageSize,
         useCache: true
       });
       
       if (result.success) {
+        console.log(`[useCollections] Successfully loaded ${result.data.length} collections (${result.pagination?.total || 0} total)`);
         setCollections(result.data);
         setPagination(result.pagination || {
           total: result.data.length,
           page: 1,
-          limit: result.data.length,
+          limit: pageSize,
           pages: 1
         });
+        
+        // Reset retry counter on success
+        retriesRef.current = 0;
       } else {
         throw new Error(result.error || 'Failed to load collections');
       }
     } catch (err) {
-      console.error('[useCollections] Error loading collections:', err);
+      console.error(`[useCollections] Error loading collections:`, err);
+      
+      // Implement retry logic
+      if (retriesRef.current < maxRetries) {
+        retriesRef.current++;
+        console.log(`[useCollections] Retrying (${retriesRef.current}/${maxRetries})...`);
+        
+        // Wait a moment before retrying (exponential backoff)
+        const delay = Math.pow(2, retriesRef.current) * 500;
+        setTimeout(() => {
+          if (isMountedRef.current) {
+            loadCollections(page, currentFilters);
+          }
+        }, delay);
+        
+        return;
+      }
+      
       setError(err.message);
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
-  }, []); // Empty dependency array since we're using refs
+  }, [collectionService, pageSize]); 
   
-  // Update filters and reload collections
+  /**
+   * Update filters and reload collections
+   * Resets to page 1 when filters change
+   */
   const updateFilters = useCallback((newFilters) => {
+    console.log(`[useCollections] Updating filters:`, newFilters);
     setFilters(prev => {
       const updated = { ...prev, ...newFilters };
       filtersRef.current = updated; // Update the ref
@@ -79,29 +118,64 @@ export function useCollections(options = {}) {
     });
   }, []);
   
+  /**
+   * Navigate to a specific page
+   */
+  const goToPage = useCallback((pageNumber) => {
+    if (pageNumber < 1 || pageNumber > pagination.pages) {
+      console.warn(`[useCollections] Invalid page number: ${pageNumber}`);
+      return;
+    }
+    
+    console.log(`[useCollections] Navigating to page ${pageNumber}`);
+    loadCollections(pageNumber, filtersRef.current);
+  }, [pagination.pages, loadCollections]);
+  
+  /**
+   * Clear all filters and reload
+   */
+  const clearFilters = useCallback(() => {
+    console.log(`[useCollections] Clearing all filters`);
+    setFilters({});
+    filtersRef.current = {};
+  }, []);
+  
   // Effect to handle filter changes
   useEffect(() => {
     if (!isMountedRef.current) return;
+    console.log(`[useCollections] Filters changed, reloading collections from page 1`);
     loadCollections(1, filtersRef.current);
   }, [filters, loadCollections]);
   
   // Effect to handle initial load
   useEffect(() => {
+    console.log('[useCollections] Component mounted');
     isMountedRef.current = true;
     
     if (loadOnMount) {
+      console.log(`[useCollections] Initial load on mount`);
       loadCollections(1, filtersRef.current);
     }
     
     return () => {
+      console.log('[useCollections] Component unmounting');
       isMountedRef.current = false;
     };
   }, [loadOnMount, loadCollections]);
   
-  // Load a specific collection by ID
+  /**
+   * Load a specific collection by ID
+   * Includes detailed error handling
+   */
   const getCollection = useCallback(async (id) => {
+    if (!id) {
+      console.error('[useCollections] Collection ID is required');
+      throw new Error('Collection ID is required');
+    }
+    
     try {
       console.log(`[useCollections] Loading collection: ${id}`);
+      setIsLoading(true);
       
       const result = await collectionService.getCollection(id);
       
@@ -109,22 +183,34 @@ export function useCollections(options = {}) {
         throw new Error(result.error || `Collection ${id} not found`);
       }
       
+      console.log(`[useCollections] Successfully loaded collection: ${result.data.name}`);
       return result.data;
     } catch (err) {
       console.error(`[useCollections] Error loading collection ${id}:`, err);
+      setError(err.message);
       throw err;
+    } finally {
+      setIsLoading(false);
     }
   }, [collectionService]);
   
   return {
+    // Data
     collections,
     isLoading,
     error,
     filters,
     pagination,
+    
+    // Functions
     updateFilters,
+    clearFilters,
     loadCollections,
-    getCollection
+    getCollection,
+    goToPage,
+    
+    // Service access (for advanced usage)
+    collectionService
   };
 }
 

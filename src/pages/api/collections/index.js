@@ -1,6 +1,7 @@
 // src/pages/api/collections/index.js
 import dbConnect from '../../../lib/mongodb';
 import Collection from '../../../models/Collection';
+import { listCollectionFolders } from '../../../lib/blob-storage';
 
 export default async function handler(req, res) {
   console.log('[API: collections] Processing request', { method: req.method });
@@ -32,11 +33,11 @@ export default async function handler(req, res) {
 }
 
 /**
- * GET: Retrieve all collections
+ * GET: Retrieve all collections with blob storage validation
  */
 async function getCollections(req, res) {
   try {
-    console.log('[API: collections/GET] Fetching all collections');
+    console.log('[API: collections/GET] Fetching collections with query:', req.query);
     
     // Get query parameters for filtering
     const { tag, artist, limit = 20, page = 1 } = req.query;
@@ -55,6 +56,18 @@ async function getCollections(req, res) {
       console.log(`[API: collections/GET] Filtering by artist: ${artist}`);
     }
     
+    // First get available collections from Blob Storage
+    console.log('[API: collections/GET] Fetching collection folders from Blob Storage');
+    const blobCollections = await listCollectionFolders();
+    console.log(`[API: collections/GET] Found ${blobCollections.length} collections in Blob Storage`);
+
+    if (blobCollections.length > 0) {
+      // Add blob storage validation to the query
+      query.id = { $in: blobCollections };
+    } else {
+      console.log('[API: collections/GET] No collections found in Blob Storage');
+    }
+    
     // Execute query with pagination
     const collections = await Collection.find(query)
       .select('-__v')
@@ -65,7 +78,7 @@ async function getCollections(req, res) {
     // Get total count for pagination
     const total = await Collection.countDocuments(query);
     
-    console.log(`[API: collections/GET] Found ${collections.length} collections`);
+    console.log(`[API: collections/GET] Found ${collections.length} validated collections in MongoDB`);
     
     // Return collections with pagination info
     return res.status(200).json({
@@ -89,7 +102,7 @@ async function getCollections(req, res) {
 }
 
 /**
- * POST: Create a new collection
+ * POST: Create a new collection with blob storage validation
  */
 async function createCollection(req, res) {
   try {
@@ -106,12 +119,23 @@ async function createCollection(req, res) {
       });
     }
     
-    // Check if collection with this ID already exists
+    // Check if collection with this ID already exists in MongoDB
     const existingCollection = await Collection.findOne({ id });
     if (existingCollection) {
       return res.status(409).json({
         success: false,
-        message: `Collection with ID '${id}' already exists`
+        message: `Collection with ID '${id}' already exists in database`
+      });
+    }
+    
+    // Verify this collection exists in Blob Storage
+    console.log(`[API: collections/POST] Verifying collection ${id} exists in Blob Storage`);
+    const blobCollections = await listCollectionFolders();
+    
+    if (!blobCollections.includes(id)) {
+      return res.status(400).json({
+        success: false,
+        message: `Collection '${id}' not found in Blob Storage. Please upload audio files first.`
       });
     }
     

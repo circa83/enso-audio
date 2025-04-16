@@ -28,19 +28,37 @@ const AmbientArchive = () => {
     filters: {} // Initial empty filters
   });
 
+  // Add some diagnostic console logs
+  useEffect(() => {
+    console.log('[AmbientArchive] Current collections state:', { 
+      count: collections?.length || 0,
+      isLoading, 
+      error,
+      filters 
+    });
+  }, [collections, isLoading, error, filters]);
+
+
   // Handle filter changes
   const handleFilterChange = (newFilters) => {
     updateFilters(newFilters);
   };
 
-  // Handle collection selection
-  const handleCollectionSelect = (collectionId) => {
-    // Use Next.js router for client-side navigation
-    router.push({
-      pathname: '/player',
-      query: { collection: collectionId }
-    });
-  };
+ // Handle collection selection with logging
+ const handleCollectionSelect = (collectionId) => {
+  console.log(`[AmbientArchive] Selected collection: ${collectionId}`);
+  // Use Next.js router for client-side navigation
+  router.push({
+    pathname: '/player',
+    query: { collection: collectionId }
+  });
+};
+
+// Error recovery function
+const handleRetryLoad = () => {
+  console.log('[AmbientArchive] Retrying collection load');
+  loadCollections(1);
+};
 
   // Handle showing collection details
   const handleShowDetails = (collection, e) => {

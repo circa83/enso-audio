@@ -46,15 +46,64 @@ class CollectionService {
       
       // Extract unique collection folder names from blob paths
       const folders = new Set();
+      // Map to store files by collection folder
+      const folderContents = new Map();
+      
       blobs.forEach(blob => {
         const path = blob.pathname.replace('collections/', '');
-        const folder = path.split('/')[0];
+        const parts = path.split('/');
+        const folder = parts[0];
+        
         if (folder) {
           folders.add(folder);
+          
+          // Group files by collection folder
+          if (!folderContents.has(folder)) {
+            folderContents.set(folder, []);
+          }
+          
+          folderContents.get(folder).push({
+            path: blob.pathname,
+            filename: parts.length > 1 ? parts[parts.length - 1] : null,
+            size: blob.size,
+            contentType: blob.contentType,
+            updatedAt: blob.uploadedAt || blob.updatedAt
+          });
         }
       });
       
+      // Log detailed information about collection contents
       console.log(`[CollectionService: _getBlobCollectionFolders] Found ${folders.size} collections`);
+      
+      // Log the structure of each collection folder
+      folderContents.forEach((files, folder) => {
+        console.log(`[CollectionService: _getBlobCollectionFolders] Collection '${folder}' contains ${files.length} files:`);
+        
+        // Group files by type/subfolder for cleaner logging
+        const filesByType = {};
+        files.forEach(file => {
+          const subPath = file.path.replace(`collections/${folder}/`, '');
+          const type = subPath.includes('/') ? subPath.split('/')[0] : 'root';
+          
+          if (!filesByType[type]) {
+            filesByType[type] = [];
+          }
+          filesByType[type].push(file);
+        });
+        
+        // Log content structure
+        Object.entries(filesByType).forEach(([type, typeFiles]) => {
+          console.log(`  - ${type}: ${typeFiles.length} files`);
+          // Log up to 3 examples of each type
+          typeFiles.slice(0, 3).forEach(file => {
+            console.log(`    • ${file.path} (${file.contentType}, ${(file.size / 1024).toFixed(2)} KB)`);
+          });
+          if (typeFiles.length > 3) {
+            console.log(`    • ... and ${typeFiles.length - 3} more`);
+          }
+        });
+      });
+      
       return Array.from(folders);
     } catch (error) {
       console.error(`[CollectionService: _getBlobCollectionFolders] Error: ${error.message}`);
@@ -297,6 +346,13 @@ class CollectionService {
         
         // Verify collection has valid files in blob storage
         console.log(`[CollectionService: getCollection] Verifying blob files for collection: ${id}`);
+        const filesExist = await this._verifyBlobFiles(data.data);
+        
+        if (!filesExist) {
+          console.log(`[CollectionService: getCollection] Some audio files for collection ${id} are not accessible`);
+          // You could either return an error or just a warning in the response
+          data.warning = "Some audio files may not be accessible";
+        }
         
         return data;
       } catch (error) {

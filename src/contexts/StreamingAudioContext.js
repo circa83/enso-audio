@@ -1207,7 +1207,7 @@ const handlePauseSession = useCallback(() => {
       
       // Load collection data using CollectionService
       const result = await collectionService.getCollection(collectionId);
-      
+      console.log('[StreamingAudioContext: handleLoadCollection] Collectionfrom collectionService result:', result);
       if (!result.success || !result.data) {
         throw new Error(result.error || 'Failed to load collection');
       }

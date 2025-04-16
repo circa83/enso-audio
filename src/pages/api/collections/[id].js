@@ -2,6 +2,7 @@
 import dbConnect from '../../../lib/mongodb';
 import Collection from '../../../models/Collection';
 import Track from '../../../models/Track';
+import { verifyCollectionStructure } from '../../../lib/blob-storage';
 
 export default async function handler(req, res) {
   console.log('[API: collections/[id]] Processing request', { 
@@ -48,24 +49,37 @@ export default async function handler(req, res) {
 }
 
 /**
- * GET: Retrieve a specific collection
+ * GET: Retrieve a specific collection with its tracks
  */
 async function getCollection(req, res, id) {
   try {
     console.log(`[API: collections/[id]/GET] Fetching collection with ID: ${id}`);
     
+    // First verify this collection exists in blob storage
+    const validCollection = await verifyCollectionStructure(id, ['cover']);
+    
+    if (!validCollection) {
+      console.log(`[API: collections/[id]/GET] Collection not found in Blob storage: ${id}`);
+      return res.status(404).json({
+        success: false,
+        message: `Collection with ID '${id}' not found in Blob storage`
+      });
+    }
+    
     // Find collection by ID
     const collection = await Collection.findOne({ id });
     
     if (!collection) {
+      console.log(`[API: collections/[id]/GET] Collection not found in database: ${id}`);
       return res.status(404).json({
         success: false,
-        message: `Collection with ID '${id}' not found`
+        message: `Collection with ID '${id}' not found in database`
       });
     }
 
     // Fetch tracks for this collection
     const tracks = await Track.find({ collectionId: id });
+    console.log(`[API: collections/[id]/GET] Found ${tracks.length} tracks for collection: ${id}`);
     
     // Add tracks to collection
     const collectionWithTracks = {
@@ -73,7 +87,7 @@ async function getCollection(req, res, id) {
       tracks: tracks
     };
     
-    console.log(`[API: collections/[id]/GET] Found collection: ${collection.name} with ${tracks.length} tracks`);
+    console.log(`[API: collections/[id]/GET] Successfully retrieved collection: ${collection.name} with ${tracks.length} tracks`);
     
     return res.status(200).json({
       success: true,
@@ -96,6 +110,17 @@ async function updateCollection(req, res, id) {
   try {
     console.log(`[API: collections/[id]/PUT] Updating collection with ID: ${id}`);
     
+    // Verify this collection exists in blob storage
+    const validCollection = await verifyCollectionStructure(id);
+    
+    if (!validCollection) {
+      console.log(`[API: collections/[id]/PUT] Collection not found in Blob storage: ${id}`);
+      return res.status(404).json({
+        success: false,
+        message: `Collection with ID '${id}' not found in Blob storage`
+      });
+    }
+    
     // Extract update data from request body
     const { name, description, coverImage, metadata } = req.body;
     
@@ -113,9 +138,10 @@ async function updateCollection(req, res, id) {
     );
     
     if (!updatedCollection) {
+      console.log(`[API: collections/[id]/PUT] Collection not found in database: ${id}`);
       return res.status(404).json({
         success: false,
-        message: `Collection with ID '${id}' not found`
+        message: `Collection with ID '${id}' not found in database`
       });
     }
     
@@ -152,24 +178,32 @@ async function deleteCollection(req, res, id) {
   try {
     console.log(`[API: collections/[id]/DELETE] Deleting collection with ID: ${id}`);
     
+    // Note: We don't verify blob storage for deletion since we want to be able
+    // to clean up orphaned database records even if files are missing
+    
     // Find and delete the collection
     const deletedCollection = await Collection.findOneAndDelete({ id });
     
     if (!deletedCollection) {
+      console.log(`[API: collections/[id]/DELETE] Collection not found in database: ${id}`);
       return res.status(404).json({
         success: false,
-        message: `Collection with ID '${id}' not found`
+        message: `Collection with ID '${id}' not found in database`
       });
     }
     
     // Delete all tracks associated with this collection
-    await Track.deleteMany({ collectionId: id });
+    const deleteResult = await Track.deleteMany({ collectionId: id });
+    console.log(`[API: collections/[id]/DELETE] Deleted ${deleteResult.deletedCount} tracks associated with collection: ${id}`);
     
-    console.log(`[API: collections/[id]/DELETE] Deleted collection: ${deletedCollection.name} and its tracks`);
+    console.log(`[API: collections/[id]/DELETE] Successfully deleted collection: ${deletedCollection.name} and its tracks`);
     
     return res.status(200).json({
       success: true,
-      message: `Collection '${deletedCollection.name}' and its tracks deleted successfully`
+      message: `Collection '${deletedCollection.name}' and its tracks deleted successfully`,
+      details: {
+        tracksRemoved: deleteResult.deletedCount
+      }
     });
   } catch (error) {
     console.error(`[API: collections/[id]/DELETE] Error deleting collection:`, error);
