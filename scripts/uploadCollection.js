@@ -1,22 +1,43 @@
 const fs = require('fs');
 const path = require('path');
-const { Blob } = require('@vercel/blob');
+const { put } = require('@vercel/blob');
+
+// Try to load environment variables from .env.local file
+try {
+  require('dotenv').config({ path: path.join(__dirname, '..', '.env.local') });
+} catch (error) {
+  console.log('Note: dotenv module not available, continuing without it');
+}
+
+// Set default store ID if not in environment
+if (!process.env.BLOB_STORE_ID) {
+  process.env.BLOB_STORE_ID = 'store_uGGTZAuWx9gzThtf'; // Default from your project
+  console.log('Using default BLOB_STORE_ID:', process.env.BLOB_STORE_ID);
+}
 
 // Import the generateCollectionMetadata function from the existing script
 const { generateCollectionMetadata } = require('./generateCollectionMetadata');
 
 // Configuration
 const COLLECTIONS_DIR = path.join(__dirname, '../public/collections');
-const BLOB_STORAGE_URL = process.env.BLOB_STORAGE_URL;
 
 // Helper function to upload file to blob storage
 async function uploadFile(filePath, blobPath) {
-  const fileBuffer = fs.readFileSync(filePath);
-  const blob = await Blob.put(blobPath, fileBuffer, {
-    access: 'public',
-    contentType: getContentType(filePath)
-  });
-  return blob.url;
+  try {
+    const fileBuffer = fs.readFileSync(filePath);
+    console.log(`Uploading ${blobPath} (${fileBuffer.length} bytes)`);
+    
+    const blob = await put(blobPath, fileBuffer, {
+      access: 'public',
+      contentType: getContentType(filePath),
+      allowOverwrite: true // Allow overwriting existing files
+    });
+    
+    return blob.url;
+  } catch (error) {
+    console.error(`Error in uploadFile for ${blobPath}:`, error);
+    throw error;
+  }
 }
 
 // Helper function to get content type
@@ -25,11 +46,19 @@ function getContentType(filePath) {
   switch (ext) {
     case '.mp3':
       return 'audio/mpeg';
+    case '.wav':
+      return 'audio/wav';
+    case '.ogg':
+      return 'audio/ogg';
+    case '.flac':
+      return 'audio/flac';
     case '.png':
       return 'image/png';
     case '.jpg':
     case '.jpeg':
       return 'image/jpeg';
+    case '.webp':
+      return 'image/webp';
     case '.json':
       return 'application/json';
     default:
@@ -51,45 +80,73 @@ async function uploadCollection(collectionDir) {
     const items = fs.readdirSync(dir);
     items.forEach(item => {
       const itemPath = path.join(dir, item);
-      const relativePath = path.relative(COLLECTIONS_DIR, itemPath);
+      const stat = fs.statSync(itemPath);
       
-      if (fs.statSync(itemPath).isDirectory()) {
+      if (stat.isDirectory()) {
         collectFiles(itemPath);
       } else {
+        const relativePath = path.relative(COLLECTIONS_DIR, itemPath).replace(/\\/g, '/');
         files.push({
           localPath: itemPath,
-          blobPath: `collections/${collectionId}/${relativePath}`
+          blobPath: `collections/${relativePath}`,
+          size: stat.size
         });
       }
     });
   }
   
   collectFiles(collectionDir);
+  console.log(`Found ${files.length} files to upload`);
   
-  // Upload files
-  const uploadPromises = files.map(async ({ localPath, blobPath }) => {
+  // Upload files in batches to avoid overwhelming connections
+  const batchSize = 5;
+  const results = [];
+  
+  for (let i = 0; i < files.length; i += batchSize) {
+    const batch = files.slice(i, i + batchSize);
+    console.log(`Processing batch ${i/batchSize + 1}/${Math.ceil(files.length/batchSize)}`);
+    
     try {
-      const url = await uploadFile(localPath, blobPath);
-      console.log(`Uploaded: ${blobPath} -> ${url}`);
-      return url;
+      const batchResults = await Promise.all(batch.map(async ({ localPath, blobPath, size }) => {
+        try {
+          console.log(`Uploading (${(size/1024/1024).toFixed(2)} MB): ${blobPath}`);
+          const url = await uploadFile(localPath, blobPath);
+          console.log(`✓ Uploaded: ${blobPath} -> ${url}`);
+          return { blobPath, url, success: true };
+        } catch (error) {
+          console.error(`✗ Error uploading ${blobPath}:`, error.message);
+          return { blobPath, error: error.message, success: false };
+        }
+      }));
+      
+      results.push(...batchResults);
     } catch (error) {
-      console.error(`Error uploading ${blobPath}:`, error);
-      throw error;
+      console.error(`Error processing batch:`, error);
     }
-  });
+  }
   
-  await Promise.all(uploadPromises);
+  // Print upload summary
+  const successful = results.filter(r => r.success).length;
+  console.log(`Upload summary: ${successful}/${files.length} files uploaded successfully`);
   
   // Upload metadata
-  const metadataBlobPath = `collections/${collectionId}/metadata.json`;
-  const metadataBuffer = Buffer.from(JSON.stringify(metadata, null, 2));
-  const metadataBlob = await Blob.put(metadataBlobPath, metadataBuffer, {
-    access: 'public',
-    contentType: 'application/json'
-  });
-  
-  console.log(`Uploaded metadata for ${collectionId}`);
-  return metadataBlob.url;
+  try {
+    const metadataBlobPath = `collections/${collectionId}/metadata.json`;
+    const metadataBuffer = Buffer.from(JSON.stringify(metadata, null, 2));
+    console.log(`Uploading metadata for ${collectionId}`);
+    
+    const metadataBlob = await put(metadataBlobPath, metadataBuffer, {
+      access: 'public',
+      contentType: 'application/json',
+      allowOverwrite: true // Allow overwriting existing metadata file
+    });
+    
+    console.log(`✓ Uploaded metadata: ${metadataBlob.url}`);
+    return metadataBlob.url;
+  } catch (error) {
+    console.error(`Error uploading metadata:`, error);
+    throw error;
+  }
 }
 
 // Main function
@@ -99,6 +156,7 @@ async function main() {
     const collectionId = process.argv[2];
     if (!collectionId) {
       console.error('Please provide a collection ID to upload');
+      console.error('Usage: node uploadCollection.js <collectionId>');
       process.exit(1);
     }
     
@@ -117,4 +175,5 @@ async function main() {
   }
 }
 
+// Execute the main function
 main();
