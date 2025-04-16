@@ -74,7 +74,7 @@ async function testAddTrack(collectionId) {
     id: "drone-wave-01",
     title: "Ocean Drone",
     audioUrl: `/collections/${collectionId}/Layer_1/drone.mp3`,
-    layerType: "drone",
+    layerFolder: "Layer_1",
     variations: [
       {
         id: "drone-wave-01-var1",

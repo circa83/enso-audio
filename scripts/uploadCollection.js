@@ -1,6 +1,15 @@
 const fs = require('fs');
 const path = require('path');
 const { put } = require('@vercel/blob');
+const mongoose = require('mongoose');
+
+// Import schemas
+const CollectionSchema = require('../src/models/Collection').CollectionSchema;
+const TrackSchema = require('../src/models/Track').TrackSchema;
+
+// Register schemas
+mongoose.model('Collection', CollectionSchema);
+mongoose.model('Track', TrackSchema);
 
 // Try to load environment variables from .env.local file
 try {
@@ -20,6 +29,31 @@ const { generateCollectionMetadata } = require('./generateCollectionMetadata');
 
 // Configuration
 const COLLECTIONS_DIR = path.join(__dirname, '../public/collections');
+
+// MongoDB connection
+async function connectToDatabase() {
+  try {
+    const MONGODB_URI = process.env.MONGODB_URI;
+    if (!MONGODB_URI) {
+      throw new Error('Please define the MONGODB_URI environment variable');
+    }
+
+    const options = {
+      connectTimeoutMS: 5000,
+      socketTimeoutMS: 30000,
+      serverSelectionTimeoutMS: 5000,
+      bufferCommands: false,
+      maxPoolSize: 10,
+      minPoolSize: 1,
+    };
+
+    await mongoose.connect(MONGODB_URI, options);
+    console.log('Connected to MongoDB');
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+    throw error;
+  }
+}
 
 // Helper function to upload file to blob storage
 async function uploadFile(filePath, blobPath) {
@@ -66,7 +100,7 @@ function getContentType(filePath) {
   }
 }
 
-// Upload collection to blob storage
+// Upload collection to blob storage and update database
 async function uploadCollection(collectionDir) {
   const collectionId = path.basename(collectionDir);
   console.log(`Uploading collection: ${collectionId}`);
@@ -138,14 +172,107 @@ async function uploadCollection(collectionDir) {
     const metadataBlob = await put(metadataBlobPath, metadataBuffer, {
       access: 'public',
       contentType: 'application/json',
-      allowOverwrite: true // Allow overwriting existing metadata file
+      allowOverwrite: true
     });
     
     console.log(`✓ Uploaded metadata: ${metadataBlob.url}`);
+
+    // Update MongoDB database
+    await updateDatabase(collectionId, metadata, results);
+    
     return metadataBlob.url;
   } catch (error) {
     console.error(`Error uploading metadata:`, error);
     throw error;
+  }
+}
+
+// Update MongoDB database with collection and track information
+async function updateDatabase(collectionId, metadata, uploadResults) {
+  try {
+    // Connect to MongoDB
+    await connectToDatabase();
+
+    // Get the Collection model
+    const Collection = mongoose.model('Collection');
+    const Track = mongoose.model('Track');
+
+    // Prepare collection data
+    const collectionData = {
+      id: collectionId,
+      name: metadata.name,
+      description: metadata.description,
+      coverImage: metadata.coverImage,
+      metadata: {
+        artist: metadata.artist,
+        year: metadata.year,
+        tags: metadata.tags
+      },
+      tracks: []
+    };
+
+    // Find or create collection
+    let collection = await Collection.findOne({ id: collectionId });
+    if (!collection) {
+      collection = await Collection.create(collectionData);
+      console.log(`Created new collection in database: ${collectionId}`);
+    } else {
+      collection = await Collection.findOneAndUpdate(
+        { id: collectionId },
+        collectionData,
+        { new: true }
+      );
+      console.log(`Updated existing collection in database: ${collectionId}`);
+    }
+
+    // Process tracks
+    const trackPromises = metadata.tracks.map(async (track) => {
+      // Generate a unique track ID by combining collection ID and layer name
+      const uniqueTrackId = `${collectionId}_${track.id}`;
+      
+      const trackData = {
+        id: uniqueTrackId, // Use the unique track ID
+        title: track.title,
+        audioUrl: track.audioUrl,
+        layerFolder: track.layerFolder,
+        variations: track.variations || [],
+        collectionId: collectionId,
+        collection: collection._id
+      };
+
+      // Find or create track using the unique track ID
+      let existingTrack = await Track.findOne({ id: uniqueTrackId, collectionId: collectionId });
+      if (!existingTrack) {
+        existingTrack = await Track.create(trackData);
+        console.log(`Created new track in database: ${uniqueTrackId}`);
+      } else {
+        existingTrack = await Track.findOneAndUpdate(
+          { id: uniqueTrackId, collectionId: collectionId },
+          trackData,
+          { new: true }
+        );
+        console.log(`Updated existing track in database: ${uniqueTrackId}`);
+      }
+
+      return existingTrack._id;
+    });
+
+    // Wait for all track operations to complete
+    const trackIds = await Promise.all(trackPromises);
+
+    // Update collection with track references
+    await Collection.findByIdAndUpdate(
+      collection._id,
+      { $set: { tracks: trackIds } }
+    );
+
+    console.log(`Successfully updated database for collection: ${collectionId}`);
+  } catch (error) {
+    console.error('Error updating database:', error);
+    throw error;
+  } finally {
+    // Close MongoDB connection
+    await mongoose.connection.close();
   }
 }
 
