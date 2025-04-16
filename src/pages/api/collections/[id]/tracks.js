@@ -62,8 +62,8 @@ async function getCollectionTracks(req, res, id) {
       });
     }
     
-    // Retrieve tracks for the collection
-    const tracks = await Track.find({ collection: collection._id });
+    // Retrieve tracks for the collection using collectionId field
+    const tracks = await Track.find({ collectionId: id });
     
     console.log(`[API: collections/[id]/tracks/GET] Found ${tracks.length} tracks`);
     
@@ -118,7 +118,7 @@ async function addTrackToCollection(req, res, id) {
     // Check if track with this ID already exists in the collection
     const existingTrack = await Track.findOne({ 
       id: trackId, 
-      collection: collection._id 
+      collectionId: id 
     });
     
     if (existingTrack) {
@@ -133,15 +133,15 @@ async function addTrackToCollection(req, res, id) {
       id: trackId,
       title,
       audioUrl,
+      collectionId: id,
       layerFolder,
-      variations: variations || [],
-      collection: collection._id
+      variations: variations || []
     });
     
-    // Add track to collection
-    await Collection.findByIdAndUpdate(
-      collection._id,
-      { $addToSet: { tracks: track._id } }
+    // Add track ID to collection's tracks array
+    await Collection.findOneAndUpdate(
+      { id },
+      { $addToSet: { tracks: track.id } }
     );
     
     console.log(`[API: collections/[id]/tracks/POST] Added track '${title}' to collection`);

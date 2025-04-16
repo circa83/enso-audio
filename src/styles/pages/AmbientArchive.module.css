@@ -444,6 +444,42 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* Loading spinner */
+.loadingSpinner {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #ffffff;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Error container */
+.errorContainer {
+  padding: 20px;
+  border-left: 3px solid #ff6b6b;
+  background-color: rgba(255, 107, 107, 0.1);
+  margin: 20px 0;
+}
+
+.errorContainer h3 {
+  color: #ff6b6b;
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.errorContainer p {
+  margin: 0;
+}
+
+
 /* Responsive styles */
 @media (max-width: 1024px) {
   .collectionsGrid {
