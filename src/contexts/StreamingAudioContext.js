@@ -1207,7 +1207,8 @@ const handlePauseSession = useCallback(() => {
       
       // Load collection data using CollectionService
       const result = await collectionService.getCollection(collectionId);
-      console.log('[StreamingAudioContext: handleLoadCollection] Collectionfrom collectionService result:', result);
+      console.log('[StreamingAudioContext: handleLoadCollection] Collection from collectionService result:', result);
+      
       if (!result.success || !result.data) {
         throw new Error(result.error || 'Failed to load collection');
       }
@@ -1217,18 +1218,18 @@ const handlePauseSession = useCallback(() => {
       
       // Format collection for player using CollectionService
       const formattedCollection = collectionService.formatCollectionForPlayer(collection);
-      setCollectionLoadProgress(30);
+      setCollectionLoadProgress(40);
       
       // Resolve audio URLs using AudioFileService
       let resolvedCollection = formattedCollection;
       if (options.autoResolveUrls !== false) {
         resolvedCollection = await audioFileService.resolveCollectionUrls(formattedCollection);
-        setCollectionLoadProgress(50);
+        setCollectionLoadProgress(60);
       }
       
       // Map collection to layers
       const mappedCollection = mapCollectionToLayers(resolvedCollection);
-      setCollectionLoadProgress(60);
+      setCollectionLoadProgress(80);
       
       // Track successful layer loads
       const loadedLayers = {};

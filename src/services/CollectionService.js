@@ -5,6 +5,8 @@
  * Handles fetching, filtering, and processing collection data
  */
 
+import collectionsData from '../../public/collections/collections.json';
+
 class CollectionService {
   /**
    * Create a new CollectionService instance
@@ -19,7 +21,7 @@ class CollectionService {
       apiBasePath: options.apiBasePath || '/api',
       cacheDuration: options.cacheDuration || 60000, // 1 minute default
       enableLogging: options.enableLogging || false,
-      blobBaseUrl: process.env.NEXT_PUBLIC_BLOB_BASE_URL || 'https://uggtzauwx9gzthtf.public.blob.vercel-storage.com'
+      baseUrl: process.env.NEXT_PUBLIC_BASE_URL || ''
     };
     
     // Internal state
@@ -29,145 +31,7 @@ class CollectionService {
   }
   
   /**
-   * Get collection folders from Blob Storage
-   * @private
-   * @returns {Promise<string[]>} Array of collection folder names
-   */
-  async _getBlobCollectionFolders() {
-    try {
-      console.log('[CollectionService: _getBlobCollectionFolders] Fetching blob collections');
-      const response = await fetch('/api/blob/list?prefix=collections/');
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
-      }
-      
-      const blobs = await response.json();
-      
-      // Extract unique collection folder names from blob paths
-      const folders = new Set();
-      // Map to store files by collection folder
-      const folderContents = new Map();
-      
-      blobs.forEach(blob => {
-        const path = blob.pathname.replace('collections/', '');
-        const parts = path.split('/');
-        const folder = parts[0];
-        
-        if (folder) {
-          folders.add(folder);
-          
-          // Group files by collection folder
-          if (!folderContents.has(folder)) {
-            folderContents.set(folder, []);
-          }
-          
-          folderContents.get(folder).push({
-            path: blob.pathname,
-            filename: parts.length > 1 ? parts[parts.length - 1] : null,
-            size: blob.size,
-            contentType: blob.contentType,
-            updatedAt: blob.uploadedAt || blob.updatedAt
-          });
-        }
-      });
-      
-      // Log detailed information about collection contents
-      console.log(`[CollectionService: _getBlobCollectionFolders] Found ${folders.size} collections`);
-      
-      // Log the structure of each collection folder
-      folderContents.forEach((files, folder) => {
-        console.log(`[CollectionService: _getBlobCollectionFolders] Collection '${folder}' contains ${files.length} files:`);
-        
-        // Group files by type/subfolder for cleaner logging
-        const filesByType = {};
-        files.forEach(file => {
-          const subPath = file.path.replace(`collections/${folder}/`, '');
-          const type = subPath.includes('/') ? subPath.split('/')[0] : 'root';
-          
-          if (!filesByType[type]) {
-            filesByType[type] = [];
-          }
-          filesByType[type].push(file);
-        });
-        
-        // Log content structure
-        Object.entries(filesByType).forEach(([type, typeFiles]) => {
-          console.log(`  - ${type}: ${typeFiles.length} files`);
-          // Log up to 3 examples of each type
-          typeFiles.slice(0, 3).forEach(file => {
-            console.log(`    • ${file.path} (${file.contentType}, ${(file.size / 1024).toFixed(2)} KB)`);
-          });
-          if (typeFiles.length > 3) {
-            console.log(`    • ... and ${typeFiles.length - 3} more`);
-          }
-        });
-      });
-      
-      return Array.from(folders);
-    } catch (error) {
-      console.error(`[CollectionService: _getBlobCollectionFolders] Error: ${error.message}`);
-      return [];
-    }
-  }
-  
-  /**
-   * Verify if a collection's audio files exist in Vercel Blob Storage
-   * @private
-   * @param {Object} collection - Collection data
-   * @returns {Promise<boolean>} True if all audio files exist
-   */
-  async _verifyBlobFiles(collection) {
-    if (!collection || !collection.tracks) return false;
-    
-    try {
-      // Check each track's audio URL
-      for (const track of collection.tracks) {
-        if (!track.audioUrl) return false;
-        
-        // Verify the URL is accessible
-        const response = await fetch(track.audioUrl, { method: 'HEAD' });
-        if (!response.ok) return false;
-        
-        // Check variations if they exist
-        if (track.variations) {
-          for (const variation of track.variations) {
-            if (!variation.audioUrl) return false;
-            
-            const varResponse = await fetch(variation.audioUrl, { method: 'HEAD' });
-            if (!varResponse.ok) return false;
-          }
-        }
-      }
-      
-      return true;
-    } catch (error) {
-      this.log(`[_verifyBlobFiles] Error verifying files: ${error.message}`, 'error');
-      return false;
-    }
-  }
-  
-  /**
-   * Helper for building query strings
-   * @private
-   * @param {Object} params - Object containing query parameters
-   * @returns {string} Formatted query string with ? prefix if not empty
-   */
-  _buildQueryString(params = {}) {
-    const query = new URLSearchParams();
-    
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        query.append(key, value);
-      }
-    });
-    
-    const queryString = query.toString();
-    return queryString ? `?${queryString}` : '';
-  }
-  
-  /**
-   * Fetch all collections with optional filtering
+   * Get all collections with optional filtering
    * @param {Object} [options] - Fetch options
    * @param {boolean} [options.useCache=true] - Use cached data if available
    * @param {string} [options.tag] - Filter by tag
@@ -186,81 +50,36 @@ class CollectionService {
     } = options;
     
     try {
-      // First, get the list of collections from Vercel Blob Storage
-      const blobFolders = await this._getBlobCollectionFolders();
-      console.log(`[CollectionService: getCollections] Found ${blobFolders.length} collections in Blob Storage`);
-      
-      if (blobFolders.length === 0) {
-        console.log('[CollectionService: getCollections] No collections found in Blob Storage');
-        return {
-          success: true,
-          data: [],
-          pagination: {
-            total: 0,
-            page: 1,
-            limit: parseInt(limit),
-            pages: 0
-          }
-        };
-      }
-      
-      // Generate cache key based on filter options
-      const cacheKey = JSON.stringify({ tag, artist, limit, page });
-      
       // Check cache if enabled
       if (useCache && 
           this.collectionsCache && 
-          Date.now() - this.lastCacheTime < this.config.cacheDuration &&
-          !tag && !artist) {
+          Date.now() - this.lastCacheTime < this.config.cacheDuration) {
         console.log(`[CollectionService: getCollections] Using cached collections data (${this.collectionsCache.data.length} items)`);
-        
-        // Still filter the cached data by blob folders
-        const filteredData = this.collectionsCache.data.filter(collection => 
-          blobFolders.includes(collection.id)
+        return this.collectionsCache;
+      }
+      
+      // Filter collections based on options
+      let filteredCollections = [...collectionsData];
+      
+      if (tag) {
+        filteredCollections = filteredCollections.filter(collection => 
+          collection.metadata?.tags?.includes(tag)
         );
-        
-        const filteredResult = {
-          ...this.collectionsCache,
-          data: filteredData,
-          pagination: {
-            ...this.collectionsCache.pagination,
-            total: filteredData.length,
-            pages: Math.ceil(filteredData.length / parseInt(limit))
-          }
-        };
-        
-        return filteredResult;
       }
       
-      // Check for pending request with same parameters
-      if (this.pendingRequests.has(cacheKey)) {
-        console.log(`[CollectionService: getCollections] Using pending request for key: ${cacheKey}`);
-        return this.pendingRequests.get(cacheKey);
+      if (artist) {
+        filteredCollections = filteredCollections.filter(collection => 
+          collection.metadata?.artist?.toLowerCase() === artist.toLowerCase()
+        );
       }
       
-      // Then, fetch the corresponding collections from MongoDB
-      const endpoint = `${this.config.apiBasePath}/collections${this._buildQueryString(options)}`;
-      console.log(`[CollectionService: getCollections] Fetching from API: ${endpoint}`);
+      // Apply pagination
+      const startIndex = (page - 1) * limit;
+      const paginatedCollections = filteredCollections.slice(startIndex, startIndex + limit);
       
-      const response = await fetch(endpoint);
-      
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-      
-      const apiData = await response.json();
-      
-      // Filter collections to only include those that exist in blob storage
-      const filteredCollections = apiData.data.filter(collection => 
-        blobFolders.includes(collection.id)
-      );
-      
-      console.log(`[CollectionService: getCollections] Filtered to ${filteredCollections.length} valid collections`);
-      
-      // Create result with updated pagination
       const result = {
         success: true,
-        data: filteredCollections,
+        data: paginatedCollections,
         pagination: {
           total: filteredCollections.length,
           page: parseInt(page),
@@ -269,12 +88,9 @@ class CollectionService {
         }
       };
       
-      // Update cache if this was a full request (no filters)
-      if (!tag && !artist) {
-        this.collectionsCache = result;
-        this.lastCacheTime = Date.now();
-        console.log(`[CollectionService: getCollections] Updated cache with ${filteredCollections.length} collections`);
-      }
+      // Update cache
+      this.collectionsCache = result;
+      this.lastCacheTime = Date.now();
       
       return result;
     } catch (error) {
@@ -287,87 +103,110 @@ class CollectionService {
   }
   
   /**
-   * Get a specific collection by ID with its tracks
+   * Get a specific collection by ID
    * @param {string} id - Collection ID
    * @param {boolean} [useCache=true] - Use cached data if possible
-   * @returns {Promise<Object>} Collection data with tracks
+   * @returns {Promise<Object>} Collection data
    */
   async getCollection(id, useCache = true) {
     if (!id) {
       throw new Error('Collection ID is required');
     }
     
-    // Check if collection exists in cache
-    if (useCache && 
-        this.collectionsCache && 
-        Date.now() - this.lastCacheTime < this.config.cacheDuration) {
-      const cachedCollection = this.collectionsCache.data.find(c => c.id === id);
-      if (cachedCollection) {
-        this.log(`[getCollection] Using cached data for collection: ${id}`);
-        return { success: true, data: cachedCollection };
+    try {
+      // Find the collection in the data
+      const collection = collectionsData.find(c => c.id === id);
+      
+      if (!collection) {
+        return { 
+          success: false, 
+          error: `Collection with ID '${id}' not found` 
+        };
       }
-    }
-    
-    // Check for pending request
-    const cacheKey = `collection:${id}`;
-    if (this.pendingRequests.has(cacheKey)) {
-      this.log(`[getCollection] Using pending request for: ${id}`);
-      return this.pendingRequests.get(cacheKey);
-    }
-    
-    // First verify this collection exists in blob storage
-    const blobFolders = await this._getBlobCollectionFolders();
-    if (!blobFolders.includes(id)) {
-      console.log(`[CollectionService: getCollection] Collection ${id} not found in Blob Storage`);
-      return { 
-        success: false, 
-        error: `Collection with ID '${id}' not found in storage` 
+      
+      // Ensure all URLs are absolute
+      const baseUrl = this.config.baseUrl;
+      
+      // Process tracks
+      collection.tracks = collection.tracks.map(track => {
+        // Convert relative URLs to absolute
+        if (!track.audioUrl.startsWith('http')) {
+          track.audioUrl = `${baseUrl}${track.audioUrl}`;
+        }
+        
+        // Handle variations
+        if (track.variations) {
+          track.variations = track.variations.map(variation => {
+            if (!variation.audioUrl.startsWith('http')) {
+              variation.audioUrl = `${baseUrl}${variation.audioUrl}`;
+            }
+            return variation;
+          });
+        }
+        return track;
+      });
+      
+      // Convert cover image URL to absolute if needed
+      if (collection.coverImage && !collection.coverImage.startsWith('http')) {
+        collection.coverImage = `${baseUrl}${collection.coverImage}`;
+      }
+      
+      return {
+        success: true,
+        data: collection
+      };
+    } catch (error) {
+      console.error(`[CollectionService: getCollection] Error: ${error.message}`);
+      return {
+        success: false,
+        error: error.message
       };
     }
+  }
+  
+  /**
+   * Search collections by name, description, or tags
+   * @param {string} query - Search query
+   * @param {Object} [options] - Search options
+   * @returns {Promise<Array>} Matching collections
+   */
+  async searchCollections(query, options = {}) {
+    if (!query || query.trim() === '') {
+      throw new Error('Search query is required');
+    }
     
-    const endpoint = `${this.config.apiBasePath}/collections/${id}`;
-    console.log(`[CollectionService: getCollection] Fetching collection from: ${endpoint}`);
-    
-    // Create request promise
-    const requestPromise = (async () => {
-      try {
-        const response = await fetch(endpoint);
+    try {
+      const searchQuery = query.toLowerCase().trim();
+      
+      const results = collectionsData.filter(collection => {
+        // Match against name, description, and tags
+        const nameMatch = collection.name?.toLowerCase().includes(searchQuery);
+        const descMatch = collection.description?.toLowerCase().includes(searchQuery);
+        const tagMatch = collection.metadata?.tags?.some(tag => 
+          tag.toLowerCase().includes(searchQuery)
+        );
+        const artistMatch = collection.metadata?.artist?.toLowerCase().includes(searchQuery);
         
-        if (!response.ok) {
-          if (response.status === 404) {
-            return { success: false, error: `Collection with ID '${id}' not found` };
-          }
-          
-          const errorText = await response.text();
-          throw new Error(`Failed to fetch collection: ${response.status} ${response.statusText}. ${errorText}`);
+        return nameMatch || descMatch || tagMatch || artistMatch;
+      });
+      
+      return {
+        success: true,
+        data: results,
+        pagination: {
+          total: results.length,
+          page: 1,
+          limit: results.length,
+          pages: 1
         }
-        
-        const data = await response.json();
-        
-        // Verify collection has valid files in blob storage
-        console.log(`[CollectionService: getCollection] Verifying blob files for collection: ${id}`);
-        const filesExist = await this._verifyBlobFiles(data.data);
-        
-        if (!filesExist) {
-          console.log(`[CollectionService: getCollection] Some audio files for collection ${id} are not accessible`);
-          // You could either return an error or just a warning in the response
-          data.warning = "Some audio files may not be accessible";
-        }
-        
-        return data;
-      } catch (error) {
-        console.log(`[CollectionService: getCollection] Error: ${error.message}`, 'error');
-        throw error;
-      } finally {
-        // Remove from pending requests
-        this.pendingRequests.delete(cacheKey);
-      }
-    })();
-    
-    // Store promise in pending requests
-    this.pendingRequests.set(cacheKey, requestPromise);
-    
-    return requestPromise;
+      };
+    } catch (error) {
+      console.error(`[CollectionService: searchCollections] Error: ${error.message}`);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
   }
   
   /**
@@ -401,62 +240,6 @@ class CollectionService {
       console.log(`[CollectionService: getCollectionTracks] Error: ${error.message}`, 'error');
       throw error;
     }
-  }
-  
-  /**
-   * Search collections by name, description, or tags
-   * @param {string} query - Search query
-   * @param {Object} [options] - Search options
-   * @returns {Promise<Array>} Matching collections
-   */
-  async searchCollections(query, options = {}) {
-    if (!query || query.trim() === '') {
-      throw new Error('Search query is required');
-    }
-    
-    // If we have cached collections, perform client-side search
-    if (this.collectionsCache && 
-        Date.now() - this.lastCacheTime < this.config.cacheDuration) {
-      console.log(`[CollectionService: searchCollections] Performing client-side search for: ${query}`);
-      
-      const searchQuery = query.toLowerCase().trim();
-      const results = this.collectionsCache.data.filter(collection => {
-        // Match against name, description, and tags
-        const nameMatch = collection.name?.toLowerCase().includes(searchQuery);
-        const descMatch = collection.description?.toLowerCase().includes(searchQuery);
-        const tagMatch = collection.metadata?.tags?.some(tag => 
-          tag.toLowerCase().includes(searchQuery)
-        );
-        const artistMatch = collection.metadata?.artist?.toLowerCase().includes(searchQuery);
-        
-        return nameMatch || descMatch || tagMatch || artistMatch;
-      });
-      
-      // Get blob folders to filter results
-      const blobFolders = await this._getBlobCollectionFolders();
-      const filteredResults = results.filter(collection => 
-        blobFolders.includes(collection.id)
-      );
-      
-      console.log(`[CollectionService: searchCollections] Found ${filteredResults.length} matching collections`);
-      
-      return {
-        success: true,
-        data: filteredResults,
-        pagination: {
-          total: filteredResults.length,
-          page: 1,
-          limit: filteredResults.length,
-          pages: 1
-        }
-      };
-    }
-    
-    // Otherwise, fetch collections first
-    await this.getCollections();
-    
-    // Then perform client-side search
-    return this.searchCollections(query, options);
   }
   
   /**
@@ -494,7 +277,7 @@ class CollectionService {
           // Format track for player with full Blob Storage URL if needed
           const audioUrl = track.audioUrl.startsWith('http') 
             ? track.audioUrl 
-            : `${this.config.blobBaseUrl}${track.audioUrl.startsWith('/') ? '' : '/'}${track.audioUrl}`;
+            : `${this.config.baseUrl}${track.audioUrl.startsWith('/') ? '' : '/'}${track.audioUrl}`;
             
           const formattedTrack = {
             id: track.id,
@@ -511,7 +294,7 @@ class CollectionService {
               // Format variation URL
               const variationUrl = variation.audioUrl.startsWith('http') 
                 ? variation.audioUrl 
-                : `${this.config.blobBaseUrl}${variation.audioUrl.startsWith('/') ? '' : '/'}${variation.audioUrl}`;
+                : `${this.config.baseUrl}${variation.audioUrl.startsWith('/') ? '' : '/'}${variation.audioUrl}`;
               
               const variationTrack = {
                 id: variation.id,
@@ -529,7 +312,7 @@ class CollectionService {
       const coverImage = collection.coverImage 
         ? (collection.coverImage.startsWith('http') 
             ? collection.coverImage 
-            : `${this.config.blobBaseUrl}${collection.coverImage.startsWith('/') ? '' : '/'}${collection.coverImage}`)
+            : `${this.config.baseUrl}${collection.coverImage.startsWith('/') ? '' : '/'}${collection.coverImage}`)
         : null;
       
       console.log(`[CollectionService: formatCollectionForPlayer] Formatted ${Object.values(layers).flat().length} tracks across ${Object.keys(layers).length} layers`);
