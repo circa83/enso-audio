@@ -167,77 +167,134 @@ class AudioFileService {
         await Promise.all(batchPromises);
       }
       
-      this.log(`[batchResolveUrls] Completed resolving ${results.size} URLs`);
+      this.log(`[AudioFileService] [batchResolveUrls] Completed resolving ${results.size} URLs`);
       return results;
     }
     
-    /**
-     * Convert collection tracks to use resolved URLs
-     * @param {Object} collection - Collection data with tracks
-     * @returns {Promise<Object>} Collection with resolved audio URLs
-     */
-    async resolveCollectionUrls(collection) {
-      if (!collection || !collection.tracks) {
-        throw new Error('Valid collection with tracks is required');
+   
+
+/**
+ * Convert collection tracks to use resolved URLs
+ * @param {Object} collection - Collection data with tracks
+ * @returns {Promise<Object>} Collection with resolved audio URLs
+ */
+async resolveCollectionUrls(collection) {
+  // First, add better validation and logging
+  if (!collection) {
+    console.error('[AudioFileService: resolveCollectionUrls] Collection is null or undefined');
+    throw new Error('Valid collection with tracks is required');
+  }
+  
+  // Check if we have the expected 'layers' structure
+  if (collection.layers) {
+    // Handle the formatted collection structure 
+    console.log('[AudioFileService: resolveCollectionUrls] Processing collection with layers structure');
+    try {
+      const resolvedCollection = {...collection};
+      const allUrls = [];
+      
+      // Extract URLs from all layers
+      Object.entries(collection.layers).forEach(([layerName, tracks]) => {
+        if (Array.isArray(tracks)) {
+          tracks.forEach(track => {
+            if (track.path) {
+              allUrls.push(track.path);
+            }
+          });
+        }
+      });
+      
+      // Resolve all URLs in batch
+      const resolvedUrls = await this.batchResolveUrls(allUrls);
+      
+      // Update tracks with resolved URLs
+      Object.entries(resolvedCollection.layers).forEach(([layerName, tracks]) => {
+        if (Array.isArray(tracks)) {
+          resolvedCollection.layers[layerName] = tracks.map(track => {
+            if (track.path && resolvedUrls.has(track.path)) {
+              return {
+                ...track,
+                path: resolvedUrls.get(track.path)
+              };
+            }
+            return track;
+          });
+        }
+      });
+      
+      console.log(`[AudioFileService: resolveCollectionUrls] Resolved ${allUrls.length} URLs for collection with layers`);
+      return resolvedCollection;
+    } catch (error) {
+      console.error(`[AudioFileService: resolveCollectionUrls] Error processing collection with layers: ${error.message}`);
+      // Return original collection as fallback
+      return collection;
+    }
+  }
+  
+  // Original logic for collections with 'tracks' structure
+  if (!collection.tracks || !Array.isArray(collection.tracks) || collection.tracks.length === 0) {
+    console.error('[AudioFileService: resolveCollectionUrls] Collection has no tracks array or tracks array is empty');
+    console.log('[AudioFileService: resolveCollectionUrls] Collection structure:', JSON.stringify(collection, null, 2).substring(0, 200) + '...');
+    throw new Error('Valid collection with tracks is required');
+  }
+  
+  try {
+    console.log(`[AudioFileService: resolveCollectionUrls] Processing collection: ${collection.name || collection.id}`);
+    
+    // Continue with original implementation for 'tracks' structure...
+    // Gather all URLs that need resolving
+    const allUrls = [];
+    
+    // Extract URLs from tracks
+    collection.tracks.forEach(track => {
+      if (track.audioUrl) {
+        allUrls.push(track.audioUrl);
       }
       
-      try {
-        this.log(`[resolveCollectionUrls] Processing collection: ${collection.name || collection.id}`);
-        
-        // Gather all URLs that need resolving
-        const allUrls = [];
-        
-        // Extract URLs from tracks
-        collection.tracks.forEach(track => {
-          if (track.audioUrl) {
-            allUrls.push(track.audioUrl);
-          }
-          
-          // Extract URLs from variations
-          if (track.variations && Array.isArray(track.variations)) {
-            track.variations.forEach(variation => {
-              if (variation.audioUrl) {
-                allUrls.push(variation.audioUrl);
-              }
-            });
+      // Extract URLs from variations
+      if (track.variations && Array.isArray(track.variations)) {
+        track.variations.forEach(variation => {
+          if (variation.audioUrl) {
+            allUrls.push(variation.audioUrl);
           }
         });
-        
-        // Resolve all URLs in batch
-        const resolvedUrls = await this.batchResolveUrls(allUrls);
-        
-        // Create deep copy of collection to avoid mutations
-        const resolvedCollection = JSON.parse(JSON.stringify(collection));
-        
-        // Update tracks with resolved URLs
-        resolvedCollection.tracks = resolvedCollection.tracks.map(track => {
-          // Update main track URL
-          if (track.audioUrl && resolvedUrls.has(track.audioUrl)) {
-            track.audioUrl = resolvedUrls.get(track.audioUrl);
-          }
-          
-          // Update variation URLs
-          if (track.variations && Array.isArray(track.variations)) {
-            track.variations = track.variations.map(variation => {
-              if (variation.audioUrl && resolvedUrls.has(variation.audioUrl)) {
-                variation.audioUrl = resolvedUrls.get(variation.audioUrl);
-              }
-              return variation;
-            });
-          }
-          
-          return track;
-        });
-        
-        this.log(`[resolveCollectionUrls] Resolved ${allUrls.length} URLs for collection`);
-        return resolvedCollection;
-      } catch (error) {
-        this.log(`[resolveCollectionUrls] Error: ${error.message}`, 'error');
-        // Return original collection as fallback
-        return collection;
       }
-    }
+    });
     
+    // Resolve all URLs in batch
+    const resolvedUrls = await this.batchResolveUrls(allUrls);
+    
+    // Create deep copy of collection to avoid mutations
+    const resolvedCollection = JSON.parse(JSON.stringify(collection));
+    
+    // Update tracks with resolved URLs
+    resolvedCollection.tracks = resolvedCollection.tracks.map(track => {
+      // Update main track URL
+      if (track.audioUrl && resolvedUrls.has(track.audioUrl)) {
+        track.audioUrl = resolvedUrls.get(track.audioUrl);
+      }
+      
+      // Update variation URLs
+      if (track.variations && Array.isArray(track.variations)) {
+        track.variations = track.variations.map(variation => {
+          if (variation.audioUrl && resolvedUrls.has(variation.audioUrl)) {
+            variation.audioUrl = resolvedUrls.get(variation.audioUrl);
+          }
+          return variation;
+        });
+      }
+      
+      return track;
+    });
+    
+    console.log(`[AudioFileService: resolveCollectionUrls] Resolved ${allUrls.length} URLs for collection`);
+    return resolvedCollection;
+  } catch (error) {
+    console.error(`[AudioFileService: resolveCollectionUrls] Error: ${error.message}`);
+    // Return original collection as fallback
+    return collection;
+  }
+}
     /**
      * Reset the URL cache
      */

@@ -1253,10 +1253,23 @@ const handlePauseSession = useCallback(() => {
             console.log('[StreamingAudioContext: handleLoadCollection] Resolving collection URLs');
             
             // Validate the formatted collection before passing to audioFileService
-            if (!formattedCollection || !formattedCollection.layers) {
-              console.error('[StreamingAudioContext: handleLoadCollection] Invalid formatted collection structure');
+            if (!formattedCollection) {
+              console.error('[StreamingAudioContext: handleLoadCollection] Formatted collection is null or undefined');
+              throw new Error('Formatted collection is null or undefined');
+            }
+            
+            if (!formattedCollection.layers && (!formattedCollection.tracks || !Array.isArray(formattedCollection.tracks))) {
+              console.error('[StreamingAudioContext: handleLoadCollection] Invalid formatted collection structure - missing both layers and tracks');
+              console.log('Formatted collection structure:', formattedCollection);
               throw new Error('Invalid formatted collection structure');
             }
+            
+            // Log the structure we're passing to the AudioFileService
+            console.log('[StreamingAudioContext: handleLoadCollection] Formatted collection structure:', 
+              formattedCollection.layers 
+                ? `Has layers: ${Object.keys(formattedCollection.layers).join(', ')}` 
+                : `Has tracks array: ${formattedCollection.tracks.length} items`
+            );
             
             resolvedCollection = await audioFileService.resolveCollectionUrls(formattedCollection);
             setCollectionLoadProgress(60);
