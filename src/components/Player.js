@@ -53,6 +53,15 @@ const Player = () => {
   const preventUpdateCycle = useRef(false);
   const settingsInitialized = useRef(false);
 
+   // Get the cover image URL from the collection info
+   const coverImageUrl = useMemo(() => {
+    if (collectionInfo && collectionInfo.coverImage) {
+      console.log("[Player] Using collection cover image:", collectionInfo.coverImage);
+      return collectionInfo.coverImage;
+    }
+    return null; // Return null if no collection is loaded or no cover image is available
+  }, [collectionInfo]);
+
   // Toggle debug panel with Ctrl+Shift+D
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -659,18 +668,14 @@ useEffect(() => {
 
   return (
     <div className={styles.simplePlayer}>
-      {/* <h1 className={styles.title}>Ensō Audio</h1>
-      
-      <div className={styles.sessionDescription}>
-        Adjust audio layers in real-time to guide the therapeutic journey
-      </div> */}
-      
+    
       {/* Main player and controls */}
       <PlayerControlPanel 
         onDurationChange={handleDurationChange}
         transitionDuration={transitionDuration}
         onTransitionDurationChange={handleTransitionDurationChange}
         ref={timelineComponentRef}
+        coverImageUrl={coverImageUrl}
       />
       
       {/* Collapsible Section for Audio Layers */}

@@ -39,7 +39,18 @@ const PlayerControlPanel = React.forwardRef(({
   return (
     <div className={styles.playerControlPanel}>
       <div className={styles.visualizerSection}>
-        <VisualizerContainer />
+      {/* Conditionally render album art if available, otherwise show visualizer */}
+      {coverImageUrl ? (
+          <div className={styles.albumArtContainer}>
+            <img 
+              src={coverImageUrl} 
+              alt="Album Cover" 
+              className={styles.albumArt}
+            />
+          </div>
+        ) : (
+          <VisualizerContainer />
+        )}
       </div>
       
       <div className={styles.controlsSection}>

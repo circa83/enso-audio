@@ -96,7 +96,7 @@ const PlayerPage = () => {
           <span></span>
         </button>
         <div className={styles.topBarTitle}>
-          {collectionInfo ? collectionInfo.name : 'Ensō Audio'}
+          Ensō Audio
         </div>
         
         <Link href="/ambient-archive" className={styles.backButton}>
