@@ -20,7 +20,12 @@ const PlayerControlPanel = React.forwardRef(({
   onTransitionDurationChange, 
   coverImageUrl
 }, ref) => {
-  console.log('[PlayerControlPanel] Rendering with coverImageUrl:', coverImageUrl);
+  // Enhanced logging with more details
+  console.log('[PlayerControlPanel] Rendering with props:', { 
+    hasCoverImageUrl: !!coverImageUrl,
+    coverImageUrl, 
+    coverImageUrlType: typeof coverImageUrl
+  });
   
   // Use our new hook with grouped API
   const { playback, currentCollection } = useAudio();
@@ -32,14 +37,20 @@ const PlayerControlPanel = React.forwardRef(({
         id: currentCollection.id,
         name: currentCollection.name,
         hasCover: !!currentCollection.coverImage,
-        coverImage: currentCollection.coverImage
+        coverImage: currentCollection.coverImage,
+        coverImageType: typeof currentCollection.coverImage
       } : 'None'
     );
   }, [currentCollection]);
   
   // Log when coverImageUrl changes - moved to top level
   useEffect(() => {
-    console.log('[PlayerControlPanel] Cover image URL changed:', coverImageUrl);
+    console.log('[PlayerControlPanel] Cover image URL changed:', {
+      coverImageUrl,
+      isString: typeof coverImageUrl === 'string',
+      isEmpty: !coverImageUrl,
+      shouldShow: Boolean(coverImageUrl)
+    });
   }, [coverImageUrl]);
   
   // Handle play/pause with useCallback for optimization
