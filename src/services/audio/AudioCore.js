@@ -231,40 +231,50 @@ class AudioCore {
       }
       
       console.log('AudioCore: Registering audio elements:', 
-        Object.keys(elements).map(layer => 
-          `${layer}: ${Object.keys(elements[layer] || {}).join(', ')}`
-        )
+        Object.keys(elements).map(layer => {
+          const trackIds = Object.keys(elements[layer] || {});
+          return `${layer}: ${trackIds.join(', ')}`;
+        })
       );
       
-      // Store the elements
+      // Store the elements directly without modifying their structure
       this._audioElements = { ...elements };
       return true;
     }
     
-    /**
-     * Update a single audio element
-     * @param {string} layer - Layer identifier
-     * @param {string} trackId - Track identifier
-     * @param {Object} elementData - Audio element data
-     * @returns {boolean} Success status
-     */
-    updateElement(layer, trackId, elementData) {
-      if (!layer || !trackId || !elementData) {
-        console.error('AudioCore: Invalid parameters for updateElement');
-        return false;
-      }
-      
-      console.log(`AudioCore: Updating element for ${layer}/${trackId}`);
-      
-      // Initialize layer if it doesn't exist
-      if (!this._audioElements[layer]) {
-        this._audioElements[layer] = {};
-      }
-      
-      // Store the element
-      this._audioElements[layer][trackId] = elementData;
-      return true;
-    }
+   /**
+ * Update a single audio element
+ * @param {string} layer - Layer identifier
+ * @param {string} trackId - Track identifier
+ * @param {Object} elementData - Audio element data
+ * @returns {boolean} Success status
+ */
+updateElement(layer, trackId, elementData) {
+  if (!layer || !trackId || !elementData) {
+    console.error('AudioCore: Invalid parameters for updateElement');
+    return false;
+  }
+  
+  console.log(`AudioCore: Updating element for ${layer}/${trackId}`);
+  
+  // Initialize layer if it doesn't exist
+  if (!this._audioElements[layer]) {
+    this._audioElements[layer] = {};
+  }
+  
+  // Store the element
+  this._audioElements[layer][trackId] = elementData;
+  
+  // Log current state after update for debugging
+  console.log('AudioCore: Current audio elements after update:', 
+    Object.keys(this._audioElements).map(layer => {
+      const trackIds = Object.keys(this._audioElements[layer] || {});
+      return `${layer}: ${trackIds.join(', ')}`;
+    })
+  );
+  
+  return true;
+}
     
     /**
      * Get all registered audio elements

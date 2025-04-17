@@ -438,16 +438,27 @@ class CollectionService {
         }
         
         // Format track for player with full Blob Storage URL if needed
-        const audioUrl = track.audioUrl.startsWith('http') 
-          ? track.audioUrl 
-          : `${this.config.blobBaseUrl}${track.audioUrl.startsWith('/') ? '' : '/'}${track.audioUrl}`;
-          
-        const formattedTrack = {
-          id: track.id,
-          name: track.title || track.name || `Track ${track.id}`,
-          path: audioUrl,
-          layer: playerLayer // Use the player layer name
-        };
+      // Format track for player with full Blob Storage URL if needed
+const audioUrl = track.audioUrl.startsWith('http') 
+? track.audioUrl 
+: `${this.config.blobBaseUrl}${track.audioUrl.startsWith('/') ? '' : '/'}${track.audioUrl}`;
+
+// Use the original track ID without modification
+const formattedTrack = {
+id: track.id, // Don't modify the ID!
+name: track.title || track.name || `Track ${track.id}`,
+path: audioUrl,
+layer: playerLayer // Use the player layer name
+};
+
+// Also update the variations section in a similar way:
+// When processing variations
+const variationTrack = {
+id: variation.id, // Keep original ID
+name: variation.title || `${track.title || track.name || 'Track'} (Variation)`,
+path: variationUrl,
+layer: playerLayer
+};
         
         // Add to appropriate layer
         playerLayers[playerLayer].push(formattedTrack);

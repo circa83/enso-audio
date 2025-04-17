@@ -968,17 +968,23 @@ const handlePauseSession = useCallback(() => {
         return updated;
       });
     }
+    // Update the logging for better debugging (around line 1530-1540)
+console.log(`[StreamingAudioContext: handleCrossfadeTo] Starting crossfade for ${layer} to track ${newTrackId}`);
+console.log(`[StreamingAudioContext: handleCrossfadeTo] Available tracks in audioLibrary for ${layer}:`, 
+  audioLibrary[layer] ? audioLibrary[layer].map(t => `${t.id} (${t.name})`).join(', ') : 'None'
+);
 
     // Get or create the target track's audio elements
     let newTrackElements = audioElements[layer]?.[newTrackId];
 
     // Create the new track if it doesn't exist yet
     if (!newTrackElements) {
-      console.log(`Creating new audio element for ${layer}/${newTrackId} with path ${libraryTrack.path}`);
+      console.log(`[StreamingAudioContext: handleCrossfadeTo] Creating new audio element for ${layer}/${newTrackId} with path ${libraryTrack.path}`);
       const audioElement = new Audio();
       audioElement.preload = "auto";
       audioElement.loop = true;
       audioElement.src = libraryTrack.path;
+      audioElement.crossOrigin = "anonymous"; // Ensure CORS is set for remote files
       
       // Create source node
       const source = audioCtx.createMediaElementSource(audioElement);
@@ -996,6 +1002,7 @@ const handlePauseSession = useCallback(() => {
       
       // Update audio elements in AudioCore if it supports it
       if (serviceRef.current.audioCore.updateElement) {
+        console.log(`[StreamingAudioContext: handleCrossfadeTo] Registering new element with AudioCore: ${layer}/${newTrackId}`);
         serviceRef.current.audioCore.updateElement(layer, newTrackId, newTrackElements);
       }
     }
@@ -1245,6 +1252,30 @@ const handlePauseSession = useCallback(() => {
             `${layer}: ${tracks.length} tracks`
           ).join(', ')
         );
+
+        // Update audio library with collection tracks
+        setAudioLibrary(prevLibrary => {
+          const newLibrary = {...prevLibrary};
+          
+          // Replace each layer's tracks with the ones from the collection
+          Object.entries(formattedCollection.layers).forEach(([layerName, tracks]) => {
+            console.log(`[StreamingAudioContext: handleLoadCollection] Setting ${tracks.length} tracks for ${layerName}`);
+            
+            // Log the actual track IDs and names for debugging
+            tracks.forEach(track => {
+              console.log(`[StreamingAudioContext: handleLoadCollection] Track: ${track.id} (${track.name})`);
+            });
+            
+            // Update this layer in the library
+            newLibrary[layerName] = [...tracks];
+          });
+          
+          // Also update the reference for immediate access
+          audioLibraryRef.current = {...newLibrary};
+          
+          console.log('[StreamingAudioContext: handleLoadCollection] Updated audioLibrary with collection tracks');
+          return newLibrary;
+        });
         
         // Resolve audio URLs using AudioFileService
         let resolvedCollection = formattedCollection;
