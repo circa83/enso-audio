@@ -325,7 +325,7 @@ class CollectionService {
       };
     }
     
-    const endpoint = `${this.config.apiBasePath}/collections/${id}`;
+    const endpoint = `${this.config.apiBasePath}/collections/${id}?bypassVerify=true`;
     console.log(`[CollectionService: getCollection] Fetching collection from: ${endpoint}`);
     
     // Create request promise
@@ -344,13 +344,16 @@ class CollectionService {
         
         const data = await response.json();
         
+        if (!data.success || !data.data) {
+          throw new Error('Invalid response format from collection API');
+        }
+
         // Verify collection has valid files in blob storage
         console.log(`[CollectionService: getCollection] Verifying blob files for collection: ${id}`);
         const filesExist = await this._verifyBlobFiles(data.data);
         
         if (!filesExist) {
           console.log(`[CollectionService: getCollection] Some audio files for collection ${id} are not accessible`);
-          // You could either return an error or just a warning in the response
           data.warning = "Some audio files may not be accessible";
         }
         
@@ -394,6 +397,12 @@ class CollectionService {
       // Process tracks if they exist
       if (collection.tracks && Array.isArray(collection.tracks)) {
         collection.tracks.forEach(track => {
+          // Skip tracks without required fields
+          if (!track.id || !track.audioUrl) {
+            console.warn('[CollectionService: formatCollectionForPlayer] Skipping invalid track:', track);
+            return;
+          }
+
           // Determine layer from folder structure
           const layerFolder = this._getLayerFromFolder(track.audioUrl);
           
