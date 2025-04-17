@@ -234,115 +234,118 @@ const AmbientArchive = () => {
 
       {/* Details Modal */}
       {showDetails && selectedCollection && (
-        <div className={styles.modalOverlay} onClick={handleCloseDetails}>
-          <div className={styles.modal} onClick={e => e.stopPropagation()}>
-            <button className={styles.modalClose} onClick={handleCloseDetails}>×</button>
+  <div className={styles.modalOverlay} onClick={handleCloseDetails}>
+    <div className={styles.modal} onClick={e => e.stopPropagation()}>
+      <button className={styles.modalClose} onClick={handleCloseDetails}>×</button>
+      
+      <div className={styles.modalContent}>
+        {selectedCollection.isLoading ? (
+          <div className={styles.loadingContainer}>
+            <div className={styles.loadingSpinner}></div>
+            <p>Loading collection details...</p>
+          </div>
+        ) : selectedCollection.error ? (
+          <div className={styles.errorContainer}>
+            <h3>Error Loading Collection Details</h3>
+            <p>{selectedCollection.error}</p>
+          </div>
+        ) : (
+          <>
+            {/* Header with collection info */}
+            <div className={styles.modalHeader}>
+              {selectedCollection.coverImage && (
+                <div className={styles.modalCoverImage}>
+                  <img 
+                    src={selectedCollection.coverImage} 
+                    alt={`${selectedCollection.name} cover`} 
+                  />
+                </div>
+              )}
+              <div className={styles.modalHeadContent}>
+                <h2>{selectedCollection.name || 'Unnamed Collection'}</h2>
+                <p className={styles.modalDescription}>{selectedCollection.description || 'No description available'}</p>
+              </div>
+            </div>
             
-            <div className={styles.modalContent}>
-              {selectedCollection.isLoading ? (
-                <div className={styles.loadingContainer}>
-                  <div className={styles.loadingSpinner}></div>
-                  <p>Loading collection details...</p>
-                </div>
-              ) : selectedCollection.error ? (
-                <div className={styles.errorContainer}>
-                  <h3>Error Loading Collection Details</h3>
-                  <p>{selectedCollection.error}</p>
-                </div>
-              ) : (
-                <>
-                  {/* Header with collection info */}
-                  <div className={styles.modalHeader}>
-                    {selectedCollection.coverImage && (
-                      <div className={styles.modalCoverImage}>
-                        <img 
-                          src={selectedCollection.coverImage} 
-                          alt={`${selectedCollection.name} cover`} 
-                        />
-                      </div>
-                    )}
-                    <div className={styles.modalHeadContent}>
-                      <h2>{selectedCollection.name || 'Unnamed Collection'}</h2>
-                      <p className={styles.modalDescription}>{selectedCollection.description || 'No description available'}</p>
-                    </div>
-                  </div>
-                  
-                  {/* Metadata section */}
-                  <div className={styles.modalMetadata}>
-                    <p><strong>Artist:</strong> {selectedCollection.metadata?.artist || 'Unknown'}</p>
-                    <p><strong>Year:</strong> {selectedCollection.metadata?.year || 'N/A'}</p>
-                    {selectedCollection.metadata?.tags && selectedCollection.metadata.tags.length > 0 && (
-                      <p><strong>Tags:</strong> {selectedCollection.metadata.tags.join(', ')}</p>
-                    )}
-                  </div>
-                  
-                  {/* Track list organized by layer */}
-                  <div className={styles.trackListContainer}>
-                    <h3>Audio Layers</h3>
-                    
-                    {/* Check for actual track objects */}
-                    {!selectedCollection.tracks || !Array.isArray(selectedCollection.tracks) || selectedCollection.tracks.length === 0 ? (
-                      <div className={styles.emptyState}>
-                        <p>No tracks found for this collection.</p>
-                      </div>
-                    ) : (
-                      /* Group tracks by layer folder for better organization */
-                      ['Layer_1', 'Layer_2', 'Layer_3', 'Layer_4'].map(layerFolder => {
-                        // Filter tracks for this layer
-                        const layerTracks = selectedCollection.tracks.filter(track => {
-                          return track.layerFolder === layerFolder;
-                        });
-                        
-                        if (layerTracks.length === 0) return null;
-                        
-                        return (
-                          <div key={layerFolder} className={styles.layerSection}>
-                            <h4 className={styles.layerTitle}>
-                              {layerFolder.replace('_', ' ')} 
-                              <span className={styles.trackCount}>({layerTracks.length} tracks)</span>
-                            </h4>
-                            
-                            <div className={styles.layerTracks}>
-                              {layerTracks.map(track => (
-                                <div key={track.id} className={styles.track}>
-                                  <div className={styles.trackInfo}>
-                                    <span className={styles.trackTitle}>{track.title}</span>
-                                  </div>
-                                  
-                                  {track.variations && track.variations.length > 0 && (
-                                    <div className={styles.variations}>
-                                      <span className={styles.variationsLabel}>Variations:</span>
-                                      {track.variations.map(variation => (
-                                        <div key={variation.id} className={styles.variation}>
-                                          <span className={styles.variationTitle}>{variation.title}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                  
-                  {/* Action buttons */}
-                  <div className={styles.modalActions}>
-                    <button 
-                      className={styles.playCollectionButton}
-                      onClick={() => handleCollectionSelect(selectedCollection.id)}
-                    >
-                      Load in Player
-                    </button>
-                  </div>
-                </>
+            {/* Metadata section */}
+            <div className={styles.modalMetadata}>
+              <p><strong>Artist:</strong> {selectedCollection.metadata?.artist || 'Unknown'}</p>
+              <p><strong>Year:</strong> {selectedCollection.metadata?.year || 'N/A'}</p>
+              {selectedCollection.metadata?.tags && selectedCollection.metadata.tags.length > 0 && (
+                <p><strong>Tags:</strong> {selectedCollection.metadata.tags.join(', ')}</p>
               )}
             </div>
+            
+            {/* Track list organized by layer - SIMPLIFIED VERSION */}
+            <div className={styles.trackListContainer}>
+  <h3>Audio Layers</h3>
+  
+  {/* Check for actual track objects */}
+  {!selectedCollection.tracks || !Array.isArray(selectedCollection.tracks) || selectedCollection.tracks.length === 0 ? (
+    <div className={styles.emptyState}>
+      <p>No tracks found for this collection.</p>
+    </div>
+  ) : (
+    /* Group tracks by layer folder for simpler organization */
+    ['Layer_1', 'Layer_2', 'Layer_3', 'Layer_4'].map(layerFolder => {
+      // Get all tracks for this layer, including variations
+      const allTracks = [];
+      
+      // First gather main tracks
+      const mainTracks = selectedCollection.tracks.filter(track => 
+        track.layerFolder === layerFolder
+      );
+      
+      // Add main tracks to our list
+      mainTracks.forEach(track => {
+        allTracks.push(track.title);
+        
+        // Include variations without separating them
+        if (track.variations && Array.isArray(track.variations)) {
+          track.variations.forEach(variation => {
+            allTracks.push(variation.title);
+          });
+        }
+      });
+      
+      // Skip empty layers
+      if (allTracks.length === 0) return null;
+      
+      return (
+        <div key={layerFolder} className={styles.layerSection}>
+          <h4 className={styles.layerTitle}>
+            {layerFolder.replace('_', ' ')} 
+            <span className={styles.trackCount}>({allTracks.length} tracks)</span>
+          </h4>
+          
+          {/* Display tracks vertically instead of comma-separated */}
+          <div className={styles.layerTracks}>
+            {allTracks.map((trackName, index) => (
+              <span key={index}>{trackName}</span>
+            ))}
           </div>
         </div>
-      )}
+      );
+    })
+  )}
+</div>
+           
+            
+            {/* Action buttons */}
+            <div className={styles.modalActions}>
+              <button 
+                className={styles.playCollectionButton}
+                onClick={() => handleCollectionSelect(selectedCollection.id)}
+              >
+                Load in Player
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  </div>
+)}
     </ArchiveLayout>
   );
 };

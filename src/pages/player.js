@@ -140,9 +140,7 @@ const PlayerPage = () => {
           <Link href="#" className={styles.dropdownLink}>
             Account
           </Link>
-          <Link href="/ambient-archive" className={styles.dropdownLink}>
-            Ambient Archive
-          </Link>
+         
           <button className={styles.dropdownButton} onClick={handleLogout}>
             {user ? 'Logout' : 'Login'}
           </button>
