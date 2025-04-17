@@ -386,70 +386,109 @@ class CollectionService {
     try {
       console.log(`[CollectionService: formatCollectionForPlayer] Formatting collection: ${collection.id}`);
       
-      // Group tracks by layer folder
-      const layers = {
-        Layer_1: [], // Drone
-        Layer_2: [], // Melody
-        Layer_3: [], // Rhythm
-        Layer_4: []  // Nature
+      // Define player layers
+      const playerLayers = {
+        'Layer 1': [], // Drone
+        'Layer 2': [], // Melody
+        'Layer 3': [], // Rhythm
+        'Layer 4': []  // Nature
       };
       
-      // Process tracks if they exist
-      if (collection.tracks && Array.isArray(collection.tracks)) {
-        collection.tracks.forEach(track => {
-          // Skip tracks without required fields
-          if (!track.id || !track.audioUrl || !track.layerFolder) {
-            console.warn('[CollectionService: formatCollectionForPlayer] Skipping invalid track:', track);
-            return;
-          }
-
-          // Get the layer folder from the track
-          const layerFolder = track.layerFolder;
+      // Map of folder names to player layer names
+      const folderToLayerMap = {
+        'Layer_1': 'Layer 1',
+        'Layer_2': 'Layer 2',
+        'Layer_3': 'Layer 3',
+        'Layer_4': 'Layer 4'
+      };
+      
+      // Ensure collection has tracks array
+      if (!collection.tracks || !Array.isArray(collection.tracks) || collection.tracks.length === 0) {
+        console.error(`[CollectionService: formatCollectionForPlayer] Collection ${collection.id} has no tracks`);
+        throw new Error(`Collection "${collection.name || collection.id}" has no audio tracks`);
+      }
+      
+      let formattedTrackCount = 0;
+      
+      // Process tracks
+      collection.tracks.forEach(track => {
+        // Handle missing properties with clear logging
+        if (!track.id) {
+          console.warn('[CollectionService: formatCollectionForPlayer] Track missing id:', track);
+          return;
+        }
+        
+        if (!track.audioUrl) {
+          console.warn(`[CollectionService: formatCollectionForPlayer] Track ${track.id} missing audioUrl`);
+          return;
+        }
+        
+        // Get the layer folder from the track
+        const layerFolder = track.layerFolder;
+        if (!layerFolder) {
+          console.warn(`[CollectionService: formatCollectionForPlayer] Track ${track.id} missing layerFolder`);
+          return;
+        }
+        
+        // Map the folder name to player layer name
+        const playerLayer = folderToLayerMap[layerFolder];
+        if (!playerLayer) {
+          console.warn(`[CollectionService: formatCollectionForPlayer] Invalid layer folder: ${layerFolder}`);
+          return;
+        }
+        
+        // Format track for player with full Blob Storage URL if needed
+        const audioUrl = track.audioUrl.startsWith('http') 
+          ? track.audioUrl 
+          : `${this.config.blobBaseUrl}${track.audioUrl.startsWith('/') ? '' : '/'}${track.audioUrl}`;
           
-          // Skip tracks with invalid layer folder
-          if (!layers[layerFolder]) {
-            console.log(`[CollectionService: formatCollectionForPlayer] Skipping track with invalid layer folder: ${layerFolder}`);
-            return;
-          }
-          
-          // Format track for player with full Blob Storage URL if needed
-          const audioUrl = track.audioUrl.startsWith('http') 
-            ? track.audioUrl 
-            : `${this.config.blobBaseUrl}${track.audioUrl.startsWith('/') ? '' : '/'}${track.audioUrl}`;
+        const formattedTrack = {
+          id: track.id,
+          name: track.title || track.name || `Track ${track.id}`,
+          path: audioUrl,
+          layer: playerLayer // Use the player layer name
+        };
+        
+        // Add to appropriate layer
+        playerLayers[playerLayer].push(formattedTrack);
+        formattedTrackCount++;
+        
+        // Process variations if they exist
+        if (track.variations && Array.isArray(track.variations)) {
+          track.variations.forEach(variation => {
+            // Skip invalid variations
+            if (!variation.id) {
+              console.warn(`[CollectionService: formatCollectionForPlayer] Variation missing id in track ${track.id}`);
+              return;
+            }
             
-          const formattedTrack = {
-            id: track.id,
-            name: track.title || track.name || `Track ${track.id}`,
-            path: audioUrl
-          };
-          
-          // Add to appropriate layer
-          layers[layerFolder].push(formattedTrack);
-          
-          // Process variations if they exist
-          if (track.variations && Array.isArray(track.variations)) {
-            track.variations.forEach(variation => {
-              // Skip invalid variations
-              if (!variation.id || !variation.audioUrl) {
-                console.warn('[CollectionService: formatCollectionForPlayer] Skipping invalid variation:', variation);
-                return;
-              }
-              
-              // Format variation URL
-              const variationUrl = variation.audioUrl.startsWith('http') 
-                ? variation.audioUrl 
-                : `${this.config.blobBaseUrl}${variation.audioUrl.startsWith('/') ? '' : '/'}${variation.audioUrl}`;
-              
-              const variationTrack = {
-                id: variation.id,
-                name: variation.title || `${track.title || track.name || 'Track'} (Variation)`,
-                path: variationUrl
-              };
-              
-              layers[layerFolder].push(variationTrack);
-            });
-          }
-        });
+            if (!variation.audioUrl) {
+              console.warn(`[CollectionService: formatCollectionForPlayer] Variation ${variation.id} missing audioUrl`);
+              return;
+            }
+            
+            // Format variation URL
+            const variationUrl = variation.audioUrl.startsWith('http') 
+              ? variation.audioUrl 
+              : `${this.config.blobBaseUrl}${variation.audioUrl.startsWith('/') ? '' : '/'}${variation.audioUrl}`;
+            
+            const variationTrack = {
+              id: variation.id,
+              name: variation.title || `${track.title || track.name || 'Track'} (Variation)`,
+              path: variationUrl,
+              layer: playerLayer // Use the same player layer name
+            };
+            
+            playerLayers[playerLayer].push(variationTrack);
+            formattedTrackCount++;
+          });
+        }
+      });
+      
+      // Ensure we have at least one track formatted
+      if (formattedTrackCount === 0) {
+        console.error('[CollectionService: formatCollectionForPlayer] No valid tracks found in collection');
+        throw new Error('No valid audio tracks found in this collection');
       }
       
       // Format cover image URL
@@ -459,15 +498,18 @@ class CollectionService {
             : `${this.config.blobBaseUrl}${collection.coverImage.startsWith('/') ? '' : '/'}${collection.coverImage}`)
         : null;
       
-      console.log(`[CollectionService: formatCollectionForPlayer] Formatted ${Object.values(layers).flat().length} tracks across ${Object.keys(layers).length} layers`);
+      console.log(`[CollectionService: formatCollectionForPlayer] Formatted ${formattedTrackCount} tracks across ${Object.keys(playerLayers).length} layers`);
       
+      // Return the formatted collection
       return {
         id: collection.id,
         name: collection.name,
         description: collection.description,
         coverImage: coverImage,
         metadata: collection.metadata,
-        layers
+        layers: playerLayers,
+        // Keep the original tracks array for reference
+        originalTracks: collection.tracks
       };
     } catch (error) {
       console.error(`[CollectionService: formatCollectionForPlayer] Error: ${error.message}`);

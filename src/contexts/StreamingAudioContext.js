@@ -1198,7 +1198,8 @@ const handlePauseSession = useCallback(() => {
       setCollectionError(null);
       setCollectionLoadProgress(0);
       
-      console.log(`[StreamingAudioContext: handleLoadCollection] Loading collection: ${collectionId}`);
+      console.log(`[StreamingAudioContext: handleLoadCollection] Loading collection: ${collectionId}, autoPlay:`, 
+        options.autoPlay === true ? 'true' : 'false');
       
       // Pause if currently playing
       if (isPlayingRef.current) {
@@ -1248,9 +1249,23 @@ const handlePauseSession = useCallback(() => {
         // Resolve audio URLs using AudioFileService
         let resolvedCollection = formattedCollection;
         if (options.autoResolveUrls !== false) {
-          console.log('[StreamingAudioContext: handleLoadCollection] Resolving collection URLs', formattedCollection);
-          resolvedCollection = await audioFileService.resolveCollectionUrls(formattedCollection);
-          setCollectionLoadProgress(60);
+          try {
+            console.log('[StreamingAudioContext: handleLoadCollection] Resolving collection URLs');
+            
+            // Validate the formatted collection before passing to audioFileService
+            if (!formattedCollection || !formattedCollection.layers) {
+              console.error('[StreamingAudioContext: handleLoadCollection] Invalid formatted collection structure');
+              throw new Error('Invalid formatted collection structure');
+            }
+            
+            resolvedCollection = await audioFileService.resolveCollectionUrls(formattedCollection);
+            setCollectionLoadProgress(60);
+          } catch (urlError) {
+            console.error('[StreamingAudioContext: handleLoadCollection] Error resolving URLs:', urlError.message);
+            // Just use the formatted collection without URL resolution as fallback
+            resolvedCollection = formattedCollection;
+            setCollectionLoadProgress(60);
+          }
         }
         
         // Track successful layer loads
@@ -1294,9 +1309,16 @@ const handlePauseSession = useCallback(() => {
           throw new Error('Failed to load any audio tracks from this collection');
         }
         
-        // Start playback if requested
-        if (options.autoPlay && Object.keys(loadedLayers).length > 0) {
+        // FIXED: Only auto-start playback if specifically requested
+        // This check now logs the decision and is more explicit
+        const shouldAutoPlay = options.autoPlay === true; // Must be explicitly true
+        console.log(`[StreamingAudioContext: handleLoadCollection] Auto-play is ${shouldAutoPlay ? 'ENABLED' : 'DISABLED'}`);
+        
+        if (shouldAutoPlay) {
+          console.log('[StreamingAudioContext: handleLoadCollection] Auto-starting playback as requested');
           handleStartSession();
+        } else {
+          console.log('[StreamingAudioContext: handleLoadCollection] Playback not auto-started, waiting for user action');
         }
         
         setCollectionLoadProgress(100);

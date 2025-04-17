@@ -24,6 +24,7 @@ const PlayerPage = () => {
   
   // Effect to load collection from URL parameter
   useEffect(() => {
+    
     const loadCollectionFromQuery = async () => {
       // Check if router and query are available
       if (!router || !router.isReady) return;
@@ -34,11 +35,10 @@ const PlayerPage = () => {
         console.log(`[PlayerPage] Loading collection from URL: ${collectionId}`);
         
         try {
-          // Load the collection with default settings
+          // Load the collection with autoPlay set to false
           await loadCollection(collectionId, {
-            autoPlay: true,
+            autoPlay: false,
             initialVolumes: {
-              // Updated to use Layer folders instead of types
               Layer_1: 0.6,
               Layer_2: 0.3,
               Layer_3: 0.2,
