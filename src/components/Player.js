@@ -35,7 +35,8 @@ const Player = () => {
     hasCurrentCollection: !!currentCollection,
     currentCollectionType: typeof currentCollection,
     isLoadingCollection: loadingCollection,
-    hasCollectionError: !!collectionError
+    hasCollectionError: !!collectionError,
+    coverImage: currentCollection?.coverImage
   });
   
   if (currentCollection) {

@@ -1235,6 +1235,13 @@ console.log(`[StreamingAudioContext: handleCrossfadeTo] Available tracks in audi
       // Format collection for player using CollectionService
       try {
         const formattedCollection = collectionService.formatCollectionForPlayer(collection);
+        console.log(`[StreamingAudioContext: handleLoadCollection] Formatted collection:`, {
+          id: formattedCollection.id,
+          name: formattedCollection.name,
+          coverImage: formattedCollection.coverImage,
+          layers: Object.keys(formattedCollection.layers || {})
+        });
+        
         setCollectionLoadProgress(40);
         
         // Verify layers were properly formatted
@@ -1355,7 +1362,7 @@ console.log(`[StreamingAudioContext: handleCrossfadeTo] Available tracks in audi
         
         // FIXED: Only auto-start playback if specifically requested
         // This check now logs the decision and is more explicit
-        const shouldAutoPlay = options.autoPlay === true; // Must be explicitly true
+        const shouldAutoPlay = options.autoPlay === true;
         console.log(`[StreamingAudioContext: handleLoadCollection] Auto-play is ${shouldAutoPlay ? 'ENABLED' : 'DISABLED'}`);
         
         if (shouldAutoPlay) {
@@ -1368,10 +1375,15 @@ console.log(`[StreamingAudioContext: handleCrossfadeTo] Available tracks in audi
         setCollectionLoadProgress(100);
         
         // Set the current collection with the formatted data
-        setCurrentCollection(formattedCollection);
+        console.log('[StreamingAudioContext: handleLoadCollection] Setting currentCollection:', {
+          id: resolvedCollection.id,
+          name: resolvedCollection.name,
+          coverImage: resolvedCollection.coverImage
+        });
+        setCurrentCollection(resolvedCollection);
         
         console.log(`[StreamingAudioContext: handleLoadCollection] Successfully loaded collection: ${collection.name}`);
-        console.log(`[StreamingAudioContext: handleLoadCollection] Cover image URL: ${formattedCollection.coverImage}`);
+        console.log(`[StreamingAudioContext: handleLoadCollection] Cover image URL: ${resolvedCollection.coverImage}`);
         return true;
       } catch (formatError) {
         console.error(`[StreamingAudioContext: handleLoadCollection] Error formatting collection: ${formatError.message}`);

@@ -61,7 +61,6 @@ export function useAudio() {
     resumeTimeline,
     stopTimeline,
   
-    
     // Timeline functions
     resetTimelineEventIndex,
     registerTimelineEvent,
@@ -80,6 +79,16 @@ export function useAudio() {
     getPresets,
     exportPreset,
     importPreset,
+    
+    // Collection state
+    currentCollection,
+    loadingCollection,
+    collectionError,
+    collectionLoadProgress,
+    
+    // Collection functions
+    loadCollection,
+    switchTrack,
     
     // Constants
     LAYERS
@@ -206,7 +215,7 @@ export function useAudio() {
       return clearTimelineEvents();
     },
     updatePhases: (phases) => {
-     // console.log(`[useAudio] Updating timeline phases (${phases.length} phases)`);
+      console.log(`[useAudio] Updating timeline phases (${phases.length} phases)`);
       return updateTimelinePhases(phases);
     },
     seekToTime: (timeMs) => {
@@ -331,6 +340,12 @@ export function useAudio() {
     transitionDuration,
     LAYERS,
     
+    // Collection state
+    currentCollection,
+    loadingCollection,
+    collectionError,
+    collectionLoadProgress,
+    
     // Functions
     setMasterVolumeLevel,
     setVolume,
@@ -357,7 +372,9 @@ export function useAudio() {
     getActiveSourceNode,
     getActiveAudioElement,
     getOrCreateSourceNode,
-    getOrCreateAudioElement
+    getOrCreateAudioElement,
+    loadCollection,
+    switchTrack
   };
 }
 
