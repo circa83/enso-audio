@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -13,6 +13,7 @@ const PlayerPage = () => {
   const { user, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [collectionInfo, setCollectionInfo] = useState(null);
+  const loadingRef = useRef(false); // Add this ref at the component level
   
   // Get loadCollection function and states from audio context
   const { 
@@ -22,38 +23,46 @@ const PlayerPage = () => {
     collectionError 
   } = useAudio();
   
-  // Effect to load collection from URL parameter
+  // Effect to load collection from URL parameter - update this part
   useEffect(() => {
+    // Check if router and query are available
+    if (!router || !router.isReady) return;
     
-    const loadCollectionFromQuery = async () => {
-      // Check if router and query are available
-      if (!router || !router.isReady) return;
+    const { collection: collectionId } = router.query;
+    
+    // Only load if we have a collection ID and haven't already started loading it
+    if (collectionId && !loadingRef.current) {
+      console.log(`[PlayerPage] Loading collection from URL: ${collectionId}`);
       
-      const { collection: collectionId } = router.query;
+      // Set flag to true to prevent additional load attempts
+      loadingRef.current = true;
       
-      if (collectionId) {
-        console.log(`[PlayerPage] Loading collection from URL: ${collectionId}`);
-        
-        try {
-          // Load the collection with autoPlay set to false
-          await loadCollection(collectionId, {
-            autoPlay: false,
-            initialVolumes: {
-              Layer_1: 0.6,
-              Layer_2: 0.3,
-              Layer_3: 0.2,
-              Layer_4: 0.1
-            }
-          });
-          
-        } catch (error) {
-          console.error("[PlayerPage] Error loading collection:", error);
+      // Load the collection with autoPlay set to false
+      loadCollection(collectionId, {
+        autoPlay: false,
+        initialVolumes: {
+          Layer_1: 0.6,
+          Layer_2: 0.3,
+          Layer_3: 0.2,
+          Layer_4: 0.1
         }
-      }
-    };
+      }).catch(error => {
+        console.error("[PlayerPage] Error loading collection:", error);
+        // Reset the flag if loading fails to allow retry
+        loadingRef.current = false;
+      });
+    }
     
-    loadCollectionFromQuery();
-  }, [router, router?.isReady, router?.query, loadCollection]);
+    // No cleanup function needed as we're managing the ref at component level
+  }, [router?.isReady, router?.query.collection, loadCollection]);
+  
+  // Reset loading flag when collection changes
+  useEffect(() => {
+    if (currentCollection) {
+      // New collection loaded successfully, keep flag true to prevent reloading
+      loadingRef.current = true;
+    }
+  }, [currentCollection]);
   
   // Update collection info when currentCollection changes
   useEffect(() => {
@@ -65,6 +74,7 @@ const PlayerPage = () => {
     }
   }, [currentCollection]);
   
+  // Rest of component unchanged
   const handleLogout = async () => {
     await logout();
   };
