@@ -1,4 +1,8 @@
 // src/pages/api/diagnostic/collections.js
+import dbConnect from '../../../lib/mongodb';
+import Collection from '../../../models/Collection';
+import { listCollectionFolders } from '../../../lib/blob-storage';
+
 export default async function handler(req, res) {
     try {
       // Step 1: Check Blob Storage

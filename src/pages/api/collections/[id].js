@@ -55,8 +55,21 @@ async function getCollection(req, res, id) {
   try {
     console.log(`[API: collections/[id]/GET] Fetching collection with ID: ${id}`);
     
-    // First verify this collection exists in blob storage
-    const validCollection = await verifyCollectionStructure(id, ['cover']);
+    // Try to skip Blob verification if it's causing issues
+    let bypassBlobVerification = req.query.bypassVerify === 'true';
+    
+    // First verify this collection exists in blob storage (with error handling)
+    let validCollection = true;
+    try {
+      if (!bypassBlobVerification) {
+        validCollection = await verifyCollectionStructure(id, ['cover']);
+        console.log(`[API: collections/[id]/GET] Blob verification result: ${validCollection}`);
+      }
+    } catch (verifyError) {
+      console.error(`[API: collections/[id]/GET] Error in blob verification: ${verifyError.message}`);
+      // Continue anyway since we have the collection in MongoDB
+      validCollection = true;
+    }
     
     if (!validCollection) {
       console.log(`[API: collections/[id]/GET] Collection not found in Blob storage: ${id}`);
@@ -66,8 +79,15 @@ async function getCollection(req, res, id) {
       });
     }
     
-    // Find collection by ID
-    const collection = await Collection.findOne({ id });
+    // Find collection by ID - try case-insensitive search if not found
+    let collection = await Collection.findOne({ id: id });
+    
+    if (!collection) {
+      // Try case-insensitive search
+      console.log(`[API: collections/[id]/GET] Trying case-insensitive search for: ${id}`);
+      const regex = new RegExp(`^${id}$`, 'i');
+      collection = await Collection.findOne({ id: regex });
+    }
     
     if (!collection) {
       console.log(`[API: collections/[id]/GET] Collection not found in database: ${id}`);
@@ -78,7 +98,12 @@ async function getCollection(req, res, id) {
     }
 
     // Fetch tracks for this collection
-    const tracks = await Track.find({ collectionId: id });
+    const tracks = await Track.find({ 
+      $or: [
+        { collectionId: id },
+        { collection: collection._id }
+      ]
+    });
     console.log(`[API: collections/[id]/GET] Found ${tracks.length} tracks for collection: ${id}`);
     
     // Add tracks to collection

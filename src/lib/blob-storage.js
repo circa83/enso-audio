@@ -268,6 +268,7 @@ export async function verifyCollectionStructure(collectionId, requiredFolders = 
     console.log(`[blob-storage: verifyCollectionStructure] Verifying collection: ${collectionId}`);
     
     if (!collectionId) {
+      console.log(`[blob-storage: verifyCollectionStructure] No collection ID provided`);
       return false;
     }
     
