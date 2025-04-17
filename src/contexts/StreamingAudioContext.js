@@ -1248,6 +1248,7 @@ const handlePauseSession = useCallback(() => {
         // Resolve audio URLs using AudioFileService
         let resolvedCollection = formattedCollection;
         if (options.autoResolveUrls !== false) {
+          console.log('[StreamingAudioContext: handleLoadCollection] Resolving collection URLs', formattedCollection);
           resolvedCollection = await audioFileService.resolveCollectionUrls(formattedCollection);
           setCollectionLoadProgress(60);
         }
@@ -1255,7 +1256,7 @@ const handlePauseSession = useCallback(() => {
         // Track successful layer loads
         const loadedLayers = {};
         
-        // For each layer type, load the first track
+        // For each layer, load the first track
         for (const [layerFolder, tracks] of Object.entries(resolvedCollection.layers)) {
           if (!tracks || tracks.length === 0) {
             console.log(`[StreamingAudioContext: handleLoadCollection] No tracks for layer: ${layerFolder}`);
@@ -1269,7 +1270,7 @@ const handlePauseSession = useCallback(() => {
             // Get desired volume for this layer
             const layerVolume = options.initialVolumes?.[layerFolder] !== undefined 
               ? options.initialVolumes[layerFolder]
-              : layerFolder === 'Layer_1' ? 0.6 : 0; // Default: drone on, others off
+              : layerFolder === 'Layer_1' ? 0.6 : 0; // Default: layer 1 on, others off
             
             console.log(`[StreamingAudioContext: handleLoadCollection] Loading ${layerFolder}: ${track.id} at volume ${layerVolume}`);
             

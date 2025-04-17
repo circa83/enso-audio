@@ -398,13 +398,13 @@ class CollectionService {
       if (collection.tracks && Array.isArray(collection.tracks)) {
         collection.tracks.forEach(track => {
           // Skip tracks without required fields
-          if (!track.id || !track.audioUrl) {
+          if (!track.id || !track.audioUrl || !track.layerFolder) {
             console.warn('[CollectionService: formatCollectionForPlayer] Skipping invalid track:', track);
             return;
           }
 
-          // Determine layer from folder structure
-          const layerFolder = this._getLayerFromFolder(track.audioUrl);
+          // Get the layer folder from the track
+          const layerFolder = track.layerFolder;
           
           // Skip tracks with invalid layer folder
           if (!layers[layerFolder]) {
