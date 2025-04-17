@@ -495,26 +495,25 @@ formatCollectionForPlayer(collection) {
       throw new Error('No valid audio tracks found in this collection');
     }
     
-    // Format cover image URL
-    const coverImage = collection.coverImage 
-      ? (collection.coverImage.startsWith('http') 
-          ? collection.coverImage 
-          : `${this.config.blobBaseUrl}${collection.coverImage.startsWith('/') ? '' : '/'}${collection.coverImage}`)
-      : null;
-    
-    console.log(`[CollectionService: formatCollectionForPlayer] Formatted ${formattedTrackCount} tracks across ${Object.keys(playerLayers).length} layers`);
-    
-    // Return the formatted collection
-    return {
+    // Format the collection for the player
+    const formattedCollection = {
       id: collection.id,
       name: collection.name,
       description: collection.description,
-      coverImage: coverImage,
+      coverImage: collection.coverImage && !collection.coverImage.startsWith('http')
+        ? `${this.config.blobBaseUrl}${collection.coverImage.startsWith('/') ? '' : '/'}${collection.coverImage}`
+        : collection.coverImage,
       metadata: collection.metadata,
       layers: playerLayers,
       // Keep the original tracks array for reference
       originalTracks: collection.tracks
     };
+    
+    console.log(`[CollectionService: formatCollectionForPlayer] Formatted ${formattedTrackCount} tracks across ${Object.keys(playerLayers).length} layers`);
+    console.log(`[CollectionService: formatCollectionForPlayer] Cover image URL: ${formattedCollection.coverImage}`);
+    
+    // Return the formatted collection
+    return formattedCollection;
   } catch (error) {
     console.error(`[CollectionService: formatCollectionForPlayer] Error: ${error.message}`);
     throw new Error(`Failed to format collection: ${error.message}`);

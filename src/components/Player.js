@@ -26,6 +26,7 @@ const Player = () => {
     presets,
     timelinePhases,
     playback,
+    currentCollection, 
   } = useAudio();
   
   // Local state for settings and UI
@@ -53,14 +54,58 @@ const Player = () => {
   const preventUpdateCycle = useRef(false);
   const settingsInitialized = useRef(false);
 
-   // Get the cover image URL from the collection info
-   const coverImageUrl = useMemo(() => {
-    if (collectionInfo && collectionInfo.coverImage) {
-      console.log("[Player] Using collection cover image:", collectionInfo.coverImage);
-      return collectionInfo.coverImage;
+     // Debug log for currentCollection
+  useEffect(() => {
+    console.log("[Player] Current collection changed:", currentCollection ? {
+      id: currentCollection.id,
+      name: currentCollection.name,
+      hasCover: !!currentCollection.coverImage,
+      coverImage: currentCollection.coverImage
+    } : "No collection loaded");
+  }, [currentCollection]);
+
+    // Get the cover image URL from the collection
+  const coverImageUrl = useMemo(() => {
+    console.log("[Player] Computing coverImageUrl from collection:", 
+      currentCollection ? {
+        id: currentCollection.id,
+        name: currentCollection.name,
+        coverImage: currentCollection.coverImage,
+        hasCover: !!currentCollection.coverImage,
+        layers: Object.keys(currentCollection.layers || {})
+      } : "No collection");
+    
+    if (!currentCollection) {
+      console.log("[Player] No collection available");
+      return null;
     }
-    return null; // Return null if no collection is loaded or no cover image is available
-  }, [collectionInfo]);
+    
+    if (!currentCollection.coverImage) {
+      console.log("[Player] Collection has no cover image:", currentCollection);
+      return null;
+    }
+    
+    console.log("[Player] Found cover image:", currentCollection.coverImage);
+    return currentCollection.coverImage;
+  }, [currentCollection]);
+  
+  // Log when currentCollection changes
+  useEffect(() => {
+    console.log("[Player] Current collection updated:", 
+      currentCollection ? {
+        id: currentCollection.id,
+        name: currentCollection.name,
+        hasCover: !!currentCollection.coverImage,
+        coverImage: currentCollection.coverImage,
+        layers: Object.keys(currentCollection.layers || {})
+      } : null
+    );
+  }, [currentCollection]);
+  
+  // Log when cover image URL changes
+  useEffect(() => {
+    console.log("[Player] Cover image URL updated:", coverImageUrl);
+  }, [coverImageUrl]);
 
   // Toggle debug panel with Ctrl+Shift+D
   useEffect(() => {
@@ -675,7 +720,7 @@ useEffect(() => {
         transitionDuration={transitionDuration}
         onTransitionDurationChange={handleTransitionDurationChange}
         ref={timelineComponentRef}
-        coverImageUrl={coverImageUrl}
+        coverImageUrl={currentCollection?.coverImage || null}
       />
       
       {/* Collapsible Section for Audio Layers */}

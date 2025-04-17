@@ -1366,9 +1366,12 @@ console.log(`[StreamingAudioContext: handleCrossfadeTo] Available tracks in audi
         }
         
         setCollectionLoadProgress(100);
-        setCurrentCollection(collection);
+        
+        // Set the current collection with the formatted data
+        setCurrentCollection(formattedCollection);
         
         console.log(`[StreamingAudioContext: handleLoadCollection] Successfully loaded collection: ${collection.name}`);
+        console.log(`[StreamingAudioContext: handleLoadCollection] Cover image URL: ${formattedCollection.coverImage}`);
         return true;
       } catch (formatError) {
         console.error(`[StreamingAudioContext: handleLoadCollection] Error formatting collection: ${formatError.message}`);
@@ -1779,7 +1782,7 @@ console.log(`[StreamingAudioContext: handleCrossfadeTo] Available tracks in audi
     isLoading, 
     loadingProgress, 
     isPlaying, 
-    volumes, // Make sure volumes is in dependencies
+    volumes,
     activeAudio, 
     audioLibrary,
     hasSwitchableAudio,
@@ -1804,7 +1807,6 @@ console.log(`[StreamingAudioContext: handleCrossfadeTo] Available tracks in audi
     progress,
     sessionDuration,
     transitionDuration,
-    
     
     // Timeline functions
     handleResetTimelineEventIndex,
