@@ -73,28 +73,19 @@ const PlayerControlPanel = React.forwardRef(({
       <div className={styles.visualizerSection}>
       {/* Conditionally render album art if available, otherwise show visualizer */}
       {shouldShowCoverImage ? (
-         <div className={styles.albumArtContainer}>
-         <img 
-           src={coverImageUrl} 
-           alt="Album Cover" 
-           className={styles.albumArt}
-           onLoad={() => console.log("[PlayerControlPanel] Cover image loaded successfully")}
-           onError={(e) => console.error("[PlayerControlPanel] Error loading cover image:", e)}
-         />
-         {/* Debug text to show in the UI */}
-         <div style={{position: 'absolute', bottom: 0, left: 0, background: 'rgba(0,0,0,0.5)', color: 'white', padding: '2px 5px', fontSize: '10px'}}>
-           Cover: {coverImageUrl.split('/').pop()}
-         </div>
-       </div>
-     ) : (
-       <>
-         <VisualizerContainer />
-         {/* Debug message when no cover image */}
-         <div style={{position: 'absolute', top: 0, left: 0, background: 'rgba(0,0,0,0.5)', color: 'white', padding: '2px 5px', fontSize: '10px'}}>
-           No cover image available
-         </div>
-       </>
-     )}
+  <div className={styles.albumArtContainer}>
+    <img 
+      src={coverImageUrl} 
+      alt="Album Cover" 
+      className={styles.albumArt}
+      onLoad={() => console.log("[PlayerControlPanel] Cover image loaded successfully")}
+      onError={(e) => console.error("[PlayerControlPanel] Error loading cover image:", e)}
+    />
+    {/* Remove the debug text in production, keep for development */}
+  </div>
+) : (
+  <VisualizerContainer />
+)}
    </div>
       
       <div className={styles.controlsSection}>
