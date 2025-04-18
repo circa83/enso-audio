@@ -1,5 +1,5 @@
 // src/components/audio/PlayerControlPanel.js
-import React, { memo, useCallback, useRef } from 'react';
+import React, { memo, useCallback, useRef, useEffect  } from 'react';
 import { useAudio } from '../../hooks/useAudio';
 import VisualizerContainer from './VisualizerContainer';
 import MasterVolumeControl from './MasterVolumeControl';
@@ -17,13 +17,42 @@ import styles from '../../styles/components/PlayerControlPanel.module.css';
 const PlayerControlPanel = React.forwardRef(({ 
   onDurationChange,
   transitionDuration,
-  onTransitionDurationChange
+  onTransitionDurationChange, 
+  coverImageUrl
 }, ref) => {
-  //console.log('[PlayerControlPanel] Component rendering');
+  // Enhanced logging with more details
+  console.log('[PlayerControlPanel] Rendering with props:', { 
+    hasCoverImageUrl: !!coverImageUrl,
+    coverImageUrl, 
+    coverImageUrlType: typeof coverImageUrl
+  });
   
   // Use our new hook with grouped API
-  const { playback } = useAudio();
- 
+  const { playback, currentCollection } = useAudio();
+
+  // Add debug logging for currentCollection - moved to top level
+  useEffect(() => {
+    console.log('[PlayerControlPanel] Current collection in context:', 
+      currentCollection ? {
+        id: currentCollection.id,
+        name: currentCollection.name,
+        hasCover: !!currentCollection.coverImage,
+        coverImage: currentCollection.coverImage,
+        coverImageType: typeof currentCollection.coverImage
+      } : 'None'
+    );
+  }, [currentCollection]);
+  
+  // Log when coverImageUrl changes - moved to top level
+  useEffect(() => {
+    console.log('[PlayerControlPanel] Cover image URL changed:', {
+      coverImageUrl,
+      isString: typeof coverImageUrl === 'string',
+      isEmpty: !coverImageUrl,
+      shouldShow: Boolean(coverImageUrl)
+    });
+  }, [coverImageUrl]);
+  
   // Handle play/pause with useCallback for optimization
   const togglePlayPause = useCallback(() => {
     console.log("[PlayerControlPanel] Play/Pause button clicked, current state:", playback.isPlaying);
@@ -36,11 +65,28 @@ const PlayerControlPanel = React.forwardRef(({
     }
   }, [playback]);
   
+  // Determine if we should show the cover image
+  const shouldShowCoverImage = Boolean(coverImageUrl);
+  
   return (
     <div className={styles.playerControlPanel}>
       <div className={styles.visualizerSection}>
-        <VisualizerContainer />
-      </div>
+      {/* Conditionally render album art if available, otherwise show visualizer */}
+      {shouldShowCoverImage ? (
+  <div className={styles.albumArtContainer}>
+    <img 
+      src={coverImageUrl} 
+      alt="Album Cover" 
+      className={styles.albumArt}
+      onLoad={() => console.log("[PlayerControlPanel] Cover image loaded successfully")}
+      onError={(e) => console.error("[PlayerControlPanel] Error loading cover image:", e)}
+    />
+    {/* Remove the debug text in production, keep for development */}
+  </div>
+) : (
+  <VisualizerContainer />
+)}
+   </div>
       
       <div className={styles.controlsSection}>
         <button 

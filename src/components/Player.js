@@ -18,15 +18,35 @@ import styles from '../styles/pages/Player.module.css';
  * @returns {JSX.Element} Rendered component
  */
 const Player = () => {
-
-  // Use our new hook with structured API approach
+  // Destructure more fields from useAudio for debugging
   const { 
     layers,
     timeline,
     presets,
     timelinePhases,
     playback,
+    currentCollection,
+    loadingCollection,
+    collectionError
   } = useAudio();
+  
+  // Add direct debug logging of what we receive from useAudio
+  console.log("[Player] DIRECT from useAudio:", {
+    hasCurrentCollection: !!currentCollection,
+    currentCollectionType: typeof currentCollection,
+    isLoadingCollection: loadingCollection,
+    hasCollectionError: !!collectionError,
+    coverImage: currentCollection?.coverImage
+  });
+  
+  if (currentCollection) {
+    console.log("[Player] Current collection details:", {
+      id: currentCollection.id,
+      name: currentCollection.name,
+      coverImage: currentCollection.coverImage,
+      coverImageType: typeof currentCollection.coverImage
+    });
+  }
   
   // Local state for settings and UI
   const [sessionDuration, setSessionDuration] = useState(1 * 60 * 1000); // Default 1 minute
@@ -53,6 +73,17 @@ const Player = () => {
   const preventUpdateCycle = useRef(false);
   const settingsInitialized = useRef(false);
 
+  // Debug log for currentCollection
+  useEffect(() => {
+    console.log("[Player] Current collection changed:", currentCollection ? {
+      id: currentCollection.id,
+      name: currentCollection.name,
+      hasCover: !!currentCollection.coverImage,
+      coverImage: currentCollection.coverImage,
+      coverImageType: typeof currentCollection.coverImage
+    } : "No collection loaded");
+  }, [currentCollection]);
+
   // Toggle debug panel with Ctrl+Shift+D
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -68,10 +99,9 @@ const Player = () => {
   
   // the session settings state object for the preset system
   const sessionSettingsState = useMemo(() => ({
-  
     sessionDuration,
     transitionDuration
-  }), [ sessionDuration, transitionDuration]);
+  }), [sessionDuration, transitionDuration]);
   
   // Register our session settings with the preset system
   useEffect(() => {
@@ -114,85 +144,83 @@ const Player = () => {
   }, [playback.isPlaying]);
 
   // Single initialization effect - replaces multiple effects
-useEffect(() => {
-  // Only run this initialization once
-  if (!settingsInitialized.current && timeline) {
-    console.log('Initializing timeline settings');
-    
-    // Set the flag to prevent recursive updates during initialization
-    preventUpdateCycle.current = true;
-    
-    try {
-      // Initialize timeline duration
-      if (timeline.setDuration) {
-        console.log('Setting initial timeline duration:', sessionDuration);
-        timeline.setDuration(sessionDuration);
+  useEffect(() => {
+    // Only run this initialization once
+    if (!settingsInitialized.current && timeline) {
+      console.log('Initializing timeline settings');
+      
+      // Set the flag to prevent recursive updates during initialization
+      preventUpdateCycle.current = true;
+      
+      try {
+        // Initialize timeline duration
+        if (timeline.setDuration) {
+          console.log('Setting initial timeline duration:', sessionDuration);
+          timeline.setDuration(sessionDuration);
+        }
+        
+        // Initialize transition duration
+        if (timeline.setTransitionDuration) {
+          console.log('Setting initial transition duration:', transitionDuration);
+          timeline.setTransitionDuration(transitionDuration);
+        }
+        
+        // Mark as initialized
+        settingsInitialized.current = true;
+      } finally {
+        // Reset the prevention flag after a small delay
+        setTimeout(() => {
+          preventUpdateCycle.current = false;
+          console.log('Initialization complete, allowing updates');
+        }, 100);
       }
-      
-      // Initialize transition duration
-      if (timeline.setTransitionDuration) {
-        console.log('Setting initial transition duration:', transitionDuration);
-        timeline.setTransitionDuration(transitionDuration);
-      }
-      
-    
-      
-      // Mark as initialized
-      settingsInitialized.current = true;
-    } finally {
-      // Reset the prevention flag after a small delay
-      setTimeout(() => {
-        preventUpdateCycle.current = false;
-        console.log('Initialization complete, allowing updates');
-      }, 100);
     }
-  }
-}, [timeline, sessionDuration, transitionDuration]);
+  }, [timeline, sessionDuration, transitionDuration]);
 
-// Event listening effect for external updates
-useEffect(() => {
-  // Handler for external timeline settings updates
-  const handleExternalUpdate = (event) => {
-    // Skip if we're preventing update cycles
-    if (preventUpdateCycle.current) {
-      console.log('Ignoring external update during prevention period');
-      return;
-    }
-    
-    const data = event.detail;
-    console.log('Received external timeline settings update:', data);
-    
-    // Set the flag to prevent recursive updates
-    preventUpdateCycle.current = true;
-    
-    try {
-      // Update our local state to match external changes
-      if (data.sessionDuration) {
-        setSessionDuration(data.sessionDuration);
+  // Event listening effect for external updates
+  useEffect(() => {
+    // Handler for external timeline settings updates
+    const handleExternalUpdate = (event) => {
+      // Skip if we're preventing update cycles
+      if (preventUpdateCycle.current) {
+        console.log('Ignoring external update during prevention period');
+        return;
       }
       
-      if (data.transitionDuration) {
-        setTransitionDuration(data.transitionDuration);
-      }
+      const data = event.detail;
+      console.log('Received external timeline settings update:', data);
       
-    } finally {
-      // Reset the prevention flag after a delay
-      setTimeout(() => {
-        preventUpdateCycle.current = false;
-        console.log('External update handling complete');
-      }, 100);
-    }
-  };
-  
-  // Add event listeners for external updates
-  window.addEventListener('timeline-settings-update', handleExternalUpdate);
-  window.addEventListener('sessionSettings-update', handleExternalUpdate);
-  
-  return () => {
-    window.removeEventListener('timeline-settings-update', handleExternalUpdate);
-    window.removeEventListener('sessionSettings-update', handleExternalUpdate);
-  };
-}, []);
+      // Set the flag to prevent recursive updates
+      preventUpdateCycle.current = true;
+      
+      try {
+        // Update our local state to match external changes
+        if (data.sessionDuration) {
+          setSessionDuration(data.sessionDuration);
+        }
+        
+        if (data.transitionDuration) {
+          setTransitionDuration(data.transitionDuration);
+        }
+        
+      } finally {
+        // Reset the prevention flag after a delay
+        setTimeout(() => {
+          preventUpdateCycle.current = false;
+          console.log('External update handling complete');
+        }, 100);
+      }
+    };
+    
+    // Add event listeners for external updates
+    window.addEventListener('timeline-settings-update', handleExternalUpdate);
+    window.addEventListener('sessionSettings-update', handleExternalUpdate);
+    
+    return () => {
+      window.removeEventListener('timeline-settings-update', handleExternalUpdate);
+      window.removeEventListener('sessionSettings-update', handleExternalUpdate);
+    };
+  }, []);
 
 
   //======= Timeline settings handlers=====
@@ -659,18 +687,29 @@ useEffect(() => {
 
   return (
     <div className={styles.simplePlayer}>
-      {/* <h1 className={styles.title}>Ensō Audio</h1>
+      {/* Show loading state if collection is loading */}
+      {loadingCollection && (
+        <div className={styles.loadingContainer}>
+          <div className={styles.loadingSpinner}></div>
+          <p>Loading collection...</p>
+        </div>
+      )}
       
-      <div className={styles.sessionDescription}>
-        Adjust audio layers in real-time to guide the therapeutic journey
-      </div> */}
-      
+      {/* Show error message if collection failed to load */}
+      {collectionError && !loadingCollection && (
+        <div className={styles.errorMessage}>
+          <h3>Failed to load collection</h3>
+          <p>{collectionError}</p>
+        </div>
+      )}
+    
       {/* Main player and controls */}
       <PlayerControlPanel 
         onDurationChange={handleDurationChange}
         transitionDuration={transitionDuration}
         onTransitionDurationChange={handleTransitionDurationChange}
         ref={timelineComponentRef}
+        coverImageUrl={currentCollection?.coverImage || null}
       />
       
       {/* Collapsible Section for Audio Layers */}
@@ -680,17 +719,7 @@ useEffect(() => {
       >
         {renderLayerControls()}
       </CollapsibleSection>
-          
-      {/* Collapsible Section for Session Settings */}
-        {/* <CollapsibleSection 
-        title="Session Settings" 
-        initialExpanded={false}
-      >
-        {renderSessionSettings()}
-      </CollapsibleSection>
-      */}
       
-        {/* <CollapsibleSection 
       {/* Collapsible Section for Presets */}
       <CollapsibleSection 
         title="Presets" 

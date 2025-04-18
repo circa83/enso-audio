@@ -1,6 +1,6 @@
 /* src/styles/components/SessionTimer.module.css */
 .sessionTimer {
-  margin-top: 40px;
+  margin-top: 10px;
   text-align: center;
   display: flex;
   flex-direction: column;

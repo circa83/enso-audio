@@ -10,7 +10,7 @@ import styles from '../../styles/components/LayerControl.module.css';
  * 
  * @param {Object} props Component props
  * @param {string} props.label Display label for the layer
- * @param {string} props.layer Layer identifier (e.g., 'drone', 'melody')
+ * @param {string} props.layer Layer identifier (e.g., 'Layer_1', 'Layer_2')
  * @returns {JSX.Element} Rendered component
  */
 const LayerControl = ({ label, layer }) => {
@@ -20,8 +20,8 @@ const LayerControl = ({ label, layer }) => {
   // Track mounting state with useRef (doesn't cause re-renders)
   const isMounted = useRef(false);
   
-  // Get normalized layer key (lowercase)
-  const layerKey = layer.toLowerCase();
+  // Get normalized layer key (should already be in correct format)
+  const layerKey = layer;
   
   // Current volume for this layer
   const currentVolume = volume.layers[layerKey] || 0;

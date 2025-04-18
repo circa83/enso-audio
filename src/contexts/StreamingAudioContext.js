@@ -1,21 +1,26 @@
 // src/contexts/StreamingAudioContext.js
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createAudioServices } from '../services/audio';
+import CollectionService from '../services/CollectionService';
+import AudioFileService from '../services/AudioFileService';
+import { useCollections } from '../hooks/useCollections';
+import { mapCollectionToLayers } from '../utils/collectionUtils';
+
 
 // Define our audio layers as a frozen object to prevent modifications
 const LAYERS = Object.freeze({
-  DRONE: 'drone',
-  MELODY: 'melody',
-  RHYTHM: 'rhythm',
-  NATURE: 'nature'
+  Layer_1: 'Layer 1',
+  Layer_2: 'Layer 2',
+  Layer_3: 'Layer 3',
+  Layer_4: 'Layer 4'
 });
 
 // Default audio files for each layer
 const DEFAULT_AUDIO = Object.freeze({
-  [LAYERS.DRONE]: '/samples/default/drone.mp3',
-  [LAYERS.MELODY]: '/samples/default/melody.mp3',
-  [LAYERS.RHYTHM]: '/samples/default/rhythm.mp3',
-  [LAYERS.NATURE]: '/samples/default/nature.mp3'
+  [LAYERS.Layer_1]: '/samples/default/drone.mp3',
+  [LAYERS.Layer_2]: '/samples/default/melody.mp3',
+  [LAYERS.Layer_3]: '/samples/default/rhythm.mp3',
+  [LAYERS.Layer_4]: '/samples/default/nature.mp3'
 });
 
 // Create the context
@@ -33,7 +38,7 @@ export const useAudio = () => {
 };
 
 export const AudioProvider = ({ children }) => {
-  // Service references - using a ref to avoid re-renders when updating services
+  // Service references
   const serviceRef = useRef({
     audioCore: null,
     bufferManager: null,
@@ -43,8 +48,15 @@ export const AudioProvider = ({ children }) => {
     timelineEngine: null,
     presetManager: null
   });
-  const activeAudioRef = useRef({}); // To keep track of active audio elements without causing re-renders 
 
+  // Collection services
+  const collectionService = useMemo(() => new CollectionService({
+    enableLogging: true
+  }), []);
+
+  const audioFileService = useMemo(() => new AudioFileService({
+    enableLogging: true
+  }), []);
 
   // Loading state
   const [isLoading, setIsLoading] = useState(true);
@@ -59,43 +71,44 @@ export const AudioProvider = ({ children }) => {
   
   // Layer volumes
   const [volumes, setVolumes] = useState({
-    [LAYERS.DRONE]: 0.25,
-    [LAYERS.MELODY]: 0.0,
-    [LAYERS.RHYTHM]: 0.0,
-    [LAYERS.NATURE]: 0.0
+    [LAYERS.Layer_1]: 0.25,
+    [LAYERS.Layer_2]: 0.0,
+    [LAYERS.Layer_3]: 0.0,
+    [LAYERS.Layer_4]: 0.0
   });
   
   // Track currently active audio elements for each layer
   const [activeAudio, setActiveAudio] = useState({});
+  const activeAudioRef = useRef({});
   
   // Audio library - will store available tracks for each layer
   const [audioLibrary, setAudioLibrary] = useState({
-    [LAYERS.DRONE]: [],
-    [LAYERS.MELODY]: [],
-    [LAYERS.RHYTHM]: [],
-    [LAYERS.NATURE]: []
+    [LAYERS.Layer_1]: [],
+    [LAYERS.Layer_2]: [],
+    [LAYERS.Layer_3]: [],
+    [LAYERS.Layer_4]: []
   });
  
   const audioLibraryRef = useRef({
-    [LAYERS.DRONE]: [{
-      id: `${LAYERS.DRONE}1`,
-      name: `${LAYERS.DRONE.charAt(0).toUpperCase() + LAYERS.DRONE.slice(1)}`,
-      path: DEFAULT_AUDIO[LAYERS.DRONE]
+    [LAYERS.Layer_1]: [{
+      id: `${LAYERS.Layer_1}1`,
+      name: `${LAYERS.Layer_1.charAt(0).toUpperCase() + LAYERS.Layer_1.slice(1)}`,
+      path: DEFAULT_AUDIO[LAYERS.Layer_1]
     }],
-    [LAYERS.MELODY]: [{
-      id: `${LAYERS.MELODY}1`,
-      name: `${LAYERS.MELODY.charAt(0).toUpperCase() + LAYERS.MELODY.slice(1)}`,
-      path: DEFAULT_AUDIO[LAYERS.MELODY]
+    [LAYERS.Layer_2]: [{
+      id: `${LAYERS.Layer_2}1`,
+      name: `${LAYERS.Layer_2.charAt(0).toUpperCase() + LAYERS.Layer_2.slice(1)}`,
+      path: DEFAULT_AUDIO[LAYERS.Layer_2]
     }],
-    [LAYERS.RHYTHM]: [{
-      id: `${LAYERS.RHYTHM}1`,
-      name: `${LAYERS.RHYTHM.charAt(0).toUpperCase() + LAYERS.RHYTHM.slice(1)}`,
-      path: DEFAULT_AUDIO[LAYERS.RHYTHM]
+    [LAYERS.Layer_3]: [{
+      id: `${LAYERS.Layer_3}1`,
+      name: `${LAYERS.Layer_3.charAt(0).toUpperCase() + LAYERS.Layer_3.slice(1)}`,
+      path: DEFAULT_AUDIO[LAYERS.Layer_3]
     }],
-    [LAYERS.NATURE]: [{
-      id: `${LAYERS.NATURE}1`, 
-      name: `${LAYERS.NATURE.charAt(0).toUpperCase() + LAYERS.NATURE.slice(1)}`,
-      path: DEFAULT_AUDIO[LAYERS.NATURE]
+    [LAYERS.Layer_4]: [{
+      id: `${LAYERS.Layer_4}1`, 
+      name: `${LAYERS.Layer_4.charAt(0).toUpperCase() + LAYERS.Layer_4.slice(1)}`,
+      path: DEFAULT_AUDIO[LAYERS.Layer_4]
     }]
   });
  
@@ -122,6 +135,61 @@ export const AudioProvider = ({ children }) => {
   // Preset management
   const [presets, setPresets] = useState({});
   const stateProviders = useRef({});
+
+   // Collection state
+   const [currentCollection, setCurrentCollection] = useState(null);
+   const [loadingCollection, setLoadingCollection] = useState(false);
+   const [collectionError, setCollectionError] = useState(null);
+   const [collectionLoadProgress, setCollectionLoadProgress] = useState(0);
+
+  // Initialize collection hooks
+  const { 
+    collections,
+    isLoading: isLoadingCollections,
+    error: collectionsError,
+    loadCollections,
+    getCollection: fetchCollection
+  } = useCollections({ 
+    loadOnMount: false // Change to false to prevent automatic loading
+  });
+
+  // Use a ref to track if collections have been loaded
+  const collectionsLoadedRef = useRef(false);
+
+  // Load collections on mount using useEffect with error handling
+  useEffect(() => {
+    let isMounted = true;
+    let retryCount = 0;
+    const maxRetries = 3;
+    const retryDelay = 1000; // 1 second
+
+    const loadInitialCollections = async () => {
+      if (!isMounted || collectionsLoadedRef.current) return;
+
+      try {
+        await loadCollections();
+        collectionsLoadedRef.current = true;
+      } catch (error) {
+        console.error('Error loading initial collections:', error);
+        
+        // Retry with exponential backoff
+        if (retryCount < maxRetries) {
+          retryCount++;
+          const delay = retryDelay * Math.pow(2, retryCount - 1);
+          console.log(`Retrying collection load in ${delay}ms (attempt ${retryCount}/${maxRetries})`);
+          setTimeout(loadInitialCollections, delay);
+        } else {
+          console.error('Max retries reached for loading collections');
+        }
+      }
+    };
+    
+    loadInitialCollections();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [loadCollections]); // Only run once on mount
 
   // Initialize services - Only run once on mount
   useEffect(() => {
@@ -256,6 +324,8 @@ export const AudioProvider = ({ children }) => {
     }
   }, [masterVolume]);
   
+
+
   // Initialize audio elements with default tracks
   const initializeDefaultAudio = useCallback(async () => {
     const { audioCore, volumeController } = serviceRef.current;
@@ -766,212 +836,182 @@ const handlePauseSession = useCallback(() => {
   }, [audioLibrary]);
 
   // Crossfade between audio tracks
-const handleCrossfadeTo = useCallback(async (layer, newTrackId, fadeDuration = null) => {
-  console.log(`Starting crossfade process for ${layer}: ${newTrackId}`);
-  const actualDuration = fadeDuration !== null ? fadeDuration : transitionDuration;
-  
-  // Verify we have what we need
-  if (!serviceRef.current.audioCore || 
-      !serviceRef.current.volumeController || 
-      !serviceRef.current.crossfadeEngine) {
-    console.error("Cannot crossfade: missing required services");
-    return false;
-  }
-  
-  const audioCtx = serviceRef.current.audioCore.getContext();
-  const masterGain = serviceRef.current.audioCore.getMasterGain();
-
-  // Get the audio elements
-  const audioElements = serviceRef.current.audioCore.getElements?.() || {};
-  console.log("Audio elements retrieved:", audioElements);
-
- // Get the current active track ID with improved reliability
- const currentTrackId = (() => {
-  // First try from activeAudio state
-  const stateTrackId = activeAudio[layer];
-  
-  // Second try from activeAudioRef (more up-to-date than state during transitions)
-  const refTrackId = activeAudioRef.current[layer];
-  
-  // If either is valid, use it
-  if (stateTrackId) {
-    console.log(`Using current track for ${layer} from state: ${stateTrackId}`);
-    return stateTrackId;
-  }
-  
-  if (refTrackId) {
-    console.log(`Using current track for ${layer} from ref: ${refTrackId}`);
-    return refTrackId;
-  }
-  
-  // If neither is valid, try to recover from audio elements
-  const layerElements = audioElements[layer] || {};
-  const activeTrackEntry = Object.entries(layerElements).find(([id, data]) => data?.isActive);
-  
-  if (activeTrackEntry) {
-    console.log(`Recovered current track for ${layer} from audio elements: ${activeTrackEntry[0]}`);
-    return activeTrackEntry[0];
-  }
-  
-  // Last resort - use the first track from the library or default pattern
-  if (audioLibrary[layer]?.length > 0) {
-    const defaultTrackId = audioLibrary[layer][0].id;
-    console.log(`No active track found for ${layer}, using first from library: ${defaultTrackId}`);
-    return defaultTrackId;
-  }
-  
-  // Absolute fallback
-  const fallbackId = `${layer}1`;
-  console.log(`No tracks found in library for ${layer}, using fallback ID: ${fallbackId}`);
-  return fallbackId;
-})();
-
-console.log(`Current track for ${layer}: ${currentTrackId}`);
-
-
-
-   // CRITICAL: Ensure the audio library is populated - sync from ref if needed
-   if (!audioLibrary[layer] || audioLibrary[layer].length === 0) {
-    console.log(`Proactively syncing audio library for ${layer} from reference`);
-    if (audioLibraryRef.current[layer] && audioLibraryRef.current[layer].length > 0) {
-      // Update the audio library state
-      setAudioLibrary(prevLibrary => {
-        const updated = {...prevLibrary};
-        updated[layer] = [...audioLibraryRef.current[layer]];
-        console.log(`Synchronized audio library for ${layer}:`, updated[layer]);
-        return updated;
-      });
-    }
-  }
-
-  // Skip if already playing requested track
-  if (currentTrackId === newTrackId) {
-    console.log(`Already playing ${newTrackId} on ${layer}`);
-    return true;
-  }
-
-  // Find the target track in library
-  let libraryTrack = null;
-  
-  // Try to find in current library state
-  if (audioLibrary[layer]) {
-    libraryTrack = audioLibrary[layer].find(t => t.id === newTrackId);
-  }
-  
-  // If not found, try ref backup
-  if (!libraryTrack && audioLibraryRef.current[layer]) {
-    libraryTrack = audioLibraryRef.current[layer].find(t => t.id === newTrackId);
+  const handleCrossfadeTo = useCallback(async (layer, newTrackId, fadeDuration = null) => {
+    console.log(`Starting crossfade process for ${layer}: ${newTrackId}`);
+    const actualDuration = fadeDuration !== null ? fadeDuration : transitionDuration;
     
-    // If found in ref but not in state, update state
-    if (libraryTrack) {
-      console.log(`Found track ${newTrackId} in backup library reference but not in state, updating state`);
-      setAudioLibrary(prevLibrary => {
-        const updated = {...prevLibrary};
+    // Verify we have what we need
+    if (!serviceRef.current.audioCore || 
+        !serviceRef.current.volumeController || 
+        !serviceRef.current.crossfadeEngine) {
+      console.error("Cannot crossfade: missing required services");
+      return false;
+    }
+    
+    const audioCtx = serviceRef.current.audioCore.getContext();
+    const masterGain = serviceRef.current.audioCore.getMasterGain();
+
+    // Get the audio elements
+    const audioElements = serviceRef.current.audioCore.getElements?.() || {};
+    console.log("Audio elements retrieved:", audioElements);
+
+    // Get the current active track ID with improved reliability
+    const currentTrackId = (() => {
+      // First try from activeAudio state
+      const stateTrackId = activeAudio[layer];
+      
+      // Second try from activeAudioRef (more up-to-date than state during transitions)
+      const refTrackId = activeAudioRef.current[layer];
+      
+      // If either is valid, use it
+      if (stateTrackId) {
+        console.log(`Using current track for ${layer} from state: ${stateTrackId}`);
+        return stateTrackId;
+      }
+      
+      if (refTrackId) {
+        console.log(`Using current track for ${layer} from ref: ${refTrackId}`);
+        return refTrackId;
+      }
+      
+      // If neither is valid, try to recover from audio elements
+      const layerElements = audioElements[layer] || {};
+      const activeTrackEntry = Object.entries(layerElements).find(([id, data]) => data?.isActive);
+      
+      if (activeTrackEntry) {
+        console.log(`Recovered current track for ${layer} from audio elements: ${activeTrackEntry[0]}`);
+        return activeTrackEntry[0];
+      }
+      
+      // Last resort - use the first track from the library or default pattern
+      if (audioLibrary[layer]?.length > 0) {
+        const defaultTrackId = audioLibrary[layer][0].id;
+        console.log(`No active track found for ${layer}, using first from library: ${defaultTrackId}`);
+        return defaultTrackId;
+      }
+      
+      // Absolute fallback
+      const fallbackId = `${layer}1`;
+      console.log(`No tracks found in library for ${layer}, using fallback ID: ${fallbackId}`);
+      return fallbackId;
+    })();
+
+    console.log(`Current track for ${layer}: ${currentTrackId}`);
+
+    // CRITICAL: Ensure the audio library is populated - sync from ref if needed
+    if (!audioLibrary[layer] || audioLibrary[layer].length === 0) {
+      console.log(`Proactively syncing audio library for ${layer} from reference`);
+      if (audioLibraryRef.current[layer] && audioLibraryRef.current[layer].length > 0) {
+        // Update the audio library state
+        setAudioLibrary(prevLibrary => {
+          const updated = {...prevLibrary};
+          updated[layer] = [...audioLibraryRef.current[layer]];
+          console.log(`Synchronized audio library for ${layer}:`, updated[layer]);
+          return updated;
+        });
+      }
+    }
+
+    // Skip if already playing requested track
+    if (currentTrackId === newTrackId) {
+      console.log(`Already playing ${newTrackId} on ${layer}`);
+      return true;
+    }
+
+    // Find the target track in library
+    let libraryTrack = null;
+    
+    // Try to find in current library state
+    if (audioLibrary[layer]) {
+      libraryTrack = audioLibrary[layer].find(t => t.id === newTrackId);
+    }
+    
+    // If not found, try ref backup
+    if (!libraryTrack && audioLibraryRef.current[layer]) {
+      libraryTrack = audioLibraryRef.current[layer].find(t => t.id === newTrackId);
+      
+      // If found in ref but not in state, update state
+      if (libraryTrack) {
+        console.log(`Found track ${newTrackId} in backup library reference but not in state, updating state`);
+        setAudioLibrary(prevLibrary => {
+          const updated = {...prevLibrary};
+          if (!updated[layer]) updated[layer] = [];
+          if (!updated[layer].some(t => t.id === newTrackId)) {
+            updated[layer] = [...updated[layer], libraryTrack];
+          }
+          return updated;
+        });
+      }
+    }
+
+    // If still not found, create a fallback
+    if (!libraryTrack) {
+      console.log(`Track ${newTrackId} not found in any library source for layer ${layer}, creating fallback`);
+      
+      // Create a fallback track
+      libraryTrack = {
+        id: newTrackId,
+        name: newTrackId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        path: DEFAULT_AUDIO[layer] // Use the default audio path
+      };
+      
+      // Add to audio library
+      setAudioLibrary(prev => {
+        const updated = {...prev};
         if (!updated[layer]) updated[layer] = [];
+        
+        // Add track if it doesn't exist
         if (!updated[layer].some(t => t.id === newTrackId)) {
           updated[layer] = [...updated[layer], libraryTrack];
         }
+        
         return updated;
       });
     }
-  }
+    // Update the logging for better debugging (around line 1530-1540)
+console.log(`[StreamingAudioContext: handleCrossfadeTo] Starting crossfade for ${layer} to track ${newTrackId}`);
+console.log(`[StreamingAudioContext: handleCrossfadeTo] Available tracks in audioLibrary for ${layer}:`, 
+  audioLibrary[layer] ? audioLibrary[layer].map(t => `${t.id} (${t.name})`).join(', ') : 'None'
+);
 
-  // If still not found, create a fallback
-  if (!libraryTrack) {
-    console.log(`Track ${newTrackId} not found in any library source for layer ${layer}, creating fallback`);
-    
-    // Create a fallback track
-    libraryTrack = {
-      id: newTrackId,
-      name: newTrackId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-      path: DEFAULT_AUDIO[layer] // Use the default audio path
-    };
-    
-    // Add to audio library
-    setAudioLibrary(prev => {
-      const updated = {...prev};
-      if (!updated[layer]) updated[layer] = [];
+    // Get or create the target track's audio elements
+    let newTrackElements = audioElements[layer]?.[newTrackId];
+
+    // Create the new track if it doesn't exist yet
+    if (!newTrackElements) {
+      console.log(`[StreamingAudioContext: handleCrossfadeTo] Creating new audio element for ${layer}/${newTrackId} with path ${libraryTrack.path}`);
+      const audioElement = new Audio();
+      audioElement.preload = "auto";
+      audioElement.loop = true;
+      audioElement.src = libraryTrack.path;
+      audioElement.crossOrigin = "anonymous"; // Ensure CORS is set for remote files
       
-      // Add track if it doesn't exist
-      if (!updated[layer].some(t => t.id === newTrackId)) {
-        updated[layer] = [...updated[layer], libraryTrack];
+      // Create source node
+      const source = audioCtx.createMediaElementSource(audioElement);
+      
+      // Connect to VolumeController
+      serviceRef.current.volumeController.connectToLayer(layer, source, masterGain);
+      
+      // Store the new track
+      newTrackElements = {
+        element: audioElement,
+        source: source,
+        track: libraryTrack,
+        isActive: false
+      };
+      
+      // Update audio elements in AudioCore if it supports it
+      if (serviceRef.current.audioCore.updateElement) {
+        console.log(`[StreamingAudioContext: handleCrossfadeTo] Registering new element with AudioCore: ${layer}/${newTrackId}`);
+        serviceRef.current.audioCore.updateElement(layer, newTrackId, newTrackElements);
       }
-      
-      return updated;
-    });
-  }
-
-  // Get or create the target track's audio elements
-  let newTrackElements = audioElements[layer]?.[newTrackId];
-
-  // Create the new track if it doesn't exist yet
-  if (!newTrackElements) {
-    console.log(`Creating new audio element for ${layer}/${newTrackId} with path ${libraryTrack.path}`);
-    const audioElement = new Audio();
-    audioElement.preload = "auto";
-    audioElement.loop = true;
-    audioElement.src = libraryTrack.path;
-    
-    // Create source node
-    const source = audioCtx.createMediaElementSource(audioElement);
-    
-    // Connect to VolumeController
-    serviceRef.current.volumeController.connectToLayer(layer, source, masterGain);
-    
-    // Store the new track
-    newTrackElements = {
-      element: audioElement,
-      source: source,
-      track: libraryTrack,
-      isActive: false
-    };
-    
-    // Update audio elements in AudioCore if it supports it
-    if (serviceRef.current.audioCore.updateElement) {
-      serviceRef.current.audioCore.updateElement(layer, newTrackId, newTrackElements);
     }
-  }
 
-  // If we're not playing or have no current track, do an immediate switch
-  if (!isPlayingRef.current || !currentTrackId) {
-    console.log(`Not currently playing or no current track, using immediate switch instead of crossfade`);
-    
-    // Update active audio state immediately
-    setActiveAudio(prev => {
-      const updated = {
-        ...prev,
-        [layer]: newTrackId
-      };
-      // Also update the ref for immediate access
-      activeAudioRef.current = {
-        ...activeAudioRef.current,
-        [layer]: newTrackId
-      };
-      return updated;
-    });
-    
-    console.log(`Immediate switch to ${newTrackId} successful for ${layer}`);
-    return true;
-  }
-
-  // Get the current track elements with improved error handling
-  let currentTrack = audioElements[layer]?.[currentTrackId];
-  
-  // Handle case where current track elements are missing but should exist
-  if (!currentTrack) {
-    console.log(`Current track ${currentTrackId} not found in audio elements, attempting recovery`);
-    
-    // Try to find any active element for this layer as a fallback
-    const activeElement = Object.values(audioElements[layer] || {}).find(elem => elem.isActive);
-    
-    if (activeElement) {
-      console.log(`Found active element for ${layer}, using as current track`);
-      currentTrack = activeElement;
-    } else {
-      // If no active element found, create one for immediate switch
-      console.log(`No active elements found for ${layer}, switching immediately to new track`);
+    // If we're not playing or have no current track, do an immediate switch
+    if (!isPlayingRef.current || !currentTrackId) {
+      console.log(`Not currently playing or no current track, using immediate switch instead of crossfade`);
       
-      // Update active audio state
+      // Update active audio state immediately
       setActiveAudio(prev => {
         const updated = {
           ...prev,
@@ -985,86 +1025,165 @@ console.log(`Current track for ${layer}: ${currentTrackId}`);
         return updated;
       });
       
-      // Play the new track directly if we're playing
-      if (isPlayingRef.current && newTrackElements?.element) {
-        newTrackElements.element.currentTime = 0;
-        try {
-          await newTrackElements.element.play();
-        } catch (e) {
-          console.error(`Error playing new track: ${e.message}`);
-        }
-      }
-      
+      console.log(`Immediate switch to ${newTrackId} successful for ${layer}`);
       return true;
     }
-  }
+
+    // Get the current track elements with improved error handling
+    let currentTrack = audioElements[layer]?.[currentTrackId];
+    
+    // Handle case where current track elements are missing but should exist
+    if (!currentTrack) {
+      console.log(`Current track ${currentTrackId} not found in audio elements, attempting recovery`);
+      
+      // Try to find any active element for this layer as a fallback
+      const activeElement = Object.values(audioElements[layer] || {}).find(elem => elem.isActive);
+      
+      if (activeElement) {
+        console.log(`Found active element for ${layer}, using as current track`);
+        currentTrack = activeElement;
+      } else {
+        // If no active element found, create one for immediate switch
+        console.log(`No active elements found for ${layer}, switching immediately to new track`);
+        
+        // Update active audio state
+        setActiveAudio(prev => {
+          const updated = {
+            ...prev,
+            [layer]: newTrackId
+          };
+          // Also update the ref for immediate access
+          activeAudioRef.current = {
+            ...activeAudioRef.current,
+            [layer]: newTrackId
+          };
+          return updated;
+        });
+        
+        // Play the new track directly if we're playing
+        if (isPlayingRef.current && newTrackElements?.element) {
+          newTrackElements.element.currentTime = 0;
+          try {
+            await newTrackElements.element.play();
+          } catch (e) {
+            console.error(`Error playing new track: ${e.message}`);
+          }
+        }
+        
+        return true;
+      }
+    }
 
     // Start a crossfade using the CrossfadeEngine
   
-  // First, update UI to show we're preparing for crossfade
-  setActiveCrossfades(prev => ({
-    ...prev,
-    [layer]: { 
-      from: currentTrackId,
-      to: newTrackId,
-      progress: 0,
-      isLoading: true 
-    }
-  }));
-  
-  // Update active track state - do this before the crossfade
-  setActiveAudio(prev => {
-    const updated = {
+    // First, update UI to show we're preparing for crossfade
+    setActiveCrossfades(prev => ({
       ...prev,
-      [layer]: newTrackId
-    };
-    // Also update the ref for immediate access
-    activeAudioRef.current = {
-      ...activeAudioRef.current,
-      [layer]: newTrackId
-    };
-    return updated;
-  });
-  
-  // Update UI - now loading is complete
-  setActiveCrossfades(prev => ({
-    ...prev,
-    [layer]: { 
-      ...prev[layer],
-      isLoading: false 
-    }
-  }));
-  
-  // Get the current volume for the layer
-  const currentVolume = serviceRef.current.volumeController.getVolume(layer);
-  
-  // Prepare crossfade options
-  const crossfadeOptions = {
-    layer,
-    sourceNode: currentTrack.source,
-    sourceElement: currentTrack.element,
-    targetNode: newTrackElements.source,
-    targetElement: newTrackElements.element,
-    currentVolume: currentVolume,
-    duration: actualDuration,
-    syncPosition: true,
-    metadata: {
-      fromTrackId: currentTrackId,
-      toTrackId: newTrackId,
-      volumeController: serviceRef.current.volumeController
-    }
-  };
+      [layer]: { 
+        from: currentTrackId,
+        to: newTrackId,
+        progress: 0,
+        isLoading: true 
+      }
+    }));
     
-  try {
-    // Execute the crossfade with the CrossfadeEngine
-    const success = await serviceRef.current.crossfadeEngine.crossfade(crossfadeOptions);
+    // Update active track state - do this before the crossfade
+    setActiveAudio(prev => {
+      const updated = {
+        ...prev,
+        [layer]: newTrackId
+      };
+      // Also update the ref for immediate access
+      activeAudioRef.current = {
+        ...activeAudioRef.current,
+        [layer]: newTrackId
+      };
+      return updated;
+    });
     
-    // When crossfade completes, check if successful
-    if (!success) {
-      console.error(`Crossfade failed for ${layer}`);
+    // Update UI - now loading is complete
+    setActiveCrossfades(prev => ({
+      ...prev,
+      [layer]: { 
+        ...prev[layer],
+        isLoading: false 
+      }
+    }));
+    
+    // Get the current volume for the layer
+    const currentVolume = serviceRef.current.volumeController.getVolume(layer);
+    
+    // Prepare crossfade options
+    const crossfadeOptions = {
+      layer,
+      sourceNode: currentTrack.source,
+      sourceElement: currentTrack.element,
+      targetNode: newTrackElements.source,
+      targetElement: newTrackElements.element,
+      currentVolume: currentVolume,
+      duration: actualDuration,
+      syncPosition: true,
+      metadata: {
+        fromTrackId: currentTrackId,
+        toTrackId: newTrackId,
+        volumeController: serviceRef.current.volumeController
+      }
+    };
       
-      // Clear the UI state
+    try {
+      // Execute the crossfade with the CrossfadeEngine
+      const success = await serviceRef.current.crossfadeEngine.crossfade(crossfadeOptions);
+      
+      // When crossfade completes, check if successful
+      if (!success) {
+        console.error(`Crossfade failed for ${layer}`);
+        
+        // Clear the UI state
+        setActiveCrossfades(prev => {
+          const newState = {...prev};
+          delete newState[layer];
+          return newState;
+        });
+        
+        return false;
+      }
+      
+      // After successful crossfade, ensure the node is properly connected
+      if (serviceRef.current.volumeController && newTrackElements && newTrackElements.source) {
+        serviceRef.current.volumeController.connectToLayer(
+          layer, 
+          newTrackElements.source, 
+          serviceRef.current.audioCore.getMasterGain()
+        );
+      }
+      
+      // Clear the crossfade UI state when complete
       setActiveCrossfades(prev => {
+        const newState = {...prev};
+        delete newState[layer];
+        return newState;
+      });
+      
+      setCrossfadeProgress(prev => {
+        const newState = {...prev};
+        delete newState[layer];
+        return newState;
+      });
+      
+      console.log(`Crossfade complete for ${layer}: ${currentTrackId} -> ${newTrackId}`);
+      return true;
+      
+    } catch (error) {
+      console.error(`Error during crossfade: ${error.message}`);
+      
+      // Clear UI state
+      setActiveCrossfades(prev => {
+        const newState = {...prev};
+        delete newState[layer];
+        return newState;   
+      });
+      
+      setCrossfadeProgress(prev => {
         const newState = {...prev};
         delete newState[layer];
         return newState;
@@ -1072,145 +1191,298 @@ console.log(`Current track for ${layer}: ${currentTrackId}`);
       
       return false;
     }
-    
-    // After successful crossfade, ensure the node is properly connected
-    if (serviceRef.current.volumeController && newTrackElements && newTrackElements.source) {
-      serviceRef.current.volumeController.connectToLayer(
-        layer, 
-        newTrackElements.source, 
-        serviceRef.current.audioCore.getMasterGain()
-      );
+  }, [audioLibrary, activeAudio, transitionDuration]);
+
+  // Collection loading function
+  const handleLoadCollection = useCallback(async (collectionId, options = {}) => {
+    if (!collectionId) {
+      console.error('[StreamingAudioContext: handleLoadCollection] No collection ID provided');
+      return false;
     }
     
-    // Clear the crossfade UI state when complete
-    setActiveCrossfades(prev => {
-      const newState = {...prev};
-      delete newState[layer];
-      return newState;
-    });
-    
-    setCrossfadeProgress(prev => {
-      const newState = {...prev};
-      delete newState[layer];
-      return newState;
-    });
-    
-    console.log(`Crossfade complete for ${layer}: ${currentTrackId} -> ${newTrackId}`);
-    return true;
-    
-  } catch (error) {
-    console.error(`Error during crossfade: ${error.message}`);
-    
-    // Clear UI state
-    setActiveCrossfades(prev => {
-      const newState = {...prev};
-      delete newState[layer];
-      return newState;   
-    });
-    
-    setCrossfadeProgress(prev => {
-      const newState = {...prev};
-      delete newState[layer];
-      return newState;
-    });
-    
-    return false;
-  }
-}, [audioLibrary, activeAudio, transitionDuration]);
+    try {
+      setLoadingCollection(true);
+      setCollectionError(null);
+      setCollectionLoadProgress(0);
+      
+      console.log(`[StreamingAudioContext: handleLoadCollection] Loading collection: ${collectionId}, autoPlay:`, 
+        options.autoPlay === true ? 'true' : 'false');
+      
+      // Pause if currently playing
+      if (isPlayingRef.current) {
+        await handlePauseSession();
+      }
+      
+      // Load collection data using CollectionService
+      const result = await collectionService.getCollection(collectionId);
+      console.log('[StreamingAudioContext: handleLoadCollection] Collection result:', result);
+      
+      if (!result.success || !result.data) {
+        throw new Error(result.error || 'Failed to load collection');
+      }
+      
+      const collection = result.data;
+      setCollectionLoadProgress(20);
+      
+      // Validate collection has tracks
+      if (!collection.tracks || !Array.isArray(collection.tracks) || collection.tracks.length === 0) {
+        console.error(`[StreamingAudioContext: handleLoadCollection] Collection "${collectionId}" has no tracks`);
+        throw new Error(`Collection "${collection.name || collectionId}" has no audio tracks`);
+      }
+      
+      console.log(`[StreamingAudioContext: handleLoadCollection] Loaded collection: ${collection.name} with ${collection.tracks.length} tracks`);
+      
+      // Format collection for player using CollectionService
+      try {
+        const formattedCollection = collectionService.formatCollectionForPlayer(collection);
+        console.log(`[StreamingAudioContext: handleLoadCollection] Formatted collection:`, {
+          id: formattedCollection.id,
+          name: formattedCollection.name,
+          coverImage: formattedCollection.coverImage,
+          layers: Object.keys(formattedCollection.layers || {})
+        });
+        
+        setCollectionLoadProgress(40);
+        
+        // Verify layers were properly formatted
+        const hasAnyTracks = Object.values(formattedCollection.layers || {}).some(
+          tracks => Array.isArray(tracks) && tracks.length > 0
+        );
+        
+        if (!hasAnyTracks) {
+          console.error('[StreamingAudioContext: handleLoadCollection] No tracks found in formatted collection');
+          throw new Error('No compatible audio tracks found in this collection');
+        }
+        
+        console.log('[StreamingAudioContext: handleLoadCollection] Formatted collection layers:', 
+          Object.entries(formattedCollection.layers).map(([layer, tracks]) => 
+            `${layer}: ${tracks.length} tracks`
+          ).join(', ')
+        );
 
-// Fade volume for a specific layer
-const handleFadeVolume = useCallback((layer, targetVolume, durationMs) => {
-  if (!serviceRef.current.volumeController) {
-    console.error("[StreamingAudioContext] Cannot fade volume: VolumeController not available");
-    return Promise.resolve(false);
-  }
-  
-  console.log(`[StreamingAudioContext] Fading ${layer} volume to ${targetVolume} over ${durationMs}ms`);
-  
-  // Convert milliseconds to seconds for VolumeController
-  const durationSec = durationMs / 1000;
-  
-  // Create a progress callback to update the volumes state
-  const progressCallback = (layerId, currentValue, progress) => {
-    // Update the volumes state to reflect current fade position
-    setVolumes(prev => ({
-      ...prev,
-      [layerId]: currentValue
-    }));
+        // Update audio library with collection tracks
+        setAudioLibrary(prevLibrary => {
+          const newLibrary = {...prevLibrary};
+          
+          // Replace each layer's tracks with the ones from the collection
+          Object.entries(formattedCollection.layers).forEach(([layerName, tracks]) => {
+            console.log(`[StreamingAudioContext: handleLoadCollection] Setting ${tracks.length} tracks for ${layerName}`);
+            
+            // Log the actual track IDs and names for debugging
+            tracks.forEach(track => {
+              console.log(`[StreamingAudioContext: handleLoadCollection] Track: ${track.id} (${track.name})`);
+            });
+            
+            // Update this layer in the library
+            newLibrary[layerName] = [...tracks];
+          });
+          
+          // Also update the reference for immediate access
+          audioLibraryRef.current = {...newLibrary};
+          
+          console.log('[StreamingAudioContext: handleLoadCollection] Updated audioLibrary with collection tracks');
+          return newLibrary;
+        });
+        
+        // Resolve audio URLs using AudioFileService
+        let resolvedCollection = formattedCollection;
+        if (options.autoResolveUrls !== false) {
+          try {
+            console.log('[StreamingAudioContext: handleLoadCollection] Resolving collection URLs');
+            
+            // Validate the formatted collection before passing to audioFileService
+            if (!formattedCollection) {
+              console.error('[StreamingAudioContext: handleLoadCollection] Formatted collection is null or undefined');
+              throw new Error('Formatted collection is null or undefined');
+            }
+            
+            if (!formattedCollection.layers && (!formattedCollection.tracks || !Array.isArray(formattedCollection.tracks))) {
+              console.error('[StreamingAudioContext: handleLoadCollection] Invalid formatted collection structure - missing both layers and tracks');
+              console.log('Formatted collection structure:', formattedCollection);
+              throw new Error('Invalid formatted collection structure');
+            }
+            
+            // Log the structure we're passing to the AudioFileService
+            console.log('[StreamingAudioContext: handleLoadCollection] Formatted collection structure:', 
+              formattedCollection.layers 
+                ? `Has layers: ${Object.keys(formattedCollection.layers).join(', ')}` 
+                : `Has tracks array: ${formattedCollection.tracks.length} items`
+            );
+            
+            resolvedCollection = await audioFileService.resolveCollectionUrls(formattedCollection);
+            setCollectionLoadProgress(60);
+          } catch (urlError) {
+            console.error('[StreamingAudioContext: handleLoadCollection] Error resolving URLs:', urlError.message);
+            // Just use the formatted collection without URL resolution as fallback
+            resolvedCollection = formattedCollection;
+            setCollectionLoadProgress(60);
+          }
+        }
+        
+        // Track successful layer loads
+        const loadedLayers = {};
+        
+        // For each layer, load the first track
+        for (const [layerFolder, tracks] of Object.entries(resolvedCollection.layers)) {
+          if (!tracks || tracks.length === 0) {
+            console.log(`[StreamingAudioContext: handleLoadCollection] No tracks for layer: ${layerFolder}`);
+            continue;
+          }
+          
+          try {
+            // Get first track for this layer
+            const track = tracks[0];
+            
+            // Get desired volume for this layer
+            const layerVolume = options.initialVolumes?.[layerFolder] !== undefined 
+              ? options.initialVolumes[layerFolder]
+              : layerFolder === 'Layer_1' ? 0.6 : 0; // Default: layer 1 on, others off
+            
+            console.log(`[StreamingAudioContext: handleLoadCollection] Loading ${layerFolder}: ${track.id} at volume ${layerVolume}`);
+            
+            // Set volume for layer
+            handleSetVolume(layerFolder, layerVolume, { immediate: true });
+            
+            // Use crossfade engine to load the track with very short duration
+            await handleCrossfadeTo(layerFolder, track.id, 100);
+            
+            // Track successful load
+            loadedLayers[layerFolder] = track.id;
+          } catch (layerError) {
+            console.error(`[StreamingAudioContext: handleLoadCollection] Error loading ${layerFolder}: ${layerError.message}`);
+          }
+        }
+        
+        setCollectionLoadProgress(90);
+        
+        // If no layers were loaded successfully, throw an error
+        if (Object.keys(loadedLayers).length === 0) {
+          throw new Error('Failed to load any audio tracks from this collection');
+        }
+        
+        // FIXED: Only auto-start playback if specifically requested
+        // This check now logs the decision and is more explicit
+        const shouldAutoPlay = options.autoPlay === true;
+        console.log(`[StreamingAudioContext: handleLoadCollection] Auto-play is ${shouldAutoPlay ? 'ENABLED' : 'DISABLED'}`);
+        
+        if (shouldAutoPlay) {
+          console.log('[StreamingAudioContext: handleLoadCollection] Auto-starting playback as requested');
+          handleStartSession();
+        } else {
+          console.log('[StreamingAudioContext: handleLoadCollection] Playback not auto-started, waiting for user action');
+        }
+        
+        setCollectionLoadProgress(100);
+        
+        // Set the current collection with the formatted data
+        console.log('[StreamingAudioContext: handleLoadCollection] Setting currentCollection:', {
+          id: resolvedCollection.id,
+          name: resolvedCollection.name,
+          coverImage: resolvedCollection.coverImage
+        });
+        setCurrentCollection(resolvedCollection);
+        
+        console.log(`[StreamingAudioContext: handleLoadCollection] Successfully loaded collection: ${collection.name}`);
+        console.log(`[StreamingAudioContext: handleLoadCollection] Cover image URL: ${resolvedCollection.coverImage}`);
+        return true;
+      } catch (formatError) {
+        console.error(`[StreamingAudioContext: handleLoadCollection] Error formatting collection: ${formatError.message}`);
+        throw new Error(`Error preparing collection audio: ${formatError.message}`);
+      }
+    } catch (err) {
+      console.error(`[StreamingAudioContext: handleLoadCollection] Error: ${err.message}`);
+      setCollectionError(err.message);
+      return false;
+    } finally {
+      setLoadingCollection(false);
+    }
+  }, [
+    handleSetVolume, 
+    handleCrossfadeTo, 
+    handleStartSession, 
+    handlePauseSession, 
+    collectionService, 
+    audioFileService
+  ]);
+
+  const handleSwitchTrack = useCallback((layerFolder, trackId, options = {}) => {
+    const { transitionDuration = 2000 } = options;
     
-    // Log progress for debugging
-    console.log(`[StreamingAudioContext] Fade progress for ${layerId}: ${Math.round(progress * 100)}% - Volume: ${Math.round(currentValue * 100)}%`);
-  };
-  
-  // Call the service method with progress callback
-  return serviceRef.current.volumeController.fadeVolume(layer, targetVolume, durationSec, progressCallback);
-}, []);
+    if (!layerFolder || !trackId) {
+      console.error('[StreamingAudioContext: handleSwitchTrack] Layer folder and track ID required');
+      return false;
+    }
+    
+    try {
+      return handleCrossfadeTo(layerFolder, trackId, transitionDuration);
+    } catch (err) {
+      console.error(`[StreamingAudioContext: handleSwitchTrack] Error switching track: ${err.message}`);
+      return false;
+    }
+  }, [handleCrossfadeTo]);
+
+  // Fade volume for a specific layer
+  const handleFadeVolume = useCallback((layer, targetVolume, durationMs) => {
+    if (!serviceRef.current.volumeController) {
+      console.error("[StreamingAudioContext] Cannot fade volume: VolumeController not available");
+      return Promise.resolve(false);
+    }
+    
+    console.log(`[StreamingAudioContext] Fading ${layer} volume to ${targetVolume} over ${durationMs}ms`);
+    
+    // Convert milliseconds to seconds for VolumeController
+    const durationSec = durationMs / 1000;
+    
+    // Create a progress callback to update the volumes state
+    const progressCallback = (layerId, currentValue, progress) => {
+      // Update the volumes state to reflect current fade position
+      setVolumes(prev => ({
+        ...prev,
+        [layerId]: currentValue
+      }));
+      
+      // Log progress for debugging
+      console.log(`[StreamingAudioContext] Fade progress for ${layerId}: ${Math.round(progress * 100)}% - Volume: ${Math.round(currentValue * 100)}%`);
+    };
+    
+    // Call the service method with progress callback
+    return serviceRef.current.volumeController.fadeVolume(layer, targetVolume, durationSec, progressCallback);
+  }, []);
 
   // Timeline functions - wrapped in useCallback
-const handleStartTimeline = useCallback(() => {
-  if (!serviceRef.current.timelineEngine) {
-    console.error("TimelineEngine not initialized");
-    return false;
-  }
+  const handleStartTimeline = useCallback(() => {
+    if (!serviceRef.current.timelineEngine) {
+      console.error("TimelineEngine not initialized");
+      return false;
+    }
 
-  // Ensure the audio is playing first - timeline should not auto-start audio
-  if (!isPlayingRef.current) {
-    console.log("Audio is not playing, cannot start timeline");
-    return false;
-  }
+    // Ensure the audio is playing first - timeline should not auto-start audio
+    if (!isPlayingRef.current) {
+      console.log("Audio is not playing, cannot start timeline");
+      return false;
+    }
 
-  // Reset the timeline state first
-  serviceRef.current.timelineEngine.stop();
-  
-  // Start the timeline with reset option
-  const started = serviceRef.current.timelineEngine.start({ reset: true });
-  console.log("TimelineEngine start result:", started);
-  
-  if (started) {
-    setTimelineIsPlaying(true);
-  }
-  
-  return started;
-}, [ isPlayingRef, sessionDuration]);
-
-const handleStopTimeline = useCallback(() => {
-  if (!serviceRef.current.timelineEngine) {
-    console.log("Can't stop timeline: TimelineEngine missing");
-    return false;
-  }
-  console.log("Stopping timeline...");
-  // Just stop the timeline without affecting audio playback
-  const stopped = serviceRef.current.timelineEngine.stop();
-  console.log("TimelineEngine stop result:", stopped);
-  
-  if (stopped) {
-    setTimelineIsPlaying(false);
-  }
-  
-  return stopped;
-}, []);
-
-// In src/contexts/StreamingAudioContext.js
-const handlePauseTimeline = useCallback(() => {
-  if (!serviceRef.current.timelineEngine) {
-    console.log("Can't pause timeline: TimelineEngine missing");
-    return false;
-  }
-  console.log("Pausing timeline (preserving position)...");
-  
-  // Use the pauseTimeline method if it exists, otherwise fall back to stop
-  if (serviceRef.current.timelineEngine.pauseTimeline) {
-    const paused = serviceRef.current.timelineEngine.pauseTimeline();
-    console.log("TimelineEngine pause result:", paused);
+    // Reset the timeline state first
+    serviceRef.current.timelineEngine.stop();
     
-    if (paused) {
-      setTimelineIsPlaying(false);
+    // Start the timeline with reset option
+    const started = serviceRef.current.timelineEngine.start({ reset: true });
+    console.log("TimelineEngine start result:", started);
+    
+    if (started) {
+      setTimelineIsPlaying(true);
     }
     
-    return paused;
-  } else {
-    // Fall back to stop if pause isn't available
-    console.log("pauseTimeline not available, using stopTimeline as fallback");
+    return started;
+  }, [ isPlayingRef, sessionDuration]);
+
+  const handleStopTimeline = useCallback(() => {
+    if (!serviceRef.current.timelineEngine) {
+      console.log("Can't stop timeline: TimelineEngine missing");
+      return false;
+    }
+    console.log("Stopping timeline...");
+    // Just stop the timeline without affecting audio playback
     const stopped = serviceRef.current.timelineEngine.stop();
     console.log("TimelineEngine stop result:", stopped);
     
@@ -1219,315 +1491,371 @@ const handlePauseTimeline = useCallback(() => {
     }
     
     return stopped;
-  }
-}, []);
-
-// In src/contexts/StreamingAudioContext.js
-const handleResumeTimeline = useCallback(() => {
-  if (!serviceRef.current.timelineEngine) {
-    console.log("Can't resume timeline: TimelineEngine missing");
-    return false;
-  }
-  console.log("Resuming timeline from current position...");
-  
-  // Use the resumeTimeline method if it exists
-  if (serviceRef.current.timelineEngine.resumeTimeline) {
-    const resumed = serviceRef.current.timelineEngine.resumeTimeline();
-    console.log("TimelineEngine resume result:", resumed);
-    
-    if (resumed) {
-      setTimelineIsPlaying(true);
-    }
-    
-    return resumed;
-  } else {
-    // Fall back to start with reset:false if resume isn't available
-    console.log("resumeTimeline not available, using startTimeline with reset:false as fallback");
-    const started = serviceRef.current.timelineEngine.start({ reset: false });
-    console.log("TimelineEngine start result:", started);
-    
-    if (started) {
-      setTimelineIsPlaying(true);
-    }
-    
-    return started;
-  }
-}, []);
-
-
-  const handleGetSessionTime = useCallback(() => {
-    if (serviceRef.current.timelineEngine) {
-      return serviceRef.current.timelineEngine.getElapsedTime();
-    }
-    return 0;
   }, []);
 
-  const handleResetTimelineEventIndex = useCallback(() => {
-    if (serviceRef.current.timelineEngine) {
-      serviceRef.current.timelineEngine.stop();
-      serviceRef.current.timelineEngine.reset();
+  // In src/contexts/StreamingAudioContext.js
+  const handlePauseTimeline = useCallback(() => {
+    if (!serviceRef.current.timelineEngine) {
+      console.log("Can't pause timeline: TimelineEngine missing");
+      return false;
     }
-  }, []);
-
-  const handleUpdateTimelinePhases = useCallback((phases) => {
-    if (!phases || !Array.isArray(phases)) return;
+    console.log("Pausing timeline (preserving position)...");
     
-    setTimelinePhases(phases);
-    
-    if (serviceRef.current.timelineEngine) {
-      serviceRef.current.timelineEngine.setPhases(phases);
-    }
-  }, []);
-
-  const handleRegisterTimelineEvent = useCallback((event) => {
-    if (!event) return false;
-    
-    setTimelineEvents(prev => {
-      const updatedEvents = [...prev, event].sort((a, b) => a.time - b.time);
-      return updatedEvents;
-    });
-    
-    if (serviceRef.current.timelineEngine) {
-      serviceRef.current.timelineEngine.addEvent(event);
-    }
-    
-    return true;
-  }, []);
-
-  const handleClearTimelineEvents = useCallback(() => {
-    setTimelineEvents([]);
-    
-    if (serviceRef.current.timelineEngine) {
-      serviceRef.current.timelineEngine.clearEvents();
-    }
-    
-    return true;
-  }, []);
-
-  const handleSetSessionDuration = useCallback((duration) => {
-    setSessionDuration(duration);
-    
-    if (serviceRef.current.timelineEngine) {
-      serviceRef.current.timelineEngine.setSessionDuration(duration);
-    }
-    
-    return true;
-  }, []);
-  
-  const handleSetTransitionDuration = useCallback((duration) => {
-    setTransitionDuration(duration);
-    
-    if (serviceRef.current.timelineEngine) {
-      serviceRef.current.timelineEngine.setTransitionDuration(duration);
-    }
-    
-    return true;
-  }, []);
-  
-  const handleSeekToTime = useCallback((timeMs) => {
-    if (serviceRef.current.timelineEngine) {
-      return serviceRef.current.timelineEngine.seekTo(timeMs);
-    }
-    return false;
-  }, []);
-  
-  const handleSeekToPercent = useCallback((percent) => {
-    if (serviceRef.current.timelineEngine) {
-      return serviceRef.current.timelineEngine.seekToPercent(percent);
-    }
-    return false;
-  }, []);
-  
-  // Preset Management Functions
-  const handleRegisterPresetStateProvider = useCallback((key, providerFn) => {
-    if (!key) return;
-    
-    if (providerFn === null) {
-      // Unregister provider
-      const updatedProviders = { ...stateProviders.current };
-      delete updatedProviders[key];
-      stateProviders.current = updatedProviders;
+    // Use the pauseTimeline method if it exists, otherwise fall back to stop
+    if (serviceRef.current.timelineEngine.pauseTimeline) {
+      const paused = serviceRef.current.timelineEngine.pauseTimeline();
+      console.log("TimelineEngine pause result:", paused);
+      
+      if (paused) {
+        setTimelineIsPlaying(false);
+      }
+      
+      return paused;
     } else {
-      // Register provider
-      stateProviders.current = {
-        ...stateProviders.current,
-        [key]: providerFn
-      };
+      // Fall back to stop if pause isn't available
+      console.log("pauseTimeline not available, using stopTimeline as fallback");
+      const stopped = serviceRef.current.timelineEngine.stop();
+      console.log("TimelineEngine stop result:", stopped);
+      
+      if (stopped) {
+        setTimelineIsPlaying(false);
+      }
+      
+      return stopped;
     }
-  }, []);
-  
-  const handleSavePreset = useCallback((name) => {
-    if (!name || name.trim() === '' || !serviceRef.current.presetManager) return false;
-    
-    const preset = serviceRef.current.presetManager.savePreset(name);
-    return !!preset;
-  }, []);
-  
-  const handleLoadPreset = useCallback((nameOrData) => {
-    if (!serviceRef.current.presetManager) return false;
-    
-    // If it's a string, assume it's a preset name
-    if (typeof nameOrData === 'string') {
-      return serviceRef.current.presetManager.loadPreset(nameOrData);
-    }
-    
-    // If it's an object, process the preset data directly
-    const presetData = nameOrData;
-    
-    // Apply component states
-    if (presetData.components) {
-      Object.entries(presetData.components).forEach(([componentKey, state]) => {
-        // Dispatch custom events for each component to handle its own state
-        if (typeof window !== 'undefined') {
-          const event = new CustomEvent(`${componentKey}-update`, { detail: state });
-          window.dispatchEvent(event);
-        }
-      });
-    }
-    
-    return true;
-  }, []);
-  
-  const handleDeletePreset = useCallback((name) => {
-    if (!serviceRef.current.presetManager) return false;
-    return serviceRef.current.presetManager.deletePreset(name);
-  }, []);
-  
-  const handleGetPresets = useCallback(() => {
-    if (!serviceRef.current.presetManager) return [];
-    return serviceRef.current.presetManager.getPresetArray('date', true);
-  }, []);
-  
-  const handleExportPreset = useCallback((name) => {
-    if (!serviceRef.current.presetManager) return null;
-    return serviceRef.current.presetManager.exportPreset(name);
-  }, []);
-  
-  const handleImportPreset = useCallback((jsonString) => {
-    if (!serviceRef.current.presetManager) {
-      return { success: false, error: 'PresetManager not available' };
-    }
-    return serviceRef.current.presetManager.importPreset(jsonString);
   }, []);
 
-  // Create a memoized context value to prevent unnecessary re-renders
-const contextValue = useMemo(() => {
- // console.log("Creating memoized context value with volumes:", volumes);
-  return {
+  // In src/contexts/StreamingAudioContext.js
+  const handleResumeTimeline = useCallback(() => {
+    if (!serviceRef.current.timelineEngine) {
+      console.log("Can't resume timeline: TimelineEngine missing");
+      return false;
+    }
+    console.log("Resuming timeline from current position...");
+    
+    // Use the resumeTimeline method if it exists
+    if (serviceRef.current.timelineEngine.resumeTimeline) {
+      const resumed = serviceRef.current.timelineEngine.resumeTimeline();
+      console.log("TimelineEngine resume result:", resumed);
+      
+      if (resumed) {
+        setTimelineIsPlaying(true);
+      }
+      
+      return resumed;
+    } else {
+      // Fall back to start with reset:false if resume isn't available
+      console.log("resumeTimeline not available, using startTimeline with reset:false as fallback");
+      const started = serviceRef.current.timelineEngine.start({ reset: false });
+      console.log("TimelineEngine start result:", started);
+      
+      if (started) {
+        setTimelineIsPlaying(true);
+      }
+      
+      return started;
+    }
+  }, []);
+
+
+    const handleGetSessionTime = useCallback(() => {
+      if (serviceRef.current.timelineEngine) {
+        return serviceRef.current.timelineEngine.getElapsedTime();
+      }
+      return 0;
+    }, []);
+
+    const handleResetTimelineEventIndex = useCallback(() => {
+      if (serviceRef.current.timelineEngine) {
+        serviceRef.current.timelineEngine.stop();
+        serviceRef.current.timelineEngine.reset();
+      }
+    }, []);
+
+    const handleUpdateTimelinePhases = useCallback((phases) => {
+      if (!phases || !Array.isArray(phases)) return;
+      
+      setTimelinePhases(phases);
+      
+      if (serviceRef.current.timelineEngine) {
+        serviceRef.current.timelineEngine.setPhases(phases);
+      }
+    }, []);
+
+    const handleRegisterTimelineEvent = useCallback((event) => {
+      if (!event) return false;
+      
+      setTimelineEvents(prev => {
+        const updatedEvents = [...prev, event].sort((a, b) => a.time - b.time);
+        return updatedEvents;
+      });
+      
+      if (serviceRef.current.timelineEngine) {
+        serviceRef.current.timelineEngine.addEvent(event);
+      }
+      
+      return true;
+    }, []);
+
+    const handleClearTimelineEvents = useCallback(() => {
+      setTimelineEvents([]);
+      
+      if (serviceRef.current.timelineEngine) {
+        serviceRef.current.timelineEngine.clearEvents();
+      }
+      
+      return true;
+    }, []);
+
+    const handleSetSessionDuration = useCallback((duration) => {
+      setSessionDuration(duration);
+      
+      if (serviceRef.current.timelineEngine) {
+        serviceRef.current.timelineEngine.setSessionDuration(duration);
+      }
+      
+      return true;
+    }, []);
+    
+    const handleSetTransitionDuration = useCallback((duration) => {
+      setTransitionDuration(duration);
+      
+      if (serviceRef.current.timelineEngine) {
+        serviceRef.current.timelineEngine.setTransitionDuration(duration);
+      }
+      
+      return true;
+    }, []);
+    
+    const handleSeekToTime = useCallback((timeMs) => {
+      if (serviceRef.current.timelineEngine) {
+        return serviceRef.current.timelineEngine.seekTo(timeMs);
+      }
+      return false;
+    }, []);
+    
+    const handleSeekToPercent = useCallback((percent) => {
+      if (serviceRef.current.timelineEngine) {
+        return serviceRef.current.timelineEngine.seekToPercent(percent);
+      }
+      return false;
+    }, []);
+    
+    // Preset Management Functions
+    const handleRegisterPresetStateProvider = useCallback((key, providerFn) => {
+      if (!key) return;
+      
+      if (providerFn === null) {
+        // Unregister provider
+        const updatedProviders = { ...stateProviders.current };
+        delete updatedProviders[key];
+        stateProviders.current = updatedProviders;
+      } else {
+        // Register provider
+        stateProviders.current = {
+          ...stateProviders.current,
+          [key]: providerFn
+        };
+      }
+    }, []);
+    
+    const handleSavePreset = useCallback((name) => {
+      if (!name || name.trim() === '' || !serviceRef.current.presetManager) return false;
+      
+      const preset = serviceRef.current.presetManager.savePreset(name);
+      return !!preset;
+    }, []);
+    
+    const handleLoadPreset = useCallback((nameOrData) => {
+      if (!serviceRef.current.presetManager) return false;
+      
+      // If it's a string, assume it's a preset name
+      if (typeof nameOrData === 'string') {
+        return serviceRef.current.presetManager.loadPreset(nameOrData);
+      }
+      
+      // If it's an object, process the preset data directly
+      const presetData = nameOrData;
+      
+      // Apply component states
+      if (presetData.components) {
+        Object.entries(presetData.components).forEach(([componentKey, state]) => {
+          // Dispatch custom events for each component to handle its own state
+          if (typeof window !== 'undefined') {
+            const event = new CustomEvent(`${componentKey}-update`, { detail: state });
+            window.dispatchEvent(event);
+          }
+        });
+      }
+      
+      return true;
+    }, []);
+    
+    const handleDeletePreset = useCallback((name) => {
+      if (!serviceRef.current.presetManager) return false;
+      return serviceRef.current.presetManager.deletePreset(name);
+    }, []);
+    
+    const handleGetPresets = useCallback(() => {
+      if (!serviceRef.current.presetManager) return [];
+      return serviceRef.current.presetManager.getPresetArray('date', true);
+    }, []);
+    
+    const handleExportPreset = useCallback((name) => {
+      if (!serviceRef.current.presetManager) return null;
+      return serviceRef.current.presetManager.exportPreset(name);
+    }, []);
+    
+    const handleImportPreset = useCallback((jsonString) => {
+      if (!serviceRef.current.presetManager) {
+        return { success: false, error: 'PresetManager not available' };
+      }
+      return serviceRef.current.presetManager.importPreset(jsonString);
+    }, []);
+
+    // Create a memoized context value to prevent unnecessary re-renders
+  const contextValue = useMemo(() => {
+   // console.log("Creating memoized context value with volumes:", volumes);
+    return {
+      // Audio state
+      isLoading,
+      loadingProgress,
+      isPlaying,
+      volumes,
+      activeAudio,
+      audioLibrary,
+      hasSwitchableAudio,
+      crossfadeProgress,
+      activeCrossfades,
+      preloadProgress,
+      
+      // Master volume
+      masterVolume,
+      setMasterVolumeLevel: handleSetMasterVolume,
+      
+      // Audio controls
+      setVolume: handleSetVolume,
+      startSession: handleStartSession,
+      pauseSession: handlePauseSession,
+      crossfadeTo: handleCrossfadeTo, 
+      fadeLayerVolume: handleFadeVolume,
+      preloadAudio: handlePreloadAudio,
+      getSessionTime: handleGetSessionTime,
+      
+      // Timeline functions
+      timelineEvents,
+      timelinePhases,
+      activePhase,
+      progress,
+      sessionDuration,
+      transitionDuration,
+      resetTimelineEventIndex: handleResetTimelineEventIndex,
+      registerTimelineEvent: handleRegisterTimelineEvent,
+      clearTimelineEvents: handleClearTimelineEvents,
+      updateTimelinePhases: handleUpdateTimelinePhases,
+      seekToTime: handleSeekToTime,
+      seekToPercent: handleSeekToPercent,
+      setSessionDuration: handleSetSessionDuration,
+      setTransitionDuration: handleSetTransitionDuration,
+      startTimeline: handleStartTimeline,
+      pauseTimeline: handlePauseTimeline,
+      resumeTimeline: handleResumeTimeline,
+      stopTimeline: handleStopTimeline,
+      
+
+      
+      // Preset functions
+      registerPresetStateProvider: handleRegisterPresetStateProvider,
+      savePreset: handleSavePreset,
+      loadPreset: handleLoadPreset,
+      deletePreset: handleDeletePreset,
+      getPresets: handleGetPresets,
+      exportPreset: handleExportPreset,
+      importPreset: handleImportPreset,
+      
+      // Constants
+      LAYERS,
+      
+      // Collection state
+      collections,
+      currentCollection,
+      isLoadingCollections,
+      collectionsError,
+      collectionLoadProgress,
+      collectionError,
+      
+      // Collection functions
+      loadCollections,
+      loadCollection: handleLoadCollection,
+      switchTrack: handleSwitchTrack,
+    };
+  }, [
     // Audio state
-    isLoading,
-    loadingProgress,
-    isPlaying,
+    isLoading, 
+    loadingProgress, 
+    isPlaying, 
     volumes,
-    activeAudio,
+    activeAudio, 
     audioLibrary,
     hasSwitchableAudio,
-    crossfadeProgress,
+    crossfadeProgress, 
     activeCrossfades,
     preloadProgress,
-    
-    // Master volume
     masterVolume,
-    setMasterVolumeLevel: handleSetMasterVolume,
     
-    // Audio controls
-    setVolume: handleSetVolume,
-    startSession: handleStartSession,
-    pauseSession: handlePauseSession,
-    crossfadeTo: handleCrossfadeTo, 
-    fadeLayerVolume: handleFadeVolume,
-    preloadAudio: handlePreloadAudio,
-    getSessionTime: handleGetSessionTime,
+    // Function dependencies
+    handleSetMasterVolume,
+    handleSetVolume,
+    handleStartSession,
+    handlePauseSession,
+    handleCrossfadeTo,
+    handlePreloadAudio,
+    handleGetSessionTime,
     
-    // Timeline functions
+    // Timeline state
     timelineEvents,
     timelinePhases,
     activePhase,
     progress,
     sessionDuration,
     transitionDuration,
-    resetTimelineEventIndex: handleResetTimelineEventIndex,
-    registerTimelineEvent: handleRegisterTimelineEvent,
-    clearTimelineEvents: handleClearTimelineEvents,
-    updateTimelinePhases: handleUpdateTimelinePhases,
-    seekToTime: handleSeekToTime,
-    seekToPercent: handleSeekToPercent,
-    setSessionDuration: handleSetSessionDuration,
-    setTransitionDuration: handleSetTransitionDuration,
-    startTimeline: handleStartTimeline,
-    pauseTimeline: handlePauseTimeline,
-    resumeTimeline: handleResumeTimeline,
-    stopTimeline: handleStopTimeline,
+    
+    // Timeline functions
+    handleResetTimelineEventIndex,
+    handleRegisterTimelineEvent,
+    handleClearTimelineEvents,
+    handleUpdateTimelinePhases,
+    handleSeekToTime,
+    handleSeekToPercent,
+    handleSetSessionDuration,
+    handleSetTransitionDuration,
     
     // Preset functions
-    registerPresetStateProvider: handleRegisterPresetStateProvider,
-    savePreset: handleSavePreset,
-    loadPreset: handleLoadPreset,
-    deletePreset: handleDeletePreset,
-    getPresets: handleGetPresets,
-    exportPreset: handleExportPreset,
-    importPreset: handleImportPreset,
+    handleRegisterPresetStateProvider,
+    handleSavePreset,
+    handleLoadPreset,
+    handleDeletePreset,
+    handleGetPresets,
+    handleExportPreset,
+    handleImportPreset,
     
-    // Constants
-    LAYERS
-  };
-}, [
-  // Audio state
-  isLoading, 
-  loadingProgress, 
-  isPlaying, 
-  volumes, // Make sure volumes is in dependencies
-  activeAudio, 
-  audioLibrary,
-  hasSwitchableAudio,
-  crossfadeProgress, 
-  activeCrossfades,
-  preloadProgress,
-  masterVolume,
-  
-  // Function dependencies
-  handleSetMasterVolume,
-  handleSetVolume,
-  handleStartSession,
-  handlePauseSession,
-  handleCrossfadeTo,
-  handlePreloadAudio,
-  handleGetSessionTime,
-  
-  // Timeline state
-  timelineEvents,
-  timelinePhases,
-  activePhase,
-  progress,
-  sessionDuration,
-  transitionDuration,
-  
-  
-  // Timeline functions
-  handleResetTimelineEventIndex,
-  handleRegisterTimelineEvent,
-  handleClearTimelineEvents,
-  handleUpdateTimelinePhases,
-  handleSeekToTime,
-  handleSeekToPercent,
-  handleSetSessionDuration,
-  handleSetTransitionDuration,
-  
-  // Preset functions
-  handleRegisterPresetStateProvider,
-  handleSavePreset,
-  handleLoadPreset,
-  handleDeletePreset,
-  handleGetPresets,
-  handleExportPreset,
-  handleImportPreset
-]);
+    // Collection state
+    collections,
+    currentCollection,
+    isLoadingCollections,
+    collectionsError,
+    collectionLoadProgress,
+    collectionError,
+    loadCollections,
+    handleLoadCollection,
+    handleSwitchTrack
+  ]);
 
-return (
-  <AudioContext.Provider value={contextValue}>
-    {children}
-  </AudioContext.Provider>
-);
+  return (
+    <AudioContext.Provider value={contextValue}>
+      {children}
+    </AudioContext.Provider>
+  );
 };
 
 export default AudioContext;

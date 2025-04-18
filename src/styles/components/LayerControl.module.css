@@ -1,33 +1,38 @@
 /* src/styles/components/LayerControl.module.css */
 .layerSlider {
+  /* Default to the mobile layout for all screen sizes */
   display: flex;
-  align-items: center;
-  margin: 35px 0; /* Increased vertical margin for more space between layers */
+  flex-wrap: wrap;
+  margin: 30px 0;
   position: static; /* Ensures no stacking context is created */
 }
 
 .labelContainer {
+  width: 100%;
+  margin-bottom: 10px;
+  min-width: 0;
   display: flex;
   align-items: center;
-  min-width: 200px;
-  width: 200px; /* Fixed width to prevent shifts */
+  justify-content: space-between;
   position: static; /* Ensure it doesn't create a new stacking context */
 }
 
 .label {
-  width: 100px;
+  width: auto;
   font-size: 0.8rem;
   color: #aaaaaa;
   letter-spacing: 1px;
   text-transform: uppercase;
   flex-shrink: 0; /* Prevent shrinking */
+  margin-bottom: 0;
+  white-space: nowrap;
 }
 
 /* Minimal slider styling with improved touch target */
 .slider {
   flex-grow: 1;
-  margin: 0 15px;
-  height: 3px; /* Slightly thicker base line */
+  margin: 10px 12px 0 0;
+  height: 6px; /* Thicker for better touch control */
   -webkit-appearance: none;
   appearance: none;
   background: #333;
@@ -40,8 +45,8 @@
 .slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 18px; /* Larger thumb size */
-  height: 18px; /* Larger thumb size */
+  width: 24px; /* Larger thumb size */
+  height: 24px; /* Larger thumb size */
   background: #ffffff;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -51,8 +56,8 @@
 }
 
 .slider::-moz-range-thumb {
-  width: 18px; /* Larger thumb size */
-  height: 18px; /* Larger thumb size */
+  width: 24px; /* Larger thumb size */
+  height: 24px; /* Larger thumb size */
   background: #ffffff;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -87,55 +92,12 @@
 
 .value {
   width: 50px;
+  min-width: 50px;
   text-align: right;
   font-family: 'Space Mono', monospace;
   font-size: 0.8rem;
   color: #aaaaaa;
   flex-shrink: 0; /* Prevent shrinking */
+  margin-top: 0;
 }
 
-/* Responsive styles - apply to tablets and mobile */
-@media (max-width: 1024px) {
-  .layerSlider {
-    flex-wrap: wrap;
-    margin: 30px 0;
-  }
-  
-  .labelContainer {
-    width: 100%;
-    margin-bottom: 10px;
-    min-width: 0;
-    justify-content: space-between;
-  }
-  
-  .label {
-    width: auto;
-    font-size: 0.8rem;
-    margin-bottom: 0;
-    white-space: nowrap;
-  }
-  
-  .slider {
-    flex-grow: 1;
-    margin: 10px 12px 0 0;
-    height: 6px; /* Even thicker for touch */ 
-  }
-
-  .slider::-webkit-slider-thumb {
-    width: 24px; /* Larger thumb for touch */
-    height: 24px; /* Larger thumb */
-  }
-  
-  .slider::-moz-range-thumb {
-    width: 24px; /* Larger thumb for touch */
-    height: 24px; /* Larger thumb */
-  }
-    
-  .value {
-    width: 50px;
-    min-width: 50px;
-    text-align: right;
-    margin-top: 0;
-    font-size: 0.8rem;
-  }
-}

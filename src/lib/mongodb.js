@@ -1,5 +1,7 @@
 // lib/mongodb.js
 import mongoose from 'mongoose';
+import Collection from '../models/Collection';
+import Track from '../models/Track';
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/enso-audio';
 
@@ -28,6 +30,18 @@ let cached = global.mongoose;
 
 if (!cached) {
   cached = global.mongoose = { conn: null, promise: null };
+}
+
+// Ensure models are registered
+mongoose.models = mongoose.models || {};
+mongoose.modelSchemas = mongoose.modelSchemas || {};
+
+// Register models if they haven't been registered yet
+if (!mongoose.models.Collection) {
+  mongoose.model('Collection', Collection.schema);
+}
+if (!mongoose.models.Track) {
+  mongoose.model('Track', Track.schema);
 }
 
 async function dbConnect() {

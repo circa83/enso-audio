@@ -323,17 +323,17 @@ Object.values(layers.TYPES).forEach(layer => {
   
   // Assign different default volumes based on layer type
   switch(layerKey) {
-    case 'drone':
-      defaultVolume = 0.10; // Keep your existing drone default
+    case 'Layer 1':
+      defaultVolume = 0.10; // Keep your existing L1 default
       break;
-    case 'melody':
-      defaultVolume = 0.15; // New default for melody
+    case 'Layer 2':
+      defaultVolume = 0.15; // New default for L2
       break;
-    case 'rhythm':
-      defaultVolume = 0.10; // New default for rhythm
+    case 'Layer 3hm':
+      defaultVolume = 0.10; // New default for L3
       break;
-    case 'nature':
-      defaultVolume = 0.20; // New default for nature
+    case 'Layer 4':
+      defaultVolume = 0.20; // New default for L4
       break;
     default:
       defaultVolume = 0; // Fallback
@@ -461,15 +461,7 @@ const handleRestartTimeline = useCallback(() => {
       });
     }
     
-    // // Immediately switch to pre-onset tracks without crossfade
-    // if (preOnsetPhase.state.activeAudio) {
-    //   Object.entries(preOnsetPhase.state.activeAudio).forEach(([layer, trackId]) => {
-    //     if (trackId !== layers.active[layer]) {
-    //       // Use a minimal 50ms transition to prevent audio pops but still be immediate
-    //       transitions.crossfade(layer, trackId, 50);
-    //     }
-    //   });
-    // }
+  
     applyPreOnsetPhase();
     // Set pre-onset as the active phase
     lastActivePhaseId.current = 'pre-onset';
@@ -477,14 +469,7 @@ const handleRestartTimeline = useCallback(() => {
   } else {
     console.log("[SessionTimeline: handleRestartTimeline] No pre-onset phase state found, using defaults");
   }
-  //   // Apply default state for layers if no pre-onset phase state exists
-  //   Object.values(layers.TYPES).forEach(layer => {
-  //     const layerKey = layer.toLowerCase();
-  //     // Set drone to 25%, all others to 0
-  //     const defaultVolume = layerKey === 'drone' ? 0.25 : 0;
-  //     volume.setLayer(layerKey, defaultVolume, { immediate: true });
-  //   });
-  // }
+  
   
   // Reset timeline in the service
   if (timeline.reset) {

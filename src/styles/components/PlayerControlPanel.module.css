@@ -3,7 +3,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin: 0px 0;
+  margin: 10px 0;
   padding: 30px;
   background-color: #1c1c1c;
   border: 1px solid #333;
@@ -14,11 +14,28 @@
   right: 0;
 }
 
+.albumArtContainer {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.albumArt {
+  max-width: 50%;
+  max-height: 50%;
+  object-fit: contain;
+  border: 1px solid #333333;
+}
+
 .visualizerSection {
   width: 100%;
   display: flex;
   justify-content: center;
-  margin-bottom: 30px;
+  margin-bottom: 15px;
 }
 
 .controlsSection {
@@ -45,7 +62,7 @@
   align-items: center;
   justify-content: center;
   text-transform: uppercase;
-  margin-bottom: 25px;
+  margin-bottom: 15px;
 }
 
 .playButton:hover {
@@ -62,22 +79,25 @@
 @media (max-width: 768px) {
   .playerControlPanel {
     padding: 15px;
-    margin: 15px 0;
     width: 100%;
     left: 0;
     right: 0;
     position: relative;
   }
-
+.albumArt{
+  max-width: 50%;
+  max-height: 50%;
+}
   
   .playButton {
     width: 50px;
     height: 50px;
     font-size: 0.7rem;
+    margin-bottom: 0px;
   }
 }
 /* iOS-specific fix */
-@supports (-webkit-touch-callout: none) {
+/* @supports (-webkit-touch-callout: none) {
   .playerControlPanel {
     width: 100%;
     left: 0;
@@ -96,4 +116,4 @@
     margin-right: auto !important;
     transform: none !important;
   }
-}
+} */
