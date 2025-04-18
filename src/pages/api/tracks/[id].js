@@ -1,6 +1,7 @@
 // src/pages/api/tracks/[id].js
 import dbConnect from '../../../lib/mongodb';
 import Track from '../../../models/Track';
+import Collection from '../../../models/Collection';
 
 export default async function handler(req, res) {
   console.log('[API: tracks/[id]] Processing request', { 
