@@ -1,8 +1,8 @@
 // src/contexts/StreamingAudioContext.js
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { createAudioServices } from '../services/audio';
+import AudioService from '../services/AudioService';
+import ServiceManager from '../services/ServiceManager';
 import CollectionService from '../services/CollectionService';
-import AudioFileService from '../services/AudioFileService';
 import { useCollections } from '../hooks/useCollections';
 import { mapCollectionToLayers } from '../utils/collectionUtils';
 
@@ -40,7 +40,7 @@ export const useAudio = () => {
 export const AudioProvider = ({ children }) => {
   // Service references
   const serviceRef = useRef({
-    audioCore: null,
+    audioservice: null,
     bufferManager: null,
     volumeController: null,
     layerController: null,
@@ -54,9 +54,6 @@ export const AudioProvider = ({ children }) => {
     enableLogging: true
   }), []);
 
-  const audioFileService = useMemo(() => new AudioFileService({
-    enableLogging: true
-  }), []);
 
   // Loading state
   const [isLoading, setIsLoading] = useState(true);
@@ -201,10 +198,11 @@ export const AudioProvider = ({ children }) => {
       
       try {
         if (isMounted) setLoadingProgress(5);
-        
+  
+
         // Initialize all audio services
-        const services = await createAudioServices({
-          audioCore: { 
+        const services = await new AudioService({
+          audioservice: { 
             initialVolume: masterVolume, 
             autoResume: true 
           },
@@ -251,20 +249,24 @@ export const AudioProvider = ({ children }) => {
             onProgress: (progress, elapsedTime) => {
               if (isMounted) setProgress(progress);
             }
-          },
-          presetManager: {
-            getStateProviders: () => ({ ...stateProviders.current }),
-            onPresetChange: (updatedPresets) => {
-              if (isMounted) setPresets(updatedPresets);
-            },
-            onPresetLoad: (presetName, presetData) => {
-              if (isMounted) handleLoadPreset(presetData);
-            }
-          }
+          }, 
+        
         });
+        
+        // Add this check right after
+        if (!services) {
+          throw new Error("AudioService returned null or undefined");
+        }
+        
+        console.log("[StreamingAudioContext] AudioService created successfully:", 
+          Object.keys(services).join(', '));
         
         // Store services in ref
         serviceRef.current = services;
+        
+        // Log services to verify
+        console.log("[StreamingAudioContext] Available services:", 
+          Object.keys(serviceRef.current).filter(key => serviceRef.current[key] !== null));
         
         if (isMounted) setLoadingProgress(10);
         
@@ -282,7 +284,9 @@ export const AudioProvider = ({ children }) => {
         }
       }
     };
-    
+
+
+
     initializeServices();
     
     // Cleanup function
@@ -319,8 +323,8 @@ export const AudioProvider = ({ children }) => {
 
   // Update master volume when state changes
   useEffect(() => {
-    if (serviceRef.current.audioCore) {
-      serviceRef.current.audioCore.setMasterVolume(masterVolume);
+    if (serviceRef.current.audioservice) {
+      serviceRef.current.audioservice.setMasterVolume(masterVolume);
     }
   }, [masterVolume]);
   
@@ -328,14 +332,14 @@ export const AudioProvider = ({ children }) => {
 
   // Initialize audio elements with default tracks
   const initializeDefaultAudio = useCallback(async () => {
-    const { audioCore, volumeController } = serviceRef.current;
-    if (!audioCore || !volumeController) {
+    const { audioservice, volumeController } = serviceRef.current;
+    if (!audioservice || !volumeController) {
       console.error('[StreamingAudioContext: initializeDefaultAudio] Cannot initialize audio, services not ready');
       return false;
     }
   
-    const audioCtx = audioCore.getContext();
-    const masterGain = audioCore.getMasterGain();
+    const audioCtx = audioservice.getContext();
+    const masterGain = audioservice.getMasterGain();
     
     const totalFiles = Object.values(LAYERS).length;
     let loadedFilesCount = 0;
@@ -461,19 +465,19 @@ export const AudioProvider = ({ children }) => {
       console.log(`[StreamingAudioContext: initializeDefaultAudio] Layer ${result.layer} initialization ${result.success ? 'succeeded' : 'failed'}`);
     });
   
-    // Store audio elements in AudioCore
-    console.log("[StreamingAudioContext: initializeDefaultAudio] Registering audio elements with AudioCore:", 
+    // Store audio elements in audioservice
+    console.log("[StreamingAudioContext: initializeDefaultAudio] Registering audio elements with audioservice:", 
       Object.keys(newAudioElements).map(layer => 
         `${layer}: ${Object.keys(newAudioElements[layer]).join(', ')}`
       )
     );
     
-    // Store audio elements in AudioCore
-    if (audioCore.registerElements) {
-      const registered = audioCore.registerElements(newAudioElements);
-      console.log("[StreamingAudioContext: initializeDefaultAudio] AudioCore registration result:", registered);
+    // Store audio elements in audioservice
+    if (audioservice.registerElements) {
+      const registered = audioservice.registerElements(newAudioElements);
+      console.log("[StreamingAudioContext: initializeDefaultAudio] audioservice registration result:", registered);
     } else {
-      console.error("[StreamingAudioContext: initializeDefaultAudio] AudioCore.registerElements is not defined");
+      console.error("[StreamingAudioContext: initializeDefaultAudio] audioservice.registerElements is not defined");
     }
     
     // Update both states together
@@ -525,10 +529,10 @@ export const AudioProvider = ({ children }) => {
 
   // Set master volume
   const handleSetMasterVolume = useCallback((value) => {
-    if (!serviceRef.current.audioCore) return;
+    if (!serviceRef.current.audioservice) return;
     
     setMasterVolume(value);
-    serviceRef.current.audioCore.setMasterVolume(value);
+    serviceRef.current.audioservice.setMasterVolume(value);
   }, []);
 
   // Set volume for a specific layer
@@ -581,22 +585,52 @@ export const AudioProvider = ({ children }) => {
 
   // Start the session 
 const handleStartSession = useCallback(() => {
+  // More detailed error checking
+  if (!serviceRef.current) {
+    console.error("[StreamingAudioContext] serviceRef is null or undefined");
+    return false;
+  }
+  
+  if (!serviceRef.current.audioservice) {
+    console.error("[StreamingAudioContext] audioservice not initialized yet");
+    return false;
+  }
+  
   // Use ref for current state check to avoid race conditions
-  if (!serviceRef.current.audioCore || isPlayingRef.current) {
-    console.log("Can't start: AudioCore missing or already playing");
-    return;
+  if (isPlayingRef.current) {
+    console.log("[StreamingAudioContext] Already playing, ignoring start request");
+    return true; // Return true since it's already in the desired state
   }
   
   try {
-    console.log("[StreamingAudioContext: handleStartSession] Starting session...");
+    console.log("[StreamingAudioContext] Starting session...");
     
-    // Resume AudioCore
-    serviceRef.current.audioCore.resume().catch(err => {
-      console.error('[StreamingAudioContext: handleStartSession] Error resuming audio context:', err);
-    });
+    // Ensure the audio context is ready
+    if (serviceRef.current.audioservice.getContext) {
+      const audioCtx = serviceRef.current.audioservice.getContext();
+      if (audioCtx && audioCtx.state === 'suspended') {
+        console.log("[StreamingAudioContext] Resuming suspended audio context");
+        audioCtx.resume().catch(err => {
+          console.error('[StreamingAudioContext] Error resuming audio context:', err);
+        });
+      }
+    }
+
+    // Resume audioservice - with better error handling
+    serviceRef.current.audioservice.resume()
+      .then(success => {
+        if (success) {
+          console.log("[StreamingAudioContext] Successfully resumed audio context");
+        } else {
+          console.warn("[StreamingAudioContext] Audio context resume returned false");
+        }
+      })
+      .catch(err => {
+        console.error('[StreamingAudioContext] Error resuming audio context:', err);
+      });
     
     // Get currently active audio elements
-    const audioElements = serviceRef.current.audioCore.getElements?.() || {};
+    const audioElements = serviceRef.current.audioservice.getElements?.() || {};
 
     console.log("[StreamingAudioContext: handleStartSession] Audio Elements:", 
       Object.keys(audioElements).map(layer => 
@@ -717,8 +751,8 @@ const handlePauseSession = useCallback(() => {
     setActiveCrossfades({});
     setCrossfadeProgress({});
     
-    // Get audio elements from AudioCore
-    const audioElements = serviceRef.current.audioCore.getElements?.() || {};
+    // Get audio elements from audioservice
+    const audioElements = serviceRef.current.audioservice.getElements?.() || {};
     
     // Fade out all active layers first
     const fadeDuration = 50; // 50ms fade duration
@@ -761,9 +795,9 @@ const handlePauseSession = useCallback(() => {
         serviceRef.current.timelineEngine.stop();
       }
       
-      // Suspend the AudioCore context
-      if (serviceRef.current.audioCore) {
-        serviceRef.current.audioCore.suspend().catch(err => {
+      // Suspend the audioservice context
+      if (serviceRef.current.audioservice) {
+        serviceRef.current.audioservice.suspend().catch(err => {
           console.warn('[StreamingAudioContext: handlePauseSession] Error suspending audio context:', err);
         });
       }
@@ -841,18 +875,18 @@ const handlePauseSession = useCallback(() => {
     const actualDuration = fadeDuration !== null ? fadeDuration : transitionDuration;
     
     // Verify we have what we need
-    if (!serviceRef.current.audioCore || 
+    if (!serviceRef.current.audioservice || 
         !serviceRef.current.volumeController || 
         !serviceRef.current.crossfadeEngine) {
       console.error("Cannot crossfade: missing required services");
       return false;
     }
     
-    const audioCtx = serviceRef.current.audioCore.getContext();
-    const masterGain = serviceRef.current.audioCore.getMasterGain();
+    const audioCtx = serviceRef.current.audioservice.getContext();
+    const masterGain = serviceRef.current.audioservice.getMasterGain();
 
     // Get the audio elements
-    const audioElements = serviceRef.current.audioCore.getElements?.() || {};
+    const audioElements = serviceRef.current.audioservice.getElements?.() || {};
     console.log("Audio elements retrieved:", audioElements);
 
     // Get the current active track ID with improved reliability
@@ -1000,10 +1034,10 @@ console.log(`[StreamingAudioContext: handleCrossfadeTo] Available tracks in audi
         isActive: false
       };
       
-      // Update audio elements in AudioCore if it supports it
-      if (serviceRef.current.audioCore.updateElement) {
-        console.log(`[StreamingAudioContext: handleCrossfadeTo] Registering new element with AudioCore: ${layer}/${newTrackId}`);
-        serviceRef.current.audioCore.updateElement(layer, newTrackId, newTrackElements);
+      // Update audio elements in audioservice if it supports it
+      if (serviceRef.current.audioservice.updateElement) {
+        console.log(`[StreamingAudioContext: handleCrossfadeTo] Registering new element with audioservice: ${layer}/${newTrackId}`);
+        serviceRef.current.audioservice.updateElement(layer, newTrackId, newTrackElements);
       }
     }
 
@@ -1153,7 +1187,7 @@ console.log(`[StreamingAudioContext: handleCrossfadeTo] Available tracks in audi
         serviceRef.current.volumeController.connectToLayer(
           layer, 
           newTrackElements.source, 
-          serviceRef.current.audioCore.getMasterGain()
+          serviceRef.current.audioservice.getMasterGain()
         );
       }
       
@@ -1402,7 +1436,7 @@ console.log(`[StreamingAudioContext: handleCrossfadeTo] Available tracks in audi
     handleStartSession, 
     handlePauseSession, 
     collectionService, 
-    audioFileService
+    
   ]);
 
   const handleSwitchTrack = useCallback((layerFolder, trackId, options = {}) => {

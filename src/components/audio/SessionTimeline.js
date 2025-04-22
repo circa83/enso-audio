@@ -208,61 +208,6 @@ const setTransitionState = useCallback((isTransitioning, force = false) => {
   }, [timeline, onDurationChange]);
 
 
-  // Register the state provider for presets
-  useEffect(() => {
-    // This function will be called when saving a preset
-    const getTimelineState = () => {
-      return {
-        phases: phases.map(phase => ({
-          id: phase.id,
-          name: phase.name,
-          position: phase.position,
-          color: phase.color,
-          state: phase.state,
-          locked: phase.locked
-        })),
-        sessionDuration: timeline.duration,
-        transitionDuration: timeline.transitionDuration
-      };
-    };
-
-    // Register the function with the preset system
-    if (timeline.registerPresetStateProvider) {
-      timeline.registerPresetStateProvider('timeline', getTimelineState);
-      
-      // Clean up when component unmounts
-      return () => timeline.registerPresetStateProvider('timeline', null);
-    }
-  }, [phases, timeline]);
-
-
-  // Handle when timeline phases are updated from a preset
-  useEffect(() => {
-    // Custom event listener for timeline phase updates
-    const handleTimelineUpdate = (eventData) => {
-      if (eventData.detail && eventData.detail.phases) {
-        console.log('Updating timeline phases from preset:', eventData.detail.phases);
-        
-        // Update phases
-        setPhases(eventData.detail.phases);
-        
-        // Update session duration if provided
-        if (eventData.detail.sessionDuration && onDurationChange) {
-          onDurationChange(eventData.detail.sessionDuration);
-        }
-      }
-    };
-
-    // Add event listener
-    window.addEventListener('timeline-update', handleTimelineUpdate);
-    
-    // Clean up
-    return () => {
-      window.removeEventListener('timeline-update', handleTimelineUpdate);
-    };
-  }, [onDurationChange]);
-  
-
   
 
   // Effect to track edit mode changes and ensure deselection
@@ -725,9 +670,9 @@ useEffect(() => {
 ]);
 
 // -------Phase change event listener-------
-// Listen for phase change events from the TimelineEngine
+// Listen for phase change events from the TimelineService
 useEffect(() => {
-  // Listen for phase change events from the TimelineEngine
+  // Listen for phase change events from the TimelineService
   const handlePhaseChangeEvent = (event) => {
     
     const { phaseId, phaseData } = event.detail;
@@ -848,7 +793,7 @@ const handlePhaseMarkerDrag = useCallback((index, newPosition) => {
   
   // Notify the timeline service that phases have been updated
   if (timeline.updatePhases) {
-    console.log('[SessionTimeline: handlePhaseMarkerDrag] Updating phases in TimelineEngine');
+    console.log('[SessionTimeline: handlePhaseMarkerDrag] Updating phases in TimelineService');
     timeline.updatePhases(newPhases);
   }
 }, [phases, timeline]);
@@ -919,7 +864,7 @@ const capturePhaseState = useCallback((index) => {
   
   // Notify the timeline service of updated phases
   if (timeline.updatePhases) {
-    console.log('[SessionTimeline: capturePhaseState] Updating phases in TimelineEngine');
+    console.log('[SessionTimeline: capturePhaseState] Updating phases in TimelineService');
     timeline.updatePhases(newPhases);
   }
   
