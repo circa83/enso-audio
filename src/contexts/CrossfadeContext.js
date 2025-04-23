@@ -14,13 +14,14 @@ const CrossfadeContext = createContext(null);
  */
 export const CrossfadeProvider = ({ 
   children,
+  audioContext,
+  masterGain,
+  audioInitialized,
+  volumeService,
+  bufferService,
   defaultFadeDuration = 2000,
   enableLogging = false
 }) => {
-  // Get dependencies from other services
-  const { audioContext, masterGain, initialized: audioInitialized } = useAudioService();
-  const volumeService = useVolumeService();
-  const bufferService = useBufferService();
 
   // Service reference - explicitly using useState to ensure stable reference
   const [crossfadeService, setCrossfadeService] = useState(null);

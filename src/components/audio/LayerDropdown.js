@@ -1,5 +1,6 @@
 // src/components/audio/LayerDropdown.js
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { useLayer } from '../../hooks/useLayer';
 import { useAudio } from '../../hooks/useAudio';
 import styles from '../../styles/components/LayerDropdown.module.css';
 
@@ -11,21 +12,28 @@ import styles from '../../styles/components/LayerDropdown.module.css';
  * @returns {JSX.Element} Rendered component
  */
 const LayerDropdown = ({ layer }) => {
+  // Get layer-specific data from useLayer hook
   const { 
-    audioLibrary, 
-    activeAudio, 
-    crossfadeTo,
-    activeCrossfades,
-    crossfadeProgress,
-    preloadProgress,
-    isPlaying,
-    transitionDuration
+    getTracksForLayer,
+    getActiveTrack,
+    changeTrack,
+    isLayerMuted
+  } = useLayer();
+  
+  // Get audio system state for crossfades and preloading
+  const { 
+    transitions: { active: activeCrossfades, progress: crossfadeProgress, preloadProgress },
+    playback: { isPlaying } 
   } = useAudio();
   
   const [isExpanded, setIsExpanded] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const dropdownRef = useRef(null);
   const toggleButtonRef = useRef(null);
+  
+  // Get available tracks and active track for this layer
+  const tracks = getTracksForLayer(layer);
+  const activeTrackId = getActiveTrack(layer);
   
   // Get z-index based on layer name for proper stacking
   const getZIndexForLayer = useCallback((layerName) => {
@@ -73,7 +81,7 @@ const LayerDropdown = ({ layer }) => {
     }
     
     // Skip if already selected
-    if (trackId === activeAudio[layer]) {
+    if (trackId === activeTrackId) {
       setIsExpanded(false);
       return;
     }
@@ -82,12 +90,12 @@ const LayerDropdown = ({ layer }) => {
     
     // Perform crossfade with appropriate duration
     // Use shorter crossfade if not playing to avoid long waits
-    const fadeDuration = isPlaying ? transitionDuration : 200;
-    crossfadeTo(layer, trackId, fadeDuration);
+    const fadeDuration = isPlaying ? 3000 : 200;
+    changeTrack(layer, trackId, { duration: fadeDuration });
     
     // Close the dropdown
     setIsExpanded(false);
-  }, [layer, activeCrossfades, activeAudio, isPlaying, crossfadeTo, transitionDuration]); // Include all external dependencies
+  }, [layer, activeCrossfades, activeTrackId, isPlaying, changeTrack]); // Include all external dependencies
   
   // Handle scroll event to update dropdown position
   useEffect(() => {
@@ -143,13 +151,13 @@ const LayerDropdown = ({ layer }) => {
     };
   }, [isExpanded]);
   
-  // Get active track name - optimize with useCallback if used in multiple places
+  // Get active track name
   const getActiveTrackName = useCallback(() => {
-    if (!activeAudio[layer] || !audioLibrary[layer]) return 'Default';
+    if (!activeTrackId || !tracks) return 'Default';
     
-    const activeTrack = audioLibrary[layer].find(t => t.id === activeAudio[layer]);
+    const activeTrack = tracks.find(t => t.id === activeTrackId);
     return activeTrack ? activeTrack.name : 'Default';
-  }, [activeAudio, audioLibrary, layer]);
+  }, [activeTrackId, tracks]);
   
   // Check if the layer is currently in a crossfade
   const isInCrossfade = activeCrossfades && activeCrossfades[layer];
@@ -161,7 +169,7 @@ const LayerDropdown = ({ layer }) => {
   }, [isInCrossfade, crossfadeProgress, layer]);
 
   // If there are no options to show, don't render the component
-  if (!audioLibrary[layer] || audioLibrary[layer].length <= 1) {
+  if (!tracks || tracks.length <= 1) {
     return null;
   }
   
@@ -210,8 +218,8 @@ const LayerDropdown = ({ layer }) => {
               zIndex: zIndex // Apply layer-specific z-index
             }}
           >
-            {audioLibrary[layer].map((track) => {
-              const isActive = activeAudio[layer] === track.id;
+            {tracks.map((track) => {
+              const isActive = activeTrackId === track.id;
               const isPreloading = preloadProgress && preloadProgress[track.id] !== undefined && preloadProgress[track.id] < 100;
               
               return (

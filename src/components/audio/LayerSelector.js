@@ -1,27 +1,35 @@
 // src/components/audio/LayerSelector.js
 import React, { useState, useCallback } from 'react';
-import { useAudio } from '../../hooks/useAudio'; // Import the refactored hook
+import { useLayer } from '../../hooks/useLayer';
+import { useAudio } from '../../hooks/useAudio';
 import styles from '../../styles/components/LayerSelector.module.css';
 
 const LayerSelector = ({ layer }) => {
-  // Use our hook with all required functionality
+  // Use our layer hook for layer management
   const { 
-    audioLibrary, 
-    activeAudio, 
-    crossfadeTo,
-    activeCrossfades,
-    crossfadeProgress,
-    preloadProgress,  // Track loading progress
-    transitionDuration: defaultTransitionDuration // Get transition duration from audio context
+    getTracksForLayer,
+    getActiveTrack,
+    changeTrack,
+    isLayerMuted
+  } = useLayer();
+  
+  // Use audio hook for crossfades and preloading
+  const { 
+    transitions: { active: activeCrossfades, progress: crossfadeProgress, preloadProgress },
+    timeline: { transitionDuration = 3000 } 
   } = useAudio();
   
   const [isExpanded, setIsExpanded] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
 
+  // Get tracks and active track
+  const tracks = getTracksForLayer(layer);
+  const activeTrackId = getActiveTrack(layer);
+
   // Handle track selection with useCallback
   const handleTrackSelect = useCallback(async (trackId) => {
     // Don't do anything if already selected or already in a crossfade
-    if (trackId === activeAudio[layer]) {
+    if (trackId === activeTrackId) {
       console.log(`${trackId} already selected`);
       return;
     }
@@ -38,8 +46,15 @@ const LayerSelector = ({ layer }) => {
     try {
       console.log(`[LayerSelector] User selected track ${trackId} for ${layer}`);
       
-      // Use the default transition duration from the audio context
-      const success = await crossfadeTo(layer, trackId, defaultTransitionDuration);
+      // Execute the track change with crossfade
+      const success = await changeTrack(layer, trackId, { 
+        duration: transitionDuration,
+        onComplete: (result) => {
+          if (!result) {
+            setErrorMessage('Could not load audio track. Please try again.');
+          }
+        }
+      });
       
       if (!success) {
         setErrorMessage('Could not load audio track. Please try again.');
@@ -48,7 +63,7 @@ const LayerSelector = ({ layer }) => {
       console.error('[LayerSelector] Error changing track:', error);
       setErrorMessage('Error during track transition. Please try again.');
     }
-  }, [layer, activeAudio, activeCrossfades, crossfadeTo, defaultTransitionDuration]);
+  }, [layer, activeTrackId, activeCrossfades, changeTrack, transitionDuration]);
 
   // Toggle expanded state with useCallback
   const toggleExpanded = useCallback(() => {
@@ -57,11 +72,11 @@ const LayerSelector = ({ layer }) => {
 
   // Get active track name with useCallback
   const getActiveTrackName = useCallback(() => {
-    if (!activeAudio[layer] || !audioLibrary[layer]) return 'None';
+    if (!activeTrackId || !tracks) return 'None';
     
-    const activeTrack = audioLibrary[layer].find(t => t.id === activeAudio[layer]);
+    const activeTrack = tracks.find(t => t.id === activeTrackId);
     return activeTrack ? activeTrack.name : 'None';
-  }, [activeAudio, audioLibrary, layer]);
+  }, [activeTrackId, tracks]);
 
   // Get progress percentage for display with useCallback
   const getProgressPercent = useCallback(() => {
@@ -74,8 +89,8 @@ const LayerSelector = ({ layer }) => {
     const isInCrossfade = activeCrossfades && activeCrossfades[layer];
     if (!isInCrossfade) return null;
     
-    const sourceTrack = audioLibrary[layer].find(t => t.id === activeCrossfades[layer].from);
-    const targetTrack = audioLibrary[layer].find(t => t.id === activeCrossfades[layer].to);
+    const sourceTrack = tracks.find(t => t.id === activeCrossfades[layer].from);
+    const targetTrack = tracks.find(t => t.id === activeCrossfades[layer].to);
     
     return {
       from: sourceTrack ? sourceTrack.name : 'Unknown',
@@ -83,7 +98,7 @@ const LayerSelector = ({ layer }) => {
       progress: getProgressPercent(),
       isLoading: activeCrossfades[layer].isLoading
     };
-  }, [audioLibrary, activeCrossfades, layer, getProgressPercent]);
+  }, [tracks, activeCrossfades, layer, getProgressPercent]);
 
   // Check if the layer is currently in a crossfade
   const isInCrossfade = activeCrossfades && activeCrossfades[layer];
@@ -142,7 +157,7 @@ const LayerSelector = ({ layer }) => {
             <div className={styles['error-message']}>{errorMessage}</div>
           )}
           
-          {audioLibrary[layer] && audioLibrary[layer].map(track => {
+          {tracks && tracks.map(track => {
             // Check if this track is part of an active crossfade
             const isSource = isInCrossfade && activeCrossfades[layer].from === track.id;
             const isTarget = isInCrossfade && activeCrossfades[layer].to === track.id;
@@ -157,7 +172,7 @@ const LayerSelector = ({ layer }) => {
                 key={track.id}
                 className={`
                   ${styles['track-item']} 
-                  ${activeAudio[layer] === track.id ? styles.active : ''}
+                  ${activeTrackId === track.id ? styles.active : ''}
                   ${isSource ? styles.fadeOut : ''}
                   ${isTarget ? styles.fadeIn : ''}
                   ${isLoading || isPreloading ? styles.loading : ''}
@@ -199,7 +214,7 @@ const LayerSelector = ({ layer }) => {
                 )}
                 
                 {/* Active indicator */}
-                {activeAudio[layer] === track.id && !isInCrossfade && !isPreloading && (
+                {activeTrackId === track.id && !isInCrossfade && !isPreloading && (
                   <span className={styles['active-indicator']}>▶</span>
                 )}
               </div>

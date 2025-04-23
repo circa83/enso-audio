@@ -373,11 +373,24 @@ export const VolumeProvider = ({
  * @returns {Object} Volume context value
  */
 export const useVolumeContext = () => {
-  const context = useContext(VolumeContext);
-  if (!context) {
-    throw new Error('useVolumeContext must be used within a VolumeProvider');
-  }
-  return context;
-};
+    const context = useContext(VolumeContext);
+    if (!context) {
+      throw new Error('useVolumeContext must be used within a VolumeProvider');
+    }
+    return context;
+  };
+  
+  /**
+   * Access the volume service directly (for service-to-service integration)
+   * @returns {Object|null} Volume service instance
+   */
+  export const useVolumeService = () => {
+    const context = useContext(VolumeContext);
+    if (!context) {
+      console.warn('useVolumeService called outside of VolumeProvider');
+      return null;
+    }
+    return context.service;
+  };
 
 export default VolumeContext;
