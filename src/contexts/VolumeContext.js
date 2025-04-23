@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import VolumeService from '../../services/volume/VolumeService';
-import { useAudioService } from '../audio/useAudioService';
-import eventBus from '../../services/EventBus';
+import VolumeService from '../services/VolumeService';
+import AudioService from '../services/AudioService';
+import eventBus from '../services/EventBus';
 
 // Create the context
 const VolumeContext = createContext(null);

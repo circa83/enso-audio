@@ -1,325 +1,275 @@
 // src/hooks/useAudio.js
-import { useContext, useCallback, useMemo } from 'react';
-import AudioContext from '../contexts/StreamingAudioContext';
+import { useCallback, useMemo } from 'react';
+import { useAudioContext } from '../contexts/AudioContext';
+import { useVolumeContext } from '../contexts/VolumeContext';
 
 /**
- * Custom hook to simplify access to the Audio context functionality
- * Provides a clean, organized API grouped by functionality areas
+ * Custom hook to simplify access to the core audio functionality
+ * Provides a clean, organized API for audio playback and control
  * 
- * @returns {Object} Object containing all audio functions and state
+ * @returns {Object} Object containing core audio functions and state
  */
 export function useAudio() {
-  const context = useContext(AudioContext);
+  // Get core audio functionality from AudioContext
+  const audio = useAudioContext();
   
-  if (!context) {
-    throw new Error('useAudio must be used within an AudioProvider');
+  // Get volume functionality from VolumeContext
+  const volume = useVolumeContext();
+  
+  if (!audio) {
+    throw new Error('useAudio: AudioContext is not available');
   }
-
-  // Extract values from context for cleaner access
-      const { 
-    // Core audio state
+  
+  // Extract values from audio context for cleaner access
+  const { 
+    // State
     isPlaying,
     isLoading,
-    loadingProgress,
     masterVolume,
-    volumes,
-    activeAudio,
-    audioLibrary,
-    hasSwitchableAudio,
+    audioElements,
+    initialized,
     
-    // Core audio functions
-    setMasterVolumeLevel,
-    setVolume,
-    startSession,
-    pauseSession,
-    getSessionTime,
+    // Methods
+    startPlayback,
+    pausePlayback,
+    registerElements,
+    updateElement,
+    getElements,
     
-    // Audio transition state
-    crossfadeProgress,
-    activeCrossfades,
-    fadeLayerVolume,
-    preloadProgress,
-    
-    // Audio transition functions
-    crossfadeTo,
-    preloadAudio,
-    getActiveSourceNode,
-    getActiveAudioElement,
-    getOrCreateSourceNode,
-    getOrCreateAudioElement,
-    
-    // Timeline state 
-    timelineEvents,
-    timelinePhases,
-    activePhase,
-    progress,
-    sessionDuration,
-    transitionDuration,
-    timelineIsPlaying, 
-    startTimeline,
-    pauseTimeline,
-    resumeTimeline,
-    stopTimeline,
+    // Objects
+    audioContext,
+    masterGain,
+    analyzer
+  } = audio;
   
-    // Timeline functions
-    resetTimelineEventIndex,
-    registerTimelineEvent,
-    clearTimelineEvents,
-    updateTimelinePhases,
-    seekToTime,
-    seekToPercent,
-    setSessionDuration,
-    setTransitionDuration,
-    
-    
-    
-    // Collection state
-    currentCollection,
-    loadingCollection,
-    collectionError,
-    collectionLoadProgress,
-    
-    // Collection functions
-    loadCollection,
-    switchTrack,
-    
-    // Constants
-    LAYERS
-  } = context;
-
-  // Group related functionality for a more organized API
+  // ===== Core Audio Element Access =====
   
-  // Playback controls
+  // Get active audio element for a layer/track
+  const getActiveAudioElement = useCallback((layer, trackId = null) => {
+    const elements = getElements();
+    
+    if (!elements || !elements[layer]) {
+      return null;
+    }
+    
+    // If trackId is specified, get that specific element
+    if (trackId && elements[layer][trackId]) {
+      return elements[layer][trackId].element || null;
+    }
+    
+    // Otherwise, find an element marked as active
+    for (const [id, data] of Object.entries(elements[layer])) {
+      if (data.isActive && data.element) {
+        return data.element;
+      }
+    }
+    
+    // Fallback: return the first available element
+    const firstTrackId = Object.keys(elements[layer])[0];
+    return firstTrackId ? elements[layer][firstTrackId].element || null : null;
+  }, [getElements]);
+  
+  // Get active source node for a layer/track
+  const getActiveSourceNode = useCallback((layer, trackId = null) => {
+    const elements = getElements();
+    
+    if (!elements || !elements[layer]) {
+      return null;
+    }
+    
+    // If trackId is specified, get that specific source
+    if (trackId && elements[layer][trackId]) {
+      return elements[layer][trackId].source || null;
+    }
+    
+    // Otherwise, find a source marked as active
+    for (const [id, data] of Object.entries(elements[layer])) {
+      if (data.isActive && data.source) {
+        return data.source;
+      }
+    }
+    
+    // Fallback: return the first available source
+    const firstTrackId = Object.keys(elements[layer])[0];
+    return firstTrackId ? elements[layer][firstTrackId].source || null : null;
+  }, [getElements]);
+  
+  // Create or get an audio element for a layer/track
+  const getOrCreateAudioElement = useCallback((layer, trackId, options = {}) => {
+    const { path, loop = true, preload = true } = options;
+    
+    // First try to get existing element
+    const elements = getElements();
+    if (elements && elements[layer] && elements[layer][trackId] && elements[layer][trackId].element) {
+      return elements[layer][trackId].element;
+    }
+    
+    // If no element exists and we have a path, create one
+    if (!path) {
+      console.error(`[useAudio] Cannot create audio element: path required for ${layer}/${trackId}`);
+      return null;
+    }
+    
+    try {
+      // Create new audio element
+      const audioElement = new Audio();
+      audioElement.crossOrigin = "anonymous";
+      audioElement.loop = loop;
+      audioElement.preload = preload ? "auto" : "none";
+      audioElement.src = path;
+      
+      // Create source node
+      const source = audioContext.createMediaElementSource(audioElement);
+      
+      // Connect to volume controller if available
+      if (volume && volume.connectSourceToLayer) {
+        volume.connectSourceToLayer(layer, source, masterGain);
+      } else {
+        // Fallback: connect directly to master gain
+        source.connect(masterGain);
+      }
+      
+      // Create element data
+      const elementData = {
+        element: audioElement,
+        source: source,
+        track: {
+          id: trackId,
+          path: path,
+          name: options.name || trackId
+        },
+        isActive: options.isActive || false
+      };
+      
+      // Register with audio service
+      updateElement(layer, trackId, elementData);
+      
+      return audioElement;
+    } catch (error) {
+      console.error(`[useAudio] Error creating audio element: ${error.message}`);
+      return null;
+    }
+  }, [audioContext, masterGain, getElements, updateElement, volume]);
+  
+  // Create or get a source node for a layer/track
+  const getOrCreateSourceNode = useCallback((layer, trackId, options = {}) => {
+    // First try to get existing source
+    const elements = getElements();
+    if (elements && elements[layer] && elements[layer][trackId] && elements[layer][trackId].source) {
+      return elements[layer][trackId].source;
+    }
+    
+    // If we have a path, create the full element & source
+    if (options.path) {
+      const audioElement = getOrCreateAudioElement(layer, trackId, options);
+      
+      // Return the source that was created with the element
+      const updatedElements = getElements();
+      return updatedElements[layer]?.[trackId]?.source || null;
+    }
+    
+    console.error(`[useAudio] Cannot create source node: no existing source or path for ${layer}/${trackId}`);
+    return null;
+  }, [getElements, getOrCreateAudioElement]);
+  
+  // ===== Playback Controls =====
+  
+  // Group playback functionality for a more organized API
   const playback = useMemo(() => ({
     isPlaying,
     start: () => {
-      console.log('[useAudio] Starting session playback');
-      return startSession();
+      console.log('[useAudio] Starting audio playback');
+      return startPlayback();
     },
     pause: () => {
-      console.log('[useAudio] Pausing session playback');
-      return pauseSession();
+      console.log('[useAudio] Pausing audio playback');
+      return pausePlayback();
     },
-    getTime: () => {
-      // Don't log this to avoid console spam
-      return getSessionTime();
+    getTime: (layer) => {
+      // If layer specified, get time from that audio element
+      if (layer) {
+        const audioElement = getActiveAudioElement(layer);
+        return audioElement ? audioElement.currentTime * 1000 : 0; // Convert to ms
+      }
+      
+      // Otherwise return 0 (no central time tracker in core audio)
+      return 0;
+    },
+    // Extended playback functions
+    togglePlayPause: () => {
+      if (isPlaying) {
+        console.log('[useAudio] Toggling playback: pause');
+        return pausePlayback();
+      } else {
+        console.log('[useAudio] Toggling playback: play');
+        return startPlayback();
+      }
     }
-  }), [isPlaying, startSession, pauseSession, getSessionTime]);
+  }), [isPlaying, startPlayback, pausePlayback, getActiveAudioElement]);
   
-  // Volume controls
-  const volume = useMemo(() => ({
+  // ===== Volume Controls =====
+  
+  // Volume controls - simplified to core functionality
+  const volumeControls = useMemo(() => ({
     master: masterVolume,
-    layers: volumes,
-    setMaster: (level, options) => {
-      return setMasterVolumeLevel(level, options);
-    },
-    setLayer: (layer, level, options) => {
-      return setVolume(layer, level, options);
-    }, 
-    fadeVolume: (layer, targetVolume, duration) => {
-      console.log(`[useAudio] Fading ${layer} volume to ${targetVolume} over ${duration}ms`);
-      return fadeLayerVolume(layer, targetVolume, duration);
+    setMaster: (level) => {
+      console.log(`[useAudio] Setting master volume to ${level}`);
+      return audio.setMasterVolume(level);
     }
-  }), [masterVolume, volumes, setMasterVolumeLevel, setVolume, fadeLayerVolume]);
+  }), [masterVolume, audio]);
   
-  // Layer management
-  const layers = useMemo(() => ({
-    active: activeAudio,
-    available: audioLibrary,
-    hasSwitchable: hasSwitchableAudio,
-    TYPES: LAYERS
-  }), [activeAudio, audioLibrary, hasSwitchableAudio, LAYERS]);
-
-  const getActiveAudio = useCallback((layer) => {
-    return getActiveAudioElement(layer);
-  }
-  , [getActiveAudioElement]); 
-
-  const getActiveSource = useCallback((layer) => {
-    return getActiveSourceNode(layer);
-  }
-  , [getActiveSourceNode]);
-
-  const getOrCreateAudio = useCallback((layer) => {
-    return getOrCreateAudioElement(layer);
-  }
-  , [getOrCreateAudioElement]);
-
-  const getOrCreateSource = useCallback((layer) => {
-    return getOrCreateSourceNode(layer);
-  }
-  , [getOrCreateSourceNode]);
+  // ===== Loading State =====
   
-  // Transitions
-  const transitions = useMemo(() => ({
-    active: activeCrossfades,
-    progress: crossfadeProgress,
-    preloadProgress,
-    crossfade: (layer, trackId, duration) => {
-      console.log(`[useAudio] Crossfading ${layer} to track ${trackId}`);
-      return crossfadeTo(layer, trackId, duration);
-    },
-    preload: (layer, trackId) => {
-      console.log(`[useAudio] Preloading ${layer} track ${trackId}`);
-      return preloadAudio(layer, trackId);
-    }
-  }), [activeCrossfades, crossfadeProgress, preloadProgress, crossfadeTo, preloadAudio]);
-  
-  // Timeline controls with enhanced debugging
-  const timeline = useMemo(() => ({
-      events: timelineEvents,
-      phases: timelinePhases,
-      activePhase,
-      progress,
-      duration: sessionDuration,
-      transitionDuration,
-      isPlaying: timelineIsPlaying,
-    
-    startTimeline: () => { 
-      console.log('[useAudio] Starting timeline progression');
-      return startTimeline();
-    },
-    pauseTimeline: () => { 
-      console.log('[useAudio] Pausing timeline progression (preserving position)');
-     return pauseTimeline();
-    },
-    resumeTimeline: () => {
-      console.log('[useAudio] Resuming timeline progression from current position');
-      return resumeTimeline();
-    },
-    stopTimeline: () => { 
-      console.log('[useAudio] Stopping timeline progression');
-      return stopTimeline();
-    },
-    resetTimeline: () => {
-      console.log('[useAudio] Resetting timeline event index');
-      return resetTimelineEventIndex();
-    },
-    reset: () => {
-      console.log('[useAudio] Resetting timeline event index');
-      return resetTimelineEventIndex();
-    },
-    registerEvent: (event) => {
-      console.log(`[useAudio] Registering timeline event: ${event.id}`);
-      return registerTimelineEvent(event);
-    },
-    clearEvents: () => {
-      console.log('[useAudio] Clearing all timeline events');
-      return clearTimelineEvents();
-    },
-    updatePhases: (phases) => {
-      console.log(`[useAudio] Updating timeline phases (${phases.length} phases)`);
-      return updateTimelinePhases(phases);
-    },
-    seekToTime: (timeMs) => {
-      console.log(`[useAudio] Seeking to time: ${timeMs}ms`);
-      return seekToTime(timeMs);
-    },
-    seekToPercent: (percent) => {
-      console.log(`[useAudio] Seeking to percent: ${percent}%`);
-      return seekToPercent(percent);
-    },
-    setDuration: (duration) => {
-      console.log(`[useAudio] Setting session duration: ${duration}ms`);
-      return setSessionDuration(duration);
-    },
-    setTransitionDuration: (duration) => {
-      console.log(`[useAudio] Setting transition duration: ${duration}ms`);
-      return setTransitionDuration(duration);
-    }
-  }), [
-    startTimeline,
-    pauseTimeline,
-    resumeTimeline,
-    stopTimeline,
-    timelineIsPlaying,
-  timelineEvents,
-  timelinePhases,
-  activePhase,
-  progress,
-  sessionDuration,
-  transitionDuration,
-    resetTimelineEventIndex,
-    registerTimelineEvent,
-    clearTimelineEvents,
-    updateTimelinePhases,
-    seekToTime,
-    seekToPercent,
-    setSessionDuration,
-    setTransitionDuration
-  ]);
-  
-
-
   // Loading state
   const loading = useMemo(() => ({
     isLoading,
-    progress: loadingProgress
-  }), [isLoading, loadingProgress]);
-
-  // Return both grouped functionality and individual functions/values
-  // to support both usage patterns:
-  // const { playback, volume } = useAudio(); // Grouped
-  // const { isPlaying, startSession } = useAudio(); // Individual
+    initialized
+  }), [isLoading, initialized]);
+  
+  // ===== Audio Registration =====
+  
+  // Audio element registration
+  const registration = useMemo(() => ({
+    registerElements,
+    updateElement,
+    getElements 
+  }), [registerElements, updateElement, getElements]);
+  
+  // Return grouped functionality with clean API
   return {
     // Grouped functionality
     playback,
-    volume,
-    layers,
-    transitions,
-  timeline,
+    volume: volumeControls,
     loading,
+    registration,
     
-    // Individual values and functions (for backward compatibility)
+    // Audio elements access
+    getActiveAudioElement,
+    getActiveSourceNode,
+    getOrCreateAudioElement,
+    getOrCreateSourceNode,
+    
+    // Audio objects access
+    audioContext,
+    masterGain,
+    analyzer,
+    
+    // Direct state access
     isPlaying,
     isLoading,
-    loadingProgress,
+    initialized,
     masterVolume,
-    volumes,
-    activeAudio,
-    audioLibrary,
-    hasSwitchableAudio,
-    crossfadeProgress,
-    activeCrossfades,
-    preloadProgress,
-    timelineEvents,
-    timelinePhases,
-    activePhase,
-    progress,
-    sessionDuration,
-    transitionDuration,
-    LAYERS,
+    audioElements,
     
-    // Collection state
-    currentCollection,
-    loadingCollection,
-    collectionError,
-    collectionLoadProgress,
+    // Raw methods (for compatibility)
+    startPlayback,
+    pausePlayback,
+    setMasterVolume: audio.setMasterVolume,
     
-    // Functions
-    setMasterVolumeLevel,
-    setVolume,
-    startSession,
-    pauseSession,
-    crossfadeTo,
-    preloadAudio,
-    getSessionTime,
-    resetTimelineEventIndex,
-    registerTimelineEvent,
-    clearTimelineEvents,
-    updateTimelinePhases,
-    seekToTime,
-    seekToPercent,
-    setSessionDuration,
-    setTransitionDuration,
-    getActiveSourceNode,
-    getActiveAudioElement,
-    getOrCreateSourceNode,
-    getOrCreateAudioElement,
-    loadCollection,
-    switchTrack
+    // Service access for advanced usage
+    service: audio.service
   };
 }
 
-// Export as default as well for flexibility
+// Export as default for flexibility
 export default useAudio;
