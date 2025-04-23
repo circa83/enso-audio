@@ -5,7 +5,7 @@
  * Handles session timing, phase transitions, event scheduling,
  * and coordinates audio changes based on timeline position
  */
-import eventBus from '../services/EventBus';
+import eventBus from './EventBus';
 
 // Define event constants
 export const TIMELINE_EVENTS = {
@@ -16,6 +16,7 @@ export const TIMELINE_EVENTS = {
   RESET: 'timeline:reset',
   PROGRESS: 'timeline:progress',
   PHASE_CHANGED: 'timeline:phaseChanged',
+  PHASE_TRANSITION: 'timeline:phaseTransition',
   EVENT_TRIGGERED: 'timeline:eventTriggered',
   PHASES_UPDATED: 'timeline:phasesUpdated',
   DURATION_CHANGED: 'timeline:durationChanged',
@@ -23,7 +24,9 @@ export const TIMELINE_EVENTS = {
   SEEK: 'timeline:seek',
   EVENT_REGISTERED: 'timeline:eventRegistered',
   EVENTS_CLEARED: 'timeline:eventsCleared',
-  ERROR: 'timeline:error'
+  ERROR: 'timeline:error',
+  COMPLETED: 'timeline:completed',
+  INITIALIZED: 'timeline:initialized'
 };
 
 class TimelineService {
@@ -74,30 +77,33 @@ class TimelineService {
 
     this.onProgress = options.onProgress || (() => { });
 
-    // Private session state with _ prefix
-    this._startTime = null;
-    this._elapsedTime = 0;
-    this._isPlaying = false;
+    // Public state
+    this.phases = options.defaultPhases || [];
+    this.events = [];
+    this.activePhaseId = null;
+    this.activePhaseIndex = -1;
+    this.isPlaying = false;
+    this.isPaused = false;
+    this.elapsedTime = 0;
+    this.progress = 0;
 
-    // Private timeline data with _ prefix
-    this._phases = [];
-    this._events = [];
-    this._currentPhase = null;
+    // Private state with _ prefix
+    this._startTime = null;
+    this._pausedTime = 0;
+    this._timerHandle = null;
+    this._lastUpdateTime = 0;
     this._nextEventIndex = 0;
 
-    // Private timers with _ prefix
-    this._progressTimer = null;
-    this._eventCheckTimer = null;
-
-    // Add service statistics
-    this._stats = {
+    // Statistics
+    this.stats = {
+      phaseTransitions: 0,
+      eventsTriggered: 0,
+      timeUpdates: 0,
       started: 0,
       stopped: 0,
       paused: 0,
       resumed: 0,
       reset: 0,
-      phaseChanges: 0,
-      eventsTriggered: 0,
       seekOperations: 0,
       errors: 0,
       lastOperation: {
@@ -106,10 +112,8 @@ class TimelineService {
       }
     };
 
-    // Initialize with default phases if provided
-    if (options.defaultPhases && Array.isArray(options.defaultPhases)) {
-      this.setPhases(options.defaultPhases);
-    } else {
+    // Initialize default phases if none provided
+    if (!this.phases || this.phases.length === 0) {
       this._initializeDefaultPhases();
     }
 
@@ -117,11 +121,11 @@ class TimelineService {
 
     // Emit initialization event
     if (this.config.enableEventBus) {
-      eventBus.emit('timeline:initialized', {
+      eventBus.emit(TIMELINE_EVENTS.INITIALIZED, {
         timestamp: Date.now(),
         sessionDuration: this.config.sessionDuration,
         transitionDuration: this.config.transitionDuration,
-        phasesCount: this._phases.length
+        phasesCount: this.phases.length
       });
     }
   }
@@ -166,7 +170,7 @@ class TimelineService {
       }
     ];
 
-    this._phases = defaultPhases;
+    this.phases = defaultPhases;
     this.log('Default phases initialized');
   }
 
@@ -180,7 +184,7 @@ class TimelineService {
     const { reset = false } = options;
 
     try {
-      if (this._isPlaying) {
+      if (this.isPlaying) {
         this.log('Timeline is already playing', 'warn');
         return true;
       }
@@ -190,76 +194,49 @@ class TimelineService {
       // Reset elapsed time if requested
       if (reset) {
         this.log('Performing full timeline reset before starting');
-        // Stop any existing timers
-        this._stopProgressTimer();
-        this._stopEventChecking();
-        this._elapsedTime = 0;
+        this.elapsedTime = 0;
+        this.progress = 0;
         this._nextEventIndex = 0;
-
-        // Ensure we trigger initial progress updates
-        if (this.onProgress) {
-          this.onProgress(0, 0);
-        }
-
-        // Emit progress event via EventBus
-        if (this.config.enableEventBus) {
-          eventBus.emit(TIMELINE_EVENTS.PROGRESS, {
-            progress: 0,
-            elapsedTime: 0,
-            timestamp: Date.now()
-          });
-        }
-
-        this.log('Timeline reset to beginning');
       }
 
       // Set start time based on current elapsed time
-      this._startTime = Date.now() - this._elapsedTime;
-      this._isPlaying = true;
+      this._startTime = Date.now() - this.elapsedTime;
+      this.isPlaying = true;
+      this.isPaused = false;
 
-      // Start progress timer
-      this._startProgressTimer(true); // Added parameter for immediate update
-
-      // Start event checking
-      this._startEventChecking();
-
-      // Check for initial phase
-      this._checkCurrentPhase();
+      // Start update loop using requestAnimationFrame
+      this._updateLoop();
 
       // Update stats
-      this._updateStats({
-        started: this._stats.started + 1,
-        lastOperation: {
-          type: 'start',
-          reset,
-          timestamp: Date.now()
-        }
-      });
+      this.stats.started++;
+      this.stats.lastOperation = {
+        type: 'start',
+        reset,
+        timestamp: Date.now()
+      };
 
       // Emit started event via EventBus
       if (this.config.enableEventBus) {
         eventBus.emit(TIMELINE_EVENTS.STARTED, {
           reset,
-          elapsedTime: this._elapsedTime,
+          elapsedTime: this.elapsedTime,
           timestamp: Date.now()
         });
       }
 
-      this.log(`Timeline started successfully. Current elapsed time: ${this._elapsedTime}ms`);
+      this.log(`Timeline started successfully. Current elapsed time: ${this.elapsedTime}ms`);
       return true;
     } catch (error) {
       this.log(`Error starting timeline: ${error.message}`, 'error');
 
       // Update stats
-      this._updateStats({
-        errors: this._stats.errors + 1,
-        lastOperation: {
-          type: 'error',
-          action: 'start',
-          message: error.message,
-          timestamp: Date.now()
-        }
-      });
+      this.stats.errors++;
+      this.stats.lastOperation = {
+        type: 'error',
+        action: 'start',
+        message: error.message,
+        timestamp: Date.now()
+      };
 
       // Emit error event via EventBus
       if (this.config.enableEventBus) {
@@ -280,40 +257,36 @@ class TimelineService {
    */
   stop() {
     try {
-      if (!this._isPlaying) {
+      if (!this.isPlaying && !this.isPaused) {
         this.log('Timeline already stopped', 'info');
         return true;
       }
 
       this.log('Stopping timeline');
 
-      // Update elapsed time before stopping
-      if (this._startTime) {
-        this._elapsedTime = Date.now() - this._startTime;
-        this.log(`Elapsed time updated to ${this._elapsedTime}ms`);
+      // Stop the update loop
+      if (this._timerHandle) {
+        cancelAnimationFrame(this._timerHandle);
+        this._timerHandle = null;
       }
 
-      this._isPlaying = false;
+      // Reset state
+      this.isPlaying = false;
+      this.isPaused = false;
       this._startTime = null;
 
-      // Stop timers
-      this._stopProgressTimer();
-      this._stopEventChecking();
-
       // Update stats
-      this._updateStats({
-        stopped: this._stats.stopped + 1,
-        lastOperation: {
-          type: 'stop',
-          elapsedTime: this._elapsedTime,
-          timestamp: Date.now()
-        }
-      });
+      this.stats.stopped++;
+      this.stats.lastOperation = {
+        type: 'stop',
+        elapsedTime: this.elapsedTime,
+        timestamp: Date.now()
+      };
 
       // Emit stopped event via EventBus
       if (this.config.enableEventBus) {
         eventBus.emit(TIMELINE_EVENTS.STOPPED, {
-          elapsedTime: this._elapsedTime,
+          elapsedTime: this.elapsedTime,
           timestamp: Date.now()
         });
       }
@@ -324,15 +297,13 @@ class TimelineService {
       this.log(`Error stopping timeline: ${error.message}`, 'error');
 
       // Update stats
-      this._updateStats({
-        errors: this._stats.errors + 1,
-        lastOperation: {
-          type: 'error',
-          action: 'stop',
-          message: error.message,
-          timestamp: Date.now()
-        }
-      });
+      this.stats.errors++;
+      this.stats.lastOperation = {
+        type: 'error',
+        action: 'stop',
+        message: error.message,
+        timestamp: Date.now()
+      };
 
       // Emit error event via EventBus
       if (this.config.enableEventBus) {
@@ -354,40 +325,37 @@ class TimelineService {
    */
   pauseTimeline() {
     try {
-      if (!this._isPlaying) {
+      if (!this.isPlaying) {
         this.log('Timeline already paused', 'info');
         return true;
       }
 
       this.log('Pausing timeline (preserving position)');
 
-      // Update elapsed time before pausing
-      if (this._startTime) {
-        this._elapsedTime = Date.now() - this._startTime;
-        this.log(`Elapsed time updated to ${this._elapsedTime}ms`);
+      // Stop the update loop
+      if (this._timerHandle) {
+        cancelAnimationFrame(this._timerHandle);
+        this._timerHandle = null;
       }
 
-      this._isPlaying = false;
-      this._startTime = null;
-
-      // Stop timers
-      this._stopProgressTimer();
-      this._stopEventChecking();
+      // Update state
+      this.isPlaying = false;
+      this.isPaused = true;
+      this._pausedTime = this.elapsedTime;
 
       // Update stats
-      this._updateStats({
-        paused: this._stats.paused + 1,
-        lastOperation: {
-          type: 'pause',
-          elapsedTime: this._elapsedTime,
-          timestamp: Date.now()
-        }
-      });
+      this.stats.paused++;
+      this.stats.lastOperation = {
+        type: 'pause',
+        elapsedTime: this.elapsedTime,
+        timestamp: Date.now()
+      };
 
       // Emit paused event via EventBus
       if (this.config.enableEventBus) {
         eventBus.emit(TIMELINE_EVENTS.PAUSED, {
-          elapsedTime: this._elapsedTime,
+          elapsedTime: this.elapsedTime,
+          progress: this.progress,
           timestamp: Date.now()
         });
       }
@@ -398,15 +366,13 @@ class TimelineService {
       this.log(`Error pausing timeline: ${error.message}`, 'error');
 
       // Update stats
-      this._updateStats({
-        errors: this._stats.errors + 1,
-        lastOperation: {
-          type: 'error',
-          action: 'pause',
-          message: error.message,
-          timestamp: Date.now()
-        }
-      });
+      this.stats.errors++;
+      this.stats.lastOperation = {
+        type: 'error',
+        action: 'pause',
+        message: error.message,
+        timestamp: Date.now()
+      };
 
       // Emit error event via EventBus
       if (this.config.enableEventBus) {
@@ -428,59 +394,56 @@ class TimelineService {
    */
   resumeTimeline() {
     try {
-      if (this._isPlaying) {
+      if (this.isPlaying) {
         this.log('Timeline already playing', 'info');
         return true;
       }
 
-      this.log(`Resuming timeline from ${this._elapsedTime}ms`);
+      if (!this.isPaused) {
+        this.log('Timeline was not paused, starting fresh');
+        return this.start({ reset: false });
+      }
+
+      this.log(`Resuming timeline from ${this.elapsedTime}ms`);
 
       // Set start time based on current elapsed time to ensure continuity
-      this._startTime = Date.now() - this._elapsedTime;
-      this._isPlaying = true;
+      this._startTime = Date.now() - this._pausedTime;
+      this.isPlaying = true;
+      this.isPaused = false;
 
-      // Start progress timer 
-      this._startProgressTimer(true); // Force immediate update
-
-      // Start event checking
-      this._startEventChecking();
-
-      // Check for current phase
-      this._checkCurrentPhase();
+      // Start the update loop
+      this._updateLoop();
 
       // Update stats
-      this._updateStats({
-        resumed: this._stats.resumed + 1,
-        lastOperation: {
-          type: 'resume',
-          elapsedTime: this._elapsedTime,
-          timestamp: Date.now()
-        }
-      });
+      this.stats.resumed++;
+      this.stats.lastOperation = {
+        type: 'resume',
+        elapsedTime: this.elapsedTime,
+        timestamp: Date.now()
+      };
 
       // Emit resumed event via EventBus
       if (this.config.enableEventBus) {
         eventBus.emit(TIMELINE_EVENTS.RESUMED, {
-          elapsedTime: this._elapsedTime,
+          elapsedTime: this.elapsedTime,
+          progress: this.progress,
           timestamp: Date.now()
         });
       }
 
-      this.log(`Timeline resumed successfully from ${this._elapsedTime}ms`);
+      this.log('Timeline resumed successfully');
       return true;
     } catch (error) {
       this.log(`Error resuming timeline: ${error.message}`, 'error');
 
       // Update stats
-      this._updateStats({
-        errors: this._stats.errors + 1,
-        lastOperation: {
-          type: 'error',
-          action: 'resume',
-          message: error.message,
-          timestamp: Date.now()
-        }
-      });
+      this.stats.errors++;
+      this.stats.lastOperation = {
+        type: 'error',
+        action: 'resume',
+        message: error.message,
+        timestamp: Date.now()
+      };
 
       // Emit error event via EventBus
       if (this.config.enableEventBus) {
@@ -496,46 +459,37 @@ class TimelineService {
   }
 
   /**
-   * Reset the timeline state
+   * Reset the timeline to initial state
+   * Stops playback and resets elapsed time to zero
    * @returns {boolean} Success state
    */
   reset() {
     try {
-      // Stop if playing
-      if (this._isPlaying) {
-        this.stop();
-      }
+      // Stop the timeline first
+      this.stop();
 
-      this.log('Resetting timeline');
+      this.log('Resetting timeline to initial state');
 
       // Reset state
-      this._elapsedTime = 0;
+      this.elapsedTime = 0;
+      this.progress = 0;
+      this._pausedTime = 0;
       this._startTime = null;
-      this._currentPhase = null;
       this._nextEventIndex = 0;
+      this.activePhaseId = null;
+      this.activePhaseIndex = -1;
 
-      // Force a progress update to reflect reset
-      if (this.onProgress) {
-        this.onProgress(0, 0);
-      }
-
-      // Emit progress event via EventBus
-      if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.PROGRESS, {
-          progress: 0,
-          elapsedTime: 0,
-          timestamp: Date.now()
-        });
-      }
+      // Reset all events' triggered state
+      this.events.forEach(event => {
+        event.triggered = false;
+      });
 
       // Update stats
-      this._updateStats({
-        reset: this._stats.reset + 1,
-        lastOperation: {
-          type: 'reset',
-          timestamp: Date.now()
-        }
-      });
+      this.stats.reset++;
+      this.stats.lastOperation = {
+        type: 'reset',
+        timestamp: Date.now()
+      };
 
       // Emit reset event via EventBus
       if (this.config.enableEventBus) {
@@ -544,21 +498,19 @@ class TimelineService {
         });
       }
 
-      this.log('Timeline reset complete');
+      this.log('Timeline reset successfully');
       return true;
     } catch (error) {
       this.log(`Error resetting timeline: ${error.message}`, 'error');
 
       // Update stats
-      this._updateStats({
-        errors: this._stats.errors + 1,
-        lastOperation: {
-          type: 'error',
-          action: 'reset',
-          message: error.message,
-          timestamp: Date.now()
-        }
-      });
+      this.stats.errors++;
+      this.stats.lastOperation = {
+        type: 'error',
+        action: 'reset',
+        message: error.message,
+        timestamp: Date.now()
+      };
 
       // Emit error event via EventBus
       if (this.config.enableEventBus) {
@@ -574,16 +526,316 @@ class TimelineService {
   }
 
   /**
-   * Get the current elapsed time of the session
-   * @returns {number} Elapsed time in milliseconds
+   * Main update loop for the timeline
+   * Uses requestAnimationFrame for efficient updates
+   * @private
    */
-  getElapsedTime() {
-    if (!this._isPlaying) {
-      return this._elapsedTime;
+  _updateLoop() {
+    if (!this.isPlaying) return;
+
+    // Calculate current elapsed time and progress
+    const now = Date.now();
+    this.elapsedTime = now - this._startTime;
+    
+    // Calculate progress (0-1)
+    this.progress = Math.min(1, this.elapsedTime / this.config.sessionDuration);
+
+    // Only update state and trigger callbacks if enough time has passed
+    // This reduces CPU usage by avoiding too frequent updates
+    if (now - this._lastUpdateTime >= 30) {  // Update at most every 30ms
+      this._lastUpdateTime = now;
+      this.stats.timeUpdates++;
+
+      // Call the progress callback
+      if (this.onProgress) {
+        this.onProgress(this.progress, this.elapsedTime);
+      }
+
+      // Emit progress event (throttled)
+      if (this.config.enableEventBus && this.stats.timeUpdates % 3 === 0) { // Further throttle events
+        eventBus.emit(TIMELINE_EVENTS.PROGRESS, {
+          progress: this.progress,
+          elapsedTime: this.elapsedTime,
+          timestamp: now
+        });
+      }
+
+      // Check for phase transitions
+      this._checkPhaseTransitions();
+
+      // Check for scheduled events
+      this._checkEvents();
+
+      // Check for session completion
+      if (this.progress >= 1) {
+        this._handleSessionCompletion();
+        return; // Stop the update loop
+      }
     }
 
-    // If playing, calculate based on startTime
-    return this._startTime ? Date.now() - this._startTime : 0;
+    // Continue the update loop
+    this._timerHandle = requestAnimationFrame(() => this._updateLoop());
+  }
+
+  /**
+   * Handle session completion
+   * @private
+   */
+  _handleSessionCompletion() {
+    if (!this.isPlaying) return;
+
+    this.log('Session completed');
+
+    // Stop the timeline
+    this.stop();
+
+    // Emit completed event via EventBus
+    if (this.config.enableEventBus) {
+      eventBus.emit(TIMELINE_EVENTS.COMPLETED, {
+        elapsedTime: this.elapsedTime,
+        timestamp: Date.now()
+      });
+    }
+  }
+
+  /**
+   * Check for phase transitions based on current progress
+   * @private
+   */
+  _checkPhaseTransitions() {
+    // Skip if no phases defined
+    if (!this.phases || this.phases.length === 0) return;
+
+    // Sort phases by position
+    const sortedPhases = [...this.phases].sort((a, b) => a.position - b.position);
+
+    // Find the current phase based on progress
+    let activeIndex = -1;
+    const progressPercent = this.progress * 100;
+
+    // Find the latest phase we've passed
+    for (let i = sortedPhases.length - 1; i >= 0; i--) {
+      if (progressPercent >= sortedPhases[i].position) {
+        activeIndex = i;
+        break;
+      }
+    }
+
+    // If we're before the first phase, use the first one
+    if (activeIndex === -1 && sortedPhases.length > 0) {
+      activeIndex = 0;
+    }
+
+    // If phase has changed, trigger transition
+    if (activeIndex !== -1 && sortedPhases[activeIndex].id !== this.activePhaseId) {
+      const previousPhaseId = this.activePhaseId;
+      const newPhaseId = sortedPhases[activeIndex].id;
+      const phaseData = sortedPhases[activeIndex];
+
+      this.log(`Phase transition: ${previousPhaseId || 'none'} → ${newPhaseId}`);
+
+      // Update state
+      this.activePhaseId = newPhaseId;
+      this.activePhaseIndex = activeIndex;
+
+      // Update stats
+      this.stats.phaseTransitions++;
+      this.stats.lastOperation = {
+        type: 'phaseChange',
+        from: previousPhaseId,
+        to: newPhaseId,
+        timestamp: Date.now()
+      };
+
+      // Call the callback
+      if (this.onPhaseChange) {
+        this.onPhaseChange(newPhaseId, phaseData);
+      }
+
+      // Emit phase transition event via EventBus
+      if (this.config.enableEventBus) {
+        // Emit new event type with full details for SessionTimeline
+        eventBus.emit(TIMELINE_EVENTS.PHASE_TRANSITION, {
+          phaseId: newPhaseId,
+          phaseData,
+          previousPhaseId,
+          progress: this.progress,
+          elapsedTime: this.elapsedTime,
+          transitionDuration: this.config.transitionDuration,
+          timestamp: Date.now()
+        });
+
+        // Also emit legacy event type for backward compatibility
+        eventBus.emit(TIMELINE_EVENTS.PHASE_CHANGED, {
+          phaseId: newPhaseId,
+          phaseData,
+          previousPhaseId,
+          timestamp: Date.now()
+        });
+      }
+    }
+  }
+
+  /**
+   * Check for scheduled events that should be triggered
+   * @private
+   */
+  _checkEvents() {
+    // Skip if no events or we're past all events
+    if (!this.events || this.events.length === 0 || this._nextEventIndex >= this.events.length) {
+      return;
+    }
+
+    // Sort events by time if not already sorted
+    const sortedEvents = [...this.events].sort((a, b) => a.time - b.time);
+
+    // Check each event starting from the next one
+    for (let i = this._nextEventIndex; i < sortedEvents.length; i++) {
+      const event = sortedEvents[i];
+      
+      // Skip events that were triggered already
+      if (event.triggered) continue;
+
+      // If we've reached an event that should trigger
+      if (this.elapsedTime >= event.time) {
+        this.log(`Triggering event: ${event.id || 'unnamed'} (${event.action || 'no action'})`);
+
+        // Mark as triggered
+        event.triggered = true;
+        event.triggeredAt = Date.now();
+
+        // Call the callback
+        if (this.onScheduledEvent) {
+          this.onScheduledEvent(event);
+        }
+
+        // Execute event handler if provided
+        if (typeof event.handler === 'function') {
+          try {
+            event.handler(event);
+          } catch (error) {
+            this.log(`Error in event handler: ${error.message}`, 'error');
+          }
+        }
+
+        // Emit event triggered via EventBus
+        if (this.config.enableEventBus) {
+          eventBus.emit(TIMELINE_EVENTS.EVENT_TRIGGERED, {
+            event,
+            elapsedTime: this.elapsedTime,
+            timestamp: Date.now()
+          });
+        }
+
+        // Update stats
+        this.stats.eventsTriggered++;
+      } else {
+        // If this event is in the future, set next event index and exit
+        this._nextEventIndex = i;
+        break;
+      }
+    }
+  }
+
+  /**
+   * Add an event to the timeline
+   * @param {Object} event - Event object
+   * @param {string} event.id - Unique identifier for the event
+   * @param {number} event.time - When the event should trigger (ms from start)
+   * @param {string} [event.action] - Action to perform
+   * @param {Function} [event.handler] - Function to call when event triggers
+   * @param {Object} [event.data] - Additional data for the event
+   * @returns {boolean} Success state
+   */
+  addEvent(event) {
+    if (!event || typeof event.time !== 'number') {
+      this.log('Cannot add event: Missing required properties', 'error');
+      return false;
+    }
+
+    this.log(`Adding event at ${event.time}ms: ${event.id || 'unnamed'}`);
+
+    // Add event to the collection
+    this.events.push({
+      ...event,
+      triggered: false
+    });
+
+    // Sort events by time
+    this.events.sort((a, b) => a.time - b.time);
+
+    // Reset next event index if needed
+    this._nextEventIndex = 0;
+
+    // Emit event registered via EventBus
+    if (this.config.enableEventBus) {
+      eventBus.emit(TIMELINE_EVENTS.EVENT_REGISTERED, {
+        event,
+        timestamp: Date.now()
+      });
+    }
+
+    return true;
+  }
+
+  /**
+   * Clear all events from the timeline
+   * @returns {number} Number of events cleared
+   */
+  clearEvents() {
+    const count = this.events.length;
+    this.log(`Clearing ${count} events`);
+
+    this.events = [];
+    this._nextEventIndex = 0;
+
+    // Emit events cleared via EventBus
+    if (this.config.enableEventBus) {
+      eventBus.emit(TIMELINE_EVENTS.EVENTS_CLEARED, {
+        count,
+        timestamp: Date.now()
+      });
+    }
+
+    return count;
+  }
+
+  /**
+   * Set the phases for the timeline
+   * @param {Array} phases - Array of phase objects
+   * @returns {boolean} Success state
+   */
+  setPhases(phases) {
+    if (!phases || !Array.isArray(phases)) {
+      this.log('Invalid phases data', 'error');
+      return false;
+    }
+
+    this.log(`Setting ${phases.length} phases`);
+
+    this.phases = [...phases];
+
+    // Check if current active phase is still valid
+    if (this.activePhaseId) {
+      const phaseStillExists = this.phases.some(p => p.id === this.activePhaseId);
+      
+      if (!phaseStillExists) {
+        this.log(`Active phase ${this.activePhaseId} no longer exists, resetting active phase`);
+        this.activePhaseId = null;
+        this.activePhaseIndex = -1;
+      }
+    }
+
+    // Emit phases updated via EventBus
+    if (this.config.enableEventBus) {
+      eventBus.emit(TIMELINE_EVENTS.PHASES_UPDATED, {
+        phases: this.phases,
+        count: this.phases.length,
+        timestamp: Date.now()
+      });
+    }
+
+    return true;
   }
 
   /**
@@ -592,939 +844,414 @@ class TimelineService {
    * @returns {boolean} Success state
    */
   setSessionDuration(duration) {
-    try {
-      if (isNaN(duration) || duration <= 0) {
-        this.log('Invalid session duration', 'error');
-        throw new Error('Invalid session duration');
-      }
-
-      const oldDuration = this.config.sessionDuration;
-      this.log(`Changing session duration from ${oldDuration}ms to ${duration}ms`);
-      this.config.sessionDuration = duration;
-      this.log(`Session duration set to ${duration}ms`);
-
-      // Check if this affects current phase
-      this._checkCurrentPhase();
-
-      // Update stats
-      this._updateStats({
-        lastOperation: {
-          type: 'setSessionDuration',
-          oldDuration,
-          newDuration: duration,
-          timestamp: Date.now()
-        }
-      });
-
-      // Emit duration changed event via EventBus
-      if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.DURATION_CHANGED, {
-          oldDuration,
-          newDuration: duration,
-          timestamp: Date.now()
-        });
-      }
-
-      return true;
-    } catch (error) {
-      this.log(`Error setting session duration: ${error.message}`, 'error');
-
-      // Update stats
-      this._updateStats({
-        errors: this._stats.errors + 1,
-        lastOperation: {
-          type: 'error',
-          action: 'setSessionDuration',
-          message: error.message,
-          timestamp: Date.now()
-        }
-      });
-
-      // Emit error event via EventBus
-      if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.ERROR, {
-          operation: 'setSessionDuration',
-          message: error.message,
-          timestamp: Date.now()
-        });
-      }
-
+    if (typeof duration !== 'number' || duration <= 0) {
+      this.log('Invalid session duration', 'error');
       return false;
     }
+
+    this.log(`Setting session duration to ${duration}ms`);
+
+    this.config.sessionDuration = duration;
+    
+    // Recalculate progress with new duration
+    if (this.elapsedTime > 0) {
+      this.progress = Math.min(1, this.elapsedTime / this.config.sessionDuration);
+    }
+
+    // Emit duration changed via EventBus
+    if (this.config.enableEventBus) {
+      eventBus.emit(TIMELINE_EVENTS.DURATION_CHANGED, {
+        duration,
+        timestamp: Date.now()
+      });
+    }
+
+    return true;
   }
 
   /**
-   * Set the default transition duration
+   * Set the transition duration
    * @param {number} duration - Duration in milliseconds
    * @returns {boolean} Success state
    */
   setTransitionDuration(duration) {
-    try {
-      if (isNaN(duration) || duration < 0) {
-        this.log('Invalid transition duration', 'error');
-        throw new Error('Invalid transition duration');
-      }
-
-      const oldDuration = this.config.transitionDuration;
-      this.config.transitionDuration = duration;
-      this.log(`Transition duration set to ${duration}ms`);
-
-      // Update stats
-      this._updateStats({
-        lastOperation: {
-          type: 'setTransitionDuration',
-          oldDuration,
-          newDuration: duration,
-          timestamp: Date.now()
-        }
-      });
-
-      // Emit transition duration changed event via EventBus
-      if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.TRANSITION_CHANGED, {
-          oldDuration,
-          newDuration: duration,
-          timestamp: Date.now()
-        });
-      }
-
-      return true;
-    } catch (error) {
-      this.log(`Error setting transition duration: ${error.message}`, 'error');
-
-      // Update stats
-      this._updateStats({
-        errors: this._stats.errors + 1,
-        lastOperation: {
-          type: 'error',
-          action: 'setTransitionDuration',
-          message: error.message,
-          timestamp: Date.now()
-        }
-      });
-
-      // Emit error event via EventBus
-      if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.ERROR, {
-          operation: 'setTransitionDuration',
-          message: error.message,
-          timestamp: Date.now()
-        });
-      }
-
+    if (typeof duration !== 'number' || duration < 0) {
+      this.log('Invalid transition duration', 'error');
       return false;
     }
-  }
 
-  /**
-   * Get the current timeline progress as a percentage
-   * @returns {number} Progress from 0-100
-   */
-  getProgress() {
-    const elapsedTime = this.getElapsedTime();
-    return Math.min(100, (elapsedTime / this.config.sessionDuration) * 100);
-  }
+    this.log(`Setting transition duration to ${duration}ms`);
 
-  /**
-   * Replace all timeline phases
-   * @param {Array} phases - Array of phase objects
-   * @returns {boolean} Success state
-   */
-  setPhases(phases) {
-    try {
-      if (!Array.isArray(phases)) {
-        this.log('Invalid phases data (not an array)', 'error');
-        throw new Error('Invalid phases data (not an array)');
-      }
+    this.config.transitionDuration = duration;
 
-      // Basic validation
-      const validPhases = phases.filter(phase =>
-        phase &&
-        typeof phase.id === 'string' &&
-        typeof phase.position === 'number' &&
-        phase.position >= 0 &&
-        phase.position <= 100
-      );
-
-      if (validPhases.length === 0) {
-        this.log('No valid phases found', 'error');
-        throw new Error('No valid phases found');
-      }
-
-      // Sort phases by position
-      const sortedPhases = [...validPhases].sort((a, b) => a.position - b.position);
-
-      // Ensure the first phase is at position 0
-      if (sortedPhases[0].position !== 0) {
-        this.log('First phase must be at position 0, adjusting', 'warn');
-        sortedPhases[0].position = 0;
-      }
-
-      // Update phases
-      this._phases = sortedPhases;
-      this.log(`Set ${this._phases.length} timeline phases`);
-
-      // Check if this affects current phase
-      this._checkCurrentPhase();
-
-      // Update stats
-      this._updateStats({
-        lastOperation: {
-          type: 'setPhases',
-          phasesCount: sortedPhases.length,
-          timestamp: Date.now()
-        }
+    // Emit transition duration changed via EventBus
+    if (this.config.enableEventBus) {
+      eventBus.emit(TIMELINE_EVENTS.TRANSITION_CHANGED, {
+        duration,
+        timestamp: Date.now()
       });
-
-      // Emit phases updated event via EventBus
-      if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.PHASES_UPDATED, {
-          phases: sortedPhases,
-          count: sortedPhases.length,
-          timestamp: Date.now()
-        });
-      }
-
-      return true;
-    } catch (error) {
-      this.log(`Error setting phases: ${error.message}`, 'error');
-
-      // Update stats
-      this._updateStats({
-        errors: this._stats.errors + 1,
-        lastOperation: {
-          type: 'error',
-          action: 'setPhases',
-          message: error.message,
-          timestamp: Date.now()
-        }
-      });
-
-      // Emit error event via EventBus
-      if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.ERROR, {
-          operation: 'setPhases',
-          message: error.message,
-          timestamp: Date.now()
-        });
-      }
-
-      return false;
     }
+
+    return true;
   }
 
   /**
-   * Get all timeline phases
-   * @returns {Array} Array of phase objects
-   */
-  getPhases() {
-    return [...this._phases];
-  }
-
-  /**
-   * Get the current active phase
-   * @returns {Object|null} Current phase or null if none active
-   */
-  getCurrentPhase() {
-    return this._currentPhase;
-  }
-
-  /**
-   * Add a scheduled event to the timeline
-   * @param {Object} event - Event object
-   * @param {string} event.id - Unique event identifier
-   * @param {number} event.time - Time in ms when event should trigger
-   * @param {string} event.action - Action type
-   * @param {Object} event.data - Event data
-   * @returns {boolean} Success state
-   */
-  addEvent(event) {
-    try {
-      if (!event || !event.id || typeof event.time !== 'number' || !event.action) {
-        this.log('Invalid event data', 'error');
-        throw new Error('Invalid event data');
-      }
-
-      // Check for duplicate ID
-      if (this._events.some(e => e.id === event.id)) {
-        this.log(`Event with ID ${event.id} already exists`, 'warn');
-        throw new Error(`Event with ID ${event.id} already exists`);
-      }
-
-      // Add event and sort by time
-      this._events.push(event);
-      this._events.sort((a, b) => a.time - b.time);
-
-      // Reset next event index if currently playing
-      if (this._isPlaying) {
-        this._nextEventIndex = this._findNextEventIndex();
-      }
-
-      this.log(`Added event: ${event.id} at ${event.time}ms (${event.action})`);
-
-      // Update stats
-      this._updateStats({
-        lastOperation: {
-          type: 'addEvent',
-          eventId: event.id,
-          timestamp: Date.now()
-        }
-      });
-
-      // Emit event registered event via EventBus
-      if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.EVENT_REGISTERED, {
-          event: {
-            id: event.id,
-            time: event.time,
-            action: event.action
-          },
-          eventsCount: this._events.length,
-          timestamp: Date.now()
-        });
-      }
-
-      return true;
-    } catch (error) {
-      this.log(`Error adding event: ${error.message}`, 'error');
-
-      // Update stats
-      this._updateStats({
-        errors: this._stats.errors + 1,
-        lastOperation: {
-          type: 'error',
-          action: 'addEvent',
-          message: error.message,
-          timestamp: Date.now()
-        }
-      });
-
-      // Emit error event via EventBus
-      if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.ERROR, {
-          operation: 'addEvent',
-          message: error.message,
-          timestamp: Date.now()
-        });
-      }
-
-      return false;
-    }
-  }
-
-  /**
-   * Remove an event by ID
-   * @param {string} eventId - Event ID to remove
-   * @returns {boolean} Success state
-   */
-  removeEvent(eventId) {
-    try {
-      const initialCount = this._events.length;
-      this._events = this._events.filter(e => e.id !== eventId);
-
-      // Check if anything was removed
-      if (this._events.length === initialCount) {
-        this.log(`No event found with ID ${eventId}`, 'warn');
-        return false;
-      }
-
-      // Reset next event index if currently playing
-      if (this._isPlaying) {
-        this._nextEventIndex = this._findNextEventIndex();
-      }
-
-      this.log(`Removed event: ${eventId}`);
-
-      // Update stats
-      this._updateStats({
-        lastOperation: {
-          type: 'removeEvent',
-          eventId,
-          timestamp: Date.now()
-        }
-      });
-
-      // Emit event removed via EventBus
-      if (this.config.enableEventBus) {
-        eventBus.emit('timeline:eventRemoved', {
-          eventId,
-          eventsCount: this._events.length,
-          timestamp: Date.now()
-        });
-      }
-
-      return true;
-    } catch (error) {
-      this.log(`Error removing event: ${error.message}`, 'error');
-
-      // Update stats
-      this._updateStats({
-        errors: this._stats.errors + 1,
-        lastOperation: {
-          type: 'error',
-          action: 'removeEvent',
-          message: error.message,
-          timestamp: Date.now()
-        }
-      });
-
-      // Emit error event via EventBus
-      if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.ERROR, {
-          operation: 'removeEvent',
-          message: error.message,
-          timestamp: Date.now()
-        });
-      }
-
-      return false;
-    }
-  }
-
-  /**
-   * Clear all scheduled events
-   * @returns {boolean} Success state
-   */
-  clearEvents() {
-    try {
-      const initialCount = this._events.length;
-      this._events = [];
-      this._nextEventIndex = 0;
-
-      this.log(`Cleared ${initialCount} events from timeline`);
-
-      // Update stats
-      this._updateStats({
-        lastOperation: {
-          type: 'clearEvents',
-          clearedCount: initialCount,
-          timestamp: Date.now()
-        }
-      });
-
-      // Emit events cleared event via EventBus
-      if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.EVENTS_CLEARED, {
-          count: initialCount,
-          timestamp: Date.now()
-        });
-      }
-
-      return true;
-    } catch (error) {
-      this.log(`Error clearing events: ${error.message}`, 'error');
-
-      // Update stats
-      this._updateStats({
-        errors: this._stats.errors + 1,
-        lastOperation: {
-          type: 'error',
-          action: 'clearEvents',
-          message: error.message,
-          timestamp: Date.now()
-        }
-      });
-
-      // Emit error event via EventBus
-      if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.ERROR, {
-          operation: 'clearEvents',
-          message: error.message,
-          timestamp: Date.now()
-        });
-      }
-
-      return false;
-    }
-  }
-
-  /**
-   * Get all scheduled events
-   * @returns {Array} Array of event objects
-   */
-  getEvents() {
-    return [...this._events];
-  }
-
-  /**
-   * Seek to a specific time in the timeline
-   * @param {number} timeMs - Time to seek to in milliseconds
+   * Seek to a specific time
+   * @param {number} timeMs - Time in milliseconds
    * @returns {boolean} Success state
    */
   seekTo(timeMs) {
-    try {
-      if (isNaN(timeMs) || timeMs < 0) {
-        this.log('Invalid seek time', 'error');
-        throw new Error('Invalid seek time');
+    if (typeof timeMs !== 'number' || timeMs < 0) {
+      this.log('Invalid seek time', 'error');
+      return false;
+    }
+
+    this.log(`Seeking to ${timeMs}ms`);
+
+    // Clamp to session duration
+    const clampedTime = Math.min(timeMs, this.config.sessionDuration);
+    
+       // Update start time if playing
+       if (this.isPlaying) {
+        this._startTime = Date.now() - clampedTime;
+      } else if (this.isPaused) {
+        this._pausedTime = clampedTime;
       }
-
-      // Clamp to session duration
-      const clampedTime = Math.min(timeMs, this.config.sessionDuration);
-
-      this.log(`Seeking to ${clampedTime}ms`);
-
-      // Update elapsed time
-      this._elapsedTime = clampedTime;
-
-      // If playing, update start time to maintain correct timing
-      if (this._isPlaying) {
-        this._startTime = Date.now() - this._elapsedTime;
-      }
-
-      // Update next event index
-      this._nextEventIndex = this._findNextEventIndex();
-
-      // Check for phase change
-      this._checkCurrentPhase();
-
-      // Trigger progress update
-      if (this.onProgress) {
-        const progress = (this._elapsedTime / this.config.sessionDuration) * 100;
-        this.onProgress(progress, this._elapsedTime);
-      }
-
-      // Emit progress event via EventBus
-      if (this.config.enableEventBus) {
-        const progress = (this._elapsedTime / this.config.sessionDuration) * 100;
-        eventBus.emit(TIMELINE_EVENTS.PROGRESS, {
-          progress,
-          elapsedTime: this._elapsedTime,
-          timestamp: Date.now()
-        });
-      }
-
-      // Update stats
-      this._updateStats({
-        seekOperations: this._stats.seekOperations + 1,
-        lastOperation: {
-          type: 'seekTo',
-          timeMs: clampedTime,
-          timestamp: Date.now()
+  
+      // Reset event triggered state for events after new position
+      this.events.forEach(event => {
+        if (event.time > clampedTime) {
+          event.triggered = false;
         }
       });
-
+  
+      // Reset next event index to ensure we check all relevant events
+      this._nextEventIndex = 0;
+  
+      // Check for phase transitions immediately
+      this._checkPhaseTransitions();
+  
+      // Call progress callback
+      if (this.onProgress) {
+        this.onProgress(this.progress, this.elapsedTime);
+      }
+  
+      // Update stats
+      this.stats.seekOperations++;
+      this.stats.lastOperation = {
+        type: 'seek',
+        position: clampedTime,
+        timestamp: Date.now()
+      };
+  
       // Emit seek event via EventBus
       if (this.config.enableEventBus) {
         eventBus.emit(TIMELINE_EVENTS.SEEK, {
-          timeMs: clampedTime,
-          progress: (clampedTime / this.config.sessionDuration) * 100,
+          time: clampedTime,
+          progress: this.progress,
+          type: 'absolute',
           timestamp: Date.now()
         });
       }
-
+  
       return true;
-    } catch (error) {
-      this.log(`Error seeking: ${error.message}`, 'error');
-
-      // Update stats
-      this._updateStats({
-        errors: this._stats.errors + 1,
-        lastOperation: {
-          type: 'error',
-          action: 'seekTo',
-          message: error.message,
-          timestamp: Date.now()
-        }
-      });
-
-      // Emit error event via EventBus
-      if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.ERROR, {
-          operation: 'seekTo',
-          message: error.message,
-          timestamp: Date.now()
-        });
-      }
-
-      return false;
     }
-  }
-
-  /**
-   * Seek to a percentage of the total session duration
-   * @param {number} percent - Percentage to seek to (0-100)
-   * @returns {boolean} Success state
-   */
-  seekToPercent(percent) {
-    try {
-      if (isNaN(percent) || percent < 0 || percent > 100) {
+  
+    /**
+     * Seek to a percentage of the session duration
+     * @param {number} percent - Percentage (0-100)
+     * @returns {boolean} Success state
+     */
+    seekToPercent(percent) {
+      if (typeof percent !== 'number' || percent < 0 || percent > 100) {
         this.log('Invalid seek percentage', 'error');
-        throw new Error('Invalid seek percentage');
+        return false;
       }
-
-      const timeMs = Math.floor((percent / 100) * this.config.sessionDuration);
-      this.log(`Seeking to ${percent}% (${timeMs}ms)`);
-
-      return this.seekTo(timeMs);
-    } catch (error) {
-      this.log(`Error seeking to percent: ${error.message}`, 'error');
-
-      // Update stats
-      this._updateStats({
-        errors: this._stats.errors + 1,
-        lastOperation: {
-          type: 'error',
-          action: 'seekToPercent',
-          message: error.message,
-          timestamp: Date.now()
-        }
-      });
-
-      // Emit error event via EventBus
-      if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.ERROR, {
-          operation: 'seekToPercent',
-          message: error.message,
+  
+      this.log(`Seeking to ${percent}%`);
+  
+      // Convert percent to time
+      const timeMs = (percent / 100) * this.config.sessionDuration;
+  
+      // Use the seekTo method for the actual seeking
+      const result = this.seekTo(timeMs);
+  
+      // Emit percent-specific seek event via EventBus
+      if (result && this.config.enableEventBus) {
+        eventBus.emit(TIMELINE_EVENTS.SEEK, {
+          percent,
+          time: timeMs,
+          progress: this.progress,
+          type: 'percent',
           timestamp: Date.now()
         });
       }
-
-      return false;
+  
+      return result;
     }
-  }
-
-  /**
-   * Get service statistics
-   * @returns {Object} Stats object
-   */
-  getStats() {
-    return { ...this._stats };
-  }
-
-  /**
-   * Update service statistics
-   * @param {Object} updates - Fields to update
-   * @private
-   */
-  _updateStats(updates) {
-    this._stats = {
-      ...this._stats,
-      ...updates
-    };
-  }
-
-  /**
-   * Start the progress timer to track timeline position
-   * @param {boolean} [immediate=false] - Whether to trigger an update immediately
-   * @private
-   */
-  _startProgressTimer(immediate = false) {
-    // Clear any existing timer
-    this._stopProgressTimer();
-
-    // Optionally trigger an immediate update
-    if (immediate) {
-      this._updateProgress();
+  
+    /**
+     * Get the current elapsed time
+     * @returns {number} Elapsed time in milliseconds
+     */
+    getElapsedTime() {
+      return this.elapsedTime;
     }
-
-    // Set interval for regular updates
-    this._progressTimer = setInterval(() => {
-      this._updateProgress();
-    }, 100); // Update every 100ms
-  }
-
-  /**
-   * Stop the progress timer
-   * @private
-   */
-  _stopProgressTimer() {
-    if (this._progressTimer) {
-      clearInterval(this._progressTimer);
-      this._progressTimer = null;
+  
+    /**
+     * Get the current progress (0-1)
+     * @returns {number} Progress value
+     */
+    getProgress() {
+      return this.progress;
     }
-  }
-
-  /**
-   * Update the current progress
-   * @private
-   */
-  _updateProgress() {
-    if (!this._isPlaying) return;
-
-    // Calculate elapsed time
-    const now = Date.now();
-    this._elapsedTime = now - this._startTime;
-
-    // Calculate progress percentage
-    const progress = (this._elapsedTime / this.config.sessionDuration) * 100;
-
-    // Call progress callback
-    if (this.onProgress) {
-      this.onProgress(Math.min(100, progress), this._elapsedTime);
+  
+    /**
+     * Get the active phase ID
+     * @returns {string|null} Active phase ID or null if no active phase
+     */
+    getActivePhaseId() {
+      return this.activePhaseId;
     }
-
-    // Emit progress event via EventBus
-    if (this.config.enableEventBus) {
-      eventBus.emit(TIMELINE_EVENTS.PROGRESS, {
-        progress: Math.min(100, progress),
-        elapsedTime: this._elapsedTime,
-        timestamp: now
+  
+    /**
+     * Get the active phase data
+     * @returns {Object|null} Active phase data or null if no active phase
+     */
+    getActivePhase() {
+      if (!this.activePhaseId) return null;
+      return this.phases.find(p => p.id === this.activePhaseId) || null;
+    }
+  
+    /**
+     * Get all phase data
+     * @returns {Array} Array of all phases
+     */
+    getPhases() {
+      return [...this.phases];
+    }
+  
+    /**
+     * Get data for a specific phase
+     * @param {string} phaseId - Phase ID to get
+     * @returns {Object|null} Phase data or null if not found
+     */
+    getPhase(phaseId) {
+      if (!phaseId) return null;
+      return this.phases.find(p => p.id === phaseId) || null;
+    }
+  
+    /**
+     * Get all pending events
+     * @returns {Array} Array of events that haven't triggered yet
+     */
+    getPendingEvents() {
+      return this.events.filter(e => !e.triggered);
+    }
+  
+    /**
+     * Get all triggered events
+     * @returns {Array} Array of events that have already triggered
+     */
+    getTriggeredEvents() {
+      return this.events.filter(e => e.triggered);
+    }
+  
+    /**
+     * Get service statistics
+     * @returns {Object} Statistics object
+     */
+    getStats() {
+      return {
+        ...this.stats,
+        isPlaying: this.isPlaying,
+        isPaused: this.isPaused,
+        sessionDuration: this.config.sessionDuration,
+        transitionDuration: this.config.transitionDuration,
+        elapsedTime: this.elapsedTime,
+        progress: this.progress,
+        activePhase: this.activePhaseId,
+        phaseCount: this.phases.length,
+        eventCount: this.events.length,
+        pendingEventCount: this.events.filter(e => !e.triggered).length,
+        triggeredEventCount: this.events.filter(e => e.triggered).length
+      };
+    }
+  
+    /**
+     * Apply phase changes according to the phase data
+     * This method can be used to manually apply a phase's state
+     * @param {string} phaseId - Phase ID to apply
+     * @param {Object} [options] - Options for applying the phase
+     * @param {boolean} [options.immediate=false] - Apply without transition
+     * @param {number} [options.duration] - Custom transition duration
+     * @returns {Promise<boolean>} Promise resolving to success state
+     */
+    applyPhase(phaseId, options = {}) {
+      return new Promise(async (resolve) => {
+        try {
+          if (!phaseId) {
+            this.log('Cannot apply phase: Missing phase ID', 'error');
+            resolve(false);
+            return;
+          }
+  
+          const phase = this.phases.find(p => p.id === phaseId);
+          if (!phase) {
+            this.log(`Phase not found: ${phaseId}`, 'error');
+            resolve(false);
+            return;
+          }
+  
+          this.log(`Applying phase ${phaseId}`);
+  
+          // Skip if no state to apply
+          if (!phase.state) {
+            this.log(`Phase ${phaseId} has no saved state to apply`, 'warn');
+            resolve(true);
+            return;
+          }
+  
+          // Default options
+          const transitionDuration = options.duration || this.config.transitionDuration;
+          const immediate = options.immediate === true;
+  
+          // Apply volume changes if defined
+          const volumeChanges = phase.state.volumes;
+          if (volumeChanges && this.volumeController) {
+            const durationsInSeconds = immediate ? 0 : transitionDuration / 1000;
+            
+            // Apply volumes using VolumeController
+            for (const [layer, volume] of Object.entries(volumeChanges)) {
+              this.log(`Setting volume for ${layer} to ${volume} with ${durationsInSeconds}s transition`);
+              
+              // For immediate changes, use setVolume
+              if (immediate) {
+                this.volumeController.setVolume(layer, volume, { immediate: true });
+              } 
+              // For transitions, use fadeVolume
+              else if (durationsInSeconds > 0) {
+                try {
+                  await this.volumeController.fadeVolume(layer, volume, durationsInSeconds);
+                } catch (err) {
+                  this.log(`Error fading volume for ${layer}: ${err.message}`, 'error');
+                }
+              }
+            }
+          }
+  
+          // Apply audio track changes if defined and we have crossfade engine
+          const audioChanges = phase.state.activeAudio;
+          if (audioChanges && this.crossfadeEngine) {
+            for (const [layer, trackId] of Object.entries(audioChanges)) {
+              this.log(`Crossfading ${layer} to track ${trackId}`);
+              
+              // Use crossfade engine to change tracks
+              try {
+                await this.crossfadeEngine.crossfade({
+                  layer,
+                  targetTrackId: trackId,
+                  duration: immediate ? 100 : transitionDuration
+                });
+              } catch (err) {
+                this.log(`Error crossfading ${layer} to ${trackId}: ${err.message}`, 'error');
+              }
+            }
+          }
+  
+          this.log(`Phase ${phaseId} applied successfully`);
+          resolve(true);
+        } catch (error) {
+          this.log(`Error applying phase ${phaseId}: ${error.message}`, 'error');
+          
+          // Update stats
+          this.stats.errors++;
+          this.stats.lastOperation = {
+            type: 'error',
+            action: 'applyPhase',
+            phaseId,
+            message: error.message,
+            timestamp: Date.now()
+          };
+          
+          resolve(false);
+        }
       });
     }
-
-    // Check if we've reached the end of the timeline
-    if (this._elapsedTime >= this.config.sessionDuration) {
-      this.log('Timeline completed');
+  
+    /**
+     * Enable or disable event bus integration
+     * @param {boolean} enabled - Whether to enable event bus
+     */
+    setEventBusEnabled(enabled) {
+      this.config.enableEventBus = enabled === true;
+      this.log(`EventBus integration ${enabled ? 'enabled' : 'disabled'}`);
+    }
+  
+    /**
+     * Enable or disable logging
+     * @param {boolean} enabled - Whether to enable logging
+     */
+    setLoggingEnabled(enabled) {
+      this.config.enableLogging = enabled === true;
+      this.log(`Logging ${enabled ? 'enabled' : 'disabled'}`);
+    }
+  
+    /**
+     * Clean up resources used by TimelineService
+     * Should be called when the service is no longer needed
+     */
+    dispose() {
+      this.log('Disposing TimelineService');
+  
+      // Stop the timeline
       this.stop();
-
-      // Emit timeline completed event
-      if (this.config.enableEventBus) {
-        eventBus.emit('timeline:completed', {
-          duration: this.config.sessionDuration,
-          timestamp: now
-        });
+  
+      // Clean up callbacks
+      this.onPhaseChange = null;
+      this.onProgress = null;
+      this.onScheduledEvent = null;
+  
+      // Clear references to other services
+      this.volumeController = null;
+      this.crossfadeEngine = null;
+  
+      // Clear data
+      this.events = [];
+      this.phases = [];
+    }
+  
+    /**
+     * Alias for dispose to maintain API compatibility
+     */
+    cleanup() {
+      this.dispose();
+    }
+  
+    /**
+     * Logging helper that respects configuration
+     * @param {string} message - Message to log
+     * @param {string} [level='info'] - Log level (info, warn, error)
+     */
+    log(message, level = 'info') {
+      if (!this.config.enableLogging) return;
+  
+      const prefix = '[TimelineService]';
+  
+      switch (level) {
+        case 'error':
+          console.error(`${prefix} ${message}`);
+          break;
+        case 'warn':
+          console.warn(`${prefix} ${message}`);
+          break;
+        case 'info':
+        default:
+          console.log(`${prefix} ${message}`);
+          break;
       }
     }
   }
-
-  /**
-   * Start the event checking timer
-   * @private
-   */
-  _startEventChecking() {
-    // Clear any existing timer
-    this._stopEventChecking();
-
-    // Set the current event index
-    this._nextEventIndex = this._findNextEventIndex();
-
-    // Set interval for checking events
-    this._eventCheckTimer = setInterval(() => {
-      this._checkEvents();
-    }, 100); // Check every 100ms
-  }
-
-  /**
-   * Stop the event checking timer
-   * @private
-   */
-  _stopEventChecking() {
-    if (this._eventCheckTimer) {
-      clearInterval(this._eventCheckTimer);
-      this._eventCheckTimer = null;
-    }
-  }
-
-  /**
-   * Check if any events should be triggered
-   * @private
-   */
-  _checkEvents() {
-    if (!this._isPlaying || this._events.length === 0) return;
-
-    const currentTime = this.getElapsedTime();
-
-    // Check events from nextEventIndex onwards
-    while (
-      this._nextEventIndex < this._events.length &&
-      this._events[this._nextEventIndex].time <= currentTime
-    ) {
-      const event = this._events[this._nextEventIndex];
-      this._nextEventIndex++;
-
-      this.log(`Triggering event: ${event.id} at ${event.time}ms`);
-
-      // Call event handler
-      if (this.onScheduledEvent) {
-        this.onScheduledEvent(event);
-      }
-
-      // Emit event triggered via EventBus
-      if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.EVENT_TRIGGERED, {
-          event: {
-            id: event.id,
-            time: event.time,
-            action: event.action,
-            data: event.data
-          },
-          timestamp: Date.now()
-        });
-      }
-
-      // Update stats
-      this._updateStats({
-        eventsTriggered: this._stats.eventsTriggered + 1,
-        lastOperation: {
-          type: 'eventTriggered',
-          eventId: event.id,
-          timestamp: Date.now()
-        }
-      });
-    }
-  }
-
-  /**
-   * Find the next event index based on current time
-   * @returns {number} Next event index
-   * @private
-   */
-  _findNextEventIndex() {
-    const currentTime = this.getElapsedTime();
-
-    // Find the first event that occurs after the current time
-    const index = this._events.findIndex(event => event.time > currentTime);
-
-    // Return the found index, or events.length if all events have already occurred
-    return index >= 0 ? index : this._events.length;
-  }
-
-  /**
-   * Check the current phase based on elapsed time
-   * @private
-   */
-  _checkCurrentPhase() {
-    if (this._phases.length === 0) return;
-
-    const currentProgress = (this.getElapsedTime() / this.config.sessionDuration) * 100;
-    let newPhase = null;
-
-    // Find the last phase whose position is <= current progress
-    for (let i = this._phases.length - 1; i >= 0; i--) {
-      if (this._phases[i].position <= currentProgress) {
-        newPhase = this._phases[i];
-        break;
-      }
-    }
-
-    // If no phase found, use the first phase
-    if (!newPhase) {
-      newPhase = this._phases[0];
-    }
-
-    // Check if phase has changed
-    if (!this._currentPhase || this._currentPhase.id !== newPhase.id) {
-      const previousPhase = this._currentPhase;
-      this._currentPhase = newPhase;
-
-      this.log(`Phase changed to: ${newPhase.id}`);
-
-      // Call phase change handler
-      if (this.onPhaseChange) {
-        this.onPhaseChange(newPhase.id, { ...newPhase });
-      }
-
-      // Update stats
-      this._updateStats({
-        phaseChanges: this._stats.phaseChanges + 1,
-        lastOperation: {
-          type: 'phaseChanged',
-          fromPhase: previousPhase ? previousPhase.id : null,
-          toPhase: newPhase.id,
-          timestamp: Date.now()
-        }
-      });
-
-      // Emit phase changed event via EventBus
-      if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.PHASE_CHANGED, {
-          phaseId: newPhase.id,
-          phaseData: { ...newPhase },
-          previousPhaseId: previousPhase ? previousPhase.id : null,
-          timestamp: Date.now()
-        });
-      }
-    }
-  }
-
-  /**
-   * Handle volume changes during phase transitions
-   * This logic is removed from the TimelineService to be handled by application code
-   * Only log a message to indicate this should be implemented externally
-   */
-  _handlePhaseVolumeChanges() {
-    this.log('Volume changes during phase transitions should be implemented externally', 'info');
-  }
-
-  /**
-   * Logging helper that respects configuration
-   * @param {string} message - Message to log
-   * @param {string} [level='info'] - Log level
-   */
-  log(message, level = 'info') {
-    if (!this.config.enableLogging) return;
-
-    const prefix = '[TimelineService]';
-
-    switch (level) {
-      case 'error':
-        console.error(`${prefix} ${message}`);
-        break;
-      case 'warn':
-        console.warn(`${prefix} ${message}`);
-        break;
-      case 'info':
-      default:
-        console.log(`${prefix} ${message}`);
-        break;
-    }
-  }
-
-  /**
-* Dispose of resources used by the timeline service
-* Clean up any timers and reset state
-*/
-  dispose() {
-    try {
-      // Stop if currently playing
-      if (this._isPlaying) {
-        this.stop();
-      }
-
-      // Stop all timers
-      this._stopProgressTimer();
-      this._stopEventChecking();
-
-      // Reset state
-      this._isPlaying = false;
-      this._startTime = null;
-      this._elapsedTime = 0;
-      this._nextEventIndex = 0;
-
-      // Log cleanup
-      this.log('TimelineService disposed');
-
-      // Emit disposed event via EventBus
-      if (this.config.enableEventBus) {
-        eventBus.emit('timeline:disposed', {
-          timestamp: Date.now()
-        });
-      }
-    } catch (error) {
-      this.log(`Error during disposal: ${error.message}`, 'error');
-
-      // Final attempt to clean up timers
-      try {
-        if (this._progressTimer) clearInterval(this._progressTimer);
-        if (this._eventCheckTimer) clearInterval(this._eventCheckTimer);
-      } catch (e) {
-        // Swallow any errors in last-ditch cleanup
-      }
-    }
-  }
-
-  /**
-   * Alias for dispose for API consistency with other services
-   */
-  cleanup() {
-    this.dispose();
-  }
-
-  /**
-   * Check if the timeline is currently playing
-   * @returns {boolean} Playing state
-   */
-  isTimelinePlaying() {
-    return this._isPlaying;
-  }
-
-  /**
-   * Get the service configuration
-   * @returns {Object} Current configuration
-   */
-  getConfig() {
-    return { ...this.config };
-  }
-}
-
-export default TimelineService;
+  
+  export default TimelineService;
+  

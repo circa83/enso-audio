@@ -52,7 +52,7 @@ export const TimelineProvider = ({
       window.dispatchEvent(event);
     }
 
-    // Publish event through event bus
+    // Publish event through event bus (standard event)
     eventBus.emit('timeline:phaseChanged', { phaseId, phaseData });
   }, []);
 
@@ -133,11 +133,36 @@ export const TimelineProvider = ({
     timelinePhases
   ]);
 
-  // Set up event listeners for TimelineService events
+  // Set up event listeners for phase transitions and other timeline events
   useEffect(() => {
     if (!timelineService) return;
 
-    // Event handlers
+    // Handler for the new detailed phase transition events
+    const handlePhaseTransition = (data) => {
+      console.log('[TimelineContext] Phase transition event received:', data);
+      const { phaseId, phaseData, previousPhaseId } = data;
+      
+      // Update our local state
+      setActivePhase(phaseId);
+      
+      // Update last operation for tracking
+      setLastOperation({
+        type: 'phaseTransition',
+        phaseId,
+        previousPhaseId,
+        timestamp: data.timestamp
+      });
+      
+      // Forward the event to any components that need it via standard DOM events
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent('timeline-phase-transition', {
+          detail: data
+        });
+        window.dispatchEvent(event);
+      }
+    };
+
+    // Event handlers for standard timeline events
     const handleStarted = (data) => {
       console.log('[TimelineContext] Timeline started', data);
       setTimelineIsPlaying(true);
@@ -163,7 +188,7 @@ export const TimelineProvider = ({
     };
 
     const handlePhaseChanged = (data) => {
-      console.log('[TimelineContext] Timeline phase changed', data);
+      console.log('[TimelineContext] Timeline phase changed (legacy event)', data);
       setActivePhase(data.phaseId);
       setLastOperation({
         type: 'phaseChanged',
@@ -246,7 +271,8 @@ export const TimelineProvider = ({
       });
     };
 
-    // Register event handlers
+    // Register event handlers - including the new phase transition event
+    eventBus.on('timeline:phaseTransition', handlePhaseTransition);
     eventBus.on(TIMELINE_EVENTS.STARTED, handleStarted);
     eventBus.on(TIMELINE_EVENTS.STOPPED, handleStopped);
     eventBus.on(TIMELINE_EVENTS.PAUSED, handlePaused);
@@ -269,6 +295,7 @@ export const TimelineProvider = ({
 
     // Clean up event listeners and interval
     return () => {
+      eventBus.off('timeline:phaseTransition', handlePhaseTransition);
       eventBus.off(TIMELINE_EVENTS.STARTED, handleStarted);
       eventBus.off(TIMELINE_EVENTS.STOPPED, handleStopped);
       eventBus.off(TIMELINE_EVENTS.PAUSED, handlePaused);
@@ -374,39 +401,68 @@ export const TimelineProvider = ({
   // Reset timeline event index
   const resetTimelineEventIndex = useCallback(() => {
     if (!timelineService) return false;
-
-    return timelineService.reset();
+    
+    timelineService.stop();
+    
+    if (timelineService.reset) {
+      timelineService.reset();
+      eventBus.emit('timeline:reset');
+      return true;
+    }
+    
+    return false;
   }, [timelineService]);
 
   // Update timeline phases
   const updateTimelinePhases = useCallback((phases) => {
     if (!phases || !Array.isArray(phases)) return false;
-
+    
     console.log(`[TimelineContext] Updating timeline phases (${phases.length} phases)`);
     setTimelinePhases(phases);
-
-    if (timelineService) {
-      return timelineService.setPhases(phases);
+    
+    if (timelineService && timelineService.setPhases) {
+      const result = timelineService.setPhases(phases);
+      
+      // Manual event emission to ensure context stays in sync with service
+      if (result) {
+        eventBus.emit('timeline:phasesUpdated', { 
+          phases, 
+          count: phases.length,
+          timestamp: Date.now() 
+        });
+      }
+      
+      return result;
     }
-
+    
     return false;
   }, [timelineService]);
 
   // Register a timeline event
   const registerTimelineEvent = useCallback((event) => {
     if (!event) return false;
-
+    
     console.log(`[TimelineContext] Registering timeline event: ${event.id || 'unnamed'}`);
-
+    
     setTimelineEvents(prev => {
       const updatedEvents = [...prev, event].sort((a, b) => a.time - b.time);
       return updatedEvents;
     });
-
+    
     if (timelineService && timelineService.addEvent) {
-      return timelineService.addEvent(event);
+      const result = timelineService.addEvent(event);
+      
+      // Manual event emission for consistency
+      if (result) {
+        eventBus.emit('timeline:eventRegistered', { 
+          event,
+          timestamp: Date.now() 
+        });
+      }
+      
+      return result;
     }
-
+    
     return false;
   }, [timelineService]);
 
@@ -414,11 +470,19 @@ export const TimelineProvider = ({
   const clearTimelineEvents = useCallback(() => {
     console.log("[TimelineContext] Clearing all timeline events");
     setTimelineEvents([]);
-
+    
     if (timelineService && timelineService.clearEvents) {
-      return timelineService.clearEvents();
+      const count = timelineService.clearEvents();
+      
+      // Manual event emission for consistency
+      eventBus.emit('timeline:eventsCleared', { 
+        count,
+        timestamp: Date.now() 
+      });
+      
+      return true;
     }
-
+    
     return false;
   }, [timelineService]);
 
@@ -428,63 +492,105 @@ export const TimelineProvider = ({
       console.error('[TimelineContext] Invalid session duration:', duration);
       return false;
     }
-
+    
     console.log(`[TimelineContext] Setting session duration: ${duration}ms`);
     setSessionDuration(duration);
-
+    
     if (timelineService && timelineService.setSessionDuration) {
-      return timelineService.setSessionDuration(duration);
+      const result = timelineService.setSessionDuration(duration);
+      
+      // Manual event emission for consistency
+      if (result) {
+        eventBus.emit('timeline:durationChanged', { 
+          newDuration: duration,
+          timestamp: Date.now() 
+        });
+      }
+      
+      return result;
     }
-
+    
     return false;
   }, [timelineService]);
-
+  
   // Set transition duration
   const handleSetTransitionDuration = useCallback((duration) => {
     if (typeof duration !== 'number' || duration < 0) {
       console.error('[TimelineContext] Invalid transition duration:', duration);
       return false;
     }
-
+    
     console.log(`[TimelineContext] Setting transition duration: ${duration}ms`);
     setTransitionDuration(duration);
-
+    
     if (timelineService && timelineService.setTransitionDuration) {
-      return timelineService.setTransitionDuration(duration);
+      const result = timelineService.setTransitionDuration(duration);
+      
+      // Manual event emission for consistency
+      if (result) {
+        eventBus.emit('timeline:transitionChanged', { 
+          newDuration: duration,
+          timestamp: Date.now() 
+        });
+      }
+      
+      return result;
     }
-
+    
     return false;
   }, [timelineService]);
-
+  
   // Seek to specific time
   const seekToTime = useCallback((timeMs) => {
     if (typeof timeMs !== 'number' || timeMs < 0) {
       console.error('[TimelineContext] Invalid seek time:', timeMs);
       return false;
     }
-
+    
     console.log(`[TimelineContext] Seeking to time: ${timeMs}ms`);
-
+    
     if (timelineService && timelineService.seekTo) {
-      return timelineService.seekTo(timeMs);
+      const result = timelineService.seekTo(timeMs);
+      
+      // Manual event emission for consistency
+      if (result) {
+        eventBus.emit('timeline:seek', { 
+          time: timeMs,
+          type: 'absolute',
+          timestamp: Date.now() 
+        });
+      }
+      
+      return result;
     }
-
+    
     return false;
   }, [timelineService]);
-
+  
   // Seek to percentage of total duration
   const seekToPercent = useCallback((percent) => {
     if (typeof percent !== 'number' || percent < 0 || percent > 100) {
       console.error('[TimelineContext] Invalid seek percentage:', percent);
       return false;
     }
-
+    
     console.log(`[TimelineContext] Seeking to percent: ${percent}%`);
-
+    
     if (timelineService && timelineService.seekToPercent) {
-      return timelineService.seekToPercent(percent);
+      const result = timelineService.seekToPercent(percent);
+      
+      // Manual event emission for consistency
+      if (result) {
+        eventBus.emit('timeline:seek', { 
+          percent: percent,
+          type: 'percent',
+          timestamp: Date.now() 
+        });
+      }
+      
+      return result;
     }
-
+    
     return false;
   }, [timelineService]);
 
@@ -502,7 +608,7 @@ export const TimelineProvider = ({
     stats: serviceStats,
     lastError,
     lastOperation,
-
+    
     // Control functions
     start: startTimeline,
     stop: stopTimeline,
@@ -510,7 +616,7 @@ export const TimelineProvider = ({
     resume: resumeTimeline,
     getTime: getSessionTime,
     reset: resetTimelineEventIndex,
-
+    
     // Configuration functions
     registerEvent: registerTimelineEvent,
     clearEvents: clearTimelineEvents,
@@ -519,7 +625,7 @@ export const TimelineProvider = ({
     seekToPercent,
     setDuration: handleSetSessionDuration,
     setTransitionDuration: handleSetTransitionDuration,
-
+    
     // Service access for advanced usage
     service: timelineService
   }), [
@@ -549,7 +655,7 @@ export const TimelineProvider = ({
     handleSetTransitionDuration,
     timelineService
   ]);
-
+  
   return (
     <TimelineContext.Provider value={contextValue}>
       {children}

@@ -2,10 +2,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTimelineContext } from '../contexts/TimelineContext';
 import { useAudio } from './useAudio';
+import eventBus from '../services/EventBus';
+import { TIMELINE_EVENTS } from '../services/TimelineService';
 
 /**
  * Hook for managing timeline functionality in the audio player
- * Leverages the TimelineContext and provides a consistent API
+ * Leverages the TimelineContext and EventBus for event-driven architecture
  * 
  * @param {Object} options - Configuration options
  * @param {boolean} options.isPlaying - Whether audio is currently playing
@@ -18,11 +20,16 @@ export function useTimeline(options = {}) {
     onPhaseChange = null,
   } = options;
   
-  // Get timeline functionality from context instead of audioServiceManager
+  // Get timeline functionality from context
   const timeline = useTimelineContext();
   const { isPlaying: audioIsPlaying } = useAudio();
   
-  // Local state for tracking user-provided callbacks
+  // Local state for phase transitions
+  const [localActivePhase, setLocalActivePhase] = useState(timeline.activePhase);
+  const [localProgress, setLocalProgress] = useState(timeline.progress);
+  const [localIsPlaying, setLocalIsPlaying] = useState(timeline.isPlaying);
+  
+  // Refs for callbacks to avoid dependency issues
   const onPhaseChangeRef = useRef(onPhaseChange);
   const isPlayingRef = useRef(isPlaying || audioIsPlaying);
   
@@ -32,23 +39,84 @@ export function useTimeline(options = {}) {
     isPlayingRef.current = isPlaying || audioIsPlaying;
   }, [onPhaseChange, isPlaying, audioIsPlaying]);
   
-  // Set up phase change handler to call user-provided callback
+  // Set up event listeners for timeline events
   useEffect(() => {
-    if (!onPhaseChangeRef.current) return;
+    console.log('[useTimeline] Setting up event listeners');
     
-    const handlePhaseChange = (event) => {
+    // Phase transition handler using EventBus
+    const handlePhaseTransition = (data) => {
+      console.log('[useTimeline] Phase transition event received:', data.phaseId);
+      
+      setLocalActivePhase(data.phaseId);
+      
+      // Call the client callback if provided
+      if (onPhaseChangeRef.current) {
+        onPhaseChangeRef.current(data.phaseId, data.phaseData);
+      }
+    };
+    
+    // Progress update handler
+    const handleProgress = (data) => {
+      setLocalProgress(data.progress);
+    };
+    
+    // Timeline playback state handlers
+    const handleStart = () => {
+      console.log('[useTimeline] Timeline started event received');
+      setLocalIsPlaying(true);
+    };
+    
+    const handleStop = () => {
+      console.log('[useTimeline] Timeline stopped event received');
+      setLocalIsPlaying(false);
+    };
+    
+    const handlePause = () => {
+      console.log('[useTimeline] Timeline paused event received');
+      setLocalIsPlaying(false);
+    };
+    
+    const handleResume = () => {
+      console.log('[useTimeline] Timeline resumed event received');
+      setLocalIsPlaying(true);
+    };
+    
+    // Register event listeners
+    eventBus.on('timeline:phaseTransition', handlePhaseTransition);
+    eventBus.on('timeline:progress', handleProgress);
+    eventBus.on(TIMELINE_EVENTS.STARTED, handleStart);
+    eventBus.on(TIMELINE_EVENTS.STOPPED, handleStop);
+    eventBus.on(TIMELINE_EVENTS.PAUSED, handlePause);
+    eventBus.on(TIMELINE_EVENTS.RESUMED, handleResume);
+    
+    // Legacy DOM event listener for backward compatibility
+    const handleLegacyPhaseChange = (event) => {
       const { phaseId, phaseData } = event.detail;
       if (onPhaseChangeRef.current) {
         onPhaseChangeRef.current(phaseId, phaseData);
       }
     };
     
-    window.addEventListener('timeline-phase-changed', handlePhaseChange);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('timeline-phase-changed', handleLegacyPhaseChange);
+      window.addEventListener('timeline-phase-transition', handleLegacyPhaseChange);
+    }
     
+    // Clean up event listeners
     return () => {
-      window.removeEventListener('timeline-phase-changed', handlePhaseChange);
+      eventBus.off('timeline:phaseTransition', handlePhaseTransition);
+      eventBus.off('timeline:progress', handleProgress);
+      eventBus.off(TIMELINE_EVENTS.STARTED, handleStart);
+      eventBus.off(TIMELINE_EVENTS.STOPPED, handleStop);
+      eventBus.off(TIMELINE_EVENTS.PAUSED, handlePause);
+      eventBus.off(TIMELINE_EVENTS.RESUMED, handleResume);
+      
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('timeline-phase-changed', handleLegacyPhaseChange);
+        window.removeEventListener('timeline-phase-transition', handleLegacyPhaseChange);
+      }
     };
-  }, []);
+  }, []); // Empty dependency array ensures event listeners are only set up once
   
   // Start the timeline
   const startTimeline = useCallback(() => {
@@ -138,16 +206,17 @@ export function useTimeline(options = {}) {
     return timeline.seekToPercent(percent);
   }, [timeline]);
 
-  // Return all timeline state and functions with same interface as before
+  // Return all timeline state and functions with same interface as before,
+  // but with locally tracked state for better reactivity
   return {
-    // Timeline state
+    // Timeline state - use local state where we're tracking event-based updates
     events: timeline.events,
     phases: timeline.phases,
-    activePhase: timeline.activePhase,
-    progress: timeline.progress,
+    activePhase: localActivePhase, // Use local state that tracks events
+    progress: localProgress, // Use local state that tracks events
     duration: timeline.duration,
     transitionDuration: timeline.transitionDuration,
-    isPlaying: timeline.isPlaying,
+    isPlaying: localIsPlaying, // Use local state that tracks events
     
     // Timeline control functions
     start: startTimeline,

@@ -4,12 +4,8 @@ import { SessionProvider } from 'next-auth/react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { AudioProvider } from '../contexts/AudioContext';
-import { AuthProvider } from '../contexts/AuthContext';
 import AppLoadingScreen from '../components/loading/AppLoadingScreen';
 import '../styles/globals.css';
-import { VolumeProvider } from '../contexts/VolumeContext';
-import { CollectionProvider } from '../contexts/CollectionContext';
 import { ProvidersWrapper } from '../components/providers/ProvidersWrapper';
 
 // Error handler component for auth failures
@@ -125,27 +121,13 @@ function AppContent({ Component, pageProps }) {
     />;
   }
   
-  // For unauthenticated users, still use AuthProvider but not AudioProvider
-  if (status === 'unauthenticated') {
-    return (
-      <AuthProvider>
-        <Component {...pageProps} />
-      </AuthProvider>
-    );
-  }
-  
-  // For authenticated users, wrap with both providers
-  return (
-    <AuthProvider>
-      <AudioProvider>
-        <Component {...pageProps} />
-      </AudioProvider>
-    </AuthProvider>
-  );
+  // IMPORTANT CHANGE: Don't wrap in additional providers here
+  // Let ProvidersWrapper handle all providers
+  return <Component {...pageProps} />;
 }
 
 function MyApp({ Component, pageProps }) {
-//mobile ios detection
+  // Mobile iOS detection
   useEffect(() => {
     // Simple iOS detection
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -177,16 +159,18 @@ function MyApp({ Component, pageProps }) {
   return (
     <>
       <Head>
-      <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <title>Ensō Audio</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <title>Ensō Audio</title>
         <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@100;200;300&family=Space+Mono&family=Noto+Sans+JP:wght@300&display=swap" rel="stylesheet" />
       </Head>
       
       <SessionProvider session={pageProps.session} refetchInterval={0}>
-        <ProvidersWrapper>
-                  <AppContent Component={Component} pageProps={pageProps} />
-        </ProvidersWrapper>
+        <AuthErrorBoundary>
+          <ProvidersWrapper>
+            <AppContent Component={Component} pageProps={pageProps} />
+          </ProvidersWrapper>
+        </AuthErrorBoundary>
       </SessionProvider>
     </>
   );
