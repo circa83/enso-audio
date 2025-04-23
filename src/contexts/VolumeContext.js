@@ -8,10 +8,28 @@ const VolumeContext = createContext(null);
 
 /**
  * Provider component for volume management
+ * @param {Object} props - Component props
+ * @param {React.ReactNode} props.children - Child components
+ * @param {Object} props.initialVolumes - Initial volume levels
+ * @param {AudioContext} [props.audioContext] - Web Audio API context (optional, can be injected)
+ * @param {GainNode} [props.masterGain] - Master gain node (optional, can be injected)
+ * @param {boolean} [props.initialized] - Whether audio system is initialized (optional, can be injected)
  */
-export const VolumeProvider = ({ children, initialVolumes = {} }) => {
-    // Get dependencies from AudioService
-    const { audioContext, masterGain, initialized } = useAudioService();
+export const VolumeProvider = ({ 
+  children, 
+  initialVolumes = {},
+  // Accept audio services as props with defaults to maintain compatibility
+  audioContext: injectedAudioContext = null,
+  masterGain: injectedMasterGain = null,
+  initialized: injectedInitialized = false
+}) => {
+    // Get dependencies from AudioService as fallback
+    const audioService = useAudioService();
+    
+    // Use injected values if provided, otherwise fall back to values from useAudioService
+    const audioContext = injectedAudioContext || (audioService ? audioService.audioContext : null);
+    const masterGain = injectedMasterGain || (audioService ? audioService.masterGain : null);
+    const initialized = injectedInitialized || (audioService ? audioService.initialized : false);
 
     // Service reference
     const [volumeService, setVolumeService] = useState(null);
@@ -350,5 +368,16 @@ export const VolumeProvider = ({ children, initialVolumes = {} }) => {
     );
 };
 
+/**
+ * Custom hook to use the volume context
+ * @returns {Object} Volume context value
+ */
+export const useVolumeContext = () => {
+  const context = useContext(VolumeContext);
+  if (!context) {
+    throw new Error('useVolumeContext must be used within a VolumeProvider');
+  }
+  return context;
+};
 
 export default VolumeContext;

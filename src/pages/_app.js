@@ -8,6 +8,9 @@ import { AudioProvider } from '../contexts/AudioContext';
 import { AuthProvider } from '../contexts/AuthContext';
 import AppLoadingScreen from '../components/loading/AppLoadingScreen';
 import '../styles/globals.css';
+import { VolumeProvider } from '../contexts/VolumeContext';
+import { CollectionProvider } from '../contexts/CollectionContext';
+import { ProvidersWrapper } from '../components/providers/ProvidersWrapper';
 
 // Error handler component for auth failures
 const AuthErrorBoundary = ({ children }) => {
@@ -181,9 +184,9 @@ function MyApp({ Component, pageProps }) {
       </Head>
       
       <SessionProvider session={pageProps.session} refetchInterval={0}>
-        <AuthErrorBoundary>
-          <AppContent Component={Component} pageProps={pageProps} />
-        </AuthErrorBoundary>
+        <ProvidersWrapper>
+                  <AppContent Component={Component} pageProps={pageProps} />
+        </ProvidersWrapper>
       </SessionProvider>
     </>
   );
