@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import Player from '../components/Player';
+import Player from '../components/audio/Player';
 import withAuth from '../components/auth/ProtectedRoute';
 import { useAuth } from '../contexts/AuthContext';
 import { useAudio } from '../hooks/useAudio';

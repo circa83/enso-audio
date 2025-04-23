@@ -1,7 +1,7 @@
 // src/contexts/TimelineContext.js
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import TimelineService, { TIMELINE_EVENTS } from '../services/TimelineService';
-import { useAudioService } from './AudioServiceContext';
+import { useAudioService } from './AudioContext.js';
 import { useVolumeService } from './VolumeContext';
 import { useCrossfadeService } from './CrossfadeContext';
 import eventBus from '../services/EventBus.js';

@@ -1,7 +1,7 @@
 // src/contexts/CrossfadeContext.js
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import CrossfadeService, { CROSSFADE_EVENTS } from '../services/CrossfadeService';
-import { useAudioService } from './AudioServiceContext';
+import { useAudioService } from './AudioContext';
 import { useVolumeService } from './VolumeContext';
 import { useBufferService } from './BufferContext';
 import eventBus from '../services/EventBus.js';
