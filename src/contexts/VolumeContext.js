@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import VolumeService from '../services/VolumeService';
-import { useAudioService } from './useAudioService';
+import { useAudioService } from './AudioContext';
 import eventBus, { EVENTS } from '../services/EventBus';
 
 // Create the context
@@ -349,5 +349,6 @@ export const VolumeProvider = ({ children, initialVolumes = {} }) => {
         </VolumeContext.Provider>
     );
 };
+
 
 export default VolumeContext;

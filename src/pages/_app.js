@@ -4,7 +4,7 @@ import { SessionProvider } from 'next-auth/react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { AudioProvider } from '../contexts/StreamingAudioContext';
+import { AudioProvider } from '../contexts/AudioContext';
 import { AuthProvider } from '../contexts/AuthContext';
 import AppLoadingScreen from '../components/loading/AppLoadingScreen';
 import '../styles/globals.css';

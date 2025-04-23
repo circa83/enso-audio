@@ -1,7 +1,8 @@
 // src/hooks/useAudio.js
 import { useCallback, useMemo } from 'react';
 import { useAudioContext } from '../contexts/AudioContext';
-import { useVolumeContext } from '../contexts/VolumeContext';
+import { useVolume } from '../hooks/useVolume';
+
 
 /**
  * Custom hook to simplify access to the core audio functionality
@@ -13,8 +14,8 @@ export function useAudio() {
   // Get core audio functionality from AudioContext
   const audio = useAudioContext();
   
-  // Get volume functionality from VolumeContext
-  const volume = useVolumeContext();
+  // Get volume functionality from Volume hook
+  const volume = useVolume();
   
   if (!audio) {
     throw new Error('useAudio: AudioContext is not available');

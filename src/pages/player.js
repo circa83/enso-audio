@@ -5,7 +5,7 @@ import { useRouter } from 'next/router';
 import Player from '../components/Player';
 import withAuth from '../components/auth/ProtectedRoute';
 import { useAuth } from '../contexts/AuthContext';
-import { useAudio } from '../contexts/StreamingAudioContext';
+import { useAudio } from '../hooks/useAudio';
 import styles from '../styles/pages/Player.module.css';
 
 const PlayerPage = () => {

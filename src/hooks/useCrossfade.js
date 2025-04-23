@@ -1,10 +1,13 @@
 // src/hooks/useCrossfade.js
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { useCrossfadeContext } from '../contexts/CrossfadeContext';
 import { useAudio } from './useAudio';
+import eventBus from '../services/EventBus';
+import { CROSSFADE_EVENTS } from '../services/CrossfadeService';
 
 /**
  * Hook for managing audio crossfades and track transitions
+ * Enhanced with explicit state management and EventBus integration
  * 
  * @param {Object} options - Configuration options
  * @param {Object} options.activeAudio - Current active audio tracks
@@ -34,171 +37,459 @@ export function useCrossfade(options = {}) {
     getOrCreateAudioElement
   } = useAudio();
   
-  // Crossfade between audio tracks
-  const crossfadeTo = useCallback(async (layer, newTrackId, fadeDuration = null) => {
-    console.log(`[useCrossfade] Starting crossfade process for ${layer}: ${newTrackId}`);
-    
-    // Use provided duration, or options-level duration, or context default
-    const actualDuration = fadeDuration !== null 
-      ? fadeDuration 
-      : (transitionDuration !== null ? transitionDuration : undefined);
+  // Local state for operation tracking
+  const [operationState, setOperationState] = useState({
+    pendingOperations: new Map(), // Maps layer to { operation, trackId, timestamp }
+    lastOperation: null,
+    error: null,
+    timestamp: null
+  });
+  
+  // Subscribe to crossfade events using EventBus
+  useEffect(() => {
+    // Handle operation completion
+    const handleCrossfadeCompleted = (data) => {
+      const { layer, timestamp } = data;
       
-    console.log(`[useCrossfade] Using transition duration: ${actualDuration || 'default'}ms`);
+      // Remove from pending operations
+      setOperationState(prev => {
+        const newPending = new Map(prev.pendingOperations);
+        newPending.delete(layer);
+        
+        return {
+          ...prev,
+          pendingOperations: newPending,
+          lastOperation: 'completed',
+          timestamp
+        };
+      });
+    };
     
-    // Find the current track ID from activeAudio
-    const currentTrackId = activeAudio[layer];
-    
-    // Skip if already playing requested track
-    if (currentTrackId === newTrackId) {
-      console.log(`[useCrossfade] Already playing ${newTrackId} on ${layer}`);
-      return true;
-    }
-    
-    // Find the target track in library
-    let libraryTrack = audioLibrary[layer]?.find(t => t.id === newTrackId);
-    
-    // If not found, create a fallback
-    if (!libraryTrack) {
-      console.log(`[useCrossfade] Track ${newTrackId} not found in library for layer ${layer}, creating fallback`);
+    // Handle operation cancellation
+    const handleCrossfadeCancelled = (data) => {
+      const { layer, timestamp } = data;
       
-      libraryTrack = {
-        id: newTrackId,
-        name: newTrackId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-        path: `/samples/default/${layer.toLowerCase()}.mp3` // Fallback path
+         // Remove from pending operations
+         setOperationState(prev => {
+          const newPending = new Map(prev.pendingOperations);
+          newPending.delete(layer);
+          
+          return {
+            ...prev,
+            pendingOperations: newPending,
+            lastOperation: 'cancelled',
+            timestamp
+          };
+        });
       };
-    }
+      
+      // Handle errors
+      const handleCrossfadeError = (data) => {
+        const { layer, message, timestamp } = data;
+        
+        // Remove from pending operations and track error
+        setOperationState(prev => {
+          const newPending = new Map(prev.pendingOperations);
+          if (layer) {
+            newPending.delete(layer);
+          }
+          
+          return {
+            ...prev,
+            pendingOperations: newPending,
+            lastOperation: 'error',
+            error: message,
+            timestamp
+          };
+        });
+      };
+      
+      // Handle volume adjustments
+      const handleVolumeAdjusted = (data) => {
+        const { layer, volume, timestamp } = data;
+        
+        // Just update last operation
+        setOperationState(prev => ({
+          ...prev,
+          lastOperation: 'volumeAdjusted',
+          timestamp
+        }));
+      };
+      
+      // Subscribe to events
+      eventBus.on(CROSSFADE_EVENTS.COMPLETED, handleCrossfadeCompleted);
+      eventBus.on(CROSSFADE_EVENTS.CANCELLED, handleCrossfadeCancelled);
+      eventBus.on(CROSSFADE_EVENTS.ERROR, handleCrossfadeError);
+      eventBus.on(CROSSFADE_EVENTS.VOLUME_ADJUSTED, handleVolumeAdjusted);
+      
+      // Cleanup subscriptions
+      return () => {
+        eventBus.off(CROSSFADE_EVENTS.COMPLETED, handleCrossfadeCompleted);
+        eventBus.off(CROSSFADE_EVENTS.CANCELLED, handleCrossfadeCancelled);
+        eventBus.off(CROSSFADE_EVENTS.ERROR, handleCrossfadeError);
+        eventBus.off(CROSSFADE_EVENTS.VOLUME_ADJUSTED, handleVolumeAdjusted);
+      };
+    }, []); // Empty dependency array since eventBus is stable
     
-    // If we're not playing or have no current track, do an immediate switch
-    if (!isPlaying || !currentTrackId) {
-      console.log(`[useCrossfade] Not currently playing or no current track, using immediate switch instead of crossfade`);
+    // Crossfade between audio tracks
+    const crossfadeTo = useCallback(async (layer, newTrackId, fadeDuration = null) => {
+      console.log(`[useCrossfade] Starting crossfade process for ${layer}: ${newTrackId}`);
       
-      // Update active audio state immediately
-      if (onActiveAudioChange) {
-        onActiveAudioChange(layer, newTrackId);
-      }
+      // Use provided duration, or options-level duration, or context default
+      const actualDuration = fadeDuration !== null 
+        ? fadeDuration 
+        : (transitionDuration !== null ? transitionDuration : undefined);
+        
+      console.log(`[useCrossfade] Using transition duration: ${actualDuration || 'default'}ms`);
       
-      console.log(`[useCrossfade] Immediate switch to ${newTrackId} successful for ${layer}`);
-      return true;
-    }
-    
-    try {
-      // Get source and target audio nodes
-      const sourceNode = getActiveSourceNode(layer);
-      const sourceElement = getActiveAudioElement(layer);
-      
-      // Get or create target nodes
-      const targetNode = getOrCreateSourceNode(layer, newTrackId);
-      const targetElement = getOrCreateAudioElement(layer, newTrackId);
-      
-      if (!sourceNode || !targetNode) {
-        console.error(`[useCrossfade] Could not get required audio nodes for ${layer}`);
-        return false;
-      }
-      
-      // Update active audio state before crossfade
-      if (onActiveAudioChange) {
-        onActiveAudioChange(layer, newTrackId);
-      }
-      
-      // Execute the crossfade through the context
-      const success = await crossfade.executeCrossfade({
-        layer,
-        sourceNode,
-        sourceElement,
-        targetNode,
-        targetElement,
-        fromTrackId: currentTrackId,
-        toTrackId: newTrackId,
-        duration: actualDuration,
-        syncPosition: true
+      // Track operation in local state
+      setOperationState(prev => {
+        const newPending = new Map(prev.pendingOperations);
+        newPending.set(layer, {
+          operation: 'crossfadeTo',
+          targetTrackId: newTrackId,
+          timestamp: Date.now()
+        });
+        
+        return {
+          ...prev,
+          pendingOperations: newPending,
+          lastOperation: 'crossfadeTo',
+          timestamp: Date.now(),
+          error: null
+        };
       });
       
-      return success;
-    } catch (error) {
-      console.error(`[useCrossfade] Error during crossfade: ${error.message}`);
-      return false;
-    }
-  }, [
-    activeAudio, 
-    audioLibrary, 
-    isPlaying, 
-    transitionDuration, 
-    onActiveAudioChange,
-    getActiveSourceNode,
-    getActiveAudioElement,
-    getOrCreateSourceNode,
-    getOrCreateAudioElement,
-    crossfade
-  ]);
-
-  // Preload audio using context's preloadAudio method
-  const preloadAudio = useCallback(async (layer, trackId) => {
-    if (!layer || !trackId) {
-      console.error("[useCrossfade] Layer and trackId are required for preloading");
-      return false;
-    }
-    
-    try {
-      // Find the track in library
-      const track = audioLibrary[layer]?.find(t => t.id === trackId);
-      console.log(`[useCrossfade] Preloading audio for ${layer}/${trackId}:`, track ? 'Found' : 'Not found', track);
+      // Find the current track ID from activeAudio
+      const currentTrackId = activeAudio[layer];
       
-      if (!track) {
-        console.error(`[useCrossfade] Track ${trackId} not found in library`);
+      // Skip if already playing requested track
+      if (currentTrackId === newTrackId) {
+        console.log(`[useCrossfade] Already playing ${newTrackId} on ${layer}`);
+        
+        // Remove from pending operations
+        setOperationState(prev => {
+          const newPending = new Map(prev.pendingOperations);
+          newPending.delete(layer);
+          
+          return {
+            ...prev,
+            pendingOperations: newPending,
+            lastOperation: 'skipped',
+            timestamp: Date.now()
+          };
+        });
+        
+        return true;
+      }
+      
+      // Find the target track in library
+      let libraryTrack = audioLibrary[layer]?.find(t => t.id === newTrackId);
+      
+      // If not found, create a fallback
+      if (!libraryTrack) {
+        console.log(`[useCrossfade] Track ${newTrackId} not found in library for layer ${layer}, creating fallback`);
+        
+        libraryTrack = {
+          id: newTrackId,
+          name: newTrackId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+          path: `/samples/default/${layer.toLowerCase()}.mp3` // Fallback path
+        };
+      }
+      
+      // If we're not playing or have no current track, do an immediate switch
+      if (!isPlaying || !currentTrackId) {
+        console.log(`[useCrossfade] Not currently playing or no current track, using immediate switch instead of crossfade`);
+        
+        // Update active audio state immediately
+        if (onActiveAudioChange) {
+          onActiveAudioChange(layer, newTrackId);
+        }
+        
+        // Remove from pending operations
+        setOperationState(prev => {
+          const newPending = new Map(prev.pendingOperations);
+          newPending.delete(layer);
+          
+          return {
+            ...prev,
+            pendingOperations: newPending,
+            lastOperation: 'immediateSwitch',
+            timestamp: Date.now()
+          };
+        });
+        
+        console.log(`[useCrossfade] Immediate switch to ${newTrackId} successful for ${layer}`);
+        
+        // Emit event for immediate switch
+        eventBus.emit('audio:trackSwitched', {
+          layer,
+          fromTrackId: currentTrackId,
+          toTrackId: newTrackId,
+          immediate: true,
+          timestamp: Date.now()
+        });
+        
+        return true;
+      }
+      
+      try {
+        // Get source and target audio nodes
+        const sourceNode = getActiveSourceNode(layer);
+        const sourceElement = getActiveAudioElement(layer);
+        
+        // Get or create target nodes
+        const targetNode = getOrCreateSourceNode(layer, newTrackId);
+        const targetElement = getOrCreateAudioElement(layer, newTrackId);
+        
+        if (!sourceNode || !targetNode) {
+          console.error(`[useCrossfade] Could not get required audio nodes for ${layer}`);
+          
+          // Update operation state with error
+          setOperationState(prev => {
+            const newPending = new Map(prev.pendingOperations);
+            newPending.delete(layer);
+            
+            return {
+              ...prev,
+              pendingOperations: newPending,
+              lastOperation: 'error',
+              error: 'Could not get required audio nodes',
+              timestamp: Date.now()
+            };
+          });
+          
+          return false;
+        }
+        
+        // Update active audio state before crossfade
+        if (onActiveAudioChange) {
+          onActiveAudioChange(layer, newTrackId);
+        }
+        
+        // Execute the crossfade through the context
+        const success = await crossfade.executeCrossfade({
+          layer,
+          sourceNode,
+          sourceElement,
+          targetNode,
+          targetElement,
+          fromTrackId: currentTrackId,
+          toTrackId: newTrackId,
+          duration: actualDuration,
+          syncPosition: true
+        });
+        
+        // If unsuccessful, update operation state
+        if (!success) {
+          setOperationState(prev => {
+            const newPending = new Map(prev.pendingOperations);
+            newPending.delete(layer);
+            
+            return {
+              ...prev,
+              pendingOperations: newPending,
+              lastOperation: 'failed',
+              error: 'Crossfade execution failed',
+              timestamp: Date.now()
+            };
+          });
+        }
+        
+        return success;
+      } catch (error) {
+        console.error(`[useCrossfade] Error during crossfade: ${error.message}`);
+        
+        // Update operation state with error
+        setOperationState(prev => {
+          const newPending = new Map(prev.pendingOperations);
+          newPending.delete(layer);
+          
+          return {
+            ...prev,
+            pendingOperations: newPending,
+            lastOperation: 'error',
+            error: error.message,
+            timestamp: Date.now()
+          };
+        });
+        
+        return false;
+      }
+    }, [
+      activeAudio, 
+      audioLibrary, 
+      isPlaying, 
+      transitionDuration, 
+      onActiveAudioChange,
+      getActiveSourceNode,
+      getActiveAudioElement,
+      getOrCreateSourceNode,
+      getOrCreateAudioElement,
+      crossfade
+    ]);
+  
+    // Preload audio using context's preloadAudio method
+    const preloadAudio = useCallback(async (layer, trackId) => {
+      if (!layer || !trackId) {
+        console.error("[useCrossfade] Layer and trackId are required for preloading");
         return false;
       }
       
-      // Use context's preloadAudio method
-      return await crossfade.preloadAudio(track.path);
-    } catch (error) {
-      console.error(`[useCrossfade] Error preloading audio: ${error.message}`);
-      return false;
-    }
-  }, [audioLibrary, crossfade]);
-
-  // Cancel all active crossfades
-  const cancelCrossfades = useCallback((options = {}) => {
-    console.log("[useCrossfade] Cancelling all active crossfades");
-    return crossfade.cancelCrossfades(options);
-  }, [crossfade]);
-
-  // Adjust volume during an active crossfade
-  const adjustCrossfadeVolume = useCallback((layer, volume) => {
-    console.log(`[useCrossfade] Adjusting crossfade volume for ${layer} to ${volume}`);
-    return crossfade.adjustCrossfadeVolume(layer, volume);
-  }, [crossfade]);
-
-  // Return a consistent API that matches the original hook
-  return useMemo(() => ({
-    // State from context
-    crossfadeProgress: crossfade.crossfadeProgress,
-    activeCrossfades: crossfade.activeCrossfades,
-    preloadProgress: crossfade.preloadProgress,
+      try {
+        // Update operation state
+        setOperationState(prev => ({
+          ...prev,
+          lastOperation: 'preloadAudio',
+          timestamp: Date.now(),
+          error: null
+        }));
+        
+        // Find the track in library
+        const track = audioLibrary[layer]?.find(t => t.id === trackId);
+        console.log(`[useCrossfade] Preloading audio for ${layer}/${trackId}:`, track ? 'Found' : 'Not found', track);
+        
+        if (!track) {
+          console.error(`[useCrossfade] Track ${trackId} not found in library`);
+          
+          setOperationState(prev => ({
+            ...prev,
+            lastOperation: 'preloadError',
+            error: `Track ${trackId} not found in library`,
+            timestamp: Date.now()
+          }));
+          
+          return false;
+        }
+        
+        // Use context's preloadAudio method
+        const result = await crossfade.preloadAudio(track.path);
+        
+        // Update operation state
+        setOperationState(prev => ({
+          ...prev,
+          lastOperation: result ? 'preloadComplete' : 'preloadFailed',
+          timestamp: Date.now(),
+          error: result ? null : 'Preload failed'
+        }));
+        
+        return result;
+      } catch (error) {
+        console.error(`[useCrossfade] Error preloading audio: ${error.message}`);
+        
+        // Update operation state
+        setOperationState(prev => ({
+          ...prev,
+          lastOperation: 'preloadError',
+          error: error.message,
+          timestamp: Date.now()
+        }));
+        
+        return false;
+      }
+    }, [audioLibrary, crossfade]);
+  
+    // Cancel all active crossfades
+    const cancelCrossfades = useCallback((options = {}) => {
+      console.log("[useCrossfade] Cancelling all active crossfades");
+      
+      // Update operation state
+      setOperationState(prev => ({
+        ...prev,
+        pendingOperations: new Map(), // Clear all pending operations
+        lastOperation: 'cancelAll',
+        timestamp: Date.now(),
+        error: null
+      }));
+      
+      return crossfade.cancelCrossfades(options);
+    }, [crossfade]);
+  
+    // Adjust volume during an active crossfade
+    const adjustCrossfadeVolume = useCallback((layer, volume) => {
+      console.log(`[useCrossfade] Adjusting crossfade volume for ${layer} to ${volume}`);
+      
+      // Update operation state
+      setOperationState(prev => ({
+        ...prev,
+        lastOperation: 'adjustVolume',
+        timestamp: Date.now(),
+        error: null
+      }));
+      
+      return crossfade.adjustCrossfadeVolume(layer, volume);
+    }, [crossfade]);
+  
+    // Get active layers with crossfades
+    const getActiveCrossfadeLayers = useCallback(() => {
+      return Array.from(operationState.pendingOperations.keys());
+    }, [operationState.pendingOperations]);
     
-    // Methods
-    crossfadeTo,
-    preloadAudio,
-    cancelCrossfades,
-    adjustCrossfadeVolume,
+    // Check if a crossfade is in progress for a specific layer
+    const isCrossfadeInProgress = useCallback((layer) => {
+      return operationState.pendingOperations.has(layer);
+    }, [operationState.pendingOperations]);
     
-    // Pass through methods from useAudio for audio element access
-    getActiveSourceNode,
-    getActiveAudioElement,
-    getOrCreateSourceNode,
-    getOrCreateAudioElement
-  }), [
-    crossfade.crossfadeProgress,
-    crossfade.activeCrossfades,
-    crossfade.preloadProgress,
-    crossfadeTo,
-    preloadAudio,
-    cancelCrossfades,
-    adjustCrossfadeVolume,
-    getActiveSourceNode,
-    getActiveAudioElement,
-    getOrCreateSourceNode,
-    getOrCreateAudioElement
-  ]);
-}
-
-export default useCrossfade;
+    // Get any error from the last operation
+    const getLastError = useCallback(() => {
+      return operationState.error;
+    }, [operationState.error]);
+  
+    // Return a consistent API that matches the original hook but with enhanced state tracking
+    return useMemo(() => ({
+      // State from context with operation state added
+      crossfadeProgress: crossfade.crossfadeProgress,
+      activeCrossfades: crossfade.activeCrossfades,
+      preloadProgress: crossfade.preloadProgress,
+      serviceReady: crossfade.serviceReady,
+      operationState: {
+        ...crossfade.operationState,
+        local: {
+          pending: Array.from(operationState.pendingOperations.entries()),
+          lastOperation: operationState.lastOperation,
+          error: operationState.error,
+          timestamp: operationState.timestamp
+        }
+      },
+      
+      // Methods
+      crossfadeTo,
+      preloadAudio,
+      cancelCrossfades,
+      adjustCrossfadeVolume,
+      
+      // New utility methods
+      getActiveCrossfadeLayers,
+      isCrossfadeInProgress,
+      getLastError,
+      getServiceStats: crossfade.getServiceStats,
+      
+      // Pass through methods from useAudio for audio element access
+      getActiveSourceNode,
+      getActiveAudioElement,
+      getOrCreateSourceNode,
+      getOrCreateAudioElement
+    }), [
+      crossfade.crossfadeProgress,
+      crossfade.activeCrossfades,
+      crossfade.preloadProgress,
+      crossfade.serviceReady,
+      crossfade.operationState,
+      operationState,
+      crossfadeTo,
+      preloadAudio,
+      cancelCrossfades,
+      adjustCrossfadeVolume,
+      getActiveCrossfadeLayers,
+      isCrossfadeInProgress,
+      getLastError,
+      crossfade.getServiceStats,
+      getActiveSourceNode,
+      getActiveAudioElement,
+      getOrCreateSourceNode,
+      getOrCreateAudioElement
+    ]);
+  }
+  
+  export default useCrossfade;
+  
