@@ -1,6 +1,7 @@
 // src/hooks/useVolume.js
-import { useContext, useMemo } from 'react';
+import { useContext, useMemo, useCallback } from 'react';
 import VolumeContext from '../contexts/VolumeContext';
+import eventBus, { EVENTS } from '../services/EventBus';
 
 /**
  * Custom hook to provide easy access to volume control functionality
@@ -23,7 +24,7 @@ export function useVolume() {
     pendingFades,
     ready,
 
-    // Service methods
+    // Methods
     setLayerVolume,
     setMultipleVolumes,
     fadeLayerVolume,
@@ -35,113 +36,105 @@ export function useVolume() {
     getLayerGainNode,
     isLayerMuted,
     
-    // Service access
+    // Direct service access
     service
   } = context;
 
-  // Group related functionality for a more organized API
-  
-  // Volume control methods
-  const controls = useMemo(() => ({
-    set: (layer, value, options = {}) => {
-      console.log(`[useVolume] Setting volume for ${layer} to ${value}`);
-      return setLayerVolume(layer, value, options);
-    },
-    setMultiple: (volumeMap, options = {}) => {
-      console.log(`[useVolume] Setting multiple volumes for layers: ${Object.keys(volumeMap).join(', ')}`);
-      return setMultipleVolumes(volumeMap, options);
-    },
-    fade: (layer, targetVolume, duration) => {
-      console.log(`[useVolume] Fading ${layer} volume to ${targetVolume} over ${duration}ms`);
-      return fadeLayerVolume(layer, targetVolume, duration);
-    }
-  }), [setLayerVolume, setMultipleVolumes, fadeLayerVolume]);
-  
-  // Layer muting
-  const muting = useMemo(() => ({
-    muted: mutedLayers,
-    mute: (layer, options = {}) => {
-      console.log(`[useVolume] Muting ${layer}`);
-      return muteLayer(layer, options);
-    },
-    unmute: (layer, options = {}) => {
-      console.log(`[useVolume] Unmuting ${layer}`);
-      return unmuteLayer(layer, options);
-    },
-    isMuted: (layer) => {
-      return isLayerMuted(layer);
-    },
-    toggle: (layer, options = {}) => {
-      if (isLayerMuted(layer)) {
-        console.log(`[useVolume] Toggling mute: Unmuting ${layer}`);
-        return unmuteLayer(layer, options);
-      } else {
-        console.log(`[useVolume] Toggling mute: Muting ${layer}`);
-        return muteLayer(layer, options);
-      }
-    }
-  }), [mutedLayers, muteLayer, unmuteLayer, isLayerMuted]);
-  
-  // Audio routing
-  const routing = useMemo(() => ({
-    connect: (layer, sourceNode, destination = null) => {
-      console.log(`[useVolume] Connecting source to ${layer}`);
-      return connectSourceToLayer(layer, sourceNode, destination);
-    },
-    getGainNode: (layer) => {
-      return getLayerGainNode(layer);
-    }
-  }), [connectSourceToLayer, getLayerGainNode]);
-  
-  // Snapshots for saving/restoring volume states
-  const snapshots = useMemo(() => ({
-    create: (snapshotId = 'default') => {
-      console.log(`[useVolume] Creating volume snapshot: ${snapshotId}`);
-      return createVolumeSnapshot(snapshotId);
-    },
-    restore: (snapshot, options = {}) => {
-      console.log(`[useVolume] Restoring volume snapshot: ${snapshot.id || 'unnamed'}`);
-      return restoreVolumeSnapshot(snapshot, options);
-    }
-  }), [createVolumeSnapshot, restoreVolumeSnapshot]);
-  
-  // State information
-  const state = useMemo(() => ({
-    volumes: layerVolumes,
-    muted: mutedLayers,
-    pendingFades,
-    isReady: ready
-  }), [layerVolumes, mutedLayers, pendingFades, ready]);
+  // Enhanced volume control with additional logging
+  const setVolume = useCallback((layer, value, options = {}) => {
+    console.log(`[useVolume] Setting ${layer} volume to ${value}`);
+    return setLayerVolume(layer, value, options);
+  }, [setLayerVolume]);
 
-  // Return both grouped functionality and individual functions/values
-  // to support both usage patterns:
-  // const { controls, muting } = useVolume(); // Grouped
-  // const { setLayerVolume, muteLayer } = useVolume(); // Individual
+  // Batch volume operation with logging
+  const setBatchVolumes = useCallback((volumeMap, options = {}) => {
+    console.log(`[useVolume] Setting batch volumes for layers: ${Object.keys(volumeMap).join(', ')}`);
+    return setMultipleVolumes(volumeMap, options);
+  }, [setMultipleVolumes]);
+
+  // Enhanced fade with ms duration and logging
+  const fadeVolume = useCallback((layer, targetVolume, durationMs) => {
+    console.log(`[useVolume] Fading ${layer} to ${targetVolume} over ${durationMs}ms`);
+    return fadeLayerVolume(layer, targetVolume, durationMs);
+  }, [fadeLayerVolume]);
+
+  // Mute with enhanced logging
+  const mute = useCallback((layer, options = {}) => {
+    console.log(`[useVolume] Muting ${layer}`);
+    return muteLayer(layer, options);
+  }, [muteLayer]);
+
+  // Unmute with enhanced logging
+  const unmute = useCallback((layer, options = {}) => {
+    console.log(`[useVolume] Unmuting ${layer}`);
+    return unmuteLayer(layer, options);
+  }, [unmuteLayer]);
+
+  // Toggle mute state
+  const toggleMute = useCallback((layer, options = {}) => {
+    const isMuted = mutedLayers[layer] !== undefined;
+    console.log(`[useVolume] Toggling mute for ${layer}, current state: ${isMuted ? 'muted' : 'unmuted'}`);
+    return isMuted ? unmuteLayer(layer, options) : muteLayer(layer, options);
+  }, [mutedLayers, muteLayer, unmuteLayer]);
+
+  // Get volume level for a layer with fallback
+  const getVolume = useCallback((layer) => {
+    return layerVolumes[layer] !== undefined ? layerVolumes[layer] : 0;
+  }, [layerVolumes]);
+
+  // Enhanced snapshot methods with logging
+const createSnapshot = useCallback((snapshotId = 'default') => {
+    console.log(`[useVolume] Creating volume snapshot: ${snapshotId}`);
+    return createVolumeSnapshot(snapshotId);
+  }, [createVolumeSnapshot]);
+  
+  const restoreSnapshot = useCallback((snapshot, options = {}) => {
+    console.log(`[useVolume] Restoring volume snapshot: ${snapshot.id || 'unnamed'}`);
+    return restoreVolumeSnapshot(snapshot, options);
+  }, [restoreVolumeSnapshot]);
+
+  // Organized return object with both direct API and organized groups
   return {
-    // Grouped functionality
-    controls,
-    muting,
-    routing,
-    snapshots,
-    state,
-    
-    // Individual values and functions (for backward compatibility and direct access)
-    layerVolumes,
+    // State
+    volumes: layerVolumes,
     mutedLayers,
     pendingFades,
     ready,
-    setLayerVolume,
-    setMultipleVolumes,
-    fadeLayerVolume,
-    muteLayer,
-    unmuteLayer,
-    connectSourceToLayer,
-    createVolumeSnapshot,
-    restoreVolumeSnapshot,
-    getLayerGainNode,
+
+    // Direct API (for simpler usage)
+    setVolume,
+    setBatchVolumes,
+    fadeVolume,
+    mute,
+    unmute,
+    toggleMute,
+    getVolume,
+    createSnapshot, 
+    restoreSnapshot,
     isLayerMuted,
+    connectSourceToLayer,
     
-    // Direct service access for advanced usage
+    // Organized controls for more structured access
+    controls: {
+      set: setVolume,
+      setBatch: setBatchVolumes,
+      fade: fadeVolume,
+      mute,
+      unmute,
+      toggle: toggleMute,
+      get: getVolume,
+      isMuted: isLayerMuted,
+      connect: connectSourceToLayer
+    },
+    
+    // Snapshot functionality
+    snapshots: {
+      create: createVolumeSnapshot,
+      restore: restoreVolumeSnapshot
+    },
+    
+    // Low-level access
+    getGainNode: getLayerGainNode,
     service
   };
 }

@@ -4,7 +4,7 @@ import TimelineService from '../services/TimelineService';
 import { useAudioService } from './AudioServiceContext';
 import { useVolumeService } from './VolumeContext';
 import { useCrossfadeService } from './CrossfadeContext';
-import eventBus from '../services/EventBus';
+import eventBus from '../services/EventBus.js';
 
 // Create the context
 const TimelineContext = createContext(null);

@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import BufferService from '../services/BufferService';
 import { useAudioContext } from './AudioContext';
-import eventBus from '../services/EventBus';
+import eventBus from '../services/EventBus.js';
 
 // Create the context
 const BufferContext = createContext(null);

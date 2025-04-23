@@ -1,7 +1,7 @@
 // src/contexts/CollectionContext.js
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import CollectionService from '../services/CollectionService';
-import eventBus from '../services/EventBus';
+import eventBus from '../services/EventBus.js';
 
 // Create the context
 const CollectionContext = createContext(null);

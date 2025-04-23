@@ -4,7 +4,7 @@ import CrossfadeService from '../services/CrossfadeService';
 import { useAudioService } from './AudioServiceContext';
 import { useVolumeService } from './VolumeContext';
 import { useBufferService } from './BufferContext';
-import eventBus from '../services/EventBus';
+import eventBus from '../services/EventBus.js';
 
 // Create the context
 const CrossfadeContext = createContext(null);

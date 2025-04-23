@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import VolumeService from '../services/VolumeService';
-import AudioService from '../services/AudioService';
-import eventBus from '../services/EventBus';
+import { useAudioService } from './useAudioService';
+import eventBus, { EVENTS } from '../services/EventBus';
 
 // Create the context
 const VolumeContext = createContext(null);
@@ -30,8 +30,7 @@ export const VolumeProvider = ({ children, initialVolumes = {} }) => {
             [layer]: value
         }));
 
-        // Publish event for other services
-        eventBus.emit('volume:changed', { layer, value });
+        // No need to emit event here - VolumeService already does this
     }, []);
 
     // Initialize VolumeService when AudioService is ready
@@ -58,6 +57,97 @@ export const VolumeProvider = ({ children, initialVolumes = {} }) => {
             console.error('[VolumeContext] Error initializing VolumeService:', error);
         }
     }, [initialized, audioContext, masterGain, layerVolumes, handleVolumeChange]);
+
+    // Listen for volume events from EventBus
+    useEffect(() => {
+        if (!ready) return;
+
+        // Handler for volume changes from EventBus
+        const handleVolumeEvent = (data) => {
+            const { layer, value } = data;
+            
+            // Update local state for UI
+            setLayerVolumes(prev => ({
+                ...prev,
+                [layer]: value
+            }));
+        };
+
+        // Handler for mute events from EventBus
+        const handleMuteEvent = (data) => {
+            const { layer, previousVolume } = data;
+            
+            // Update muted layers state
+            setMutedLayers(prev => ({
+                ...prev,
+                [layer]: previousVolume || 0
+            }));
+        };
+
+        // Handler for unmute events from EventBus
+        const handleUnmuteEvent = (data) => {
+            const { layer } = data;
+            
+            // Remove from muted layers
+            setMutedLayers(prev => {
+                const updated = { ...prev };
+                delete updated[layer];
+                return updated;
+            });
+        };
+
+        // Handler for fade progress events
+        const handleFadeProgress = (data) => {
+            const { layer, currentVolume, progress, targetVolume } = data;
+            
+            // Update pending fades state
+            setPendingFades(prev => {
+                if (!prev[layer]) return prev;
+                
+                return {
+                    ...prev,
+                    [layer]: {
+                        target: targetVolume,
+                        progress: progress
+                    }
+                };
+            });
+            
+            // Also update current volume for UI feedback
+            setLayerVolumes(prev => ({
+                ...prev,
+                [layer]: currentVolume
+            }));
+        };
+
+        // Handler for fade completion
+        const handleFadeComplete = (data) => {
+            const { layer } = data;
+            
+            // Remove from pending fades
+            setPendingFades(prev => {
+                const updated = { ...prev };
+                delete updated[layer];
+                return updated;
+            });
+        };
+
+        // Subscribe to events
+        eventBus.on(EVENTS.VOLUME_CHANGED, handleVolumeEvent);
+        eventBus.on(EVENTS.VOLUME_MUTED, handleMuteEvent);
+        eventBus.on(EVENTS.VOLUME_UNMUTED, handleUnmuteEvent);
+        eventBus.on('volume:fadeProgress', handleFadeProgress);
+        eventBus.on('volume:fadeComplete', handleFadeComplete);
+
+        // Cleanup subscriptions
+        return () => {
+            eventBus.off(EVENTS.VOLUME_CHANGED, handleVolumeEvent);
+            eventBus.off(EVENTS.VOLUME_MUTED, handleMuteEvent);
+            eventBus.off(EVENTS.VOLUME_UNMUTED, handleUnmuteEvent);
+            eventBus.off('volume:fadeProgress', handleFadeProgress);
+            eventBus.off('volume:fadeComplete', handleFadeComplete);
+        };
+    }, [ready]);
 
     // Set volume for a specific layer
     const setLayerVolume = useCallback((layer, value, options = {}) => { 
@@ -121,39 +211,9 @@ export const VolumeProvider = ({ children, initialVolumes = {} }) => {
             [layer]: { target: targetVolume, progress: 0 }
         }));
 
-        // Create a progress handler to update UI
-        const progressHandler = (layerId, currentValue, progress) => {
-            setPendingFades(prev => {
-                if (!prev[layerId]) return prev;
-
-                return {
-                    ...prev,
-                    [layerId]: {
-                        target: targetVolume,
-                        progress
-                    }
-                };
-            });
-
-            // Maintain up-to-date local state during fade
-            setLayerVolumes(prev => ({
-                ...prev,
-                [layerId]: currentValue
-            }));
-        };
-
-        // Execute the fade
-        return volumeService.fadeVolume(layer, targetVolume, durationSec, progressHandler)
-            .then(result => {
-                // Clear the progress tracking when complete
-                setPendingFades(prev => {
-                    const updated = { ...prev };
-                    delete updated[layer];
-                    return updated;
-                });
-
-                return result;
-            });
+        // Execute the fade - no need for progress handler here
+        // EventBus handlers will update state based on events
+        return volumeService.fadeVolume(layer, targetVolume, durationSec);
     }, [volumeService]);
 
     // Mute a layer
@@ -161,7 +221,7 @@ export const VolumeProvider = ({ children, initialVolumes = {} }) => {
         if (!volumeService) return false;
 
         try {
-            // Track muted state
+            // Track muted state - will be updated by EventBus handler too
             setMutedLayers(prev => ({
                 ...prev,
                 [layer]: layerVolumes[layer] || 0
@@ -180,7 +240,7 @@ export const VolumeProvider = ({ children, initialVolumes = {} }) => {
         if (!volumeService) return false;
 
         try {
-            // Update muted state
+            // Update muted state - will be updated by EventBus handler too
             setMutedLayers(prev => {
                 const updated = { ...prev };
                 delete updated[layer];
@@ -291,4 +351,3 @@ export const VolumeProvider = ({ children, initialVolumes = {} }) => {
 };
 
 export default VolumeContext;
-

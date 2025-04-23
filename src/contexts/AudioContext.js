@@ -1,7 +1,7 @@
 // src/contexts/AudioContext.js
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AudioService from '../services/AudioService';
-import eventBus from '../services/EventBus';
+import eventBus from '../services/EventBus.js';
 
 // Create the context
 const AudioContext = createContext(null);

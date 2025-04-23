@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import withAuth from '../components/auth/ProtectedRoute';
 import ArchiveLayout from '../components/layout/ArchiveLayout';
-import { useCollections } from '../hooks/useCollections';
+import { useCollection } from '../hooks/useCollection';
 import styles from '../styles/pages/AmbientArchive.module.css';
 
 const AmbientArchive = () => {
@@ -15,7 +15,7 @@ const AmbientArchive = () => {
   const [selectedCollection, setSelectedCollection] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   
-  // Use the useCollections hook with loadOnMount set to true
+  // Use the useCollection hook with loadOnMount set to true
   const {
     collections,
     isLoading,
@@ -23,7 +23,7 @@ const AmbientArchive = () => {
     filters,
     updateFilters,
     loadCollections
-  } = useCollections({
+  } = useCollection({
     loadOnMount: true,
     filters: {} // Initial empty filters
   });

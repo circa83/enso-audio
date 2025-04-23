@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import AudioService from '../services/AudioService';
 import ServiceManager from '../services/ServiceManager';
 import CollectionService from '../services/CollectionService';
-import { useCollections } from '../hooks/useCollections';
+import { useCollection } from '../hooks/useCollection';
 import { mapCollectionToLayers } from '../utils/collectionUtils';
 
 
@@ -146,7 +146,7 @@ export const AudioProvider = ({ children }) => {
     error: collectionsError,
     loadCollections,
     getCollection: fetchCollection
-  } = useCollections({ 
+  } = ({ 
     loadOnMount: false // Change to false to prevent automatic loading
   });
 

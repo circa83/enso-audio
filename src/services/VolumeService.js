@@ -5,6 +5,8 @@
  * Handles volume state tracking and smooth volume transitions
  */
 
+import eventBus, { EVENTS } from './EventBus';
+
 class VolumeService {
   /**
    * Create a new VolumeService instance
@@ -15,7 +17,7 @@ class VolumeService {
    * @param {number} [options.defaultVolume=0.8] - Default volume for new layers
    * @param {number} [options.transitionTime=0.1] - Transition time in seconds for volume changes
    * @param {boolean} [options.enableLogging=false] - Enable detailed console logging
-   * @param {Function} [options.onVolumeChange] - Callback for volume changes
+   * @param {Function} [options.onVolumeChange] - Callback for volume changes (for backward compatibility)
    */
   constructor(options = {}) {
     if (!options.audioContext) {
@@ -46,7 +48,6 @@ class VolumeService {
     this.mutedState = new Map(); // Track which layers are muted
     this.layerStates = new Map(); // Track state of each layer  
 
-
     // Initialize with any provided volumes
     if (options.initialVolumes) {
       Object.entries(options.initialVolumes).forEach(([layer, volume]) => {
@@ -56,6 +57,13 @@ class VolumeService {
     }
 
     this.log('VolumeService initialized');
+    
+    // Emit initialization event
+    eventBus.emit('volume:initialized', {
+      initialVolumes: Object.fromEntries(this.volumeLevels.entries()),
+      defaultVolume: this.config.defaultVolume,
+      transitionTime: this.config.transitionTime
+    });
   }
 
   /**
@@ -109,6 +117,13 @@ class VolumeService {
     this.volumeLevels.set(layerId, initialVolume);
 
     this.log(`Created gain node for layer "${layerId}" with volume ${initialVolume}`);
+    
+    // Emit layer created event
+    eventBus.emit('volume:layerCreated', {
+      layer: layerId,
+      volume: initialVolume,
+      time: this.audioContext.currentTime
+    });
 
     return gainNode;
   }
@@ -167,6 +182,17 @@ class VolumeService {
 
         // Update stored volume right away
         this.volumeLevels.set(layerId, safeVolume);
+        
+        // Trigger change callback (backward compatibility)
+        this._triggerVolumeChangeCallback(layerId, safeVolume);
+        
+        // Emit volume changed event
+        eventBus.emit(EVENTS.VOLUME_CHANGED, {
+          layer: layerId,
+          value: safeVolume,
+          time: now,
+          immediate: true
+        });
       } else {
         // Smooth transition with proper cancellation
         const now = this.audioContext.currentTime;
@@ -182,12 +208,31 @@ class VolumeService {
           safeVolume,
           now + transitionTime
         );
+        
+        // Emit volume transition start event
+        eventBus.emit('volume:transitionStart', {
+          layer: layerId,
+          fromValue: currentVolume,
+          toValue: safeVolume,
+          duration: transitionTime,
+          startTime: now
+        });
 
         // Set a timeout to update the stored volume after transition completes
         const timeoutId = setTimeout(() => {
           this.volumeLevels.set(layerId, safeVolume);
           this.pendingTransitions.delete(layerId);
           this.log(`Volume transition for "${layerId}" complete: ${safeVolume}`, 'info');
+          
+          // Trigger change callback (backward compatibility)
+          this._triggerVolumeChangeCallback(layerId, safeVolume);
+          
+          // Emit volume transition complete event
+          eventBus.emit('volume:transitionComplete', {
+            layer: layerId,
+            value: safeVolume,
+            time: this.audioContext.currentTime
+          });
         }, transitionTime * 1000 + 50); // Add a small buffer to ensure transition completes
 
         // Store the timeout ID to allow cancellation
@@ -195,11 +240,53 @@ class VolumeService {
 
         // Update stored volume now for UI consistency
         this.volumeLevels.set(layerId, safeVolume);
+        
+        // Trigger change callback immediately for UI updates (backward compatibility)
+        this._triggerVolumeChangeCallback(layerId, safeVolume);
+        
+        // Emit volume changed event immediately for UI updates
+        eventBus.emit(EVENTS.VOLUME_CHANGED, {
+          layer: layerId,
+          value: safeVolume,
+          time: now,
+          immediate: false,
+          transitionTime
+        });
+      }
+
+      // If volume is now 0, check if we should consider this muted
+      if (safeVolume <= 0.001 && !this.mutedState.has(layerId)) {
+        // Implicitly muted
+        this.mutedState.set(layerId, true);
+        eventBus.emit(EVENTS.VOLUME_MUTED, {
+          layer: layerId,
+          reason: 'implicit',
+          previousVolume: currentVolume
+        });
+      } 
+      // If volume is now > 0 and was previously muted, consider it unmuted
+      else if (safeVolume > 0.001 && this.mutedState.has(layerId)) {
+        this.mutedState.delete(layerId);
+        eventBus.emit(EVENTS.VOLUME_UNMUTED, {
+          layer: layerId,
+          reason: 'implicit',
+          currentVolume: safeVolume
+        });
       }
 
       return true;
     } catch (error) {
       this.log(`Error setting volume for "${layerId}": ${error.message}`, 'error');
+      
+      // Emit error event
+      eventBus.emit(EVENTS.AUDIO_ERROR, {
+        type: 'volume',
+        operation: 'setVolume',
+        layer: layerId,
+        message: error.message,
+        error
+      });
+      
       return false;
     }
   }
@@ -264,42 +351,62 @@ class VolumeService {
   setMultipleVolumes(volumeMap, options = {}) {
     try {
       let success = true;
+      
+      // Emit bulk volume update start event
+      eventBus.emit('volume:bulkUpdateStart', {
+        layers: Object.keys(volumeMap),
+        values: volumeMap,
+        options
+      });
 
       Object.entries(volumeMap).forEach(([layerId, volume]) => {
         const result = this.setVolume(layerId, volume, options);
         if (!result) success = false;
       });
+      
+      // Emit bulk volume update complete event
+      eventBus.emit('volume:bulkUpdateComplete', {
+        layers: Object.keys(volumeMap),
+        success
+      });
 
       return success;
     } catch (error) {
       this.log(`Error setting multiple volumes: ${error.message}`, 'error');
+      
+      // Emit error event
+      eventBus.emit(EVENTS.AUDIO_ERROR, {
+        type: 'volume',
+        operation: 'setMultipleVolumes',
+        message: error.message,
+        error
+      });
+      
       return false;
     }
   }
 
-
- /**
+  /**
    * Set callback for volume changes
    * @param {Function} callback - Function to call when volume changes
    */
- setVolumeChangeCallback(callback) {
-  if (typeof callback === 'function') {
-    this.config.onVolumeChange = callback;
+  setVolumeChangeCallback(callback) {
+    if (typeof callback === 'function') {
+      this.config.onVolumeChange = callback;
+    }
   }
-}
 
-/**
- * Trigger the volume change callback if set
- * @param {string} layer - Layer ID that changed
- * @param {number} value - New volume value
- * @private
- */
-_triggerVolumeChangeCallback(layer, value) {
-  if (typeof this.config.onVolumeChange === 'function') {
-    this.config.onVolumeChange(layer, value);
+   /**
+   * Trigger the volume change callback if set
+   * @param {string} layer - Layer ID that changed
+   * @param {number} value - New volume value
+   * @private
+   */
+   _triggerVolumeChangeCallback(layer, value) {
+    if (typeof this.config.onVolumeChange === 'function') {
+      this.config.onVolumeChange(layer, value);
+    }
   }
-}
-
 
   /**
    * Connect a node to a layer's gain node
@@ -325,10 +432,27 @@ _triggerVolumeChangeCallback(layer, value) {
       sourceNode.connect(gainNode);
 
       this.log(`Connected source to layer "${layerId}" with volume ${gainNode.gain.value}`);
+      
+      // Emit connection event
+      eventBus.emit('volume:sourceConnected', {
+        layer: layerId,
+        volume: gainNode.gain.value,
+        time: this.audioContext.currentTime
+      });
 
       return true;
     } catch (error) {
       this.log(`Error connecting to layer "${layerId}": ${error.message}`, 'error');
+      
+      // Emit error event
+      eventBus.emit(EVENTS.AUDIO_ERROR, {
+        type: 'volume',
+        operation: 'connectToLayer',
+        layer: layerId,
+        message: error.message,
+        error
+      });
+      
       return false;
     }
   }
@@ -344,10 +468,22 @@ _triggerVolumeChangeCallback(layer, value) {
    */
   muteLayer(layerId, options = {}) {
     // Store current volume for un-mute
+    const currentVolume = this.getVolume(layerId);
+    
     if (!this.volumeLevels.has(`${layerId}_premute`)) {
-      const currentVolume = this.getVolume(layerId);
       this.volumeLevels.set(`${layerId}_premute`, currentVolume);
     }
+    
+    // Update muted state
+    this.mutedState.set(layerId, true);
+    
+    // Emit mute event before changing volume
+    eventBus.emit(EVENTS.VOLUME_MUTED, {
+      layer: layerId,
+      previousVolume: currentVolume,
+      time: this.audioContext.currentTime,
+      reason: 'explicit'
+    });
 
     // Set volume to 0
     return this.setVolume(layerId, 0, options);
@@ -371,20 +507,30 @@ _triggerVolumeChangeCallback(layer, value) {
 
     // Clear pre-mute storage
     this.volumeLevels.delete(premuteKey);
+    
+    // Update muted state
+    this.mutedState.delete(layerId);
+    
+    // Emit unmute event before changing volume
+    eventBus.emit(EVENTS.VOLUME_UNMUTED, {
+      layer: layerId,
+      restoredVolume: volume,
+      time: this.audioContext.currentTime,
+      reason: 'explicit'
+    });
 
     // Restore volume
     return this.setVolume(layerId, volume, options);
   }
 
   /**
- * Check if a layer is muted (volume is 0)
- * 
- * @param {string} layerId - Identifier for the audio layer
- * @returns {boolean} - True if the layer is muted
- */
+   * Check if a layer is muted (volume is 0)
+   * 
+   * @param {string} layerId - Identifier for the audio layer
+   * @returns {boolean} - True if the layer is muted
+   */
   isLayerMuted(layerId) {
-    const volume = this.getVolume(layerId);
-    return volume <= 0.001; // Consider effectively zero as muted
+    return this.mutedState.has(layerId) || this.getVolume(layerId) <= 0.001;
   }
 
   /**
@@ -422,6 +568,15 @@ _triggerVolumeChangeCallback(layer, value) {
       try {
         // Get gain node
         const gainNode = this.getGainNode(layerId);
+        
+        // Emit fade start event
+        eventBus.emit('volume:fadeStart', {
+          layer: layerId,
+          fromVolume: currentVolume,
+          toVolume: safeTarget,
+          duration,
+          time: this.audioContext.currentTime
+        });
 
         // Set up the fade using Web Audio API scheduled values
         const now = this.audioContext.currentTime;
@@ -457,10 +612,27 @@ _triggerVolumeChangeCallback(layer, value) {
 
             // Call progress callback
             progressCallback(layerId, currentValue, progress);
+            
+            // Emit fade progress event
+            eventBus.emit('volume:fadeProgress', {
+              layer: layerId,
+              currentVolume: currentValue,
+              targetVolume: safeTarget,
+              progress, 
+              time: now + (duration * progress)
+            });
 
             // Final update - clear interval and resolve
             if (progress >= 1) {
               clearInterval(intervalId);
+              
+              // Emit fade complete event
+              eventBus.emit('volume:fadeComplete', {
+                layer: layerId,
+                volume: safeTarget,
+                time: this.audioContext.currentTime
+              });
+              
               resolve(true);
             }
           }, updateInterval);
@@ -472,6 +644,14 @@ _triggerVolumeChangeCallback(layer, value) {
           const timeoutId = setTimeout(() => {
             this.pendingTransitions.delete(layerId);
             this.volumeLevels.set(layerId, safeTarget);
+            
+            // Emit fade complete event
+            eventBus.emit('volume:fadeComplete', {
+              layer: layerId,
+              volume: safeTarget,
+              time: this.audioContext.currentTime
+            });
+            
             resolve(true);
           }, duration * 1000 + 50); // Add small buffer
 
@@ -480,8 +660,21 @@ _triggerVolumeChangeCallback(layer, value) {
 
         // Update volume level immediately for consistency
         this.volumeLevels.set(layerId, safeTarget);
+        
+        // Trigger callback for immediate UI feedback
+        this._triggerVolumeChangeCallback(layerId, safeTarget);
       } catch (error) {
         this.log(`Error during volume fade for "${layerId}": ${error.message}`, 'error');
+        
+        // Emit error event
+        eventBus.emit(EVENTS.AUDIO_ERROR, {
+          type: 'volume',
+          operation: 'fadeVolume',
+          layer: layerId,
+          message: error.message,
+          error
+        });
+        
         resolve(false);
       }
     });
@@ -496,18 +689,42 @@ _triggerVolumeChangeCallback(layer, value) {
    */
   fadeMultipleVolumes(volumeMap, duration) {
     try {
+      // Emit bulk fade start event
+      eventBus.emit('volume:bulkFadeStart', {
+        layers: Object.keys(volumeMap),
+        targetVolumes: volumeMap,
+        duration,
+        time: this.audioContext.currentTime
+      });
+      
       const fadePromises = Object.entries(volumeMap).map(([layerId, targetVolume]) =>
         this.fadeVolume(layerId, targetVolume, duration)
       );
 
       return Promise.all(fadePromises)
-        .then(() => true)
+        .then(() => {
+          // Emit bulk fade complete event
+          eventBus.emit('volume:bulkFadeComplete', {
+            layers: Object.keys(volumeMap),
+            time: this.audioContext.currentTime
+          });
+          return true;
+        })
         .catch(err => {
           this.log(`Error in multiple fade: ${err.message}`, 'error');
           return false;
         });
     } catch (error) {
       this.log(`Error setting up multiple fades: ${error.message}`, 'error');
+      
+      // Emit error event
+      eventBus.emit(EVENTS.AUDIO_ERROR, {
+        type: 'volume',
+        operation: 'fadeMultipleVolumes',
+        message: error.message,
+        error
+      });
+      
       return Promise.resolve(false);
     }
   }
@@ -526,6 +743,14 @@ _triggerVolumeChangeCallback(layer, value) {
     };
 
     this.log(`Created volume snapshot "${snapshotId}" with ${Object.keys(snapshot.volumes).length} layers`);
+    
+    // Emit snapshot created event
+    eventBus.emit('volume:snapshotCreated', {
+      id: snapshotId,
+      timestamp: Date.now(),
+      volumeCount: Object.keys(snapshot.volumes).length
+    });
+    
     return snapshot;
   }
 
@@ -543,8 +768,25 @@ _triggerVolumeChangeCallback(layer, value) {
       this.log('Invalid snapshot data', 'error');
       return false;
     }
+    
+    // Emit snapshot restore start event
+    eventBus.emit('volume:snapshotRestoreStart', {
+      id: snapshot.id || 'unknown',
+      timestamp: Date.now(),
+      volumeCount: Object.keys(snapshot.volumes).length,
+      options
+    });
 
-    return this.setMultipleVolumes(snapshot.volumes, options);
+    const result = this.setMultipleVolumes(snapshot.volumes, options);
+    
+    // Emit snapshot restore complete event
+    eventBus.emit('volume:snapshotRestoreComplete', {
+      id: snapshot.id || 'unknown',
+      timestamp: Date.now(),
+      success: result
+    });
+    
+    return result;
   }
 
   /**
@@ -555,7 +797,6 @@ _triggerVolumeChangeCallback(layer, value) {
   getActiveLayers() {
     return Array.from(this.gainNodes.keys());
   }
-
 
   /**
    * Check if any layer is active (volume > 0)
@@ -568,9 +809,6 @@ _triggerVolumeChangeCallback(layer, value) {
     return false;
   }
 
-
-  
-
   /**
    * Reset volume for a specific layer
    * 
@@ -582,77 +820,106 @@ _triggerVolumeChangeCallback(layer, value) {
     try {
       // Remove any stored pre-mute volume
       this.volumeLevels.delete(`${layerId}_premute`);
-
-      // Set volume to default
-      return this.setVolume(layerId, this.config.defaultVolume, options);
-    } catch (error) {
-      this.log(`Error resetting layer "${layerId}": ${error.message}`, 'error');
-      return false;
-    }
-  }
-
-  /**
-   * Logging helper that respects configuration
-   * 
-   * @param {string} message - Message to log
-   * @param {string} [level='info'] - Log level
-   */
-  log(message, level = 'info') {
-    if (!this.config.enableLogging) return;
-
-    const prefix = '[VolumeService]';
-
-    switch (level) {
-      case 'error':
-        console.error(`${prefix} ${message}`);
-        break;
-      case 'warn':
-        console.warn(`${prefix} ${message}`);
-        break;
-      case 'info':
-      default:
-        console.log(`${prefix} ${message}`);
-        break;
-    }
-  }
-
-  /**
-   * Clean up resources used by VolumeService
-   * This should be called when the service is no longer needed
-   */
-  dispose() {
-    try {
-      // Clear any pending transitions
-      this.pendingTransitions.forEach((timerId) => {
-        clearTimeout(timerId);
-      });
-      this.pendingTransitions.clear();
-
-      // Disconnect all gain nodes
-      this.gainNodes.forEach((gainNode) => {
-        try {
-          gainNode.disconnect();
-        } catch (e) {
-          // Ignore errors from already disconnected nodes
+      
+      // Remove from muted state if present
+      if (this.mutedState.has(layerId)) {
+        this.mutedState.delete(layerId);
+      }
+          // Emit layer reset event
+          eventBus.emit('volume:layerReset', {
+            layer: layerId,
+            defaultVolume: this.config.defaultVolume,
+            time: this.audioContext.currentTime
+          });
+    
+          // Set volume to default
+          return this.setVolume(layerId, this.config.defaultVolume, options);
+        } catch (error) {
+          this.log(`Error resetting layer "${layerId}": ${error.message}`, 'error');
+          
+          // Emit error event
+          eventBus.emit(EVENTS.AUDIO_ERROR, {
+            type: 'volume',
+            operation: 'resetLayer',
+            layer: layerId,
+            message: error.message,
+            error
+          });
+          
+          return false;
         }
-      });
-
-      // Clear all maps
-      this.gainNodes.clear();
-      this.volumeLevels.clear();
-
-      this.log('VolumeService disposed');
-    } catch (error) {
-      this.log(`Error during disposal: ${error.message}`, 'error');
+      }
+    
+      /**
+       * Logging helper that respects configuration
+       * 
+       * @param {string} message - Message to log
+       * @param {string} [level='info'] - Log level
+       */
+      log(message, level = 'info') {
+        if (!this.config.enableLogging) return;
+    
+        const prefix = '[VolumeService]';
+    
+        switch (level) {
+          case 'error':
+            console.error(`${prefix} ${message}`);
+            break;
+          case 'warn':
+            console.warn(`${prefix} ${message}`);
+            break;
+          case 'info':
+          default:
+            console.log(`${prefix} ${message}`);
+            break;
+        }
+      }
+    
+      /**
+       * Clean up resources used by VolumeService
+       * This should be called when the service is no longer needed
+       */
+      dispose() {
+        try {
+          // Clear any pending transitions
+          this.pendingTransitions.forEach((timerId) => {
+            clearTimeout(timerId);
+          });
+          this.pendingTransitions.clear();
+    
+          // Disconnect all gain nodes
+          this.gainNodes.forEach((gainNode) => {
+            try {
+              gainNode.disconnect();
+            } catch (e) {
+              // Ignore errors from already disconnected nodes
+            }
+          });
+    
+          // Clear all maps
+          this.gainNodes.clear();
+          this.volumeLevels.clear();
+          this.mutedState.clear();
+          this.layerStates.clear();
+    
+          this.log('VolumeService disposed');
+          
+          // Emit disposal event
+          eventBus.emit('volume:disposed', {
+            timestamp: Date.now()
+          });
+        } catch (error) {
+          this.log(`Error during disposal: ${error.message}`, 'error');
+        }
+      }
+    
+      /**
+       * Alias for dispose to maintain API compatibility with other services
+       */
+      cleanup() {
+        this.dispose();
+      }
     }
-  }
-
-  /**
-   * Alias for dispose to maintain API compatibility with other services
-   */
-  cleanup() {
-    this.dispose();
-  }
-}
-
-export default VolumeService;
+    
+    export default VolumeService;
+    

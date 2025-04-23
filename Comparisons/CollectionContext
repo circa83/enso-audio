@@ -1,0 +1,322 @@
+// src/contexts/CollectionContext.js
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import CollectionService, { COLLECTION_EVENTS } from '../services/CollectionService';
+import eventBus from '../services/EventBus';
+
+// Create the context
+const CollectionContext = createContext(null);
+
+/**
+ * Provider component for collection management
+ */
+export const CollectionProvider = ({ children, enableLogging = false }) => {
+  // Initialize service
+  const [collectionService] = useState(() => new CollectionService({
+    enableLogging,
+    enableEventBus: true
+  }));
+  
+  // Collection state
+  const [collections, setCollections] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingOperation, setLoadingOperation] = useState(null);
+  const [error, setError] = useState(null);
+  const [currentCollection, setCurrentCollection] = useState(null);
+  const [loadProgress, setLoadProgress] = useState(0);
+  const [totalCollections, setTotalCollections] = useState(0);
+  const [selectedCollectionId, setSelectedCollectionId] = useState(null);
+  const [selectedCollectionDetail, setSelectedCollectionDetail] = useState(null);
+  const [fileVerification, setFileVerification] = useState({
+    isVerifying: false,
+    progress: 0,
+    filesValid: null,
+    invalidFiles: []
+  });
+  
+  // Subscribe to collection events
+  useEffect(() => {
+    const handleLoading = (data) => {
+      setIsLoading(true);
+      setLoadingOperation(data.operation);
+      setError(null);
+    };
+    
+    const handleLoaded = (data) => {
+      setIsLoading(false);
+      setLoadingOperation(null);
+      setLoadProgress(100);
+      setTotalCollections(data.total || 0);
+    };
+    
+    const handleError = (data) => {
+      setIsLoading(false);
+      setLoadingOperation(null);
+      setError(data.message);
+    };
+    
+    const handleSelected = (data) => {
+      setSelectedCollectionId(data.id);
+    };
+    
+    const handleVerificationProgress = (data) => {
+      setFileVerification(prev => ({
+        ...prev,
+        isVerifying: true,
+        progress: data.progress
+      }));
+    };
+    
+    const handleFilesVerified = (data) => {
+      setFileVerification({
+        isVerifying: false,
+        progress: 100,
+        filesValid: data.valid,
+        invalidFiles: data.invalidFiles || []
+      });
+    };
+    
+    // Subscribe to events
+    eventBus.on(COLLECTION_EVENTS.LOADING, handleLoading);
+    eventBus.on(COLLECTION_EVENTS.LOADED, handleLoaded);
+    eventBus.on(COLLECTION_EVENTS.ERROR, handleError);
+    eventBus.on(COLLECTION_EVENTS.SELECTED, handleSelected);
+    eventBus.on('collection:fileVerificationProgress', handleVerificationProgress);
+    eventBus.on(COLLECTION_EVENTS.FILES_VERIFIED, handleFilesVerified);
+    
+    // Cleanup on unmount
+    return () => {
+      eventBus.off(COLLECTION_EVENTS.LOADING, handleLoading);
+      eventBus.off(COLLECTION_EVENTS.LOADED, handleLoaded);
+      eventBus.off(COLLECTION_EVENTS.ERROR, handleError);
+      eventBus.off(COLLECTION_EVENTS.SELECTED, handleSelected);
+      eventBus.off('collection:fileVerificationProgress', handleVerificationProgress);
+      eventBus.off(COLLECTION_EVENTS.FILES_VERIFIED, handleFilesVerified);
+    };
+  }, []);
+  
+  // Load collections
+  const loadCollections = useCallback(async (options = {}) => {
+    try {
+      // Update loading state
+      setIsLoading(true);
+      setLoadingOperation('loadCollections');
+      setError(null);
+      setLoadProgress(10);
+      
+      // Call service method
+      const result = await collectionService.getCollections(options);
+      
+      // Update state with results
+      if (result.success) {
+        setCollections(result.data || []);
+        setTotalCollections(result.total || 0);
+        setLoadProgress(100);
+      } else {
+        setError(result.error || 'Failed to load collections');
+        setCollections([]);
+      }
+      
+      // Update loading state
+      setIsLoading(false);
+      setLoadingOperation(null);
+      
+      return result;
+    } catch (err) {
+      // Handle unexpected errors
+      setError(err.message);
+      setIsLoading(false);
+      setLoadingOperation(null);
+      setCollections([]);
+      
+      return {
+        success: false,
+        error: err.message,
+        data: []
+      };
+    }
+  }, [collectionService]);
+  
+  // Get a specific collection
+  const getCollection = useCallback(async (id, options = {}) => {
+    if (!id) {
+      setError
+('Collection ID is required');
+    return { success: false, error: 'Collection ID is required' };
+  }
+  
+  try {
+    // Update loading state
+    setIsLoading(true);
+    setLoadingOperation('getCollection');
+    setError(null);
+    setLoadProgress(10);
+    setSelectedCollectionId(id);
+    
+    // Update file verification state
+    setFileVerification({
+      isVerifying: options.verifyFiles === true,
+      progress: 0,
+      filesValid: null,
+      invalidFiles: []
+    });
+    
+    // Call service method
+    const result = await collectionService.getCollection(id, options);
+    
+    // Update state with results
+    if (result.success) {
+      setCurrentCollection(result.data);
+      setSelectedCollectionDetail(result.data);
+      setLoadProgress(100);
+      
+      // Handle file verification if it was performed
+      if (result.filesVerified) {
+        setFileVerification(prev => ({
+          ...prev,
+          isVerifying: false,
+          progress: 100,
+          filesValid: result.filesValid,
+          invalidFiles: result.invalidFiles || []
+        }));
+      }
+    } else {
+      setError(result.error || `Failed to load collection: ${id}`);
+      setCurrentCollection(null);
+      setSelectedCollectionDetail(null);
+    }
+    
+    // Update loading state
+    setIsLoading(false);
+    setLoadingOperation(null);
+    
+    return result;
+  } catch (err) {
+    // Handle unexpected errors
+    setError(err.message);
+    setIsLoading(false);
+    setLoadingOperation(null);
+    setCurrentCollection(null);
+    setSelectedCollectionDetail(null);
+    
+    return {
+      success: false,
+      error: err.message
+    };
+  }
+}, [collectionService]);
+
+// Format collection for player
+const formatCollectionForPlayer = useCallback((collection) => {
+  if (!collection) {
+    if (currentCollection) {
+      collection = currentCollection;
+    } else {
+      setError('No collection available to format');
+      return null;
+    }
+  }
+  
+  return collectionService.formatCollectionForPlayer(collection);
+}, [collectionService, currentCollection]);
+
+// Resolve collection URLs
+const resolveCollectionUrls = useCallback((collection) => {
+  if (!collection) {
+    if (currentCollection) {
+      collection = currentCollection;
+    } else {
+      setError('No collection available to resolve URLs');
+      return null;
+    }
+  }
+  
+  return collectionService.resolveCollectionUrls(collection);
+}, [collectionService, currentCollection]);
+
+// Reset cache
+const resetCache = useCallback(() => {
+  collectionService.resetCache();
+}, [collectionService]);
+
+// Get stats
+const getStats = useCallback(() => {
+  return collectionService.getStats();
+}, [collectionService]);
+
+// Create value object for context
+const contextValue = useMemo(() => ({
+  // State
+  collections,
+  isLoading,
+  loadingOperation,
+  error,
+  currentCollection,
+  loadProgress,
+  totalCollections,
+  selectedCollectionId,
+  selectedCollectionDetail,
+  fileVerification,
+  
+  // Methods
+  loadCollections,
+  getCollection,
+  formatCollectionForPlayer,
+  resolveCollectionUrls,
+  resetCache,
+  getStats,
+  
+  // Service access for advanced usage
+  service: collectionService
+}), [
+  collections,
+  isLoading,
+  loadingOperation,
+  error,
+  currentCollection,
+  loadProgress,
+  totalCollections,
+  selectedCollectionId,
+  selectedCollectionDetail,
+  fileVerification,
+  loadCollections,
+  getCollection,
+  formatCollectionForPlayer,
+  resolveCollectionUrls,
+  resetCache,
+  getStats,
+  collectionService
+]);
+
+return (
+  <CollectionContext.Provider value={contextValue}>
+    {children}
+  </CollectionContext.Provider>
+);
+};
+
+/**
+* Custom hook to use the collection context
+* @returns {Object} Collection context value
+*/
+export const useCollectionContext = () => {
+const context = useContext(CollectionContext);
+if (!context) {
+  throw new Error('useCollectionContext must be used within a CollectionProvider');
+}
+return context;
+};
+
+/**
+* Access the collection service directly (for service-to-service integration)
+* @returns {Object|null} Collection service instance
+*/
+export const useCollectionService = () => {
+const context = useContext(CollectionContext);
+if (!context) {
+  console.warn('useCollectionService called outside of CollectionProvider');
+  return null;
+}
+return context.service;
+};
+
+export default CollectionContext;

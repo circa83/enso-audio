@@ -6,6 +6,8 @@
  * Provides progress tracking and memory optimization
  */
 
+import eventBus, { EVENTS } from './EventBus';
+
 class BufferService {
   /**
    * Create a new BufferService instance
@@ -47,6 +49,11 @@ class BufferService {
     };
 
     this.log('BufferService initialized');
+    
+    // Emit initialization event
+    eventBus.emit('buffer:initialized', {
+      maxCacheSize: this.config.maxCacheSize
+    });
   }
 
   /**
@@ -72,6 +79,13 @@ class BufferService {
       // Update access timestamp in metadata
       this.updateMetadata(url, { lastAccessed: Date.now() });
 
+      // Emit cache hit event
+      eventBus.emit('buffer:cacheHit', {
+        url,
+        buffer: cachedBuffer,
+        metadata: this.bufferMetadata.get(url)
+      });
+
       return cachedBuffer;
     }
 
@@ -84,10 +98,32 @@ class BufferService {
       return this.pendingLoads.get(url);
     }
 
+    // Emit buffer load start event
+    eventBus.emit('buffer:loadStart', {
+      url,
+      timestamp: Date.now(),
+      force
+    });
+
     // Start a new load
     try {
       // Create a promise for loading this file
-      const loadPromise = this._loadAndDecodeAudioFile(url, onProgress);
+      const loadPromise = this._loadAndDecodeAudioFile(url, (progress) => {
+        // Update internal progress tracking
+        this.loadingProgress.set(url, progress);
+        
+        // Call provided progress callback if any
+        if (onProgress) {
+          onProgress(progress, url);
+        }
+        
+        // Emit progress event
+        eventBus.emit('buffer:loadProgress', {
+          url,
+          progress,
+          timestamp: Date.now()
+        });
+      });
 
       // Store in pending loads
       this.pendingLoads.set(url, loadPromise);
@@ -122,6 +158,14 @@ class BufferService {
       // Enforce cache size limit
       this._enforceCacheLimit();
 
+      // Emit loaded event
+      eventBus.emit(EVENTS.BUFFER_LOADED, {
+        url,
+        buffer,
+        metadata: this.bufferMetadata.get(url),
+        timestamp: Date.now()
+      });
+
       return buffer;
     } catch (error) {
       // Store error information
@@ -132,6 +176,13 @@ class BufferService {
 
       // Update stats
       this.stats.loadErrors++;
+
+      // Emit error event
+      eventBus.emit(EVENTS.BUFFER_ERROR, {
+        url,
+        error: error.message,
+        timestamp: Date.now()
+      });
 
       // Re-throw with more information
       throw new Error(`Failed to load audio buffer (${url}): ${error.message}`);
@@ -184,9 +235,19 @@ class BufferService {
   releaseBuffer(url) {
     if (!this.hasBuffer(url)) return false;
 
+    // Get metadata before removal for event
+    const metadata = this.bufferMetadata.get(url);
+    
     this.bufferCache.delete(url);
     this.bufferMetadata.delete(url);
     this.log(`Released buffer: ${url}`);
+    
+    // Emit buffer released event
+    eventBus.emit('buffer:released', {
+      url,
+      metadata,
+      timestamp: Date.now()
+    });
 
     return true;
   }
@@ -206,6 +267,14 @@ class BufferService {
     if (!Array.isArray(urls) || urls.length === 0) {
       return new Map();
     }
+
+    // Emit preload start event
+    eventBus.emit('buffer:preloadStart', {
+      urls,
+      count: urls.length,
+      concurrentLoads,
+      timestamp: Date.now()
+    });
 
     // Track overall progress
     let completedCount = 0;
@@ -232,7 +301,17 @@ class BufferService {
         Array.from(individualProgress.entries())
       );
 
+      // Call callback
       onProgress(overallProgress, detailedProgress);
+      
+      // Emit preload progress event
+      eventBus.emit('buffer:preloadProgress', {
+        progress: overallProgress,
+        detailedProgress,
+        completed: completedCount,
+        total: totalCount,
+        timestamp: Date.now()
+      });
     };
 
     // Create a queue of URLs to load
@@ -289,6 +368,15 @@ class BufferService {
 
     // Wait for all loaders to finish
     await Promise.all(loaders);
+    
+    // Emit preload complete event
+    eventBus.emit('buffer:preloadComplete', {
+      urls,
+      loadedCount: results.size,
+      errorCount: urls.length - results.size,
+      timestamp: Date.now(),
+      buffers: results
+    });
 
     return results;
   }
@@ -303,6 +391,13 @@ class BufferService {
     this.bufferCache.clear();
     this.bufferMetadata.clear();
     this.log(`Cleared ${count} buffers from cache`);
+    
+    // Emit cache cleared event
+    eventBus.emit(EVENTS.BUFFER_CACHE_CLEARED, {
+      count,
+      timestamp: Date.now()
+    });
+    
     return count;
   }
 
@@ -377,232 +472,465 @@ class BufferService {
       // Initialize progress tracking for this URL
       this.loadingProgress.set(url, 0);
 
-      // Check if it's a Blob URL and requires special handling
-      const isBlobUrl = this._isBlobUrl(url);
-      const isStreamingOptimized = isBlobUrl; // Use streaming optimization for Blob URLs
-
-      if (isBlobUrl) {
-        this.log(`Detected Blob URL: ${url}, using streaming fetch`);
-      }
-
-      // Use optimized fetch for Blob URLs
-      const response = await this._fetchWithProgress(url, (progress) => {
-        // Reserve 20% for decoding as before
-        const loadProgress = Math.floor(progress * 0.8);
-        this.loadingProgress.set(url, loadProgress);
-        if (onProgress) onProgress(loadProgress, url);
-      }, isStreamingOptimized);
-
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
-      }
-
-      // Update progress - fetch completed
-      this.loadingProgress.set(url, 80); // 80% complete after fetch
-      if (onProgress) onProgress(80, url);
-
-      // Get array buffer from response
-      const arrayBuffer = await response.arrayBuffer();
-
-      // Update progress - starting decode
-      this.loadingProgress.set(url, 90); // 90% complete before decode
-      if (onProgress) onProgress(90, url);
-
-      // Decode the audio data
-      try {
-        const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-
-        // Update progress - complete
-        this.loadingProgress.set(url, 100);
-        if (onProgress) onProgress(100, url);
-
-        return audioBuffer;
-      } catch (decodeError) {
-        throw new Error(`Failed to decode audio data: ${decodeError.message}`);
-      }
-    } catch (error) {
-      this.log(`Error loading audio: ${error.message}`, 'error');
-      throw error; // Re-throw to be handled by caller
-    }
-  }
-
-  /**
- * Fetch with progress tracking
- * 
- * @private
- * @param {string} url - URL to fetch
- * @param {Function} progressCallback - Callback for progress updates
- * @param {boolean} isStreamingOptimized - Whether to use streaming-optimized handling
- * @returns {Promise<Response>} Fetch response
- */
-  async _fetchWithProgress(url, progressCallback, isStreamingOptimized = false) {
-    return new Promise((resolve, reject) => {
-      // Create the request
-      const xhr = new XMLHttpRequest();
-
-      // Set up progress handling
-      xhr.addEventListener('progress', (event) => {
-        if (event.lengthComputable) {
-          const progress = (event.loaded / event.total) * 100;
-          progressCallback(progress);
-        } else if (isStreamingOptimized) {
-          // For non-lengthComputable streaming (common with some Blob storage)
-          // Provide a pulse-based progress indicator
-          const pulseProgress = (Date.now() % 6000) / 60; // 0-100 over 6 seconds
-          progressCallback(pulseProgress);
+            // Check if it's a Blob URL and requires special handling
+            const isBlobUrl = this._isBlobUrl(url);
+            const isStreamingOptimized = isBlobUrl; // Use streaming optimization for Blob URLs
+      
+            if (isBlobUrl) {
+              this.log(`Detected Blob URL: ${url}, using streaming fetch`);
+            }
+      
+            // Use optimized fetch for Blob URLs
+            const response = await this._fetchWithProgress(url, (progress) => {
+              // Reserve 20% for decoding as before
+              const loadProgress = Math.floor(progress * 0.8);
+              this.loadingProgress.set(url, loadProgress);
+              if (onProgress) onProgress(loadProgress, url);
+              
+              // Emit progress event for detailed tracking
+              eventBus.emit(EVENTS.BUFFER_LOAD_PROGRESS, {
+                url,
+                phase: 'download',
+                progress: loadProgress,
+                overallProgress: loadProgress,
+                timestamp: Date.now()
+              });
+            }, isStreamingOptimized);
+      
+            if (!response.ok) {
+              const errorMsg = `HTTP error ${response.status}: ${response.statusText}`;
+              throw new Error(errorMsg);
+            }
+      
+            // Update progress - fetch completed
+            this.loadingProgress.set(url, 80); // 80% complete after fetch
+            if (onProgress) onProgress(80, url);
+            
+            // Emit progress event for fetch completion
+            eventBus.emit(EVENTS.BUFFER_LOAD_PROGRESS, {
+              url,
+              phase: 'download_complete',
+              progress: 80,
+              overallProgress: 80,
+              timestamp: Date.now()
+            });
+      
+            // Get array buffer from response
+            const arrayBuffer = await response.arrayBuffer();
+      
+            // Update progress - starting decode
+            this.loadingProgress.set(url, 90); // 90% complete before decode
+            if (onProgress) onProgress(90, url);
+            
+            // Emit progress event for decode start
+            eventBus.emit(EVENTS.BUFFER_LOAD_PROGRESS, {
+              url,
+              phase: 'decode_start',
+              progress: 90,
+              overallProgress: 90,
+              timestamp: Date.now()
+            });
+      
+            // Decode the audio data
+            try {
+              const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+      
+              // Update progress - complete
+              this.loadingProgress.set(url, 100);
+              if (onProgress) onProgress(100, url);
+              
+              // Emit progress event for decode completion
+              eventBus.emit(EVENTS.BUFFER_LOAD_PROGRESS, {
+                url,
+                phase: 'decode_complete',
+                progress: 100,
+                overallProgress: 100,
+                timestamp: Date.now()
+              });
+      
+              return audioBuffer;
+            } catch (decodeError) {
+              // Emit decode error event
+              eventBus.emit(EVENTS.BUFFER_ERROR, {
+                url,
+                phase: 'decode',
+                error: decodeError.message,
+                timestamp: Date.now()
+              });
+              
+              throw new Error(`Failed to decode audio data: ${decodeError.message}`);
+            }
+          } catch (error) {
+            this.log(`Error loading audio: ${error.message}`, 'error');
+            
+            // Emit error event if we haven't already
+            if (!error.message.includes('Failed to decode audio data')) {
+              eventBus.emit(EVENTS.BUFFER_ERROR, {
+                url,
+                error: error.message,
+                timestamp: Date.now()
+              });
+            }
+            
+            throw error; // Re-throw to be handled by caller
+          }
         }
-      });
-
-      // Set up load handling
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve(new Response(xhr.response, {
-            status: xhr.status,
-            statusText: xhr.statusText,
-            headers: this._parseXHRHeaders(xhr)
-          }));
-        } else {
-          reject(new Error(`HTTP error ${xhr.status}: ${xhr.statusText}`));
-        }
-      });
-
-      // Set up error handling
-      xhr.addEventListener('error', () => {
-        // Add specific error handling for Blob URLs
-        if (isStreamingOptimized) {
-          this.log(`Error loading Blob URL: ${url}. Attempting fallback...`, 'warn');
-          // Try fallback to regular fetch if XHR fails for Blob URL
-          fetch(url)
-            .then(response => {
-              if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+      
+        /**
+         * Fetch a file with progress monitoring
+         * 
+         * @private
+         * @param {string} url - URL to fetch
+         * @param {Function} onProgress - Progress callback(progress 0-100)
+         * @param {boolean} [optimized=false] - Whether to use optimized streaming fetch
+         * @returns {Promise<Response>} Fetch response
+         */
+        async _fetchWithProgress(url, onProgress, optimized = false) {
+          // For optimized loading, use a streaming approach
+          if (optimized) {
+            return this._streamingFetch(url, onProgress);
+          }
+      
+          // Standard fetch with progress via reader
+          try {
+            const response = await fetch(url);
+            
+            // If we can't get content length, just fetch normally
+            const contentLength = response.headers.get('content-length');
+            if (!contentLength) {
+              this.log(`No content-length header for ${url}, progress unavailable`);
+              if (onProgress) onProgress(50); // Arbitrary progress value
               return response;
-            })
-            .then(response => resolve(response))
-            .catch(err => reject(new Error(`Fallback fetch failed: ${err.message}`)));
-        } else {
-          reject(new Error('Network error'));
+            }
+            
+            // Convert to number and check validity
+            const total = parseInt(contentLength, 10);
+            if (isNaN(total) || total <= 0) {
+              this.log(`Invalid content-length for ${url}: ${contentLength}`);
+              if (onProgress) onProgress(50); // Arbitrary progress value
+              return response;
+            }
+            
+            // Create a reader to stream the response data
+            const reader = response.body.getReader();
+            let received = 0;
+            
+            // Create a new Response from the streaming data
+            const stream = new ReadableStream({
+              async start(controller) {
+                try {
+                  while (true) {
+                    const { done, value } = await reader.read();
+                    
+                    if (done) {
+                      // We're done, close the controller
+                      controller.close();
+                      break;
+                    }
+                    
+                    // Push the next data chunk
+                    controller.enqueue(value);
+                    
+                    // Update progress
+                    received += value.length;
+                    const progress = Math.min(100, Math.floor((received / total) * 100));
+                    if (onProgress) onProgress(progress);
+                  }
+                } catch (error) {
+                  controller.error(error);
+                }
+              }
+            });
+            
+            // Return a new Response with the streamed data
+            return new Response(stream, {
+              headers: response.headers,
+              status: response.status,
+              statusText: response.statusText
+            });
+          } catch (error) {
+            this.log(`Error in fetch with progress: ${error.message}`, 'error');
+            throw error;
+          }
         }
-      });
-
-      xhr.addEventListener('abort', () => {
-        reject(new Error('Request aborted'));
-      });
-
-      // Open and send the request
-      xhr.open('GET', url, true);
-      xhr.responseType = 'arraybuffer';
-
-      // Add cache control for Blob URLs to improve caching
-      if (isStreamingOptimized) {
-        xhr.setRequestHeader('Cache-Control', 'max-age=3600');
+      
+        /**
+         * Optimized streaming fetch for audio files
+         * 
+         * @private
+         * @param {string} url - URL to fetch
+         * @param {Function} onProgress - Progress callback(progress 0-100)
+         * @returns {Promise<Response>} Fetch response
+         */
+        async _streamingFetch(url, onProgress) {
+          // This is a specialized version for streaming audio
+          // It could include additional optimizations for specific content types
+          try {
+            const response = await fetch(url);
+            
+            // Get content length if possible
+            const contentLength = response.headers.get('content-length');
+            const total = parseInt(contentLength, 10);
+            
+            // If we have a valid content length, track progress
+            if (!isNaN(total) && total > 0) {
+              let received = 0;
+              
+              // Create a reader to stream the response
+              const reader = response.body.getReader();
+              
+              // Create a new ReadableStream 
+              const stream = new ReadableStream({
+                async start(controller) {
+                  try {
+                    while (true) {
+                      const { done, value } = await reader.read();
+                      
+                      if (done) {
+                        controller.close();
+                        break;
+                      }
+                      
+                      // Update progress
+                      received += value.length;
+                      const progress = Math.min(100, Math.floor((received / total) * 100));
+                      if (onProgress) onProgress(progress);
+                      
+                      controller.enqueue(value);
+                    }
+                  } catch (error) {
+                    controller.error(error);
+                  }
+                }
+              });
+              
+              // Return a new Response with our processed stream
+              return new Response(stream, {
+                headers: response.headers,
+                status: response.status,
+                statusText: response.statusText
+              });
+            }
+            
+            // Fallback for when we can't determine content length
+            if (onProgress) onProgress(50); // Just use an arbitrary progress value
+            return response;
+          } catch (error) {
+            this.log(`Error in streaming fetch: ${error.message}`, 'error');
+            throw error;
+          }
+        }
+      
+        /**
+         * Enforce cache size limits by removing least recently used buffers
+         * 
+         * @private
+         */
+        _enforceCacheLimit() {
+          if (this.bufferCache.size <= this.config.maxCacheSize) {
+            return; // Cache is within limits
+          }
+      
+          this.log(`Cache size ${this.bufferCache.size} exceeds limit of ${this.config.maxCacheSize}, pruning...`);
+      
+          // Get all metadata entries sorted by last accessed time (oldest first)
+          const entries = Array.from(this.bufferMetadata.entries())
+            .sort((a, b) => (a[1].lastAccessed || 0) - (b[1].lastAccessed || 0));
+      
+          // Calculate how many to remove
+          const removeCount = this.bufferCache.size - this.config.maxCacheSize;
+      
+          // Remove oldest entries first
+          let removedCount = 0;
+          let removedSize = 0;
+      
+          for (let i = 0; i < removeCount && i < entries.length; i++) {
+            const [url, metadata] = entries[i];
+            
+            if (this.bufferCache.has(url)) {
+              // Track stats before removal
+              removedSize += metadata.size || 0;
+              
+              // Remove from cache and metadata
+              this.bufferCache.delete(url);
+              this.bufferMetadata.delete(url);
+              removedCount++;
+              
+              // Emit buffer pruned event
+              eventBus.emit('buffer:pruned', {
+                url,
+                metadata,
+                reason: 'cache_limit',
+                timestamp: Date.now()
+              });
+            }
+          }
+      
+          this.log(`Pruned ${removedCount} buffers (${Math.round(removedSize / 1024 / 1024)}MB) from cache`);
+          
+          // Emit cache pruned event
+          eventBus.emit('buffer:cachePruned', {
+            removedCount,
+            removedSize,
+            newSize: this.bufferCache.size,
+            timestamp: Date.now()
+          });
+        }
+      
+        /**
+         * Log messages with consistent formatting
+         * 
+         * @param {string} message - Message to log
+         * @param {string} [level='info'] - Log level
+         */
+        log(message, level = 'info') {
+          if (!this.config.enableLogging) return;
+      
+          const prefix = '[BufferService]';
+      
+          switch (level) {
+            case 'error':
+              console.error(`${prefix} ${message}`);
+              break;
+            case 'warn':
+              console.warn(`${prefix} ${message}`);
+              break;
+            case 'info':
+            default:
+              console.log(`${prefix} ${message}`);
+              break;
+          }
+        }
+      
+        /**
+         * Clean up resources used by BufferService
+         * This should be called when the service is no longer needed
+         */
+        dispose() {
+          this.clearCache();
+          this.pendingLoads.clear();
+          this.loadingProgress.clear();
+          this.errors.clear();
+          this.bufferMetadata.clear();
+          this.log('BufferService disposed');
+          
+          // Emit disposal event
+          eventBus.emit('buffer:disposed', {
+            timestamp: Date.now()
+          });
+        }
+      
+        /**
+         * Alias for dispose to maintain API compatibility with other services
+         */
+        cleanup() {
+          this.dispose();
+        }
+      
+        /**
+         * Load collection track into buffer
+         * Utility method for easier integration with collections
+         * 
+         * @param {Object} track - Track object from collection
+         * @param {Object} [options] - Loading options
+         * @returns {Promise<AudioBuffer>} The loaded buffer
+         */
+        async loadCollectionTrack(track, options = {}) {
+          if (!track || !track.audioUrl) {
+            throw new Error('Invalid track object, missing audioUrl');
+          }
+          
+          try {
+            this.log(`Loading collection track: ${track.title || track.id}`);
+            
+            // Emit collection load start event
+            eventBus.emit('buffer:collectionTrackLoadStart', {
+              track,
+              url: track.audioUrl,
+              timestamp: Date.now()
+            });
+            
+            // Load the buffer
+            const buffer = await this.loadAudioBuffer(track.audioUrl, options);
+            
+            // Emit collection track loaded event
+            eventBus.emit('buffer:collectionTrackLoaded', {
+              track,
+              buffer,
+              url: track.audioUrl,
+              timestamp: Date.now()
+            });
+            
+            return buffer;
+          } catch (error) {
+            // Emit collection track error event
+            eventBus.emit('buffer:collectionTrackError', {
+              track,
+              error: error.message,
+              url: track.audioUrl,
+              timestamp: Date.now()
+            });
+            
+            throw error;
+          }
+        }
+      
+        /**
+         * Load all tracks for a collection layer
+         * 
+         * @param {Array} tracks - Array of tracks in this layer
+         * @param {Object} [options] - Loading options
+         * @returns {Promise<Map<string, AudioBuffer>>} Map of track IDs to buffers
+         */
+        async loadCollectionLayer(tracks, options = {}) {
+          if (!Array.isArray(tracks) || tracks.length === 0) {
+            return new Map();
+          }
+          
+          const trackUrls = tracks.map(track => track.audioUrl).filter(Boolean);
+          const trackMap = new Map(tracks.map(track => [track.audioUrl, track]));
+          
+          try {
+            // Emit layer load start event
+            eventBus.emit('buffer:collectionLayerLoadStart', {
+              tracks,
+              count: trackUrls.length,
+              timestamp: Date.now()
+            });
+            
+            // Preload all track buffers
+            const buffers = await this.preloadBuffers(trackUrls, options);
+            
+            // Create a map of track IDs to buffers
+            const results = new Map();
+            
+            buffers.forEach((buffer, url) => {
+              const track = trackMap.get(url);
+              if (track && track.id) {
+                results.set(track.id, buffer);
+              }
+            });
+            
+            // Emit layer loaded event
+            eventBus.emit('buffer:collectionLayerLoaded', {
+              tracks,
+              bufferCount: results.size,
+              timestamp: Date.now()
+            });
+            
+            return results;
+          } catch (error) {
+            // Emit layer error event
+            eventBus.emit('buffer:collectionLayerError', {
+              tracks,
+              error: error.message,
+              timestamp: Date.now()
+            });
+            
+            throw error;
+          }
+        }
       }
-
-      xhr.send();
-    });
-  }
-
-  /**
-   * Parse XHR headers into a Headers object
-   * 
-   * @private
-   * @param {XMLHttpRequest} xhr - The XHR object
-   * @returns {Headers} Response headers
-   */
-  _parseXHRHeaders(xhr) {
-    const headers = new Headers();
-    const headerString = xhr.getAllResponseHeaders();
-    const headerPairs = headerString.trim().split(/[\r\n]+/);
-
-    headerPairs.forEach(line => {
-      const parts = line.split(': ');
-      const header = parts.shift();
-      const value = parts.join(': ');
-      headers.append(header, value);
-    });
-
-    return headers;
-  }
-
-  /**
-   * Enforce the cache size limit by removing least recently used buffers
-   * 
-   * @private
-   */
-  _enforceCacheLimit() {
-    if (this.bufferCache.size <= this.config.maxCacheSize) {
-      return; // Cache is not full
-    }
-
-    this.log(`Cache size ${this.bufferCache.size} exceeds limit of ${this.config.maxCacheSize}, pruning...`);
-
-    // Get all metadata entries
-    const entries = Array.from(this.bufferMetadata.entries())
-      // Map to [url, metadata] format
-      .map(([url, metadata]) => ({
-        url,
-        lastAccessed: metadata.lastAccessed || 0,
-        size: metadata.size || 0
-      }))
-      // Sort by lastAccessed (oldest first)
-      .sort((a, b) => a.lastAccessed - b.lastAccessed);
-
-    // Calculate how many items to remove
-    const removeCount = this.bufferCache.size - this.config.maxCacheSize;
-
-    // Remove oldest entries
-    for (let i = 0; i < removeCount; i++) {
-      if (i < entries.length) {
-        const url = entries[i].url;
-        this.releaseBuffer(url);
-      }
-    }
-  }
-
-  /**
-   * Logging helper that respects configuration
-   * 
-   * @private
-   * @param {string} message - Message to log
-   * @param {string} [level='info'] - Log level
-   */
-  log(message, level = 'info') {
-    if (!this.config.enableLogging) return;
-
-    const prefix = '[BufferService]';
-
-    switch (level) {
-      case 'error':
-        console.error(`${prefix} ${message}`);
-        break;
-      case 'warn':
-        console.warn(`${prefix} ${message}`);
-        break;
-      case 'info':
-      default:
-        console.log(`${prefix} ${message}`);
-        break;
-    }
-  }
-
-  /**
-   * Clean up resources when no longer needed
-   * This will clear all cache and abort any pending loads
-   */
-  dispose() {
-    this.clearCache();
-    this.pendingLoads.clear();
-    this.loadingProgress.clear();
-    this.errors.clear();
-    this.bufferMetadata.clear();
-    this.log('BufferService disposed');
-  }
-
-  /**
-   * Alias for dispose to maintain API compatibility with other services
-   */
-  cleanup() {
-    this.dispose();
-  }
-}
-
-export default BufferService;
+      
+      export default BufferService;
+      

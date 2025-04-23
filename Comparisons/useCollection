@@ -1,0 +1,469 @@
+// src/hooks/useCollection.js
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCollectionContext } from '../contexts/CollectionContext';
+import eventBus from '../services/EventBus';
+import { COLLECTION_EVENTS } from '../services/CollectionService';
+
+/**
+ * Hook for working with audio collections
+ * Enhanced with EventBus integration and explicit state tracking
+ * 
+ * @param {Object} [options] - Hook configuration options
+ * @param {boolean} [options.loadOnMount=true] - Load collections automatically when mounted
+ * @param {Object} [options.initialFilters={}] - Initial filters for collections
+ * @returns {Object} Collection state and methods
+ */
+export function useCollection(options = {}) {
+  const {
+    loadOnMount = true,
+    initialFilters = {}
+  } = options;
+  
+  // Get context
+  const context = useCollectionContext();
+  
+  // Local state for event-based updates
+  const [operationStatus, setOperationStatus] = useState({
+    lastOperation: null,
+    timestamp: null,
+    status: null
+  });
+  
+  // Ref to track if collections have been loaded
+  const collectionsLoadedRef = useRef(false);
+  
+  // Subscribe to relevant collection events
+  useEffect(() => {
+    const handleOperationStart = (data) => {
+      setOperationStatus({
+        lastOperation: data.operation,
+        timestamp: data.timestamp,
+        status: 'pending'
+      });
+    };
+    
+    const handleOperationComplete = (data) => {
+      setOperationStatus({
+        lastOperation: data.source === 'api' ? 'loaded' : 'cacheHit',
+        timestamp: data.timestamp,
+        status: 'success',
+        details: data
+      });
+    };
+    
+    const handleOperationError = (data) => {
+      setOperationStatus({
+        lastOperation: data.operation,
+        timestamp: data.timestamp,
+        status: 'error',
+        error: data.message,
+        details: data
+      });
+    };
+    
+    // Subscribe to events
+    eventBus.on(COLLECTION_EVENTS.LOADING, handleOperationStart);
+    eventBus.on(COLLECTION_EVENTS.LOADED, handleOperationComplete);
+    eventBus.on(COLLECTION_EVENTS.ERROR, handleOperationError);
+    
+    return () => {
+      // Unsubscribe from events
+      eventBus.off(COLLECTION_EVENTS.LOADING, handleOperationStart);
+      eventBus.off(COLLECTION_EVENTS.LOADED, handleOperationComplete);
+      eventBus.off(COLLECTION_EVENTS.ERROR, handleOperationError);
+    };
+  }, []);
+  
+  // Load collections on mount if requested
+  useEffect(() => {
+    if (loadOnMount && !collectionsLoadedRef.current) {
+      console.log('[useCollection] Auto-loading collections on mount');
+      loadCollections(initialFilters)
+        .then(() => {
+          collectionsLoadedRef.current = true;
+        })
+        .catch(err => {
+          console.error('[useCollection] Error auto-loading collections:', err);
+        });
+    }
+  }, [loadOnMount, initialFilters]);
+  
+  // Wrapper for loadCollections with enhanced logging and error handling
+  const loadCollections = useCallback(async (filters = {}) => {
+    console.log('[useCollection] Loading collections with filters:', filters);
+    
+    try {
+      // Emit custom event for UI tracking
+      eventBus.emit('ui:collectionsRequested', {
+        filters,
+        timestamp: Date.now()
+      });
+      
+      const result = await context.loadCollections({
+        ...filters,
+        useCache: filters.useCache !== false // Use cache by default
+      });
+      
+      // Emit completion event based on result
+      if (result.success) {
+        eventBus.emit('ui:collectionsLoaded', {
+          count: result.data.length,
+          total: result.total,
+          filters,
+          timestamp: Date.now()
+        });
+        collectionsLoadedRef.current = true;
+      } else {
+        eventBus.emit('ui:collectionsError', {
+          error: result.error,
+          filters,
+          timestamp: Date.now()
+        });
+      }
+      
+      return result;
+    } catch (err) {
+      console.error('[useCollection] Error loading collections:', err);
+      
+      eventBus.emit('ui:collectionsError', {
+        error: err.message,
+        filters,
+        timestamp: Date.now()
+      });
+      
+      throw err;
+    }
+  }, [context]);
+  
+  // Get a single collection with enhanced logging and events
+  const getCollection = useCallback(async (id, options = {}) => {
+    if (!id) {
+      console.error('[useCollection] Collection ID is required');
+      return { success: false, error: 'Collection ID is required' };
+    }
+    
+    console.log(`[useCollection] Loading collection: ${id}`);
+    
+    try {
+      // Emit custom event for UI tracking
+      eventBus.emit('ui:collectionRequested', {
+        id,
+        options,
+        timestamp: Date.now()
+      });
+      
+      const result = await context.getCollection(id, options);
+      
+      // Emit completion event based on result
+      if (result.success) {
+        eventBus.emit('ui:collectionLoaded', {
+          id,
+          name: result.data.name,
+          options,
+          timestamp: Date.now()
+        });
+      } else {
+        eventBus.emit('ui:collectionError', {
+          id,
+          error: result.error,
+          options,
+          timestamp: Date.now()
+        });
+      }
+      
+      return result;
+    } catch (err) {
+      console.error(`[useCollection] Error loading collection ${id}:`, err);
+      
+      eventBus.emit('ui:collectionError', {
+        id,
+        error: err.message,
+        options,
+        timestamp: Date.now()
+      });
+      
+      throw err;
+    }
+  }, [context]);
+  
+  // Format collection for player with event tracking
+  const formatForPlayer = useCallback((collection) => {
+    try {
+      console.log('[useCollection] Formatting collection for player');
+      
+      const formattedCollection = context.formatCollectionForPlayer(collection);
+      
+      if (formattedCollection) {
+        // Emit custom event for format success
+        eventBus.emit('ui:collectionFormatted', {
+          id: formattedCollection.id,
+          name: formattedCollection.name,
+          timestamp: Date.now()
+        });
+      }
+      
+      return formattedCollection;
+    } catch (err) {
+      console.error('[useCollection] Error formatting collection:', err);
+      
+      // Emit custom event for format error
+      eventBus.emit('ui:collectionFormatError', {
+        error: err.message,
+        timestamp: Date.now()
+      });
+      
+      return null;
+    }
+  }, [context]);
+  
+  // Resolve collection URLs with event tracking
+  const resolveUrls = useCallback((collection) => {
+    try {
+      console.log('[useCollection] Resolving collection URLs');
+      
+      const resolvedCollection = context.resolveCollectionUrls(collection);
+      
+      if (resolvedCollection) {
+        // Emit custom event for URL resolution
+        eventBus.emit('ui:collectionUrlsResolved', {
+          id: resolvedCollection.id,
+          name: resolvedCollection.name,
+          timestamp: Date.now()
+        });
+      }
+      
+      return resolvedCollection;
+    } catch (err) {
+      console.error('[useCollection] Error resolving collection URLs:', err);
+      
+      // Emit custom event for URL resolution error
+      eventBus.emit('ui:collectionUrlsError', {
+        error: err.message,
+        timestamp: Date.now()
+      });
+      
+      return collection; // Return original as fallback
+    }
+  }, [context]);
+  
+  // Prepare collection for player in one step
+  const prepareForPlayer = useCallback(async (collectionId, options = {}) => {
+    console.log(`[useCollection] Preparing collection for player: ${collectionId}`);
+    
+    try {
+      // Emit start event
+      eventBus.emit('ui:collectionPreparationStarted', {
+        id: collectionId,
+        options,
+        timestamp: Date.now()
+      });
+      
+      // 1. Load the collection
+      const result = await getCollection(collectionId, {
+        verifyFiles: options.verifyFiles
+      });
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to load collection');
+      }
+      
+      // 2. Format for player
+      const formattedCollection = formatForPlayer(result.data);
+      
+      if (!formattedCollection) {
+        throw new Error('Failed to format collection for player');
+      }
+      
+      // 3. Resolve URLs
+      const preparedCollection = resolveUrls(formattedCollection);
+      
+      // Emit completion event
+      eventBus.emit('ui:collectionPreparationCompleted', {
+        id: collectionId,
+        name: preparedCollection.name,
+        options,
+        timestamp: Date.now()
+      });
+      
+      return {
+        success: true,
+        data: preparedCollection
+      };
+    } catch (err) {
+      console.error(`[useCollection] Error preparing collection ${collectionId}:`, err);
+      
+      // Emit error event
+      eventBus.emit('ui:collectionPreparationError', {
+        id: collectionId,
+        error: err.message,
+        options,
+        timestamp: Date.now()
+      });
+      
+      return {
+        success: false,
+        error: err.message
+      };
+    }
+  }, [getCollection, formatForPlayer, resolveUrls]);
+  
+  // Reset cache with confirmation and event tracking
+  const resetCache = useCallback(() => {
+    console.log('[useCollection] Resetting collection cache');
+    
+    // Emit event before reset
+    eventBus.emit('ui:collectionCacheResetRequested', {
+      timestamp: Date.now()
+    });
+    
+    // Perform reset
+    context.resetCache();
+    
+    // Emit event after reset
+    eventBus.emit('ui:collectionCacheReset', {
+      timestamp: Date.now()
+    });
+    
+    // Reset loaded status
+    collectionsLoadedRef.current = false;
+  }, [context]);
+  
+   // Reload collections, forcing fresh data
+   const reloadCollections = useCallback(async (filters = {}) => {
+    console.log('[useCollection] Reloading collections with fresh data');
+    
+
+    // Emit reload requested event
+    eventBus.emit('ui:collectionsReloadRequested', {
+      filters,
+      timestamp: Date.now()
+    });
+    
+    // First reset the cache
+    resetCache();
+    
+    // Then load collections with cache disabled
+    return loadCollections({
+      ...filters,
+      useCache: false
+    });
+  }, [loadCollections, resetCache]);
+  
+  // Get service stats with event tracking
+  const getServiceStats = useCallback(() => {
+    const stats = context.getStats();
+    
+    // Emit stats retrieved event
+    eventBus.emit('ui:collectionStatsRetrieved', {
+      stats,
+      timestamp: Date.now()
+    });
+    
+    return stats;
+  }, [context]);
+  
+  // Check if a specific collection exists in the loaded collections
+  const hasCollection = useCallback((id) => {
+    if (!id || !context.collections) return false;
+    return context.collections.some(collection => collection.id === id);
+  }, [context.collections]);
+  
+  // Find a collection by ID in the loaded collections
+  const findCollection = useCallback((id) => {
+    if (!id || !context.collections) return null;
+    return context.collections.find(collection => collection.id === id);
+  }, [context.collections]);
+  
+  // Filter collections by tags, category, etc.
+  const filterCollections = useCallback((filterFn) => {
+    if (!context.collections || typeof filterFn !== 'function') return [];
+    return context.collections.filter(filterFn);
+  }, [context.collections]);
+  
+  // Get collections by tag
+  const getCollectionsByTag = useCallback((tag) => {
+    if (!tag || !context.collections) return [];
+    return context.collections.filter(collection => 
+      collection.tags && 
+      Array.isArray(collection.tags) && 
+      collection.tags.includes(tag)
+    );
+  }, [context.collections]);
+  
+  // Get collections by category
+  const getCollectionsByCategory = useCallback((category) => {
+    if (!category || !context.collections) return [];
+    return context.collections.filter(collection => 
+      collection.category === category
+    );
+  }, [context.collections]);
+  
+  // Get unique tags from all collections
+  const getUniqueTags = useCallback(() => {
+    if (!context.collections) return [];
+    
+    const tags = new Set();
+    context.collections.forEach(collection => {
+      if (collection.tags && Array.isArray(collection.tags)) {
+        collection.tags.forEach(tag => tags.add(tag));
+      }
+    });
+    
+    return Array.from(tags).sort();
+  }, [context.collections]);
+  
+  // Get unique categories from all collections
+  const getUniqueCategories = useCallback(() => {
+    if (!context.collections) return [];
+    
+    const categories = new Set();
+    context.collections.forEach(collection => {
+      if (collection.category) {
+        categories.add(collection.category);
+      }
+    });
+    
+    return Array.from(categories).sort();
+  }, [context.collections]);
+  
+  return {
+    // State from context
+    collections: context.collections,
+    isLoading: context.isLoading,
+    loadingOperation: context.loadingOperation,
+    error: context.error,
+    currentCollection: context.currentCollection,
+    loadProgress: context.loadProgress,
+    totalCollections: context.totalCollections,
+    selectedCollectionId: context.selectedCollectionId,
+    selectedCollectionDetail: context.selectedCollectionDetail,
+    fileVerification: context.fileVerification,
+    
+    // Operation status from events
+    operationStatus,
+    
+    // Enhanced methods
+    loadCollections,
+    getCollection,
+    formatForPlayer,
+    resolveUrls,
+    prepareForPlayer,
+    resetCache,
+    reloadCollections,
+    getServiceStats,
+    
+    // Helper methods
+    hasCollection,
+    findCollection,
+    filterCollections,
+    getCollectionsByTag,
+    getCollectionsByCategory,
+    getUniqueTags,
+    getUniqueCategories,
+    
+    // Flag for auto-loading
+    collectionsLoaded: collectionsLoadedRef.current
+  };
+}
+
+export default useCollection;

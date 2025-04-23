@@ -3,6 +3,8 @@
  * Core service for managing Web Audio API context and master output
  */
 
+import eventBus, { EVENTS } from './EventBus';
+
 class AudioService {
   /**
    * Create a new AudioService instance
@@ -83,6 +85,10 @@ class AudioService {
 
       if (!AudioContext) {
         this.log('Web Audio API not supported in this browser', 'error');
+        // Emit error event
+        eventBus.emit(EVENTS.AUDIO_ERROR, { 
+          message: 'Web Audio API not supported in this browser'
+        });
         return false;
       }
 
@@ -108,9 +114,26 @@ class AudioService {
       this._suspended = this._context.state === 'suspended';
 
       this.log(`AudioService initialized. Context state: ${this._context.state}`);
+      
+      // Emit initialization event with context details
+      eventBus.emit(EVENTS.AUDIO_INITIALIZED, {
+        context: this._context,
+        masterGain: this._masterGain,
+        analyzer: this._analyzer,
+        initialVolume: this.options.initialVolume,
+        suspended: this._suspended
+      });
+      
       return true;
     } catch (error) {
       this.log(`Initialization failed: ${error.message}`, 'error');
+      
+      // Emit error event
+      eventBus.emit(EVENTS.AUDIO_ERROR, {
+        message: `Initialization failed: ${error.message}`,
+        error
+      });
+      
       return false;
     }
   }
@@ -157,16 +180,46 @@ class AudioService {
       // Use a small time constant for smooth transition
       const now = this._context.currentTime;
       this._masterGain.gain.setTargetAtTime(safeLevel, now, 0.01);
+      
+      // Emit volume changed event
+      eventBus.emit(EVENTS.VOLUME_CHANGED, {
+        type: 'master',
+        value: safeLevel,
+        time: now
+      });
+      
       return true;
     } catch (error) {
       this.log(`Error setting master volume: ${error.message}`, 'error');
+      
+      // Emit error event
+      eventBus.emit(EVENTS.AUDIO_ERROR, {
+        message: `Error setting master volume: ${error.message}`,
+        error
+      });
 
       // Fallback to immediate value change
       try {
         this._masterGain.gain.value = safeLevel;
+        
+        // Still emit volume changed event on successful fallback
+        eventBus.emit(EVENTS.VOLUME_CHANGED, {
+          type: 'master',
+          value: safeLevel,
+          time: this._context.currentTime,
+          fallback: true
+        });
+        
         return true;
       } catch (e) {
         this.log(`Fallback volume setting failed: ${e.message}`, 'error');
+        
+        // Emit error event for fallback failure
+        eventBus.emit(EVENTS.AUDIO_ERROR, {
+          message: `Fallback volume setting failed: ${e.message}`,
+          error: e
+        });
+        
         return false;
       }
     }
@@ -200,9 +253,24 @@ class AudioService {
         await this._context.resume();
         this._suspended = false;
         this.log(`Context resumed successfully, new state: ${this._context.state}`);
+        
+        // Emit play started event
+        eventBus.emit(EVENTS.AUDIO_PLAY_STARTED, {
+          time: this._context.currentTime,
+          contextState: this._context.state
+        });
+        
         return true;
       } catch (error) {
         this.log(`Failed to resume context: ${error.message}`, 'error');
+        
+        // Emit error event
+        eventBus.emit(EVENTS.AUDIO_ERROR, {
+          message: `Failed to resume context: ${error.message}`,
+          error,
+          operation: 'resume'
+        });
+        
         return false;
       }
     } else {
@@ -228,9 +296,24 @@ class AudioService {
         await this._context.suspend();
         this._suspended = true;
         this.log('Context suspended');
+        
+        // Emit play stopped event
+        eventBus.emit(EVENTS.AUDIO_PLAY_STOPPED, {
+          time: this._context.currentTime,
+          contextState: this._context.state
+        });
+        
         return true;
       } catch (error) {
         this.log(`Failed to suspend context: ${error.message}`, 'error');
+        
+        // Emit error event
+        eventBus.emit(EVENTS.AUDIO_ERROR, {
+          message: `Failed to suspend context: ${error.message}`,
+          error,
+          operation: 'suspend'
+        });
+        
         return false;
       }
     }
@@ -269,6 +352,14 @@ class AudioService {
 
     // Store the elements directly without modifying their structure
     this._audioElements = { ...elements };
+    
+    // Emit event for element registration
+    eventBus.emit('audio:elementsRegistered', {
+      elementCount: Object.keys(elements).reduce((count, layer) => 
+        count + Object.keys(elements[layer] || {}).length, 0),
+      layers: Object.keys(elements)
+    });
+    
     return true;
   }
 
@@ -302,6 +393,13 @@ class AudioService {
         return `${layer}: ${trackIds.join(', ')}`;
       })
     );
+    
+    // Emit event for element update
+    eventBus.emit('audio:elementUpdated', {
+      layer,
+      trackId,
+      isActive: elementData.isActive || false
+    });
 
     return true;
   }
@@ -354,34 +452,169 @@ class AudioService {
     }
   }
 
-  /**
+    /**
    * Clean up resources used by AudioService
    * This should be called when the service is no longer needed
    */
-  cleanup() {
-    // Remove all event listeners
-    this._eventListeners.forEach(({ type, handler }) => {
-      window.removeEventListener(type, handler);
-    });
-    this._eventListeners = [];
-
-    // Close the audio context if it exists
-    if (this._context && typeof this._context.close === 'function') {
-      this._context.close().catch(err => {
-        this.log(`Error closing audio context: ${err.message}`, 'warn');
+    cleanup() {
+      // Remove all event listeners
+      this._eventListeners.forEach(({ type, handler }) => {
+        window.removeEventListener(type, handler);
+      });
+      this._eventListeners = [];
+  
+      // Close the audio context if it exists
+      if (this._context && typeof this._context.close === 'function') {
+        this._context.close().catch(err => {
+          this.log(`Error closing audio context: ${err.message}`, 'warn');
+        });
+      }
+  
+      // Disconnect nodes if they exist
+      if (this._masterGain) {
+        try {
+          this._masterGain.disconnect();
+        } catch (err) {
+          this.log(`Error disconnecting master gain: ${err.message}`, 'warn');
+        }
+      }
+  
+      if (this._analyzer) {
+        try {
+          this._analyzer.disconnect();
+        } catch (err) {
+          this.log(`Error disconnecting analyzer: ${err.message}`, 'warn');
+        }
+      }
+  
+      // Reset state
+      this._context = null;
+      this._masterGain = null;
+      this._analyzer = null;
+      this._initialized = false;
+      this._suspended = true;
+      this._audioElements = {};
+  
+      this.log('Cleanup complete');
+      
+      // Emit cleanup event
+      eventBus.emit('audio:cleanup', {
+        timestamp: Date.now()
       });
     }
-
-    // Reset state
-    this._context = null;
-    this._masterGain = null;
-    this._analyzer = null;
-    this._initialized = false;
-    this._suspended = true;
-    this._audioElements = {};
-
-    this.log('Cleanup complete');
+  
+    /**
+     * Alias for cleanup to maintain API compatibility with other services
+     */
+    dispose() {
+      this.cleanup();
+    }
+  
+    /**
+     * Check if the service is initialized
+     * @returns {boolean} True if initialized, false otherwise
+     */
+    isInitialized() {
+      return this._initialized;
+    }
+  
+    /**
+     * Get audio buffer data for visualization
+     * @param {Uint8Array} [dataArray] - Optional pre-allocated array to fill
+     * @returns {Uint8Array} Buffer data
+     */
+    getVisualizationData(dataArray) {
+      if (!this._initialized || !this._analyzer) {
+        return new Uint8Array(0);
+      }
+  
+      // Create array if not provided
+      const bufferLength = this._analyzer.frequencyBinCount;
+      const data = dataArray || new Uint8Array(bufferLength);
+  
+      // Get frequency data
+      this._analyzer.getByteFrequencyData(data);
+      
+      return data;
+    }
+  
+    /**
+     * Get time domain data for visualization
+     * @param {Uint8Array} [dataArray] - Optional pre-allocated array to fill
+     * @returns {Uint8Array} Time domain data
+     */
+    getTimeDomainData(dataArray) {
+      if (!this._initialized || !this._analyzer) {
+        return new Uint8Array(0);
+      }
+  
+      // Create array if not provided
+      const bufferLength = this._analyzer.frequencyBinCount;
+      const data = dataArray || new Uint8Array(bufferLength);
+  
+      // Get time domain data
+      this._analyzer.getByteTimeDomainData(data);
+      
+      return data;
+    }
+  
+    /**
+     * Create a source node connected to master output
+     * @param {AudioBuffer} buffer - Audio buffer to use
+     * @returns {AudioBufferSourceNode|null} The created source node or null on failure
+     */
+    createBufferSource(buffer) {
+      if (!this._initialized || !this._context || !this._masterGain) {
+        this.log('Cannot create source, not initialized', 'error');
+        return null;
+      }
+  
+      if (!buffer) {
+        this.log('No buffer provided to createBufferSource', 'error');
+        return null;
+      }
+  
+      try {
+        const source = this._context.createBufferSource();
+        source.buffer = buffer;
+        source.connect(this._masterGain);
+        
+        return source;
+      } catch (error) {
+        this.log(`Error creating buffer source: ${error.message}`, 'error');
+        
+        // Emit error event
+        eventBus.emit(EVENTS.AUDIO_ERROR, {
+          message: `Error creating buffer source: ${error.message}`,
+          error,
+          operation: 'createBufferSource'
+        });
+        
+        return null;
+      }
+    }
+  
+    /**
+     * Check if the audio context is currently running
+     * @returns {boolean} True if running, false otherwise
+     */
+    isRunning() {
+      if (!this._initialized || !this._context) {
+        return false;
+      }
+      return this._context.state === 'running';
+    }
+  
+    /**
+     * Get the current audio context time
+     * @returns {number} Current time in seconds
+     */
+    getCurrentTime() {
+      if (!this._initialized || !this._context) {
+        return 0;
+      }
+      return this._context.currentTime;
+    }
   }
-}
-
-export default AudioService;
+  
+  export default AudioService;
