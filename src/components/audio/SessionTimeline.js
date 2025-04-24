@@ -311,6 +311,18 @@ const SessionTimeline = React.forwardRef(({
       }
     };
     
+      // Listen for phase state updates from external sources
+  const handleExternalPhaseStateUpdate = (data) => {
+    if (data.phaseId && data.state) {
+      console.log(`[SessionTimeline] Received external phase state update for: ${data.phaseId}`);
+      // Update your phase state
+      setPhases(prevPhases => 
+        prevPhases.map(p => 
+          p.id === data.phaseId ? { ...p, state: data.state } : p
+        )
+      );
+    }
+  };
     // Handle timeline playback state changes
     const handleTimelineStarted = () => {
       console.log('[SessionTimeline] Timeline started');
@@ -338,6 +350,7 @@ const SessionTimeline = React.forwardRef(({
     };
     
     // Register all event listeners
+    eventBus.on('timeline:phaseStateUpdated', handleExternalPhaseStateUpdate);
     eventBus.on('timeline:phaseTransition', handlePhaseTransition);
     eventBus.on('crossfade:complete', handleCrossfadeComplete);
     eventBus.on(TIMELINE_EVENTS.STARTED, handleTimelineStarted);
@@ -370,6 +383,7 @@ const SessionTimeline = React.forwardRef(({
     
     // Clean up all listeners on unmount
     return () => {
+      eventBus.off('timeline:phaseStateUpdated', handleExternalPhaseStateUpdate);
       eventBus.off('timeline:phaseTransition', handlePhaseTransition);
       eventBus.off('crossfade:complete', handleCrossfadeComplete);
       eventBus.off(TIMELINE_EVENTS.STARTED, handleTimelineStarted);
@@ -486,7 +500,7 @@ const SessionTimeline = React.forwardRef(({
       timeline.updatePhases(phases);
     }
   }, [phases]);
-
+  
   // Synchronize progress state with timeline
   useEffect(() => {
     if (timeline.progress !== progress) {
@@ -712,41 +726,40 @@ const SessionTimeline = React.forwardRef(({
 
   // Handle timeline click for seeking
   const handleTimelineClick = useCallback((e) => {
-    if (editMode || !timelineRef.current) return;
+    // Determine if we're clicking on a marker
+    const isMarkerClick = e.target.closest(`.${timelinestyles.phaseMarker}`);
     
-    const rect = timelineRef.current.getBoundingClientRect();
-    const clickPosition = (e.clientX - rect.left) / rect.width;
-    const seekPercent = Math.max(0, Math.min(100, clickPosition * 100));
+    // If clicking on a marker, let the marker handle it
+    if (isMarkerClick) return;
     
-    console.log(`[SessionTimeline] Seeking to ${seekPercent.toFixed(2)}%`);
+    // Otherwise, this is a background click
     
-    if (timeline.seekToPercent) {
-      timeline.seekToPercent(seekPercent);
+    // If in edit mode, just deselect the marker
+    if (editMode) {
+      deselectAllMarkers();
+      return;
     }
     
-    // Emit event that timeline was manually seeked
-    eventBus.emit('timeline:manualSeek', {
-      percent: seekPercent,
-      type: 'click',
-      timestamp: Date.now()
-    });
-  }, [editMode, timeline]);
-
-   // Original handle background click function for timeline
-   const handleBackgroundClick = useCallback((e) => {
-    if (editMode) return; // Don't seek when in edit mode
-    
+    // If not in edit mode, perform seeking
     if (timelineRef.current) {
       const rect = timelineRef.current.getBoundingClientRect();
       const clickPosition = (e.clientX - rect.left) / rect.width;
       const seekPercent = Math.max(0, Math.min(100, clickPosition * 100));
       
+      console.log(`[SessionTimeline] Seeking to ${seekPercent.toFixed(2)}%`);
+      
       if (timeline.seekToPercent) {
         timeline.seekToPercent(seekPercent);
       }
+      
+      // Emit event for analytics
+      eventBus.emit('timeline:manualSeek', {
+        percent: seekPercent,
+        type: 'click',
+        timestamp: Date.now()
+      });
     }
-  }, [editMode, timeline]);
-  
+  }, [editMode, timeline, deselectAllMarkers]);
 
   // Export interface for parent components
   React.useImperativeHandle(ref, () => ({
@@ -806,7 +819,7 @@ const SessionTimeline = React.forwardRef(({
         <div 
           className={timelinestyles.timeline}
           ref={timelineRef}
-          onClick={handleBackgroundClick}
+          onClick={handleTimelineClick}
         >
           <div 
             className={timelinestyles.progressBar}
@@ -814,23 +827,26 @@ const SessionTimeline = React.forwardRef(({
           />
           
           {/* Map phase markers */}
-          {phases.map((phase) => (
-            <PhaseMarker
-              key={phase.id}
-              id={phase.id}
-              name={phase.name}
-              position={phase.position}
-              color={phase.color}
-              isActive={phase.id === activePhase}
-              isSelected={phase.id === selectedPhase}
-              isEditMode={editMode}
-              isLocked={phase.locked}
-              isDraggable={editMode && !phase.locked}
-              onClick={(e) => handleMarkerClick(phase.id, e)}
-              onPositionChange={(newPos) => handleMarkerPositionChange(phase.id, newPos)}
-              hasSavedState={!!phase.state}
-            />
-          ))}
+          {phases.map(phase => (
+  <PhaseMarker
+    key={phase.id}
+    id={phase.id}
+    name={phase.name}
+    position={phase.position}
+    color={phase.color}
+    isActive={phase.id === activePhase}
+    isSelected={phase.id === selectedPhase}
+    isLocked={phase.locked}
+    editMode={editMode}
+    isDraggable={editMode && !phase.locked}
+    onClick={(e) => handleMarkerClick(phase.id, e)}
+    onPositionChange={(newPos) => handleMarkerPositionChange(phase.id, newPos)}
+    onStateCapture={(phaseId) => handlePhaseStateCapture(phaseId)}
+    onDragEnd={deselectAllMarkers}
+    hasSavedState={!!phase.state}
+    sessionDuration={timeline.duration}
+  />
+))}
         </div>
       </div>
       

@@ -80,76 +80,71 @@ const LayerControl = ({
     tracks.find(track => track.id === activeTrackId)?.name || 
     'No track selected';
   
+  // REDESIGNED RETURN TO MATCH ORIGINAL DESIGN
   return (
-    <div className={styles.layerControl}>
-      <div className={styles.layerHeader}>
-        <h3 className={styles.layerLabel}>{label}</h3>
-        <button 
-          className={`${styles.muteButton} ${isMuted ? styles.muted : ''}`}
-          onClick={handleMuteToggle}
-          aria-label={isMuted ? `Unmute ${label}` : `Mute ${label}`}
-        >
-          {isMuted ? 'Unmute' : 'Mute'}
-        </button>
-      </div>
-      
-      <div className={styles.trackSelector}>
-        <label className={styles.selectLabel} htmlFor={`track-select-${layer}`}>
-          Track:
-        </label>
-        <select 
-          id={`track-select-${layer}`}
-          className={styles.trackSelect}
-          value={activeTrackId || ''}
-          onChange={handleTrackChange}
-          disabled={tracks.length === 0}
-        >
-          {tracks.length === 0 && (
-            <option value="">No tracks available</option>
-          )}
-          
-          {tracks.map(track => (
-            <option 
-              key={track.id} 
-              value={track.id}
+    <div className={styles.layerSlider}>
+      <div className={styles.labelContainer}>
+        <label className={styles.label}>{label}</label>
+        
+        {/* Track selection functionality as a toggle button */}
+        {tracks && tracks.length > 0 && (
+          <div className={styles.trackControls}>
+            <button 
+              className={`${styles.muteButton} ${isMuted ? styles.muted : ''}`}
+              onClick={onMuteToggle}
+              aria-label={isMuted ? `Unmute ${label}` : `Mute ${label}`}
             >
-              {track.name || track.id}
-            </option>
-          ))}
-        </select>
+              {isMuted ? 'Unmute' : 'Mute'}
+            </button>
+            
+            {/* Simple track selector that can be styled to match design */}
+            <select 
+              className={styles.trackSelect}
+              value={activeTrackId || ''}
+              onChange={handleTrackChange}
+              disabled={tracks.length === 0 || isMuted}
+              aria-label={`Select track for ${label}`}
+            >
+              {tracks.map(track => (
+                <option key={track.id} value={track.id}>
+                  {track.name || track.id}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
       
-      <div className={styles.volumeControl}>
-        <label 
-          className={styles.volumeLabel} 
-          htmlFor={`volume-slider-${layer}`}
-        >
-          Volume: {volumePercentage}%
-        </label>
-        <input 
-          id={`volume-slider-${layer}`}
-          className={styles.volumeSlider}
-          type="range" 
-          min="0" 
-          max="1" 
-          step="0.01" 
-          value={volume}
-          onChange={handleVolumeChange}
-          disabled={isMuted}
-          aria-valuemin="0"
-          aria-valuemax="100"
-          aria-valuenow={volumePercentage}
-          aria-label={`${label} volume`}
-        />
-      </div>
+      {/* Volume slider - matches original design */}
+      <input 
+        className={styles.slider}
+        type="range" 
+        min="0" 
+        max="1" 
+        step="0.01" 
+        value={volume}
+        onChange={handleVolumeChange}
+        disabled={isMuted}
+        aria-label={`${label} Volume`}
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow={volumePercentage}
+      />
       
-      <div className={styles.layerInfo}>
-        {isMuted ? (
-          <span className={styles.mutedStatus}>Muted</span>
-        ) : (
+      {/* Volume display */}
+      <div className={styles.valueContainer}>
+        <span className={styles.value}>{volumePercentage}%</span>
+        
+        {/* Display active track name */}
+        {!isMuted && (
           <span className={styles.activeTrack} title={activeTrackName}>
             {activeTrackName}
           </span>
+        )}
+        
+        {/* Show muted status if muted */}
+        {isMuted && (
+          <span className={styles.mutedStatus}>Muted</span>
         )}
       </div>
     </div>

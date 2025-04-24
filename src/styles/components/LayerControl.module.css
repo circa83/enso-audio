@@ -101,3 +101,62 @@
   margin-top: 0;
 }
 
+.trackControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.muteButton {
+  background: transparent;
+  border: 1px solid #666;
+  color: #ccc;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.muteButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.muteButton.muted {
+  background: #663333;
+  border-color: #884444;
+}
+
+.trackSelect {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #666;
+  color: #bbb;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.valueContainer {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.activeTrack {
+  font-size: 0.7rem;
+  color: #999;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 120px;
+}
+
+.mutedStatus {
+  font-size: 0.7rem;
+  color: #aa6666;
+}
