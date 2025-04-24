@@ -182,10 +182,10 @@ class AudioService {
       this._masterGain.gain.setTargetAtTime(safeLevel, now, 0.01);
       
       // Emit volume changed event
-      eventBus.emit(EVENTS.VOLUME_CHANGED, {
+      eventBus.emit(EVENTS.VOLUME_CHANGED || 'volume:changed', {
         type: 'master',
         value: safeLevel,
-        time: now
+        timestamp: Date.now()
       });
       
       return true;
@@ -193,9 +193,10 @@ class AudioService {
       this.log(`Error setting master volume: ${error.message}`, 'error');
       
       // Emit error event
-      eventBus.emit(EVENTS.AUDIO_ERROR, {
+      eventBus.emit(EVENTS.AUDIO_ERROR || 'audio:error', {
         message: `Error setting master volume: ${error.message}`,
-        error
+        error,
+        timestamp: Date.now()
       });
 
       // Fallback to immediate value change
@@ -203,11 +204,12 @@ class AudioService {
         this._masterGain.gain.value = safeLevel;
         
         // Still emit volume changed event on successful fallback
-        eventBus.emit(EVENTS.VOLUME_CHANGED, {
+        eventBus.emit(EVENTS.VOLUME_CHANGED || 'volume:changed', {
           type: 'master',
           value: safeLevel,
           time: this._context.currentTime,
-          fallback: true
+          fallback: true,
+          timestamp: Date.now()
         });
         
         return true;
@@ -215,9 +217,10 @@ class AudioService {
         this.log(`Fallback volume setting failed: ${e.message}`, 'error');
         
         // Emit error event for fallback failure
-        eventBus.emit(EVENTS.AUDIO_ERROR, {
+        eventBus.emit(EVENTS.AUDIO_ERROR || 'audio:error', {
           message: `Fallback volume setting failed: ${e.message}`,
-          error: e
+          error: e,
+          timestamp: Date.now()
         });
         
         return false;
@@ -255,9 +258,10 @@ class AudioService {
         this.log(`Context resumed successfully, new state: ${this._context.state}`);
         
         // Emit play started event
-        eventBus.emit(EVENTS.AUDIO_PLAY_STARTED, {
+        eventBus.emit(EVENTS.AUDIO_PLAY_STARTED || 'audio:playStarted', {
           time: this._context.currentTime,
-          contextState: this._context.state
+          contextState: this._context.state,
+          timestamp: Date.now()
         });
         
         return true;
@@ -265,10 +269,11 @@ class AudioService {
         this.log(`Failed to resume context: ${error.message}`, 'error');
         
         // Emit error event
-        eventBus.emit(EVENTS.AUDIO_ERROR, {
+        eventBus.emit(EVENTS.AUDIO_ERROR || 'audio:error', {
           message: `Failed to resume context: ${error.message}`,
           error,
-          operation: 'resume'
+          operation: 'resume',
+          timestamp: Date.now()
         });
         
         return false;
@@ -298,9 +303,10 @@ class AudioService {
         this.log('Context suspended');
         
         // Emit play stopped event
-        eventBus.emit(EVENTS.AUDIO_PLAY_STOPPED, {
+        eventBus.emit(EVENTS.AUDIO_PLAY_STOPPED || 'audio:playStopped', {
           time: this._context.currentTime,
-          contextState: this._context.state
+          contextState: this._context.state,
+          timestamp: Date.now()
         });
         
         return true;
@@ -308,10 +314,11 @@ class AudioService {
         this.log(`Failed to suspend context: ${error.message}`, 'error');
         
         // Emit error event
-        eventBus.emit(EVENTS.AUDIO_ERROR, {
+        eventBus.emit(EVENTS.AUDIO_ERROR || 'audio:error', {
           message: `Failed to suspend context: ${error.message}`,
           error,
-          operation: 'suspend'
+          operation: 'suspend',
+          timestamp: Date.now()
         });
         
         return false;
@@ -498,7 +505,7 @@ class AudioService {
       this.log('Cleanup complete');
       
       // Emit cleanup event
-      eventBus.emit('audio:cleanup', {
+      eventBus.emit(EVENTS.AUDIO_CLEANUP || 'audio:cleanup', {
         timestamp: Date.now()
       });
     }

@@ -1,7 +1,7 @@
 // src/hooks/useLayer.js
 import { useCallback, useMemo } from 'react';
 import { useLayerContext, LAYER_TYPES } from '../contexts/LayerContext';
-import eventBus from '../services/EventBus';
+import eventBus, { EVENTS } from '../services/EventBus';
 
 /**
  * Hook for managing audio layers and track selection
@@ -47,11 +47,12 @@ export function useLayer() {
       }));
       
       // Emit event
-      eventBus.emit('layer:trackChanged', { 
+      eventBus.emit(EVENTS.LAYER_TRACK_CHANGED || 'layer:trackChanged', { 
         layer: layerName, 
         trackId,
         previousTrackId,
-        immediate: true
+        immediate: true,
+        timestamp: Date.now()
       });
       
       if (onComplete) onComplete(true);
@@ -102,10 +103,11 @@ export function useLayer() {
     }
     
     // Emit preload request
-    eventBus.emit('layer:preloadTrack', {
+    eventBus.emit(EVENTS.LAYER_PRELOAD_TRACK || 'layer:preloadTrack', {
       layer: layerName,
       trackId: trackId,
-      path: track.path
+      path: track.path,
+      timestamp: Date.now()
     });
     
     return true;
@@ -182,6 +184,7 @@ export function useLayer() {
     activeTracks: layerContext.activeTracks,
     layerStates: layerContext.layerStates,
     layerList: layerContext.layerList,
+    loadTracksForCollection: layerContext.loadTracksForCollection,
     
     // Layer accessors
     getTracksForLayer,
@@ -201,6 +204,7 @@ export function useLayer() {
     setLayerTracks,
     registerCollection
   }), [
+    layerContext.loadTracksForCollection, 
     layerContext.availableTracks,
     layerContext.activeTracks,
     layerContext.layerStates,

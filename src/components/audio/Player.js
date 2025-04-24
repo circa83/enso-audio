@@ -12,6 +12,7 @@ import SessionSettings from './SessionSettings';
 import PlayerControlPanel from './PlayerControlPanel';
 import styles from '../../styles/pages/Player.module.css';
 import eventBus from '../../services/EventBus';
+import { useRouter } from 'next/router';
 
 /**
  * Main Player component for Ensō Audio
@@ -38,7 +39,8 @@ const Player = () => {
     currentCollection,
     isLoading: loadingCollection,
     error: collectionError,
-    formatForPlayer
+    formatForPlayer, 
+    getCollection
   } = useCollection();
   
   // 4. Volume control
@@ -58,6 +60,10 @@ const Player = () => {
     toggleMute,             // Toggle mute state for a layer
     registerCollection      // Register a collection with layers
   } = useLayer();
+
+    // 6. Get collection ID from URL query parameter
+    const router = useRouter();
+    const { collection: collectionId } = router.query;
   
   // Local state (same as before)
   const [sessionDuration, setSessionDuration] = useState(1 * 60 * 1000);
@@ -78,18 +84,6 @@ const Player = () => {
   const preventUpdateCycle = useRef(false);
   const settingsInitialized = useRef(false);
 
-  // Debug keyboard shortcut (Ctrl+Shift+D)
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
-        e.preventDefault();
-        setDebugPanelVisible(prev => !prev);
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   // Register collection with layer manager when it changes
   useEffect(() => {
@@ -175,6 +169,16 @@ const Player = () => {
     };
   }, []);
 
+// Use useEffect to load the collection when the ID is available
+useEffect(() => {
+  if (collectionId) {
+    console.log(`[Player] Loading collection from URL parameter: ${collectionId}`);
+    getCollection(collectionId).catch(error => {
+      console.error(`[Player] Error loading collection: ${error.message}`);
+    });
+  }
+}, [collectionId, getCollection]);
+
   // Handle duration change - now uses the timeline hook
   const handleDurationChange = useCallback((newDuration) => {
     if (preventUpdateCycle.current) {
@@ -201,6 +205,9 @@ const Player = () => {
     settingsInitialized.current = true;
   }, [setTimelineTransitionDuration]);
 
+ 
+
+
   // Handle track change from layer control
   const handleTrackChange = useCallback((layer, trackId) => {
     console.log(`[Player] Changing track for ${layer} to ${trackId}`);
@@ -224,22 +231,6 @@ const Player = () => {
     toggleMute(layer);
   }, [toggleMute]);
 
-  // Render Session settings
-  const renderSessionSettings = useCallback(() => {
-    return (
-      <SessionSettings 
-        sessionDuration={sessionDuration}
-        transitionDuration={transitionDuration}
-        onDurationChange={handleDurationChange}
-        onTransitionDurationChange={handleTransitionDurationChange}
-      />
-    );
-  }, [
-    sessionDuration, 
-    transitionDuration, 
-    handleDurationChange, 
-    handleTransitionDurationChange, 
-  ]);
 
   // Render audio layer controls - updated to use our layer management
   const renderLayerControls = useCallback(() => {

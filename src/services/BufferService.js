@@ -51,8 +51,9 @@ class BufferService {
     this.log('BufferService initialized');
     
     // Emit initialization event
-    eventBus.emit('buffer:initialized', {
-      maxCacheSize: this.config.maxCacheSize
+    eventBus.emit(EVENTS.BUFFER_INITIALIZED || 'buffer:initialized', {
+      maxCacheSize: this.config.maxCacheSize,
+      timestamp: Date.now()
     });
   }
 
@@ -80,10 +81,11 @@ class BufferService {
       this.updateMetadata(url, { lastAccessed: Date.now() });
 
       // Emit cache hit event
-      eventBus.emit('buffer:cacheHit', {
+      eventBus.emit(EVENTS.BUFFER_CACHE_HIT || 'buffer:cacheHit', {
         url,
         buffer: cachedBuffer,
-        metadata: this.bufferMetadata.get(url)
+        metadata: this.bufferMetadata.get(url),
+        timestamp: Date.now()
       });
 
       return cachedBuffer;
@@ -99,7 +101,7 @@ class BufferService {
     }
 
     // Emit buffer load start event
-    eventBus.emit('buffer:loadStart', {
+    eventBus.emit(EVENTS.BUFFER_LOAD_START || 'buffer:loadStart', {
       url,
       timestamp: Date.now(),
       force
@@ -118,7 +120,7 @@ class BufferService {
         }
         
         // Emit progress event
-        eventBus.emit('buffer:loadProgress', {
+        eventBus.emit(EVENTS.BUFFER_LOAD_PROGRESS || 'buffer:loadProgress', {
           url,
           progress,
           timestamp: Date.now()
@@ -159,7 +161,7 @@ class BufferService {
       this._enforceCacheLimit();
 
       // Emit loaded event
-      eventBus.emit(EVENTS.BUFFER_LOADED, {
+      eventBus.emit(EVENTS.BUFFER_LOADED || 'buffer:loaded', {
         url,
         buffer,
         metadata: this.bufferMetadata.get(url),
@@ -178,7 +180,7 @@ class BufferService {
       this.stats.loadErrors++;
 
       // Emit error event
-      eventBus.emit(EVENTS.BUFFER_ERROR, {
+      eventBus.emit(EVENTS.BUFFER_ERROR || 'buffer:error', {
         url,
         error: error.message,
         timestamp: Date.now()
@@ -243,7 +245,7 @@ class BufferService {
     this.log(`Released buffer: ${url}`);
     
     // Emit buffer released event
-    eventBus.emit('buffer:released', {
+    eventBus.emit(EVENTS.BUFFER_RELEASED || 'buffer:released', {
       url,
       metadata,
       timestamp: Date.now()
@@ -269,7 +271,7 @@ class BufferService {
     }
 
     // Emit preload start event
-    eventBus.emit('buffer:preloadStart', {
+    eventBus.emit(EVENTS.BUFFER_PRELOAD_START || 'buffer:preloadStart', {
       urls,
       count: urls.length,
       concurrentLoads,
@@ -305,7 +307,7 @@ class BufferService {
       onProgress(overallProgress, detailedProgress);
       
       // Emit preload progress event
-      eventBus.emit('buffer:preloadProgress', {
+      eventBus.emit(EVENTS.BUFFER_PRELOAD_PROGRESS || 'buffer:preloadProgress', {
         progress: overallProgress,
         detailedProgress,
         completed: completedCount,
@@ -370,7 +372,7 @@ class BufferService {
     await Promise.all(loaders);
     
     // Emit preload complete event
-    eventBus.emit('buffer:preloadComplete', {
+    eventBus.emit(EVENTS.BUFFER_PRELOAD_COMPLETE || 'buffer:preloadComplete', {
       urls,
       loadedCount: results.size,
       errorCount: urls.length - results.size,
@@ -393,7 +395,7 @@ class BufferService {
     this.log(`Cleared ${count} buffers from cache`);
     
     // Emit cache cleared event
-    eventBus.emit(EVENTS.BUFFER_CACHE_CLEARED, {
+    eventBus.emit(EVENTS.BUFFER_CACHE_CLEARED || 'buffer:cacheCleared', {
       count,
       timestamp: Date.now()
     });
@@ -488,7 +490,7 @@ class BufferService {
               if (onProgress) onProgress(loadProgress, url);
               
               // Emit progress event for detailed tracking
-              eventBus.emit(EVENTS.BUFFER_LOAD_PROGRESS, {
+              eventBus.emit(EVENTS.BUFFER_LOAD_PROGRESS || 'buffer:loadProgress', {
                 url,
                 phase: 'download',
                 progress: loadProgress,
@@ -507,7 +509,7 @@ class BufferService {
             if (onProgress) onProgress(80, url);
             
             // Emit progress event for fetch completion
-            eventBus.emit(EVENTS.BUFFER_LOAD_PROGRESS, {
+            eventBus.emit(EVENTS.BUFFER_LOAD_PROGRESS || 'buffer:loadProgress', {
               url,
               phase: 'download_complete',
               progress: 80,
@@ -523,7 +525,7 @@ class BufferService {
             if (onProgress) onProgress(90, url);
             
             // Emit progress event for decode start
-            eventBus.emit(EVENTS.BUFFER_LOAD_PROGRESS, {
+            eventBus.emit(EVENTS.BUFFER_LOAD_PROGRESS || 'buffer:loadProgress', {
               url,
               phase: 'decode_start',
               progress: 90,
@@ -540,7 +542,7 @@ class BufferService {
               if (onProgress) onProgress(100, url);
               
               // Emit progress event for decode completion
-              eventBus.emit(EVENTS.BUFFER_LOAD_PROGRESS, {
+              eventBus.emit(EVENTS.BUFFER_LOAD_PROGRESS || 'buffer:loadProgress', {
                 url,
                 phase: 'decode_complete',
                 progress: 100,
@@ -551,7 +553,7 @@ class BufferService {
               return audioBuffer;
             } catch (decodeError) {
               // Emit decode error event
-              eventBus.emit(EVENTS.BUFFER_ERROR, {
+              eventBus.emit(EVENTS.BUFFER_ERROR || 'buffer:error', {
                 url,
                 phase: 'decode',
                 error: decodeError.message,
@@ -565,7 +567,7 @@ class BufferService {
             
             // Emit error event if we haven't already
             if (!error.message.includes('Failed to decode audio data')) {
-              eventBus.emit(EVENTS.BUFFER_ERROR, {
+              eventBus.emit(EVENTS.BUFFER_ERROR || 'buffer:error', {
                 url,
                 error: error.message,
                 timestamp: Date.now()
@@ -757,7 +759,7 @@ class BufferService {
               removedCount++;
               
               // Emit buffer pruned event
-              eventBus.emit('buffer:pruned', {
+              eventBus.emit(EVENTS.BUFFER_PRUNED || 'buffer:pruned', {
                 url,
                 metadata,
                 reason: 'cache_limit',
@@ -769,7 +771,7 @@ class BufferService {
           this.log(`Pruned ${removedCount} buffers (${Math.round(removedSize / 1024 / 1024)}MB) from cache`);
           
           // Emit cache pruned event
-          eventBus.emit('buffer:cachePruned', {
+          eventBus.emit(EVENTS.BUFFER_CACHE_PRUNED || 'buffer:cachePruned', {
             removedCount,
             removedSize,
             newSize: this.bufferCache.size,
@@ -815,7 +817,7 @@ class BufferService {
           this.log('BufferService disposed');
           
           // Emit disposal event
-          eventBus.emit('buffer:disposed', {
+          eventBus.emit(EVENTS.BUFFER_DISPOSED || 'buffer:disposed', {
             timestamp: Date.now()
           });
         }
@@ -844,7 +846,7 @@ class BufferService {
             this.log(`Loading collection track: ${track.title || track.id}`);
             
             // Emit collection load start event
-            eventBus.emit('buffer:collectionTrackLoadStart', {
+            eventBus.emit(EVENTS.BUFFER_COLLECTION_TRACK_LOAD_START || 'buffer:collectionTrackLoadStart', {
               track,
               url: track.audioUrl,
               timestamp: Date.now()
@@ -854,7 +856,7 @@ class BufferService {
             const buffer = await this.loadAudioBuffer(track.audioUrl, options);
             
             // Emit collection track loaded event
-            eventBus.emit('buffer:collectionTrackLoaded', {
+            eventBus.emit(EVENTS.BUFFER_COLLECTION_TRACK_LOADED || 'buffer:collectionTrackLoaded', {
               track,
               buffer,
               url: track.audioUrl,
@@ -864,7 +866,7 @@ class BufferService {
             return buffer;
           } catch (error) {
             // Emit collection track error event
-            eventBus.emit('buffer:collectionTrackError', {
+            eventBus.emit(EVENTS.BUFFER_COLLECTION_TRACK_ERROR || 'buffer:collectionTrackError', {
               track,
               error: error.message,
               url: track.audioUrl,
@@ -892,7 +894,7 @@ class BufferService {
           
           try {
             // Emit layer load start event
-            eventBus.emit('buffer:collectionLayerLoadStart', {
+            eventBus.emit(EVENTS.BUFFER_COLLECTION_LAYER_LOAD_START || 'buffer:collectionLayerLoadStart', {
               tracks,
               count: trackUrls.length,
               timestamp: Date.now()
@@ -912,7 +914,7 @@ class BufferService {
             });
             
             // Emit layer loaded event
-            eventBus.emit('buffer:collectionLayerLoaded', {
+            eventBus.emit(EVENTS.BUFFER_COLLECTION_LAYER_LOADED || 'buffer:collectionLayerLoaded', {
               tracks,
               bufferCount: results.size,
               timestamp: Date.now()
@@ -921,7 +923,7 @@ class BufferService {
             return results;
           } catch (error) {
             // Emit layer error event
-            eventBus.emit('buffer:collectionLayerError', {
+            eventBus.emit(EVENTS.BUFFER_COLLECTION_LAYER_ERROR || 'buffer:collectionLayerError', {
               tracks,
               error: error.message,
               timestamp: Date.now()

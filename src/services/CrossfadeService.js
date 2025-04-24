@@ -6,7 +6,7 @@
  * Enhanced with explicit state management and EventBus integration
  */
 
-import eventBus from './EventBus';
+import eventBus, { EVENTS } from './EventBus';
 
 // Event constants specific to crossfades
 export const CROSSFADE_EVENTS = {
@@ -83,7 +83,7 @@ class CrossfadeService {
     
     // Emit initialization event
     if (this.config.enableEventBus) {
-      eventBus.emit('crossfade:initialized', {
+      eventBus.emit(EVENTS.CROSSFADE_INITIALIZED || 'crossfade:initialized', {
         timestamp: Date.now(),
         config: { ...this.config, onProgress: this.config.onProgress ? 'function' : null }
       });
@@ -132,7 +132,7 @@ class CrossfadeService {
       
       // Emit error event
       if (this.config.enableEventBus) {
-        eventBus.emit(CROSSFADE_EVENTS.ERROR, {
+        eventBus.emit(EVENTS.CROSSFADE_ERROR || 'crossfade:error', {
           layer,
           message: error.message,
           error,
@@ -194,7 +194,7 @@ class CrossfadeService {
         
         // Emit error event
         if (this.config.enableEventBus) {
-          eventBus.emit(CROSSFADE_EVENTS.ERROR, {
+          eventBus.emit(EVENTS.CROSSFADE_ERROR || 'crossfade:error', {
             layer,
             operation: 'connectNodes',
             message: error.message,
@@ -261,7 +261,7 @@ class CrossfadeService {
         
         // Emit error event
         if (this.config.enableEventBus) {
-          eventBus.emit(CROSSFADE_EVENTS.ERROR, {
+          eventBus.emit(EVENTS.CROSSFADE_ERROR || 'crossfade:error', {
             layer,
             operation: 'scheduleGainRamps',
             message: error.message,
@@ -295,7 +295,7 @@ class CrossfadeService {
       
       // Emit started event
       if (this.config.enableEventBus) {
-        eventBus.emit(CROSSFADE_EVENTS.STARTED, {
+        eventBus.emit(EVENTS.CROSSFADE_STARTED || 'crossfade:started', {
           layer,
           from: metadata.fromTrackId || 'unknown',
           to: metadata.toTrackId || 'unknown',
@@ -327,7 +327,7 @@ class CrossfadeService {
           
           // Emit progress event
           if (this.config.enableEventBus) {
-            eventBus.emit(CROSSFADE_EVENTS.PROGRESS, {
+            eventBus.emit(EVENTS.CROSSFADE_PROGRESS || 'crossfade:progress', {
               layer,
               progress,
               from: metadata.fromTrackId || 'unknown',
@@ -373,7 +373,7 @@ class CrossfadeService {
       
       // Emit error event
       if (this.config.enableEventBus) {
-        eventBus.emit(CROSSFADE_EVENTS.ERROR, {
+        eventBus.emit(EVENTS.CROSSFADE_ERROR || 'crossfade:error', {
           layer,
           operation: 'crossfade',
           message: error.message,
@@ -468,7 +468,7 @@ class CrossfadeService {
         
         // Emit error event
         if (this.config.enableEventBus) {
-          eventBus.emit(CROSSFADE_EVENTS.ERROR, {
+          eventBus.emit(EVENTS.CROSSFADE_CANCELLED || 'crossfade:cancelled', {
             layer,
             operation: 'cancelCrossfade',
             message: error.message,
@@ -494,7 +494,7 @@ class CrossfadeService {
       
       // Emit cancelled event
       if (this.config.enableEventBus) {
-        eventBus.emit(CROSSFADE_EVENTS.CANCELLED, {
+        eventBus.emit(EVENTS.CROSSFADE_CANCELLED || 'crossfade:cancelled', {
           layer,
           from: metadata.fromTrackId || 'unknown',
           to: metadata.toTrackId || 'unknown',
@@ -577,7 +577,7 @@ class CrossfadeService {
         
         // Emit completed event
         if (this.config.enableEventBus) {
-          eventBus.emit(CROSSFADE_EVENTS.COMPLETED, {
+          eventBus.emit(CROSSFADE_EVENTS.COMPLETED || 'crossfade:completed', {
             layer,
             from: metadata.fromTrackId || 'unknown',
             to: metadata.toTrackId || 'unknown',
@@ -590,7 +590,7 @@ class CrossfadeService {
         
         // Emit error event
         if (this.config.enableEventBus) {
-          eventBus.emit(CROSSFADE_EVENTS.ERROR, {
+          eventBus.emit(CROSSFADE_EVENTS.ERROR || 'crossfade:error', {
             layer,
             operation: 'completeCrossfade',
             message: error.message,
@@ -626,7 +626,7 @@ class CrossfadeService {
       
       // Emit all-cancelled event
       if (cancelCount > 0 && this.config.enableEventBus) {
-        eventBus.emit(CROSSFADE_EVENTS.ALL_CANCELLED, {
+        eventBus.emit(CROSSFADE_EVENTS.ALL_CANCELLED || 'crossfade:allCancelled', {
           count: cancelCount,
           layers: canceledLayers,
           reconnectOptions: { 
@@ -700,7 +700,7 @@ class CrossfadeService {
         
         // Emit volume adjusted event
         if (this.config.enableEventBus) {
-          eventBus.emit(CROSSFADE_EVENTS.VOLUME_ADJUSTED, {
+          eventBus.emit(CROSSFADE_EVENTS.VOLUME_ADJUSTED || 'crossfade:volumeAdjusted', {
             layer,
             volume,
             progress,
@@ -716,7 +716,7 @@ class CrossfadeService {
         
         // Emit error event
         if (this.config.enableEventBus) {
-          eventBus.emit(CROSSFADE_EVENTS.ERROR, {
+          eventBus.emit(CROSSFADE_EVENTS.VOLUME_ADJUSTED || 'crossfade:volumeAdjusted', {
             layer,
             operation: 'adjustCrossfadeVolume',
             volume,
@@ -930,7 +930,7 @@ class CrossfadeService {
     
     // Emit disposal event
     if (this.config.enableEventBus) {
-      eventBus.emit('crossfade:disposed', {
+      eventBus.emit(EVENTS.CROSSFADE_DISPOSED || 'crossfade:disposed', {
         timestamp: Date.now(),
         stats: { ...this._stats }
       });

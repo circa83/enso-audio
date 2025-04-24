@@ -5,8 +5,7 @@ import { useVolume } from '../../hooks/useVolume';
 import { useLayer } from '../../hooks/useLayer';
 import { useCrossfade } from '../../hooks/useCrossfade';
 import { useTimeline } from '../../hooks/useTimeline';
-import eventBus from '../../services/EventBus';
-import { TIMELINE_EVENTS } from '../../services/TimelineService';
+import eventBus, { EVENTS } from '../../services/EventBus';
 import PhaseMarker from './PhaseMarker';
 import SessionSettings from './SessionSettings';
 import timelinestyles from '../../styles/components/SessionTimeline.module.css';
@@ -83,7 +82,7 @@ const SessionTimeline = React.forwardRef(({
     }
     
     // Emit transition state change event
-    eventBus.emit('timeline:transitionStateChanged', {
+    eventBus.emit(EVENTS.TIMELINE_TRANSITION_STATE_CHANGED || 'timeline:transitionStateChanged', {
       isTransitioning,
       timestamp: Date.now()
     });
@@ -161,7 +160,7 @@ const SessionTimeline = React.forwardRef(({
       queuedPhaseRef.current = phaseId;
       
       // Emit event that we're queuing this phase
-      eventBus.emit('timeline:phaseQueued', {
+      eventBus.emit(EVENTS.TIMELINE_PHASE_QUEUED || 'timeline:phaseQueued', {
         phaseId,
         reason: 'transitionInProgress',
         timestamp: Date.now()
@@ -183,7 +182,7 @@ const SessionTimeline = React.forwardRef(({
     setTransitionState(true);
     
     // Emit phase application started event
-    eventBus.emit('timeline:phaseApplicationStarted', {
+    eventBus.emit(EVENTS.TIMELINE_PHASE_APPLICATION_STARTED || 'timeline:phaseApplicationStarted', {
       phaseId,
       timestamp: Date.now()
     });
@@ -233,7 +232,7 @@ const SessionTimeline = React.forwardRef(({
         setTransitionState(false);
         
         // Emit phase application completed event
-        eventBus.emit('timeline:phaseApplicationCompleted', {
+        eventBus.emit(EVENTS.TIMELINE_PHASE_APPLICATION_COMPLETED || 'timeline:phaseApplicationCompleted', {
           phaseId,
           timestamp: Date.now()
         });
@@ -251,7 +250,7 @@ const SessionTimeline = React.forwardRef(({
           setTransitionState(false);
           
           // Emit phase application completed event
-          eventBus.emit('timeline:phaseApplicationCompleted', {
+          eventBus.emit(EVENTS.TIMELINE_PHASE_APPLICATION_COMPLETED || 'timeline:phaseApplicationCompleted', {
             phaseId,
             timestamp: Date.now()
           });
@@ -262,7 +261,7 @@ const SessionTimeline = React.forwardRef(({
         setTransitionState(false);
         
         // Emit phase application completed event with "no changes"
-        eventBus.emit('timeline:phaseApplicationCompleted', {
+        eventBus.emit(EVENTS.TIMELINE_PHASE_APPLICATION_COMPLETED || 'timeline:phaseApplicationCompleted', {
           phaseId,
           noChanges: true,
           timestamp: Date.now()
@@ -353,10 +352,10 @@ const SessionTimeline = React.forwardRef(({
     eventBus.on('timeline:phaseStateUpdated', handleExternalPhaseStateUpdate);
     eventBus.on('timeline:phaseTransition', handlePhaseTransition);
     eventBus.on('crossfade:complete', handleCrossfadeComplete);
-    eventBus.on(TIMELINE_EVENTS.STARTED, handleTimelineStarted);
-    eventBus.on(TIMELINE_EVENTS.STOPPED, handleTimelineStopped);
-    eventBus.on(TIMELINE_EVENTS.PAUSED, handleTimelinePaused);
-    eventBus.on(TIMELINE_EVENTS.RESUMED, handleTimelineResumed);
+    eventBus.on(EVENTS.TIMELINE_STARTED, handleTimelineStarted);
+    eventBus.on(EVENTS.TIMELINE_STOPPED, handleTimelineStopped);
+    eventBus.on(EVENTS.TIMELINE_PAUSED, handleTimelinePaused);
+    eventBus.on(EVENTS.TIMELINE_RESUMED, handleTimelineResumed);
     
     // Backward compatibility with legacy DOM events
     const handleLegacyPhaseChange = (event) => {
@@ -386,10 +385,10 @@ const SessionTimeline = React.forwardRef(({
       eventBus.off('timeline:phaseStateUpdated', handleExternalPhaseStateUpdate);
       eventBus.off('timeline:phaseTransition', handlePhaseTransition);
       eventBus.off('crossfade:complete', handleCrossfadeComplete);
-      eventBus.off(TIMELINE_EVENTS.STARTED, handleTimelineStarted);
-      eventBus.off(TIMELINE_EVENTS.STOPPED, handleTimelineStopped);
-      eventBus.off(TIMELINE_EVENTS.PAUSED, handleTimelinePaused);
-      eventBus.off(TIMELINE_EVENTS.RESUMED, handleTimelineResumed);
+      eventBus.off(EVENTS.TIMELINE_STARTED, handleTimelineStarted);
+      eventBus.off(EVENTS.TIMELINE_STOPPED, handleTimelineStopped);
+      eventBus.off(EVENTS.TIMELINE_PAUSED, handleTimelinePaused);
+      eventBus.off(EVENTS.TIMELINE_RESUMED, handleTimelineResumed);
       
       if (typeof window !== 'undefined') {
         window.removeEventListener('timeline-phase-changed', handleLegacyPhaseChange);
@@ -638,7 +637,7 @@ const SessionTimeline = React.forwardRef(({
     }
     
     // Emit event that phase state was saved
-    eventBus.emit('timeline:phaseStateSaved', {
+    eventBus.emit(EVENTS.TIMELINE_PHASE_STATE_SAVED || 'timeline:phaseStateSaved', {
       phaseId,
       state: {
         volumes: volumeState,
@@ -711,7 +710,7 @@ const SessionTimeline = React.forwardRef(({
     }
     
     // Emit event that phase position was changed
-    eventBus.emit('timeline:phasePositionChanged', {
+    eventBus.emit(EVENTS.TIMELINE_PHASE_POSITION_CHANGED || 'timeline:phasePositionChanged', {
       phaseId,
       newPosition,
       timestamp: Date.now()
@@ -753,7 +752,7 @@ const SessionTimeline = React.forwardRef(({
       }
       
       // Emit event for analytics
-      eventBus.emit('timeline:manualSeek', {
+      eventBus.emit(EVENTS.TIMELINE_MANUAL_SEEK || 'timeline:manualSeek', {
         percent: seekPercent,
         type: 'click',
         timestamp: Date.now()
@@ -886,8 +885,8 @@ const SessionTimeline = React.forwardRef(({
           </div>
           
           {/* Add SessionSettings here when in edit mode */}
-          {selectedPhase && (
-            <SessionSettings
+          {selectedPhase ? (
+              <SessionSettings
               phaseId={selectedPhase}
               phaseName={phases.find(p => p.id === selectedPhase)?.name || ''}
               sessionDuration={timeline.duration}
@@ -896,6 +895,15 @@ const SessionTimeline = React.forwardRef(({
               onTransitionDurationChange={onTransitionDurationChange}
               onSave={() => handleSavePhaseState(selectedPhase)}
               onClose={() => setSelectedPhase(null)}
+              className={settingsStyles.timelineSettings}
+            />
+          ) : (
+            /* Show global session settings when no phase is selected */
+            <SessionSettings
+              sessionDuration={timeline.duration}
+              transitionDuration={transitionDuration}
+              onDurationChange={onDurationChange}
+              onTransitionDurationChange={onTransitionDurationChange}
               className={settingsStyles.timelineSettings}
             />
           )}

@@ -5,7 +5,7 @@
  * Handles session timing, phase transitions, event scheduling,
  * and coordinates audio changes based on timeline position
  */
-import eventBus from './EventBus';
+import eventBus, { EVENTS } from './EventBus';
 
 // Define event constants
 export const TIMELINE_EVENTS = {
@@ -121,7 +121,7 @@ class TimelineService {
 
     // Emit initialization event
     if (this.config.enableEventBus) {
-      eventBus.emit(TIMELINE_EVENTS.INITIALIZED, {
+      eventBus.emit(EVENTS.TIMELINE_INITIALIZED || 'timeline:initialized', {
         timestamp: Date.now(),
         sessionDuration: this.config.sessionDuration,
         transitionDuration: this.config.transitionDuration,
@@ -217,7 +217,7 @@ class TimelineService {
 
       // Emit started event via EventBus
       if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.STARTED, {
+        eventBus.emit(EVENTS.TIMELINE_STARTED || 'timeline:started', {
           reset,
           elapsedTime: this.elapsedTime,
           timestamp: Date.now()
@@ -240,7 +240,7 @@ class TimelineService {
 
       // Emit error event via EventBus
       if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.ERROR, {
+        eventBus.emit(EVENTS.TIMELINE_ERROR || 'timeline:error', {
           operation: 'start',
           message: error.message,
           timestamp: Date.now()
@@ -285,7 +285,7 @@ class TimelineService {
 
       // Emit stopped event via EventBus
       if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.STOPPED, {
+        eventBus.emit(EVENTS.TIMELINE_STOPPED || 'timeline:stopped', {
           elapsedTime: this.elapsedTime,
           timestamp: Date.now()
         });
@@ -307,7 +307,7 @@ class TimelineService {
 
       // Emit error event via EventBus
       if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.ERROR, {
+        eventBus.emit(EVENTS.TIMELINE_ERROR || 'timeline:error', {
           operation: 'stop',
           message: error.message,
           timestamp: Date.now()
@@ -353,7 +353,7 @@ class TimelineService {
 
       // Emit paused event via EventBus
       if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.PAUSED, {
+        eventBus.emit(EVENTS.TIMELINE_PAUSED || 'timeline:paused', {
           elapsedTime: this.elapsedTime,
           progress: this.progress,
           timestamp: Date.now()
@@ -376,7 +376,7 @@ class TimelineService {
 
       // Emit error event via EventBus
       if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.ERROR, {
+        eventBus.emit(EVENTS.TIMELINE_ERROR || 'timeline:error', {
           operation: 'pause',
           message: error.message,
           timestamp: Date.now()
@@ -424,7 +424,7 @@ class TimelineService {
 
       // Emit resumed event via EventBus
       if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.RESUMED, {
+        eventBus.emit(EVENTS.TIMELINE_RESUMED || 'timeline:resumed', {
           elapsedTime: this.elapsedTime,
           progress: this.progress,
           timestamp: Date.now()
@@ -447,7 +447,7 @@ class TimelineService {
 
       // Emit error event via EventBus
       if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.ERROR, {
+        eventBus.emit(EVENTS.TIMELINE_ERROR || 'timeline:error', {
           operation: 'resume',
           message: error.message,
           timestamp: Date.now()
@@ -493,7 +493,7 @@ class TimelineService {
 
       // Emit reset event via EventBus
       if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.RESET, {
+        eventBus.emit(EVENTS.TIMELINE_RESET || 'timeline:reset', {
           timestamp: Date.now()
         });
       }
@@ -514,7 +514,7 @@ class TimelineService {
 
       // Emit error event via EventBus
       if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.ERROR, {
+        eventBus.emit(EVENTS.TIMELINE_ERROR || 'timeline:error', {
           operation: 'reset',
           message: error.message,
           timestamp: Date.now()
@@ -553,7 +553,7 @@ class TimelineService {
 
       // Emit progress event (throttled)
       if (this.config.enableEventBus && this.stats.timeUpdates % 3 === 0) { // Further throttle events
-        eventBus.emit(TIMELINE_EVENTS.PROGRESS, {
+        eventBus.emit(EVENTS.TIMELINE_PROGRESS || 'timeline:progress', {
           progress: this.progress,
           elapsedTime: this.elapsedTime,
           timestamp: now
@@ -591,7 +591,7 @@ class TimelineService {
 
     // Emit completed event via EventBus
     if (this.config.enableEventBus) {
-      eventBus.emit(TIMELINE_EVENTS.COMPLETED, {
+      eventBus.emit(EVENTS.TIMELINE_COMPLETED || 'timeline:completed', {
         elapsedTime: this.elapsedTime,
         timestamp: Date.now()
       });
@@ -655,7 +655,7 @@ class TimelineService {
       // Emit phase transition event via EventBus
       if (this.config.enableEventBus) {
         // Emit new event type with full details for SessionTimeline
-        eventBus.emit(TIMELINE_EVENTS.PHASE_TRANSITION, {
+        eventBus.emit(EVENTS.TIMELINE_PHASE_TRANSITION || 'timeline:phaseTransition', {
           phaseId: newPhaseId,
           phaseData,
           previousPhaseId,
@@ -666,7 +666,7 @@ class TimelineService {
         });
 
         // Also emit legacy event type for backward compatibility
-        eventBus.emit(TIMELINE_EVENTS.PHASE_CHANGED, {
+        eventBus.emit(EVENTS.TIMELINE_PHASE_CHANGED || 'timeline:phaseChanged', {
           phaseId: newPhaseId,
           phaseData,
           previousPhaseId,
@@ -720,7 +720,7 @@ class TimelineService {
 
         // Emit event triggered via EventBus
         if (this.config.enableEventBus) {
-          eventBus.emit(TIMELINE_EVENTS.EVENT_TRIGGERED, {
+          eventBus.emit(EVENTS.TIMELINE_EVENT_TRIGGERED || 'timeline:eventTriggered', {
             event,
             elapsedTime: this.elapsedTime,
             timestamp: Date.now()
@@ -769,7 +769,7 @@ class TimelineService {
 
     // Emit event registered via EventBus
     if (this.config.enableEventBus) {
-      eventBus.emit(TIMELINE_EVENTS.EVENT_REGISTERED, {
+      eventBus.emit(EVENTS.TIMELINE_EVENT_REGISTERED || 'timeline:eventRegistered', {
         event,
         timestamp: Date.now()
       });
@@ -791,7 +791,7 @@ class TimelineService {
 
     // Emit events cleared via EventBus
     if (this.config.enableEventBus) {
-      eventBus.emit(TIMELINE_EVENTS.EVENTS_CLEARED, {
+    eventBus.emit(EVENTS.TIMELINE_EVENTS_CLEARED || 'timeline:eventsCleared', {
         count,
         timestamp: Date.now()
       });
@@ -828,7 +828,7 @@ class TimelineService {
 
     // Emit phases updated via EventBus
     if (this.config.enableEventBus) {
-      eventBus.emit(TIMELINE_EVENTS.PHASES_UPDATED, {
+      eventBus.emit(EVENTS.TIMELINE_PHASES_UPDATED || 'timeline:phasesUpdated', {
         phases: this.phases,
         count: this.phases.length,
         timestamp: Date.now()
@@ -860,7 +860,7 @@ class TimelineService {
 
     // Emit duration changed via EventBus
     if (this.config.enableEventBus) {
-      eventBus.emit(TIMELINE_EVENTS.DURATION_CHANGED, {
+      eventBus.emit(EVENTS.TIMELINE_DURATION_CHANGED || 'timeline:durationChanged', {
         duration,
         timestamp: Date.now()
       });
@@ -886,7 +886,7 @@ class TimelineService {
 
     // Emit transition duration changed via EventBus
     if (this.config.enableEventBus) {
-      eventBus.emit(TIMELINE_EVENTS.TRANSITION_CHANGED, {
+      eventBus.emit(EVENTS.TIMELINE_TRANSITION_CHANGED || 'timeline:transitionChanged', {
         duration,
         timestamp: Date.now()
       });
@@ -946,7 +946,7 @@ class TimelineService {
   
       // Emit seek event via EventBus
       if (this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.SEEK, {
+        eventBus.emit(EVENTS.TIMELINE_SEEK || 'timeline:seek', {
           time: clampedTime,
           progress: this.progress,
           type: 'absolute',
@@ -978,7 +978,7 @@ class TimelineService {
   
       // Emit percent-specific seek event via EventBus
       if (result && this.config.enableEventBus) {
-        eventBus.emit(TIMELINE_EVENTS.SEEK, {
+        eventBus.emit(EVENTS.TIMELINE_SEEK || 'timeline:seek', {
           percent,
           time: timeMs,
           progress: this.progress,

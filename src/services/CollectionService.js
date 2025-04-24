@@ -4,6 +4,8 @@
  * Service for managing audio collections in Ensō Audio
  * Handles fetching, filtering, and processing collection data
  */
+import eventBus, { EVENTS } from './EventBus';
+
 
 class CollectionService {
   /**
@@ -28,6 +30,16 @@ class CollectionService {
     this.pendingRequests = new Map();
 
     this.log('CollectionService initialized');
+    
+    // Emit initialization event
+    eventBus.emit(EVENTS.COLLECTION_INITIALIZED || 'collection:initialized', {
+      config: {
+        apiBasePath: this.config.apiBasePath,
+        cacheDuration: this.config.cacheDuration,
+        enableLogging: this.config.enableLogging
+      },
+      timestamp: Date.now()
+    });
   }
 
   /**
@@ -38,10 +50,20 @@ class CollectionService {
   async _getBlobCollectionFolders() {
     try {
       this.log('Fetching blob collections');
+      eventBus.emit(EVENTS.COLLECTION_BLOB_FETCH_START || 'collection:blobFetchStart', {
+        timestamp: Date.now()
+      });
+      
       const response = await fetch('/api/blob/list?prefix=collections/');
 
       if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
+        const error = `HTTP error ${response.status}`;
+        eventBus.emit(EVENTS.COLLECTION_BLOB_FETCH_ERROR || 'collection:blobFetchError', {
+          error,
+          status: response.status,
+          timestamp: Date.now()
+        });
+        throw new Error(error);
       }
 
       const blobs = await response.json();
@@ -108,9 +130,17 @@ class CollectionService {
         }
       });
 
+      // Emit success event
+      eventBus.emit(EVENTS.COLLECTION_BLOB_FETCH_SUCCESS || 'collection:blobFetchSuccess', {
+        folderCount: folders.size,
+        folders: Array.from(folders),
+        timestamp: Date.now()
+      });
+
       return Array.from(folders);
     } catch (error) {
       this.log(`Error fetching blob collections: ${error.message}`, 'error');
+      // Error event already emitted in the initial error case
       return [];
     }
   }
@@ -125,6 +155,12 @@ class CollectionService {
     if (!collection || !collection.tracks) return false;
 
     try {
+      eventBus.emit(EVENTS.COLLECTION_VERIFY_START || 'collection:verifyStart', {
+        collectionId: collection.id,
+        trackCount: collection.tracks.length,
+        timestamp: Date.now()
+      });
+      
       // Check each track's audio URL
       for (const track of collection.tracks) {
         if (!track.audioUrl) return false;
@@ -144,9 +180,21 @@ class CollectionService {
         }
       }
 
+      eventBus.emit(EVENTS.COLLECTION_VERIFY_SUCCESS || 'collection:verifySuccess', {
+        collectionId: collection.id,
+        timestamp: Date.now()
+      });
+      
       return true;
     } catch (error) {
       this.log(`Error verifying files: ${error.message}`, 'error');
+      
+      eventBus.emit(EVENTS.COLLECTION_VERIFY_ERROR || 'collection:verifyError', {
+        collectionId: collection.id,
+        error: error.message,
+        timestamp: Date.now()
+      });
+      
       return false;
     }
   }
@@ -189,6 +237,13 @@ class CollectionService {
       page = 1
     } = options;
 
+    // Emit fetch start event
+    eventBus.emit(EVENTS.COLLECTIONS_LOADED || 'collections:loadStart', {
+      options,
+      useCache,
+      timestamp: Date.now()
+    });
+
     try {
       // First, get the list of collections from Vercel Blob Storage
       const blobFolders = await this._getBlobCollectionFolders();
@@ -196,6 +251,16 @@ class CollectionService {
 
       if (blobFolders.length === 0) {
         this.log('No collections found in Blob Storage');
+        
+        // Emit empty result event
+        eventBus.emit(EVENTS.COLLECTIONS_LOADED || 'collections:loaded', {
+          count: 0,
+          useCache,
+          fromCache: false,
+          filters: { tag, artist },
+          timestamp: Date.now()
+        });
+        
         return {
           success: true,
           data: [],
@@ -233,6 +298,15 @@ class CollectionService {
           }
         };
 
+        // Emit cache hit event
+        eventBus.emit(EVENTS.COLLECTIONS_LOADED || 'collections:loaded', {
+          count: filteredData.length,
+          useCache,
+          fromCache: true,
+          filters: { tag, artist },
+          timestamp: Date.now()
+        });
+
         return filteredResult;
       }
 
@@ -245,11 +319,28 @@ class CollectionService {
       // Then, fetch the corresponding collections from MongoDB
       const endpoint = `${this.config.apiBasePath}/collections${this._buildQueryString(options)}`;
       this.log(`Fetching from API: ${endpoint}`);
+      
+      // Emit API fetch start event
+      eventBus.emit(EVENTS.COLLECTION_API_FETCH_START || 'collection:apiFetchStart', {
+        endpoint,
+        options,
+        timestamp: Date.now()
+      });
 
       const response = await fetch(endpoint);
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        const errorMsg = `API error: ${response.status}`;
+        // Emit API error event
+        eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+          status: response.status,
+          endpoint,
+          options,
+          error: errorMsg,
+          timestamp: Date.now()
+        });
+        
+        throw new Error(errorMsg);
       }
 
       const apiData = await response.json();
@@ -278,11 +369,36 @@ class CollectionService {
         this.collectionsCache = result;
         this.lastCacheTime = Date.now();
         this.log(`Updated cache with ${filteredCollections.length} collections`);
+        
+        // Emit cache update event
+        eventBus.emit(EVENTS.COLLECTION_CACHE_UPDATED || 'collection:cacheUpdated', {
+          count: filteredCollections.length,
+          timestamp: Date.now()
+        });
       }
+
+      // Emit collections loaded event
+      eventBus.emit(EVENTS.COLLECTIONS_LOADED || 'collections:loaded', {
+        count: filteredCollections.length,
+        useCache,
+        fromCache: false,
+        filters: { tag, artist },
+        timestamp: Date.now()
+      });
 
       return result;
     } catch (error) {
       this.log(`Error getting collections: ${error.message}`, 'error');
+      
+      // Only emit error if not already emitted above
+      if (!error.message.includes('API error:')) {
+        eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+          error: error.message,
+          options,
+          timestamp: Date.now()
+        });
+      }
+      
       return {
         success: false,
         error: error.message
@@ -298,9 +414,21 @@ class CollectionService {
    */
   async getCollection(id, useCache = true) {
     if (!id) {
-      throw new Error('Collection ID is required');
+      const error = 'Collection ID is required';
+      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+        id,
+        error,
+        timestamp: Date.now()
+      });
+      throw new Error(error);
     }
 
+    // Emit collection fetch start event
+    eventBus.emit(EVENTS.COLLECTION_SELECTED || 'collection:fetchStart', {
+      id,
+      useCache,
+      timestamp: Date.now()
+    });
     // Check if collection exists in cache
     if (useCache &&
       this.collectionsCache &&
@@ -308,6 +436,14 @@ class CollectionService {
       const cachedCollection = this.collectionsCache.data.find(c => c.id === id);
       if (cachedCollection) {
         this.log(`Using cached data for collection: ${id}`);
+        
+        // Emit cache hit event
+        eventBus.emit(EVENTS.COLLECTION_CACHE_HIT || 'collection:cacheHit', {
+          id,
+          name: cachedCollection.name,
+          timestamp: Date.now()
+        });
+        
         return { success: true, data: cachedCollection };
       }
     }
@@ -323,6 +459,14 @@ class CollectionService {
     const blobFolders = await this._getBlobCollectionFolders();
     if (!blobFolders.includes(id)) {
       this.log(`Collection ${id} not found in Blob Storage`, 'warn');
+      
+      // Emit not found event
+      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:notFound', {
+        id,
+        error: `Collection with ID '${id}' not found in storage`,
+        timestamp: Date.now()
+      });
+      
       return {
         success: false,
         error: `Collection with ID '${id}' not found in storage`
@@ -331,6 +475,13 @@ class CollectionService {
 
     const endpoint = `${this.config.apiBasePath}/collections/${id}?bypassVerify=true`;
     this.log(`Fetching collection from: ${endpoint}`);
+    
+    // Emit API fetch start
+    eventBus.emit(EVENTS.COLLECTION_API_FETCH_START || 'collection:apiFetchStart', {
+      id,
+      endpoint,
+      timestamp: Date.now()
+    });
 
     // Create request promise
     const requestPromise = (async () => {
@@ -338,6 +489,18 @@ class CollectionService {
         const response = await fetch(endpoint);
 
         if (!response.ok) {
+          const error = response.status === 404 
+            ? `Collection with ID '${id}' not found`
+            : `Failed to fetch collection: ${response.status} ${response.statusText}`;
+            
+          // Emit error event
+          eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+            id,
+            status: response.status,
+            error,
+            timestamp: Date.now()
+          });
+          
           if (response.status === 404) {
             return { success: false, error: `Collection with ID '${id}' not found` };
           }
@@ -349,7 +512,13 @@ class CollectionService {
         const data = await response.json();
 
         if (!data.success || !data.data) {
-          throw new Error('Invalid response format from collection API');
+          const error = 'Invalid response format from collection API';
+          eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+            id,
+            error,
+            timestamp: Date.now()
+          });
+          throw new Error(error);
         }
 
         // Verify collection has valid files in blob storage
@@ -359,11 +528,37 @@ class CollectionService {
         if (!filesExist) {
           this.log(`Some audio files for collection ${id} are not accessible`, 'warn');
           data.warning = "Some audio files may not be accessible";
+          
+          // Emit warning event
+          eventBus.emit(EVENTS.COLLECTION_FILE_WARNING || 'collection:fileWarning', {
+            id,
+            warning: "Some audio files may not be accessible",
+            timestamp: Date.now()
+          });
         }
 
+        // Emit success event
+        eventBus.emit(EVENTS.COLLECTION_SELECTED || 'collection:loaded', {
+          id,
+          name: data.data.name,
+          trackCount: data.data.tracks?.length || 0,
+          timestamp: Date.now()
+        });
+        
         return data;
       } catch (error) {
         this.log(`Error fetching collection: ${error.message}`, 'error');
+        
+        // Emit error event if not already emitted
+        if (!error.message.includes('Failed to fetch collection:') && 
+            !error.message.includes('Invalid response format')) {
+          eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+            id,
+            error: error.message,
+            timestamp: Date.now()
+          });
+        }
+        
         throw error;
       } finally {
         // Remove from pending requests
@@ -384,11 +579,23 @@ class CollectionService {
    */
   formatCollectionForPlayer(collection) {
     if (!collection) {
-      throw new Error('Collection data is required');
+      const error = 'Collection data is required';
+      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:formatError', {
+        error,
+        timestamp: Date.now()
+      });
+      throw new Error(error);
     }
 
     try {
       this.log(`Formatting collection: ${collection.id}`);
+      
+      // Emit format start event
+      eventBus.emit(EVENTS.COLLECTION_FORMAT_START || 'collection:formatStart', {
+        id: collection.id,
+        name: collection.name,
+        timestamp: Date.now()
+      });
 
       // Define player layers
       const playerLayers = {
@@ -408,8 +615,17 @@ class CollectionService {
 
       // Ensure collection has tracks array
       if (!collection.tracks || !Array.isArray(collection.tracks) || collection.tracks.length === 0) {
+        const error = `Collection "${collection.name || collection.id}" has no audio tracks`;
         this.log(`Collection ${collection.id} has no tracks`, 'error');
-        throw new Error(`Collection "${collection.name || collection.id}" has no audio tracks`);
+        
+        // Emit format error event
+        eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:formatError', {
+          id: collection.id,
+          error,
+          timestamp: Date.now()
+        });
+        
+        throw new Error(error);
       }
 
       let formattedTrackCount = 0;
@@ -494,8 +710,17 @@ class CollectionService {
 
       // Ensure we have at least one track formatted
       if (formattedTrackCount === 0) {
+        const error = 'No valid audio tracks found in this collection';
         this.log('No valid tracks found in collection', 'error');
-        throw new Error('No valid audio tracks found in this collection');
+        
+        // Emit format error event
+        eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:formatError', {
+          id: collection.id,
+          error,
+          timestamp: Date.now()
+        });
+        
+        throw new Error(error);
       }
 
       // Format the collection for the player
@@ -515,10 +740,30 @@ class CollectionService {
       this.log(`Formatted ${formattedTrackCount} tracks across ${Object.keys(playerLayers).length} layers`);
       this.log(`Cover image URL: ${formattedCollection.coverImage}`);
 
+      // Emit success event
+      eventBus.emit(EVENTS.COLLECTION_FORMATTED || 'collection:formatted', {
+        id: collection.id,
+        name: collection.name,
+        trackCount: formattedTrackCount,
+        layerCount: Object.keys(playerLayers).filter(layer => playerLayers[layer].length > 0).length,
+        timestamp: Date.now()
+      });
+
       // Return the formatted collection
       return formattedCollection;
     } catch (error) {
       this.log(`Error formatting collection: ${error.message}`, 'error');
+      
+      // Emit error event if not already emitted
+      if (!error.message.includes('has no audio tracks') && 
+          !error.message.includes('No valid audio tracks')) {
+        eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:formatError', {
+          id: collection?.id,
+          error: error.message,
+          timestamp: Date.now()
+        });
+      }
+      
       throw new Error(`Failed to format collection: ${error.message}`);
     }
   }
@@ -552,6 +797,11 @@ class CollectionService {
     this.collectionsCache = null;
     this.lastCacheTime = 0;
     this.log('Collection cache cleared');
+    
+    // Emit cache cleared event
+    eventBus.emit(EVENTS.COLLECTION_CACHE_CLEARED || 'collection:cacheCleared', {
+      timestamp: Date.now()
+    });
   }
 
   /**
@@ -586,6 +836,11 @@ class CollectionService {
     this.resetCache();
     this.pendingRequests.clear();
     this.log('CollectionService disposed');
+    
+    // Emit disposal event
+    eventBus.emit(EVENTS.COLLECTION_DISPOSED || 'collection:disposed', {
+      timestamp: Date.now()
+    });
   }
 
   /**
@@ -597,4 +852,3 @@ class CollectionService {
 }
 
 export default CollectionService;
-

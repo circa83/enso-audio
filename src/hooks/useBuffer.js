@@ -131,7 +131,7 @@ export function useBuffer() {
       console.log(`[useBuffer] Created source for buffer: ${url}`);
       
       // Emit event for tracking
-      eventBus.emit('buffer:sourceCreated', {
+      eventBus.emit(EVENTS.BUFFER_SOURCE_CREATED || 'buffer:sourceCreated', {
         url,
         timestamp: Date.now()
       });
@@ -141,7 +141,7 @@ export function useBuffer() {
       console.error(`[useBuffer] Error creating source for ${url}:`, error);
       
       // Emit error event
-      eventBus.emit(EVENTS.AUDIO_ERROR, {
+      eventBus.emit(EVENTS.AUDIO_ERROR || 'audio:error', {
         type: 'buffer',
         operation: 'createSource',
         url,
@@ -171,7 +171,7 @@ export function useBuffer() {
       console.log(`[useBuffer] Connected source for ${url} to destination`);
       
       // Emit event for tracking
-      eventBus.emit('buffer:sourceConnected', {
+      eventBus.emit(EVENTS.BUFFER_SOURCE_CONNECTED || 'buffer:sourceConnected', {
         url,
         timestamp: Date.now()
       });
@@ -181,7 +181,7 @@ export function useBuffer() {
       console.error(`[useBuffer] Error connecting source for ${url}:`, error);
       
       // Emit error event
-      eventBus.emit(EVENTS.AUDIO_ERROR, {
+      eventBus.emit(EVENTS.AUDIO_ERROR || 'audio:error', {
         type: 'buffer',
         operation: 'connectSource',
         url,
@@ -204,7 +204,7 @@ export function useBuffer() {
       console.log(`[useBuffer] Loading and playing buffer: ${url}`);
       
       // Emit start event
-      eventBus.emit('buffer:playbackAttempt', {
+      eventBus.emit(EVENTS.BUFFER_PLAYBACK_ATTEMPT || 'buffer:playbackAttempt', {
         url,
         options,
         timestamp: Date.now()
@@ -216,7 +216,7 @@ export function useBuffer() {
         console.error(`[useBuffer] Failed to load buffer: ${url}`);
         
         // Emit failure event
-        eventBus.emit('buffer:playbackFailed', {
+        eventBus.emit(EVENTS.BUFFER_PLAYBACK_FAILED || 'buffer:playbackFailed', {
           url,
           reason: 'Failed to load buffer',
           timestamp: Date.now()
@@ -249,7 +249,7 @@ export function useBuffer() {
       console.log(`[useBuffer] Started playback of ${url} at time ${startTime}`);
       
       // Emit success event
-      eventBus.emit('buffer:playbackStarted', {
+      eventBus.emit(EVENTS.BUFFER_PLAYBACK_STARTED || 'buffer:playbackStarted', {
         url,
         startTime,
         offset,
@@ -263,7 +263,7 @@ export function useBuffer() {
           options.onEnded();
           
           // Emit ended event
-          eventBus.emit('buffer:playbackEnded', {
+          eventBus.emit(EVENTS.BUFFER_PLAYBACK_ENDED || 'buffer:playbackEnded', {
             url,
             timestamp: Date.now()
           });
@@ -271,7 +271,7 @@ export function useBuffer() {
       } else {
         source.onended = () => {
           // Emit ended event even without custom handler
-          eventBus.emit('buffer:playbackEnded', {
+          eventBus.emit(EVENTS.BUFFER_PLAYBACK_ENDED || 'buffer:playbackEnded', {
             url,
             timestamp: Date.now()
           });
@@ -287,12 +287,13 @@ export function useBuffer() {
       console.error(`[useBuffer] Error in loadAndPlay for ${url}:`, error);
       
       // Emit error event
-      eventBus.emit(EVENTS.AUDIO_ERROR, {
+      eventBus.emit(EVENTS.AUDIO_ERROR || 'audio:error', {
         type: 'buffer',
         operation: 'loadAndPlay',
         url,
         message: error.message,
-        error
+        error,
+        timestamp: Date.now()
       });
       
       return {
@@ -341,7 +342,7 @@ export function useBuffer() {
     console.log(`[useBuffer] Preloading ${urls.length} buffers`);
     
     // Emit preload start event
-    eventBus.emit('buffer:preloadStart', {
+    eventBus.emit(EVENTS.BUFFER_PRELOAD_START || 'buffer:preloadStart', {
       urls,
       count: urls.length,
       timestamp: Date.now()

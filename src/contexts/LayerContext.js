@@ -1,9 +1,10 @@
 // src/contexts/LayerContext.js
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef,  useMemo } from 'react';
 import { useAudioContext } from './AudioContext';
 import { useVolumeContext } from './VolumeContext';
 import { useCrossfadeContext } from './CrossfadeContext';
-import eventBus from '../services/EventBus';
+import { useBufferContext } from './BufferContext';
+import eventBus , {EVENTS} from '../services/EventBus';
 
 // Layer type constants (source of truth)
 export const LAYER_TYPES = {
@@ -21,6 +22,7 @@ export const LayerProvider = ({ children }) => {
   const audio = useAudioContext();
   const volume = useVolumeContext();
   const crossfade = useCrossfadeContext();
+  const buffer = useBufferContext();
   
   // State
   const [availableTracks, setAvailableTracks] = useState({
@@ -44,6 +46,27 @@ export const LayerProvider = ({ children }) => {
     [LAYER_TYPES.LAYER4]: { muted: false, solo: false }
   });
   
+  
+  // Initial render flag
+  const isInitialRender = useRef(true);
+
+  // Initial render effect
+  useEffect(() => {
+    // Skip the initial render
+
+  if (isInitialRender.current) {
+    isInitialRender.current = false;
+    return;
+  }
+  
+  // Emit event when activeTracks changes
+  eventBus.emit(EVENTS.LAYER_ACTIVE_TRACKS_CHANGED || 'layer:activeTracksChanged', {
+    activeTracks: { ...activeTracks },
+    timestamp: Date.now()
+  });
+}, [activeTracks]);
+
+
   // Set tracks available for each layer
   const setLayerTracks = useCallback((layerName, tracks) => {
     setAvailableTracks(prev => ({
@@ -64,8 +87,115 @@ export const LayerProvider = ({ children }) => {
     
     // Log for debugging
     console.log(`[LayerContext] Set ${tracks.length} tracks for ${layerName}`);
+   
+    // event emission
+  eventBus.emit(EVENTS.LAYER_TRACKS_SET || 'layer:tracksSet', {
+    layer: layerName,
+    trackCount: tracks.length,
+    tracks: tracks.map(t => ({ id: t.id, name: t.name })),
+    timestamp: Date.now()
+  });
   }, []);
   
+  // Load tracks for a collection with progress tracking and buffer preloading
+  const loadTracksForCollection = useCallback(async (collection) => {
+    if (!collection || !collection.layers) {
+      console.error('[LayerContext] Cannot load tracks: Invalid collection format');
+      return false;
+    }
+    
+    console.log(`[LayerContext] Loading tracks for collection: ${collection.id}`);
+    
+    try {
+      // Track loading progress
+      let loadedCount = 0;
+      let totalTracks = 0;
+      
+      // Count total tracks first
+      Object.values(collection.layers).forEach(layerTracks => {
+        totalTracks += layerTracks.length;
+      });
+      
+      if (totalTracks === 0) {
+        console.error('[LayerContext] No tracks found in collection');
+        return false;
+      }
+      
+      console.log(`[LayerContext] Preparing to load ${totalTracks} tracks`);
+      
+      // Process each layer
+      for (const [layerName, tracks] of Object.entries(collection.layers)) {
+        // Skip empty layers
+        if (!tracks || tracks.length === 0) continue;
+        
+        console.log(`[LayerContext] Loading ${tracks.length} tracks for ${layerName}`);
+        
+        // First register tracks with layer manager
+        setLayerTracks(layerName, tracks);
+        
+        // Pre-load buffers for this layer if buffer service is available
+        if (buffer) {
+          try {
+            await buffer.preloadBuffers(
+              tracks.map(track => track.path),
+              {
+                onProgress: (progress) => {
+                  // Emit progress event for UI feedback
+                  eventBus.emit(EVENTS.LAYER_LOAD_PROGRESS ||'layer:loadProgress', {
+                    layer: layerName,
+                    progress,
+                    loaded: loadedCount,
+                    total: totalTracks,
+                    timestamp: Date.now()
+                  });
+                }
+              }
+            );
+          } catch (error) {
+            console.warn(`[LayerContext] Error preloading buffers for ${layerName}: ${error.message}`);
+            // Continue with other layers even if preloading fails for one
+          }
+        }
+        
+        // Update loaded count
+        loadedCount += tracks.length;
+        
+        // If this is the first track loaded, initialize audio elements
+        if (tracks.length > 0 && !activeTracks[layerName]) {
+          const firstTrack = tracks[0];
+          // Initialize audio element but don't play yet
+          audio.getOrCreateAudioElement(layerName, firstTrack.id, {
+            path: firstTrack.path,
+            name: firstTrack.name,
+            loop: true,
+            isActive: true,
+            preload: true
+          });
+          
+          // Set as active track
+          setActiveTracks(prev => ({
+            ...prev,
+            [layerName]: firstTrack.id
+          }));
+        }
+      }
+      
+      console.log(`[LayerContext] Successfully loaded ${loadedCount}/${totalTracks} tracks`);
+      
+      // Emit completed event
+      eventBus.emit(EVENTS.LAYER_LOAD_COMPLETE || 'layer:loadComplete', {
+        collectionId: collection.id,
+        trackCount: loadedCount,
+        timestamp: Date.now()
+      });
+      
+      return true;
+    } catch (error) {
+      console.error(`[LayerContext] Error loading tracks: ${error.message}`);
+      return false;
+    }
+  }, [audio, buffer, setLayerTracks, activeTracks]);
+
   // Change active track with crossfade
   const changeTrack = useCallback(async (layerName, trackId, transitionDuration = 3000) => {
     // Skip if it's already the active track
@@ -123,10 +253,11 @@ export const LayerProvider = ({ children }) => {
         }));
         
         // 6. Emit event
-        eventBus.emit('layer:trackChanged', { 
+        eventBus.emit(EVENTS.LAYER_TRACK_CHANGED || 'layer:trackChanged', { 
           layer: layerName, 
           trackId,
-          previousTrackId: prevTrackId
+          previousTrackId: prevTrackId,
+          timestamp: Date.now()
         });
         
         return true;
@@ -158,9 +289,18 @@ export const LayerProvider = ({ children }) => {
         volume.unmuteLayer(layerName);
       }
       
+      // Add this event emission (inside setState callback to access new state)
+      const isMuted = newState[layerName].muted;
+      eventBus.emit(EVENTS.LAYER_MUTE_TOGGLED || 'layer:muteToggled', {
+        layer: layerName,
+        muted: isMuted,
+        timestamp: Date.now()
+      });
+      
       return newState;
     });
   }, [volume]);
+  
   
   // Register collection with layers
   const registerCollection = useCallback((collection) => {
@@ -196,9 +336,27 @@ export const LayerProvider = ({ children }) => {
         }));
       }
     });
-  }, [audio, setLayerTracks]);
-  
-  // Create value object
+    
+    // Then load all the tracks for buffer preloading
+    if (buffer) {
+      loadTracksForCollection(collection)
+        .then(success => {
+          if (success) {
+            console.log('[LayerContext] Successfully loaded tracks for collection');
+            eventBus.emit(EVENTS.LAYER_COLLECTION_REGISTERED || 'layer:collectionRegistered', {
+              collectionId: collection.id,
+              layerCount: Object.keys(collection.layers).length,
+              timestamp: Date.now()
+            });
+          }
+        })
+        .catch(error => {
+          console.error('[LayerContext] Error loading tracks for collection:', error);
+        });
+    }
+  }, [audio, setLayerTracks, buffer, loadTracksForCollection, setActiveTracks]);
+
+  // Create memoized context value - THIS IS THE IMPORTANT ADDITION
   const value = useMemo(() => ({
     // Constants
     TYPES: LAYER_TYPES,
@@ -210,6 +368,7 @@ export const LayerProvider = ({ children }) => {
     
     // Methods
     setLayerTracks,
+    loadTracksForCollection,
     changeTrack,
     toggleMute,
     registerCollection,
@@ -217,10 +376,12 @@ export const LayerProvider = ({ children }) => {
     // Derived data
     layerList: Object.values(LAYER_TYPES)
   }), [
+    // Dependencies - include all values used in the above object
     availableTracks,
     activeTracks,
     layerStates,
     setLayerTracks,
+    loadTracksForCollection,
     changeTrack,
     toggleMute,
     registerCollection

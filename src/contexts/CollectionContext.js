@@ -1,7 +1,7 @@
 // src/contexts/CollectionContext.js
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import CollectionService from '../services/CollectionService';
-import eventBus from '../services/EventBus.js';
+import eventBus, { EVENTS } from '../services/EventBus.js';
 
 // Create the context
 const CollectionContext = createContext(null);
@@ -114,9 +114,10 @@ export const CollectionProvider = ({
         retriesRef.current = 0;
         
         // Publish event through event bus
-        eventBus.emit('collections:loaded', { 
+        eventBus.emit(EVENTS.COLLECTIONS_LOADED || 'collections:loaded', {
           collections: result.data,
-          pagination: result.pagination
+          pagination: result.pagination,
+          timestamp: Date.now()
         });
       } else {
         throw new Error(result.error || 'Failed to load collections');
@@ -145,7 +146,10 @@ export const CollectionProvider = ({
       setError(err.message);
       
       // Publish error event
-      eventBus.emit('collections:error', { error: err.message });
+      eventBus.emit(EVENTS.COLLECTIONS_ERROR || 'collections:error', {
+        error: err.message,
+        timestamp: Date.now()
+      });
     } finally {
       if (isMountedRef.current) {
         setIsLoading(false);
@@ -217,7 +221,10 @@ export const CollectionProvider = ({
       setCurrentCollection(result.data);
       
       // Publish event through event bus
-      eventBus.emit('collection:selected', { collection: result.data });
+      eventBus.emit(EVENTS.COLLECTION_SELECTED || 'collection:selected', {
+        collection: result.data,
+        timestamp: Date.now()
+      });
       
       return result.data;
     } catch (err) {
@@ -228,7 +235,11 @@ export const CollectionProvider = ({
       setError(err.message);
       
       // Publish error event
-      eventBus.emit('collection:error', { id, error: err.message });
+      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+        id,
+        error: err.message,
+        timestamp: Date.now()
+      });
       
       throw err;
     } finally {
@@ -250,9 +261,10 @@ export const CollectionProvider = ({
       const formatted = collectionService.formatCollectionForPlayer(collection);
       
       // Publish event
-      eventBus.emit('collection:formatted', { 
+      eventBus.emit(EVENTS.COLLECTION_FORMATTED || 'collection:formatted', { 
         collectionId: collection.id,
-        formatted 
+        formatted,
+        timestamp: Date.now()
       });
       
       return formatted;

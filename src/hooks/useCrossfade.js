@@ -2,7 +2,7 @@
 import { useCallback, useMemo, useState, useEffect } from 'react';
 import { useCrossfadeContext } from '../contexts/CrossfadeContext';
 import { useAudio } from './useAudio';
-import eventBus from '../services/EventBus';
+import eventBus, { EVENTS } from '../services/EventBus';
 import { CROSSFADE_EVENTS } from '../services/CrossfadeService';
 
 /**
@@ -222,7 +222,7 @@ export function useCrossfade(options = {}) {
         console.log(`[useCrossfade] Immediate switch to ${newTrackId} successful for ${layer}`);
         
         // Emit event for immediate switch
-        eventBus.emit('audio:trackSwitched', {
+        eventBus.emit(EVENTS.AUDIO_TRACK_SWITCHED || 'audio:trackSwitched', {
           layer,
           fromTrackId: currentTrackId,
           toTrackId: newTrackId,

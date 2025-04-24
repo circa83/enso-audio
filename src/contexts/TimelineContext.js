@@ -4,7 +4,7 @@ import TimelineService, { TIMELINE_EVENTS } from '../services/TimelineService';
 import { useAudioService } from './AudioContext.js';
 import { useVolumeService } from './VolumeContext';
 import { useCrossfadeService } from './CrossfadeContext';
-import eventBus from '../services/EventBus.js';
+import eventBus, { EVENTS } from '../services/EventBus.js';
 
 // Create the context
 const TimelineContext = createContext(null);
@@ -53,21 +53,32 @@ export const TimelineProvider = ({
     }
 
     // Publish event through event bus (standard event)
-    eventBus.emit('timeline:phaseChanged', { phaseId, phaseData });
+    eventBus.emit(EVENTS.TIMELINE_PHASE_CHANGED || 'timeline:phaseChanged', {
+      phaseId,
+      phaseData,
+      timestamp: Date.now()
+    });
   }, []);
 
   const handleProgress = useCallback((progressValue, elapsedTime) => {
     setProgress(progressValue);
 
     // Publish event through event bus
-    eventBus.emit('timeline:progress', { progress: progressValue, elapsedTime });
+    eventBus.emit(EVENTS.TIMELINE_PROGRESS || 'timeline:progress', {
+      progress: progressValue,
+      elapsedTime,
+      timestamp: Date.now()
+    });
   }, []);
 
   const handleScheduledEvent = useCallback((event) => {
     console.log('[TimelineContext] Timeline event triggered:', event);
 
     // Publish event through event bus
-    eventBus.emit('timeline:eventTriggered', event);
+    eventBus.emit(EVENTS.TIMELINE_EVENT_TRIGGERED || 'timeline:eventTriggered', {
+      ...event,
+      timestamp: Date.now()
+    });
   }, []);
 
   // Initialize TimelineService when dependencies are ready
@@ -327,7 +338,10 @@ export const TimelineProvider = ({
 
     if (started) {
       setTimelineIsPlaying(true);
-      eventBus.emit('timeline:started', { reset: options.reset });
+      eventBus.emit(EVENTS.TIMELINE_STARTED || 'timeline:started', { 
+        reset: options.reset,
+        timestamp: Date.now() 
+      });
     }
 
     return started;
@@ -346,7 +360,9 @@ export const TimelineProvider = ({
 
     if (stopped) {
       setTimelineIsPlaying(false);
-      eventBus.emit('timeline:stopped');
+      eventBus.emit(EVENTS.TIMELINE_STOPPED || 'timeline:stopped', { 
+        timestamp: Date.now() 
+      });
     }
 
     return stopped;
@@ -366,7 +382,9 @@ export const TimelineProvider = ({
 
     if (paused) {
       setTimelineIsPlaying(false);
-      eventBus.emit('timeline:paused');
+      eventBus.emit(EVENTS.TIMELINE_PAUSED || 'timeline:paused', { 
+        timestamp: Date.now() 
+      });
     }
 
     return paused;
@@ -386,7 +404,9 @@ export const TimelineProvider = ({
 
     if (resumed) {
       setTimelineIsPlaying(true);
-      eventBus.emit('timeline:resumed');
+      eventBus.emit(EVENTS.TIMELINE_RESUMED || 'timeline:resumed', { 
+        timestamp: Date.now() 
+      });
     }
 
     return resumed;
@@ -406,7 +426,9 @@ export const TimelineProvider = ({
     
     if (timelineService.reset) {
       timelineService.reset();
-      eventBus.emit('timeline:reset');
+      eventBus.emit(EVENTS.TIMELINE_RESET || 'timeline:reset', { 
+        timestamp: Date.now() 
+      });
       return true;
     }
     
@@ -425,7 +447,7 @@ export const TimelineProvider = ({
       
       // Manual event emission to ensure context stays in sync with service
       if (result) {
-        eventBus.emit('timeline:phasesUpdated', { 
+        eventBus.emit(EVENTS.TIMELINE_PHASES_UPDATED || 'timeline:phasesUpdated', { 
           phases, 
           count: phases.length,
           timestamp: Date.now() 
@@ -454,7 +476,7 @@ export const TimelineProvider = ({
       
       // Manual event emission for consistency
       if (result) {
-        eventBus.emit('timeline:eventRegistered', { 
+        eventBus.emit(EVENTS.TIMELINE_EVENT_REGISTERED || 'timeline:eventRegistered', { 
           event,
           timestamp: Date.now() 
         });
@@ -475,7 +497,7 @@ export const TimelineProvider = ({
       const count = timelineService.clearEvents();
       
       // Manual event emission for consistency
-      eventBus.emit('timeline:eventsCleared', { 
+      eventBus.emit(EVENTS.TIMELINE_EVENTS_CLEARED || 'timeline:eventsCleared', { 
         count,
         timestamp: Date.now() 
       });
@@ -501,7 +523,7 @@ export const TimelineProvider = ({
       
       // Manual event emission for consistency
       if (result) {
-        eventBus.emit('timeline:durationChanged', { 
+        eventBus.emit(EVENTS.TIMELINE_DURATION_CHANGED || 'timeline:durationChanged', { 
           newDuration: duration,
           timestamp: Date.now() 
         });
@@ -528,7 +550,7 @@ export const TimelineProvider = ({
       
       // Manual event emission for consistency
       if (result) {
-        eventBus.emit('timeline:transitionChanged', { 
+        eventBus.emit(EVENTS.TIMELINE_TRANSITION_CHANGED || 'timeline:transitionChanged', { 
           newDuration: duration,
           timestamp: Date.now() 
         });
@@ -554,7 +576,7 @@ export const TimelineProvider = ({
       
       // Manual event emission for consistency
       if (result) {
-        eventBus.emit('timeline:seek', { 
+        eventBus.emit(EVENTS.TIMELINE_SEEK || 'timeline:seek', { 
           time: timeMs,
           type: 'absolute',
           timestamp: Date.now() 
@@ -581,7 +603,7 @@ export const TimelineProvider = ({
       
       // Manual event emission for consistency
       if (result) {
-        eventBus.emit('timeline:seek', { 
+        eventBus.emit(EVENTS.TIMELINE_SEEK || 'timeline:seek', { 
           percent: percent,
           type: 'percent',
           timestamp: Date.now() 

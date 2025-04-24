@@ -1,7 +1,7 @@
 // src/contexts/AudioContext.js
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AudioService from '../services/AudioService';
-import eventBus from '../services/EventBus.js';
+import eventBus, { EVENTS } from '../services/EventBus.js';
 
 // Create the context
 const AudioContext = createContext(null);
@@ -67,7 +67,10 @@ export const AudioProvider = ({
           setSuspended(service.isSuspended());
           
           // Publish event through event bus
-          eventBus.emit('audio:initialized', { context: ctx, masterGain: gain });
+          eventBus.emit(EVENTS.AUDIO_INITIALIZED || 'audio:initialized', { 
+            context: ctx, 
+            masterGain: gain, 
+            timestamp: Date.now() });
         } else {
           console.error('[AudioContext] Failed to initialize AudioService');
           setIsLoading(false);
@@ -108,7 +111,9 @@ export const AudioProvider = ({
         setMasterVolume(safeValue);
         
         // Publish event through event bus
-        eventBus.emit('audio:volumeChanged', { masterVolume: safeValue });
+        eventBus.emit( EVENTS.AUDIO_VOLUME_CHANGED || 'audio:volumeChanged', { 
+          masterVolume: safeValue,
+          timestamp: Date.now() });
       }
       
       return success;
@@ -144,7 +149,8 @@ export const AudioProvider = ({
         setSuspended(false);
         
         // Publish event through event bus
-        eventBus.emit('audio:playbackStarted');
+        eventBus.emit(EVENTS.AUDIO_PLAYBACK_STARTED || 'audio:playbackStarted', { 
+          timestamp: Date.now() });
         
         return true;
       } else {
@@ -183,7 +189,8 @@ export const AudioProvider = ({
         setSuspended(true);
         
         // Publish event through event bus
-        eventBus.emit('audio:playbackPaused');
+        eventBus.emit(EVENTS.AUDIO_PLAYBACK_PAUSED || 'audio:playbackPaused', { 
+          timestamp: Date.now() });
         
         return true;
       } else {

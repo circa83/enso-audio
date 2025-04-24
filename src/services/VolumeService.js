@@ -59,10 +59,11 @@ class VolumeService {
     this.log('VolumeService initialized');
     
     // Emit initialization event
-    eventBus.emit('volume:initialized', {
+    eventBus.emit(EVENTS.VOLUME_INITIALIZED || 'volume:initialized', {
       initialVolumes: Object.fromEntries(this.volumeLevels.entries()),
       defaultVolume: this.config.defaultVolume,
-      transitionTime: this.config.transitionTime
+      transitionTime: this.config.transitionTime,
+      timestamp: Date.now()
     });
   }
 
@@ -119,10 +120,11 @@ class VolumeService {
     this.log(`Created gain node for layer "${layerId}" with volume ${initialVolume}`);
     
     // Emit layer created event
-    eventBus.emit('volume:layerCreated', {
+    eventBus.emit(EVENTS.VOLUME_LAYER_CREATED || 'volume:layerCreated', {
       layer: layerId,
       volume: initialVolume,
-      time: this.audioContext.currentTime
+      time: this.audioContext.currentTime,
+      timestamp: Date.now()
     });
 
     return gainNode;
@@ -187,10 +189,10 @@ class VolumeService {
         this._triggerVolumeChangeCallback(layerId, safeVolume);
         
         // Emit volume changed event
-        eventBus.emit(EVENTS.VOLUME_CHANGED, {
+        eventBus.emit(EVENTS.VOLUME_CHANGED || 'volume:changed', {
           layer: layerId,
           value: safeVolume,
-          time: now,
+          timestamp: Date.now(),
           immediate: true
         });
       } else {
@@ -228,10 +230,11 @@ class VolumeService {
           this._triggerVolumeChangeCallback(layerId, safeVolume);
           
           // Emit volume transition complete event
-          eventBus.emit('volume:transitionComplete', {
+          eventBus.emit(EVENTS.VOLUME_TRANSITION_COMPLETE || 'volume:transitionComplete', {
             layer: layerId,
             value: safeVolume,
-            time: this.audioContext.currentTime
+            time: this.audioContext.currentTime,
+            timestamp: Date.now()
           });
         }, transitionTime * 1000 + 50); // Add a small buffer to ensure transition completes
 
@@ -245,10 +248,10 @@ class VolumeService {
         this._triggerVolumeChangeCallback(layerId, safeVolume);
         
         // Emit volume changed event immediately for UI updates
-        eventBus.emit(EVENTS.VOLUME_CHANGED, {
+        eventBus.emit(EVENTS.VOLUME_CHANGED || 'volume:changed', {
           layer: layerId,
           value: safeVolume,
-          time: now,
+          timestamp: Date.now(),
           immediate: false,
           transitionTime
         });
@@ -258,19 +261,21 @@ class VolumeService {
       if (safeVolume <= 0.001 && !this.mutedState.has(layerId)) {
         // Implicitly muted
         this.mutedState.set(layerId, true);
-        eventBus.emit(EVENTS.VOLUME_MUTED, {
+        eventBus.emit(EVENTS.VOLUME_MUTED || 'volume:muted', {
           layer: layerId,
           reason: 'implicit',
-          previousVolume: currentVolume
+          previousVolume: currentVolume,
+          timestamp: Date.now()
         });
       } 
       // If volume is now > 0 and was previously muted, consider it unmuted
       else if (safeVolume > 0.001 && this.mutedState.has(layerId)) {
         this.mutedState.delete(layerId);
-        eventBus.emit(EVENTS.VOLUME_UNMUTED, {
+        eventBus.emit(EVENTS.VOLUME_UNMUTED || 'volume:unmuted', {
           layer: layerId,
           reason: 'implicit',
-          currentVolume: safeVolume
+          currentVolume: safeVolume,
+          timestamp: Date.now()
         });
       }
 
@@ -279,12 +284,13 @@ class VolumeService {
       this.log(`Error setting volume for "${layerId}": ${error.message}`, 'error');
       
       // Emit error event
-      eventBus.emit(EVENTS.AUDIO_ERROR, {
+      eventBus.emit(EVENTS.AUDIO_ERROR || 'audio:error', {
         type: 'volume',
         operation: 'setVolume',
         layer: layerId,
         message: error.message,
-        error
+        error,
+        timestamp: Date.now()
       });
       
       return false;
@@ -353,10 +359,11 @@ class VolumeService {
       let success = true;
       
       // Emit bulk volume update start event
-      eventBus.emit('volume:bulkUpdateStart', {
+      eventBus.emit(EVENTS.VOLUME_BULK_UPDATE_START || 'volume:bulkUpdateStart', {
         layers: Object.keys(volumeMap),
         values: volumeMap,
-        options
+        options,
+        timestamp: Date.now()
       });
 
       Object.entries(volumeMap).forEach(([layerId, volume]) => {
@@ -365,9 +372,10 @@ class VolumeService {
       });
       
       // Emit bulk volume update complete event
-      eventBus.emit('volume:bulkUpdateComplete', {
+      eventBus.emit(EVENTS.VOLUME_BULK_UPDATE_COMPLETE || 'volume:bulkUpdateComplete', {
         layers: Object.keys(volumeMap),
-        success
+        success,
+        timestamp: Date.now()
       });
 
       return success;
@@ -375,11 +383,12 @@ class VolumeService {
       this.log(`Error setting multiple volumes: ${error.message}`, 'error');
       
       // Emit error event
-      eventBus.emit(EVENTS.AUDIO_ERROR, {
+      eventBus.emit(EVENTS.AUDIO_ERROR || 'audio:error', {
         type: 'volume',
         operation: 'setMultipleVolumes',
         message: error.message,
-        error
+        error,
+        timestamp: Date.now()
       });
       
       return false;
@@ -434,10 +443,11 @@ class VolumeService {
       this.log(`Connected source to layer "${layerId}" with volume ${gainNode.gain.value}`);
       
       // Emit connection event
-      eventBus.emit('volume:sourceConnected', {
+      eventBus.emit(EVENTS.VOLUME_SOURCE_CONNECTED || 'volume:sourceConnected', {
         layer: layerId,
         volume: gainNode.gain.value,
-        time: this.audioContext.currentTime
+        time: this.audioContext.currentTime,
+        timestamp: Date.now()
       });
 
       return true;
@@ -445,12 +455,13 @@ class VolumeService {
       this.log(`Error connecting to layer "${layerId}": ${error.message}`, 'error');
       
       // Emit error event
-      eventBus.emit(EVENTS.AUDIO_ERROR, {
+      eventBus.emit(EVENTS.AUDIO_ERROR || 'audio:error', {
         type: 'volume',
         operation: 'connectToLayer',
         layer: layerId,
         message: error.message,
-        error
+        error,
+        timestamp: Date.now()
       });
       
       return false;
@@ -478,11 +489,12 @@ class VolumeService {
     this.mutedState.set(layerId, true);
     
     // Emit mute event before changing volume
-    eventBus.emit(EVENTS.VOLUME_MUTED, {
+    eventBus.emit(EVENTS.VOLUME_MUTED || 'volume:muted', {
       layer: layerId,
       previousVolume: currentVolume,
       time: this.audioContext.currentTime,
-      reason: 'explicit'
+      reason: 'explicit',
+      timestamp: Date.now()
     });
 
     // Set volume to 0
@@ -512,11 +524,12 @@ class VolumeService {
     this.mutedState.delete(layerId);
     
     // Emit unmute event before changing volume
-    eventBus.emit(EVENTS.VOLUME_UNMUTED, {
+    eventBus.emit(EVENTS.VOLUME_UNMUTED || 'volume:unmuted', {
       layer: layerId,
       restoredVolume: volume,
       time: this.audioContext.currentTime,
-      reason: 'explicit'
+      reason: 'explicit',
+      timestamp: Date.now()
     });
 
     // Restore volume
@@ -570,12 +583,12 @@ class VolumeService {
         const gainNode = this.getGainNode(layerId);
         
         // Emit fade start event
-        eventBus.emit('volume:fadeStart', {
+        eventBus.emit(EVENTS.VOLUME_FADE_START || 'volume:fadeStart', {
           layer: layerId,
           fromVolume: currentVolume,
           toVolume: safeTarget,
           duration,
-          time: this.audioContext.currentTime
+          timestamp: Date.now()
         });
 
         // Set up the fade using Web Audio API scheduled values
@@ -614,12 +627,13 @@ class VolumeService {
             progressCallback(layerId, currentValue, progress);
             
             // Emit fade progress event
-            eventBus.emit('volume:fadeProgress', {
+            eventBus.emit(EVENTS.VOLUME_FADE_PROGRESS || 'volume:fadeProgress', {
               layer: layerId,
               currentVolume: currentValue,
               targetVolume: safeTarget,
               progress, 
-              time: now + (duration * progress)
+              time: now + (duration * progress),
+              timestamp: Date.now()
             });
 
             // Final update - clear interval and resolve
@@ -627,10 +641,11 @@ class VolumeService {
               clearInterval(intervalId);
               
               // Emit fade complete event
-              eventBus.emit('volume:fadeComplete', {
+              eventBus.emit(EVENTS.VOLUME_FADE_COMPLETE || 'volume:fadeComplete', {
                 layer: layerId,
                 volume: safeTarget,
-                time: this.audioContext.currentTime
+                time: this.audioContext.currentTime,
+                timestamp: Date.now()
               });
               
               resolve(true);
@@ -646,10 +661,11 @@ class VolumeService {
             this.volumeLevels.set(layerId, safeTarget);
             
             // Emit fade complete event
-            eventBus.emit('volume:fadeComplete', {
+            eventBus.emit(EVENTS.VOLUME_FADE_COMPLETE || 'volume:fadeComplete', {
               layer: layerId,
               volume: safeTarget,
-              time: this.audioContext.currentTime
+              time: this.audioContext.currentTime,
+              timestamp: Date.now()
             });
             
             resolve(true);
@@ -667,12 +683,13 @@ class VolumeService {
         this.log(`Error during volume fade for "${layerId}": ${error.message}`, 'error');
         
         // Emit error event
-        eventBus.emit(EVENTS.AUDIO_ERROR, {
+        eventBus.emit(EVENTS.AUDIO_ERROR || 'audio:error', {
           type: 'volume',
           operation: 'fadeVolume',
           layer: layerId,
           message: error.message,
-          error
+          error,
+          timestamp: Date.now()
         });
         
         resolve(false);
@@ -690,11 +707,12 @@ class VolumeService {
   fadeMultipleVolumes(volumeMap, duration) {
     try {
       // Emit bulk fade start event
-      eventBus.emit('volume:bulkFadeStart', {
+      eventBus.emit(EVENTS.VOLUME_BULK_FADE_START || 'volume:bulkFadeStart', {
         layers: Object.keys(volumeMap),
         targetVolumes: volumeMap,
         duration,
-        time: this.audioContext.currentTime
+        time: this.audioContext.currentTime,
+        timestamp: Date.now()
       });
       
       const fadePromises = Object.entries(volumeMap).map(([layerId, targetVolume]) =>
@@ -704,9 +722,10 @@ class VolumeService {
       return Promise.all(fadePromises)
         .then(() => {
           // Emit bulk fade complete event
-          eventBus.emit('volume:bulkFadeComplete', {
+          eventBus.emit(EVENTS.VOLUME_BULK_FADE_COMPLETE || 'volume:bulkFadeComplete', {
             layers: Object.keys(volumeMap),
-            time: this.audioContext.currentTime
+            time: this.audioContext.currentTime,
+            timestamp: Date.now()
           });
           return true;
         })
@@ -718,11 +737,12 @@ class VolumeService {
       this.log(`Error setting up multiple fades: ${error.message}`, 'error');
       
       // Emit error event
-      eventBus.emit(EVENTS.AUDIO_ERROR, {
+      eventBus.emit(EVENTS.AUDIO_ERROR || 'audio:error', {
         type: 'volume',
         operation: 'fadeMultipleVolumes',
         message: error.message,
-        error
+        error,
+        timestamp: Date.now()
       });
       
       return Promise.resolve(false);
@@ -745,10 +765,11 @@ class VolumeService {
     this.log(`Created volume snapshot "${snapshotId}" with ${Object.keys(snapshot.volumes).length} layers`);
     
     // Emit snapshot created event
-    eventBus.emit('volume:snapshotCreated', {
+    eventBus.emit(EVENTS.VOLUME_SNAPSHOT_CREATED || 'volume:snapshotCreated', {
       id: snapshotId,
       timestamp: Date.now(),
-      volumeCount: Object.keys(snapshot.volumes).length
+      volumeCount: Object.keys(snapshot.volumes).length,
+      timestamp: Date.now()
     });
     
     return snapshot;
@@ -770,20 +791,22 @@ class VolumeService {
     }
     
     // Emit snapshot restore start event
-    eventBus.emit('volume:snapshotRestoreStart', {
+    eventBus.emit(EVENTS.VOLUME_SNAPSHOT_RESTORE_START || 'volume:snapshotRestoreStart', {
       id: snapshot.id || 'unknown',
       timestamp: Date.now(),
       volumeCount: Object.keys(snapshot.volumes).length,
-      options
+      options,
+      timestamp: Date.now()
     });
 
     const result = this.setMultipleVolumes(snapshot.volumes, options);
     
     // Emit snapshot restore complete event
-    eventBus.emit('volume:snapshotRestoreComplete', {
+    eventBus.emit(EVENTS.VOLUME_SNAPSHOT_RESTORE_COMPLETE || 'volume:snapshotRestoreComplete', {
       id: snapshot.id || 'unknown',
       timestamp: Date.now(),
-      success: result
+      success: result,
+      timestamp: Date.now()
     });
     
     return result;
@@ -826,10 +849,11 @@ class VolumeService {
         this.mutedState.delete(layerId);
       }
           // Emit layer reset event
-          eventBus.emit('volume:layerReset', {
+          eventBus.emit(EVENTS.VOLUME_LAYER_RESET || 'volume:layerReset', {
             layer: layerId,
             defaultVolume: this.config.defaultVolume,
-            time: this.audioContext.currentTime
+            time: this.audioContext.currentTime,
+            timestamp: Date.now()
           });
     
           // Set volume to default
@@ -838,12 +862,13 @@ class VolumeService {
           this.log(`Error resetting layer "${layerId}": ${error.message}`, 'error');
           
           // Emit error event
-          eventBus.emit(EVENTS.AUDIO_ERROR, {
+          eventBus.emit(EVENTS.AUDIO_ERROR || 'audio:error', {
             type: 'volume',
             operation: 'resetLayer',
             layer: layerId,
             message: error.message,
-            error
+            error,
+            timestamp: Date.now()
           });
           
           return false;
@@ -905,7 +930,7 @@ class VolumeService {
           this.log('VolumeService disposed');
           
           // Emit disposal event
-          eventBus.emit('volume:disposed', {
+          eventBus.emit(EVENTS.VOLUME_DISPOSED || 'volume:disposed', {
             timestamp: Date.now()
           });
         } catch (error) {

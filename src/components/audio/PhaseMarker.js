@@ -1,7 +1,7 @@
 // src/components/audio/PhaseMarker.js
 import React, { useState, useRef, useEffect } from 'react';
 import styles from '../../styles/components/PhaseMarker.module.css';
-import eventBus from '../../services/EventBus';
+import eventBus, { EVENTS } from '../../services/EventBus';
 
 /**
  * PhaseMarker component - Represents a phase point on the timeline
@@ -91,7 +91,7 @@ const PhaseMarker = ({
     }, 200);
 
     // Notify EventBus that dragging has ended
-    eventBus.emit('phaseMarker:dragEnd', {
+    eventBus.emit(EVENTS.PHASE_MARKER_DRAG_END || 'phaseMarker:dragEnd', {
       phaseId: id,
       position: position,
       timestamp: Date.now()
@@ -131,7 +131,7 @@ const PhaseMarker = ({
     }
 
     // Notify EventBus that a touch has started
-    eventBus.emit('phaseMarker:touchStart', {
+    eventBus.emit(EVENTS.PHASE_MARKER_TOUCH_START || 'phaseMarker:touchStart', {
       phaseId: id,
       position: position,
       timestamp: Date.now()
@@ -172,7 +172,7 @@ const PhaseMarker = ({
           setIsDragging(true);
 
           // Notify EventBus that dragging has started
-          eventBus.emit('phaseMarker:dragStart', {
+          eventBus.emit(EVENTS.PHASE_MARKER_DRAG_START || 'phaseMarker:dragStart', {
             phaseId: id,
             position: position,
             timestamp: Date.now()
@@ -196,7 +196,7 @@ const PhaseMarker = ({
           }
 
           // Notify EventBus that position is changing during drag
-          eventBus.emit('phaseMarker:dragUpdate', {
+          eventBus.emit(EVENTS.PHASE_MARKER_DRAG_UPDATE || 'phaseMarker:dragUpdate', {
             phaseId: id,
             position: newPosition,
             timestamp: Date.now()
@@ -251,7 +251,7 @@ const PhaseMarker = ({
     };
 
     // Notify EventBus that mouse down has occurred
-    eventBus.emit('phaseMarker:mouseDown', {
+    eventBus.emit(EVENTS.PHASE_MARKER_MOUSE_DOWN || 'phaseMarker:mouseDown', {
       phaseId: id,
       position: position,
       timestamp: Date.now()
@@ -285,7 +285,7 @@ const PhaseMarker = ({
         setIsDragging(true);
 
         // Notify EventBus that dragging has started
-        eventBus.emit('phaseMarker:dragStart', {
+        eventBus.emit(EVENTS.PHASE_MARKER_DRAG_START || 'phaseMarker:dragStart', {
           phaseId: id,
           position: position,
           timestamp: Date.now()
@@ -307,7 +307,7 @@ const PhaseMarker = ({
         }
 
         // Notify EventBus of position update
-        eventBus.emit('phaseMarker:dragUpdate', {
+        eventBus.emit(EVENTS.PHASE_MARKER_DRAG_UPDATE || 'phaseMarker:dragUpdate', {
           phaseId: id,
           position: newPosition,
           timestamp: Date.now()
@@ -351,7 +351,7 @@ const PhaseMarker = ({
       onStateCapture(id);
 
       // Notify EventBus that state has been captured
-      eventBus.emit('phaseMarker:stateCapture', {
+      eventBus.emit(EVENTS.PHASE_MARKER_STATE_CAPTURE || 'phaseMarker:stateCapture', {
         phaseId: id,
         position: position,
         timestamp: Date.now()

@@ -47,7 +47,14 @@ const AmbientArchive = () => {
   // Handle collection selection with logging
   const handleCollectionSelect = (collectionId) => {
     console.log(`[AmbientArchive] Selected collection: ${collectionId}`);
-    // Use Next.js router for client-side navigation
+    
+    // First, emit an event to notify the system about collection selection
+    eventBus.emit(EVENTS.COLLECTION_SELECTED, { 
+      collectionId, 
+      source: 'ambient-archive' 
+    });
+    
+    // Then use Next.js router for navigation
     router.push({
       pathname: '/player',
       query: { collection: collectionId }
@@ -211,9 +218,12 @@ const AmbientArchive = () => {
               </div>
               
               <div className={styles.collectionControls}>
-                <button className={styles.playButton}>
-                  Play Collection
-                </button>
+              <button 
+  className={styles.playButton}
+  onClick={() => handleCollectionSelect(collection.id)}
+>
+  Play Collection
+</button>
                 <button 
                   className={styles.detailsButton}
                   onClick={(e) => handleShowDetails(collection, e)}
