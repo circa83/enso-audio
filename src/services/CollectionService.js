@@ -1062,11 +1062,11 @@ checkForDuplicateIds() {
   }
 
 
-  /**
-* Format collection data for consumption by the audio player
-* @param {Object} collection - Collection data
-* @returns {Object} Formatted collection data ready for player consumption
-*/
+ /**
+ * Format collection data for consumption by the audio player
+ * @param {Object} collection - Collection data
+ * @returns {Object} Formatted collection data ready for player consumption
+ */
 formatCollectionForPlayer(collection) {
   if (!collection) {
     const error = 'Collection data is required';
@@ -1079,7 +1079,7 @@ formatCollectionForPlayer(collection) {
 
   try {
     this.log(`Formatting collection: ${collection.id}`);
-
+    
     // Emit format start event
     eventBus.emit(EVENTS.COLLECTION_FORMAT_START || 'collection:formatStart', {
       id: collection.id,
@@ -1107,18 +1107,19 @@ formatCollectionForPlayer(collection) {
     if (!collection.tracks || !Array.isArray(collection.tracks) || collection.tracks.length === 0) {
       const error = `Collection "${collection.name || collection.id}" has no audio tracks`;
       this.log(`Collection ${collection.id} has no tracks`, 'error');
-
+      
       // Emit format error event
       eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:formatError', {
         id: collection.id,
         error,
         timestamp: Date.now()
       });
-
+      
       throw new Error(error);
     }
 
     let formattedTrackCount = 0;
+    const collectionPathPrefix = `/collections/${collection.id}/`;
 
     // Process tracks
     collection.tracks.forEach(track => {
@@ -1135,137 +1136,194 @@ formatCollectionForPlayer(collection) {
         return;
       }
 
-            // Get the layer folder from the track or determine it from the path
-            const layerFolder = track.layerFolder || this._getLayerFromFolder(audioUrl);
-            if (!layerFolder) {
-              this.log(`Track ${track.id} missing layerFolder`, 'warn');
-              return;
-            }
-      
-            // Map the folder name to player layer name
-            const playerLayer = folderToLayerMap[layerFolder];
-            if (!playerLayer) {
-              this.log(`Invalid layer folder: ${layerFolder}`, 'warn');
-              return;
-            }
-      
-            // Format the full path from relative path - critical change here
-            const fullAudioUrl = audioUrl.startsWith('http')
-              ? audioUrl
-              : `/collections/${collection.id}/${audioUrl}`; // Add collection prefix
-      
-            // Format track for player with consistent path
-            const formattedTrack = {
-              id: track.id, // Keep the original ID
-              name: track.title || track.name || `Track ${track.id}`,
-              path: fullAudioUrl, // Use the properly formatted full URL
-              layer: playerLayer // Use the player layer name
-            };
-      
-            // Add to appropriate layer
-            playerLayers[playerLayer].push(formattedTrack);
-            formattedTrackCount++;
-      
-            // Process variations if they exist
-            if (track.variations && Array.isArray(track.variations)) {
-              track.variations.forEach(variation => {
-                // Skip invalid variations
-                if (!variation.id) {
-                  this.log(`Variation missing id in track ${track.id}`, 'warn');
-                  return;
-                }
-      
-                if (!variation.audioUrl) {
-                  this.log(`Variation ${variation.id} missing audioUrl`, 'warn');
-                  return;
-                }
-      
-                // Format variation URL with full path - same approach as tracks
-                const variationUrl = variation.audioUrl.startsWith('http')
-                  ? variation.audioUrl
-                  : `/collections/${collection.id}/${variation.audioUrl}`; // Add collection prefix
-      
-                // Create variation track
-                const variationTrack = {
-                  id: variation.id,
-                  name: variation.title || `${track.title || track.name || 'Track'} (Variation)`,
-                  path: variationUrl, // Use the properly formatted full URL
-                  layer: playerLayer // Use the same player layer name
-                };
-      
-                // Add variation to the appropriate layer
-                playerLayers[playerLayer].push(variationTrack);
-                formattedTrackCount++;
-              });
-            }
-          });
-      
-          // Ensure we have at least one track formatted
-          if (formattedTrackCount === 0) {
-            const error = 'No valid audio tracks found in this collection';
-            this.log('No valid tracks found in collection', 'error');
-            
-            // Emit format error event
-            eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:formatError', {
-              id: collection.id,
-              error,
-              timestamp: Date.now()
-            });
-            
-            throw new Error(error);
+      // Get the layer folder from the track or determine it from the path
+      const layerFolder = track.layerFolder || this._getLayerFromFolder(audioUrl);
+      if (!layerFolder) {
+        this.log(`Track ${track.id} missing layerFolder`, 'warn');
+        return;
+      }
+
+      // Map the folder name to player layer name
+      const playerLayer = folderToLayerMap[layerFolder];
+      if (!playerLayer) {
+        this.log(`Invalid layer folder: ${layerFolder}`, 'warn');
+        return;
+      }
+
+      // Format the full path from relative path - with duplication check
+      let fullAudioUrl;
+      if (audioUrl.startsWith('http')) {
+        // Already a full URL
+        fullAudioUrl = audioUrl;
+      } else {
+        // Check if the path already contains the collection prefix
+        const alreadyHasPrefix = audioUrl.startsWith(collectionPathPrefix) || 
+                                audioUrl.startsWith('/' + collectionPathPrefix) || 
+                                audioUrl.includes(collectionPathPrefix);
+                                
+        if (alreadyHasPrefix) {
+          // Path already has prefix, ensure it's properly formatted
+          if (audioUrl.startsWith('/')) {
+            fullAudioUrl = audioUrl;
+          } else {
+            fullAudioUrl = '/' + audioUrl;
           }
-      
-          // Format cover image with consistent path
-          let coverImageUrl = collection.coverImage;
-          if (coverImageUrl && !coverImageUrl.startsWith('http')) {
-            // Add collection prefix to cover image path
-            coverImageUrl = `/collections/${collection.id}/${coverImageUrl}`;
-          }
-      
-          // Format the collection for the player
-          const formattedCollection = {
-            id: collection.id,
-            name: collection.name,
-            description: collection.description,
-            coverImage: coverImageUrl,
-            metadata: collection.metadata || {},
-            layers: playerLayers,
-            source: collection.source || 'local-folder',
-            // Keep the original tracks array for reference
-            originalTracks: collection.tracks
-          };
-      
-          this.log(`Formatted ${formattedTrackCount} tracks across ${Object.keys(playerLayers).length} layers`);
-          this.log(`Cover image URL: ${formattedCollection.coverImage}`);
-      
-          // Emit success event
-          eventBus.emit(EVENTS.COLLECTION_FORMATTED || 'collection:formatted', {
-            id: collection.id,
-            name: collection.name,
-            trackCount: formattedTrackCount,
-            layerCount: Object.keys(playerLayers).filter(layer => playerLayers[layer].length > 0).length,
-            timestamp: Date.now()
-          });
-      
-          // Return the formatted collection
-          return formattedCollection;
-        } catch (error) {
-          this.log(`Error formatting collection: ${error.message}`, 'error');
-          
-          // Emit error event if not already emitted
-          if (!error.message.includes('has no audio tracks') && 
-              !error.message.includes('No valid audio tracks')) {
-            eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:formatError', {
-              id: collection?.id,
-              error: error.message,
-              timestamp: Date.now()
-            });
-          }
-          
-          throw new Error(`Failed to format collection: ${error.message}`);
+          this.log(`Audio URL already has collection prefix: ${fullAudioUrl}`, 'debug');
+        } else {
+          // Normal case - add the collection prefix
+          fullAudioUrl = collectionPathPrefix + (audioUrl.startsWith('/') ? audioUrl.substring(1) : audioUrl);
+          this.log(`Added collection prefix to audio URL: ${fullAudioUrl}`, 'debug');
         }
       }
+
+      // Format track for player with consistent path
+      const formattedTrack = {
+        id: track.id, // Keep the original ID
+        name: track.title || track.name || `Track ${track.id}`,
+        path: fullAudioUrl, // Use the properly formatted full URL
+        layer: playerLayer // Use the player layer name
+      };
+
+      // Add to appropriate layer
+      playerLayers[playerLayer].push(formattedTrack);
+      formattedTrackCount++;
+
+      // Process variations if they exist
+      if (track.variations && Array.isArray(track.variations)) {
+        track.variations.forEach(variation => {
+          // Skip invalid variations
+          if (!variation.id) {
+            this.log(`Variation missing id in track ${track.id}`, 'warn');
+            return;
+          }
+
+          if (!variation.audioUrl) {
+            this.log(`Variation ${variation.id} missing audioUrl`, 'warn');
+            return;
+          }
+
+          // Format variation URL with full path - using same duplication check
+          let variationUrl;
+          if (variation.audioUrl.startsWith('http')) {
+            // Already a full URL
+            variationUrl = variation.audioUrl;
+          } else {
+            // Check if the path already contains the collection prefix
+            const alreadyHasPrefix = variation.audioUrl.startsWith(collectionPathPrefix) || 
+                                    variation.audioUrl.startsWith('/' + collectionPathPrefix) || 
+                                    variation.audioUrl.includes(collectionPathPrefix);
+                                    
+            if (alreadyHasPrefix) {
+              // Path already has prefix, ensure it's properly formatted
+              if (variation.audioUrl.startsWith('/')) {
+                variationUrl = variation.audioUrl;
+              } else {
+                variationUrl = '/' + variation.audioUrl;
+              }
+              this.log(`Variation URL already has collection prefix: ${variationUrl}`, 'debug');
+            } else {
+              // Normal case - add the collection prefix
+              variationUrl = collectionPathPrefix + (variation.audioUrl.startsWith('/') ? variation.audioUrl.substring(1) : variation.audioUrl);
+              this.log(`Added collection prefix to variation URL: ${variationUrl}`, 'debug');
+            }
+          }
+
+          // Create variation track
+          const variationTrack = {
+            id: variation.id,
+            name: variation.title || `${track.title || track.name || 'Track'} (Variation)`,
+            path: variationUrl, // Use the properly formatted full URL
+            layer: playerLayer // Use the same player layer name
+          };
+
+          // Add variation to the appropriate layer
+          playerLayers[playerLayer].push(variationTrack);
+          formattedTrackCount++;
+        });
+      }
+    });
+
+    // Ensure we have at least one track formatted
+    if (formattedTrackCount === 0) {
+      const error = 'No valid audio tracks found in this collection';
+      this.log('No valid tracks found in collection', 'error');
       
+      // Emit format error event
+      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:formatError', {
+        id: collection.id,
+        error,
+        timestamp: Date.now()
+      });
+      throw new Error(error);
+    }
+
+    // Format cover image with consistent path - also with duplication check
+    let coverImageUrl = collection.coverImage;
+    if (coverImageUrl && !coverImageUrl.startsWith('http')) {
+      const collectionPathPrefix = `/collections/${collection.id}/`;
+      const alreadyHasPrefix = coverImageUrl.startsWith(collectionPathPrefix) || 
+                               coverImageUrl.startsWith('/' + collectionPathPrefix) || 
+                               coverImageUrl.includes(collectionPathPrefix);
+                               
+      if (alreadyHasPrefix) {
+        // Cover image already has prefix, ensure it's properly formatted
+        if (coverImageUrl.startsWith('/')) {
+          coverImageUrl = coverImageUrl;
+        } else {
+          coverImageUrl = '/' + coverImageUrl;
+        }
+        this.log(`Cover image already has collection prefix: ${coverImageUrl}`, 'debug');
+      } else {
+        // Normal case - add the collection prefix
+        coverImageUrl = collectionPathPrefix + (coverImageUrl.startsWith('/') ? coverImageUrl.substring(1) : coverImageUrl);
+        this.log(`Added collection prefix to cover image: ${coverImageUrl}`, 'debug');
+      }
+    }
+
+    // Format the collection for the player
+    const formattedCollection = {
+      id: collection.id,
+      name: collection.name,
+      description: collection.description,
+      coverImage: coverImageUrl,
+      metadata: collection.metadata || {},
+      layers: playerLayers,
+      source: collection.source || 'local-folder',
+      // Keep the original tracks array for reference
+      originalTracks: collection.tracks
+    };
+
+    this.log(`Formatted ${formattedTrackCount} tracks across ${Object.keys(playerLayers).length} layers`);
+    this.log(`Cover image URL: ${formattedCollection.coverImage}`);
+
+    // Emit success event
+    eventBus.emit(EVENTS.COLLECTION_FORMATTED || 'collection:formatted', {
+      id: collection.id,
+      name: collection.name,
+      trackCount: formattedTrackCount,
+      layerCount: Object.keys(playerLayers).filter(layer => playerLayers[layer].length > 0).length,
+      timestamp: Date.now()
+    });
+
+    // Return the formatted collection
+    return formattedCollection;
+  } catch (error) {
+    this.log(`Error formatting collection: ${error.message}`, 'error');
+    
+    // Emit error event if not already emitted
+    if (!error.message.includes('has no audio tracks') && 
+        !error.message.includes('No valid audio tracks')) {
+      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:formatError', {
+        id: collection?.id,
+        error: error.message,
+        timestamp: Date.now()
+      });
+    }
+    
+    throw new Error(`Failed to format collection: ${error.message}`);
+  }
+}
+
 
 
   /**
