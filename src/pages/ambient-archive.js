@@ -30,7 +30,9 @@ const AmbientArchive = () => {
     filters: {} // Initial empty filters
   });
 
-  // Add some diagnostic console logs
+  
+
+  // Diagnostic console logs
   useEffect(() => {
     console.log('[AmbientArchive] Current collections state:', { 
       count: collections?.length || 0,
@@ -40,6 +42,25 @@ const AmbientArchive = () => {
     });
   }, [collections, isLoading, error, filters]);
 
+
+  // a clean-up reference to prevent over-rendering
+useEffect(() => {
+  let isMounted = true;
+  
+  // Diagnostic logging only when component is mounted
+  if (isMounted) {
+    console.log('[AmbientArchive] Current collections state:', { 
+      count: collections?.length || 0,
+      isLoading, 
+      error,
+      filters 
+    });
+  }
+  
+  return () => {
+    isMounted = false; // Clean up
+  };
+}, [collections, isLoading, error, filters]);
 
   // Handle filter changes
   const handleFilterChange = (newFilters) => {

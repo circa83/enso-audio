@@ -11,7 +11,7 @@ import eventBus, { EVENTS } from '../services/EventBus';
  * @param {boolean} [options.loadOnMount=true] - Whether to load collections on mount
  * @param {Object} [options.initialFilters] - Initial filters to apply
  * @param {boolean} [options.listenForEvents=true] - Whether to listen for collection events
-* @param {boolean} [options.autoloadFromUrl=true] - Whether to auto-load collection from URL
+ * @param {boolean} [options.autoloadFromUrl=true] - Whether to auto-load collection from URL
  * @returns {Object} Collection data and functions
  */
 export function useCollection(options = {}) {
@@ -27,6 +27,9 @@ export function useCollection(options = {}) {
 
    // Track if we've already loaded a collection from URL
    const hasLoadedFromUrlRef = useRef(false);
+
+    // Track if we've run the load effect
+  const hasEffectRunRef = useRef(false);
 
     // Auto-detect collection ID from URL if enabled
   useEffect(() => {
@@ -49,7 +52,7 @@ export function useCollection(options = {}) {
         });
         
         // Load the collection
-        collection.getCollection(collectionId)
+        collection.collection.get(collectionId)
           .then(collectionData => {
             console.log(`[useCollection] Successfully loaded collection: ${collectionData.name || collectionId}`);
             
@@ -82,16 +85,28 @@ export function useCollection(options = {}) {
   // Apply initial filters if provided
   useEffect(() => {
     if (initialFilters && Object.keys(initialFilters).length > 0) {
-      collection.updateFilters(initialFilters);
+      collection.list.updateFilters(initialFilters);
     }
   }, [initialFilters, collection]);
   
-  // Load collections on mount if requested
-  useEffect(() => {
-    if (loadOnMount) {
-      collection.loadCollections(1);
-    }
-  }, [loadOnMount, collection]);
+ // Load collections on mount if requested - with additional guard
+useEffect(() => {
+  // Only load if:
+  // 1. loadOnMount is true
+  // 2. Not already loading
+  // 3. No error exists (prevent reload loops on error)
+  // 4. Component is mounted
+  const canLoad = 
+    loadOnMount && 
+    !collection.system.isLoading && 
+    !collection.system.error &&
+    hasEffectRunRef.current === false;
+    
+  if (canLoad) {
+    hasEffectRunRef.current = true;
+    collection.list.loadCollections(1);
+  }
+}, [loadOnMount, collection.system.isLoading, collection.system.error, collection]);
   
   // Listen for collection selection events if enabled
   useEffect(() => {
@@ -153,44 +168,44 @@ export function useCollection(options = {}) {
   // Return a cleaned and organized API
   return useMemo(() => ({
     // State
-    collections: collection.collections,
-    currentCollection: collection.currentCollection,
-    isLoading: collection.isLoading,
-    error: collection.error,
-    filters: collection.filters,
-    pagination: collection.pagination,
+    collections: collection.data.collections,
+    currentCollection: collection.data.currentCollection,
+    isLoading: collection.system.isLoading,
+    error: collection.system.error,
+    filters: collection.data.filters,
+    pagination: collection.data.pagination,
     
     // Functions
-    loadCollections: collection.loadCollections,
-    getCollection: collection.getCollection,
-    updateFilters: collection.updateFilters,
-    clearFilters: collection.clearFilters,
-    goToPage: collection.goToPage,
-    resetCache: collection.resetCache,
+    loadCollections: collection.list.loadCollections,
+    getCollection: collection.collection.get,
+    updateFilters: collection.list.updateFilters,
+    clearFilters: collection.list.clearFilters,
+    goToPage: collection.list.goToPage,
+    resetCache: collection.list.resetCache,
     
     // Selection functionality
     selectCollection,
     
     // Helpers
-    formatForPlayer: collection.formatForPlayer,
+    formatForPlayer: collection.collection.format,
     
     // Service access (for advanced usage)
-    service: collection.service
+    service: collection.system.service
   }), [
-    collection.collections,
-    collection.currentCollection,
-    collection.isLoading,
-    collection.error,
-    collection.filters,
-    collection.pagination,
-    collection.loadCollections,
-    collection.getCollection,
-    collection.updateFilters,
-    collection.clearFilters,
-    collection.goToPage,
-    collection.resetCache,
-    collection.formatForPlayer,
-    collection.service,
+    collection.data.collections,
+    collection.data.currentCollection,
+    collection.system.isLoading,
+    collection.system.error,
+    collection.data.filters,
+    collection.data.pagination,
+    collection.list.loadCollections,
+    collection.collection.get,
+    collection.list.updateFilters,
+    collection.list.clearFilters,
+    collection.list.goToPage,
+    collection.list.resetCache,
+    collection.collection.format,
+    collection.system.service,
     selectCollection
   ]);
 }

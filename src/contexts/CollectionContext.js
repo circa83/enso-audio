@@ -15,16 +15,19 @@ export const CollectionProvider = ({
   children,
   enableLogging = false,
   initialPageSize = 20,
-  cacheDuration = 60000 // 1 minute default
+  cacheDuration = 60000, // 1 minute default
+  enableLocalStorage = true,
+  localStorageKey = 'enso_collections'
 }) => {
-
   // Add check for audio context
   const { audioContext, initialized: audioInitialized } = useAudioContext();
+  
   // Service reference
   const [collectionService, setCollectionService] = useState(null);
 
   // Collection state
   const [collections, setCollections] = useState([]);
+  const [localCollections, setLocalCollections] = useState([]);
   const [currentCollection, setCurrentCollection] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -37,6 +40,13 @@ export const CollectionProvider = ({
     pages: 0
   });
 
+  // Source distribution (how many collections from each source)
+  const [sourceDistribution, setSourceDistribution] = useState({
+    blob: 0,
+    local: 0,
+    localFolder: 0
+  });
+
   // Track mounted state to prevent state updates after unmount
   const isMountedRef = useRef(true);
   const filtersRef = useRef({});
@@ -45,7 +55,7 @@ export const CollectionProvider = ({
 
   // Initialize CollectionService
   useEffect(() => {
-    if (!initialized) {
+    if (!audioInitialized) {
       console.log('[CollectionContext] Waiting for AudioContext to initialize');
       return;
     }
@@ -56,7 +66,9 @@ export const CollectionProvider = ({
       const service = new CollectionService({
         enableLogging,
         cacheDuration,
-        apiBasePath: '/api'
+        apiBasePath: '/api',
+        enableLocalStorage,
+        localStorageKey
       });
 
       setCollectionService(service);
@@ -74,11 +86,13 @@ export const CollectionProvider = ({
       };
     } catch (error) {
       console.error('[CollectionContext] Error initializing CollectionService:', error);
+      setError(error.message);
       return () => {
         isMountedRef.current = false;
       };
     }
-  }, [audioInitialized, enableLogging, cacheDuration]);
+  }, [audioInitialized, enableLogging, cacheDuration, enableLocalStorage, localStorageKey]);
+
   // Set mounted ref for cleanup
   useEffect(() => {
     isMountedRef.current = true;
@@ -89,23 +103,30 @@ export const CollectionProvider = ({
   }, []);
 
   // Load collections with current filters and pagination
-  const loadCollections = useCallback(async (page = 1, currentFilters = filtersRef.current) => {
+  const loadCollections = useCallback(async (page = 1, currentFilters = filtersRef.current, source = 'all') => {
     if (!isMountedRef.current || !collectionService) {
       console.log('[CollectionContext] Component not mounted or service unavailable, skipping load');
       return;
     }
 
+     // Add flag to prevent multiple simultaneous requests
+  if (isLoading) {
+    console.log('[CollectionContext] Already loading collections, skipping duplicate request');
+    return;
+  }
+
     try {
       setIsLoading(true);
       setError(null);
 
-      console.log(`[CollectionContext] Loading collections page ${page} with filters:`, currentFilters);
+      console.log(`[CollectionContext] Loading collections page ${page} from source ${source} with filters:`, currentFilters);
 
       const result = await collectionService.getCollections({
         ...currentFilters,
         page,
         limit: pagination.limit,
-        useCache: true
+        useCache: true,
+        source
       });
 
       if (!isMountedRef.current) return; // Check if still mounted
@@ -120,11 +141,16 @@ export const CollectionProvider = ({
           pages: 1
         });
 
+        // Update source distribution when available
+        if (result.sources) {
+          setSourceDistribution(result.sources);
+        }
+
         // Reset retry counter on success
         retriesRef.current = 0;
 
         // Publish event through event bus
-        eventBus.emit(EVENTS.COLLECTIONS_LOADED || 'collections:loaded', {
+        eventBus.emit(EVENTS.COLLECTION_LOADED || 'collections:loaded', {
           collections: result.data,
           pagination: result.pagination,
           timestamp: Date.now()
@@ -137,16 +163,17 @@ export const CollectionProvider = ({
 
       if (!isMountedRef.current) return; // Check if still mounted
 
-      // Implement retry logic
-      if (retriesRef.current < maxRetries) {
-        retriesRef.current++;
-        console.log(`[CollectionContext] Retrying (${retriesRef.current}/${maxRetries})...`);
-
+        // Implement retry logic - but don't retry missing local folder collections
+    if (retriesRef.current < maxRetries && 
+        !err.message.includes('collections index') && 
+        !err.message.includes('404')) {
+      retriesRef.current++;
+      console.log(`[CollectionContext] Retrying (${retriesRef.current}/${maxRetries})...`);
         // Wait a moment before retrying (exponential backoff)
         const delay = Math.pow(2, retriesRef.current) * 500;
         setTimeout(() => {
           if (isMountedRef.current) {
-            loadCollections(page, currentFilters);
+            loadCollections(page, currentFilters, source);
           }
         }, delay);
 
@@ -156,7 +183,7 @@ export const CollectionProvider = ({
       setError(err.message);
 
       // Publish error event
-      eventBus.emit(EVENTS.COLLECTIONS_ERROR || 'collections:error', {
+      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collections:error', {
         error: err.message,
         timestamp: Date.now()
       });
@@ -165,7 +192,35 @@ export const CollectionProvider = ({
         setIsLoading(false);
       }
     }
-  }, [collectionService, pagination.limit]);
+  }, [collectionService, pagination.limit, isLoading]);
+
+  // Load local collections
+  const loadLocalCollections = useCallback(async () => {
+    if (!collectionService || !isMountedRef.current) return;
+
+    try {
+      setIsLoading(true);
+      
+      // Use the service's local source handler
+      const sourceCollections = await collectionService.sourceHandlers.local.getCollections();
+      
+      if (!isMountedRef.current) return;
+      
+      setLocalCollections(sourceCollections);
+      console.log(`[CollectionContext] Loaded ${sourceCollections.length} local collections`);
+      
+      return sourceCollections;
+    } catch (error) {
+      console.error('[CollectionContext] Error loading local collections:', error);
+      if (isMountedRef.current) {
+        setError(error.message);
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
+    }
+  }, [collectionService]);
 
   // Update filters and reload collections
   const updateFilters = useCallback((newFilters) => {
@@ -198,10 +253,9 @@ export const CollectionProvider = ({
     loadCollections(1, {});
   }, [loadCollections]);
 
-
   // Effect to handle filter changes
   useEffect(() => {
-    if (!isMountedRef.current || !collectionService) return;
+    if (!isMountedRef.current || !collectionService || !initialized) return;
 
     console.log(`[CollectionContext] Filters changed, reloading collections from page 1`);
 
@@ -240,11 +294,16 @@ export const CollectionProvider = ({
             pages: 1
           });
 
+          // Update source distribution when available
+          if (result.sources) {
+            setSourceDistribution(result.sources);
+          }
+
           // Reset retry counter on success
           retriesRef.current = 0;
 
           // Publish event through event bus
-          eventBus.emit(EVENTS.COLLECTIONS_LOADED || 'collections:loaded', {
+          eventBus.emit(EVENTS.COLLECTION_LOADED || 'collections:loaded', {
             collections: result.data,
             pagination: result.pagination,
             timestamp: Date.now()
@@ -260,7 +319,7 @@ export const CollectionProvider = ({
         setError(err.message);
 
         // Publish error event
-        eventBus.emit(EVENTS.COLLECTIONS_ERROR || 'collections:error', {
+        eventBus.emit(EVENTS.COLLECTION_ERROR || 'collections:error', {
           error: err.message,
           timestamp: Date.now()
         });
@@ -275,8 +334,7 @@ export const CollectionProvider = ({
     loadCurrentCollections();
 
     // No cleanup needed for this effect
-  }, [filters, collectionService, pagination.limit]); // Remove loadCollections from dependencies
-
+  }, [filters, collectionService, pagination.limit, initialized]);
 
   // Load a specific collection by ID
   const getCollection = useCallback(async (id) => {
@@ -297,14 +355,15 @@ export const CollectionProvider = ({
         throw new Error(result.error || `Collection ${id} not found`);
       }
 
-      console.log(`[CollectionContext] Successfully loaded collection: ${result.data.name}`);
+      console.log(`[CollectionContext] Successfully loaded collection: ${result.data.name} from source: ${result.source || 'unknown'}`);
 
       // Store as current collection
       setCurrentCollection(result.data);
 
       // Publish event through event bus
-      eventBus.emit(EVENTS.COLLECTION_SELECTED || 'collection:selected', {
+      eventBus.emit(EVENTS.COLLECTIO_SELECTED || 'collection:selected', {
         collection: result.data,
+        source: result.source || 'unknown',
         timestamp: Date.now()
       });
 
@@ -357,6 +416,220 @@ export const CollectionProvider = ({
     }
   }, [collectionService]);
 
+  // Create a new collection in local storage
+  const createCollection = useCallback((data) => {
+    if (!collectionService) {
+      console.error('[CollectionContext] Service unavailable, cannot create collection');
+      return { success: false, error: 'Service unavailable' };
+    }
+
+    try {
+      console.log('[CollectionContext] Creating new collection:', data.name);
+      const result = collectionService.createCollection(data);
+      if (result.success) {
+        console.log('[CollectionContext] Collection created successfully:', result.data.id);
+        
+        // Update local collections list
+        loadLocalCollections();
+        
+        return result;
+      } else {
+        throw new Error(result.error || 'Failed to create collection');
+      }
+    } catch (err) {
+      console.error(`[CollectionContext] Error creating collection:`, err);
+      setError(err.message);
+      
+      return { success: false, error: err.message };
+    }
+  }, [collectionService, loadLocalCollections]);
+
+  // Update an existing collection
+  const updateCollection = useCallback((id, updates) => {
+    if (!collectionService) {
+      console.error('[CollectionContext] Service unavailable, cannot update collection');
+      return { success: false, error: 'Service unavailable' };
+    }
+
+    try {
+      console.log(`[CollectionContext] Updating collection: ${id}`);
+      const result = collectionService.updateCollection(id, updates);
+      
+      if (result.success) {
+        console.log('[CollectionContext] Collection updated successfully');
+        
+        // If this is the current collection, update it
+        if (currentCollection && currentCollection.id === id) {
+          setCurrentCollection(result.data);
+        }
+        
+        // Update local collections list
+        loadLocalCollections();
+        
+        return result;
+      } else {
+        throw new Error(result.error || 'Failed to update collection');
+      }
+    } catch (err) {
+      console.error(`[CollectionContext] Error updating collection:`, err);
+      setError(err.message);
+      
+      return { success: false, error: err.message };
+    }
+  }, [collectionService, currentCollection, loadLocalCollections]);
+
+  // Remove (delete) a collection
+  const removeCollection = useCallback((id) => {
+    if (!collectionService) {
+      console.error('[CollectionContext] Service unavailable, cannot remove collection');
+      return { success: false, error: 'Service unavailable' };
+    }
+
+    try {
+      console.log(`[CollectionContext] Removing collection: ${id}`);
+      const result = collectionService.removeLocalCollection(id);
+      
+      if (result) {
+        console.log('[CollectionContext] Collection removed successfully');
+        
+        // If this was the current collection, clear it
+        if (currentCollection && currentCollection.id === id) {
+          setCurrentCollection(null);
+        }
+        
+        // Update local collections list
+        loadLocalCollections();
+        
+        // Also update main collections list if needed
+        loadCollections(pagination.page, filtersRef.current);
+        
+        return { success: true };
+      } else {
+        throw new Error('Failed to remove collection');
+      }
+    } catch (err) {
+      console.error(`[CollectionContext] Error removing collection:`, err);
+      setError(err.message);
+      
+      return { success: false, error: err.message };
+    }
+  }, [collectionService, currentCollection, loadLocalCollections, loadCollections, pagination.page]);
+
+  // Add a track to a collection
+  const addTrackToCollection = useCallback((collectionId, track) => {
+    if (!collectionService) {
+      console.error('[CollectionContext] Service unavailable, cannot add track');
+      return { success: false, error: 'Service unavailable' };
+    }
+
+    try {
+      console.log(`[CollectionContext] Adding track to collection: ${collectionId}`);
+      const result = collectionService.addTrackToCollection(collectionId, track);
+      
+      if (result.success) {
+        console.log('[CollectionContext] Track added successfully');
+        
+        // If this is the current collection, reload it to get updated tracks
+        if (currentCollection && currentCollection.id === collectionId) {
+          getCollection(collectionId);
+        }
+        
+        // Update local collections list
+        loadLocalCollections();
+        
+        return result;
+      } else {
+        throw new Error(result.error || 'Failed to add track');
+      }
+    } catch (err) {
+      console.error(`[CollectionContext] Error adding track:`, err);
+      setError(err.message);
+      
+      return { success: false, error: err.message };
+    }
+  }, [collectionService, currentCollection, getCollection, loadLocalCollections]);
+
+  // Remove a track from a collection
+  const removeTrackFromCollection = useCallback((collectionId, trackId) => {
+    if (!collectionService) {
+      console.error('[CollectionContext] Service unavailable, cannot remove track');
+      return { success: false, error: 'Service unavailable' };
+    }
+
+    try {
+      console.log(`[CollectionContext] Removing track ${trackId} from collection: ${collectionId}`);
+      const result = collectionService.removeTrackFromCollection(collectionId, trackId);
+      
+      if (result.success) {
+        console.log('[CollectionContext] Track removed successfully');
+        
+        // If this is the current collection, reload it to get updated tracks
+        if (currentCollection && currentCollection.id === collectionId) {
+          getCollection(collectionId);
+        }
+        
+        // Update local collections list
+        loadLocalCollections();
+        
+        return result;
+      } else {
+        throw new Error(result.error || 'Failed to remove track');
+      }
+    } catch (err) {
+      console.error(`[CollectionContext] Error removing track:`, err);
+      setError(err.message);
+      
+      return { success: false, error: err.message };
+    }
+  }, [collectionService, currentCollection, getCollection, loadLocalCollections]);
+
+  // Export a collection to JSON
+  const exportCollection = useCallback((id) => {
+    if (!collectionService) {
+      console.error('[CollectionContext] Service unavailable, cannot export collection');
+      return { success: false, error: 'Service unavailable' };
+    }
+
+    try {
+      console.log(`[CollectionContext] Exporting collection: ${id}`);
+      return collectionService.exportCollection(id);
+    } catch (err) {
+      console.error(`[CollectionContext] Error exporting collection:`, err);
+      setError(err.message);
+      
+      return { success: false, error: err.message };
+    }
+  }, [collectionService]);
+
+  // Import a collection from JSON
+  const importCollection = useCallback((data) => {
+    if (!collectionService) {
+      console.error('[CollectionContext] Service unavailable, cannot import collection');
+      return { success: false, error: 'Service unavailable' };
+    }
+
+    try {
+      console.log('[CollectionContext] Importing collection');
+      const result = collectionService.importCollection(data);
+      
+      if (result.success) {
+        console.log('[CollectionContext] Collection imported successfully:', result.data.id);
+        
+        // Update local collections list
+        loadLocalCollections();
+        
+        return result;
+      } else {
+        throw new Error(result.error || 'Failed to import collection');
+      }
+    } catch (err) {
+      console.error(`[CollectionContext] Error importing collection:`, err);
+      setError(err.message);
+      
+      return { success: false, error: err.message };
+    }
+  }, [collectionService, loadLocalCollections]);
+
   // Reset collection cache
   const resetCache = useCallback(() => {
     if (!collectionService) {
@@ -371,89 +644,96 @@ export const CollectionProvider = ({
     loadCollections(1, filtersRef.current);
   }, [collectionService, loadCollections]);
 
-  // Handle Collection Selection
+  // Load initial data when service is initialized
   useEffect(() => {
-    // Handle collection selection events from throughout the app
-    const handleCollectionSelected = async (data) => {
-      if (!data || !data.collectionId) {
-        console.warn('[CollectionContext] Received malformed collection selection event', data);
-        return;
-      }
+    if (collectionService && initialized && !isLoading) {
+      console.log('[CollectionContext] Service initialized, loading initial data');
+      
+      // Load collections first time
+      loadCollections(1, filtersRef.current);
+      
+      // Load local collections
+      loadLocalCollections();
+    }
+  }, [collectionService, initialized, isLoading, loadCollections, loadLocalCollections]);
 
-      console.log(`[CollectionContext] Collection selected: ${data.collectionId} from ${data.source}`);
-
-      try {
-        // Start loading the collection immediately
-        setIsLoading(true);
-        setError(null);
-
-        // Emit loading event
-        eventBus.emit(EVENTS.COLLECTION_LOADING, {
-          collectionId: data.collectionId,
-          source: data.source,
-          timestamp: Date.now()
-        });
-
-        // Load the collection data
-        const result = await getCollection(data.collectionId);
-
-        if (!isMountedRef.current) return; // Check if still mounted
-
-        if (result && result.success) {
-          setCurrentCollection(result.data);
-
-          // Emit loaded event to trigger buffer loading
-          eventBus.emit(EVENTS.COLLECTION_LOADED, {
-            collectionId: data.collectionId,
-            collection: result.data,
-            source: data.source || 'unknown',
-            timestamp: Date.now()
-          });
-        } else {
-          throw new Error(result?.error || 'Failed to load collection');
-        }
-      } catch (err) {
-        console.error(`[CollectionContext] Error handling collection selection:`, err);
-
-        if (!isMountedRef.current) return; // Check if still mounted
-
-        setError(err.message);
-
-        // Emit error event
-        eventBus.emit(EVENTS.COLLECTION_ERROR, {
-          collectionId: data.collectionId,
-          error: err.message,
-          source: data.source,
-          timestamp: Date.now()
-        });
-      } finally {
-        if (isMountedRef.current) {
-          setIsLoading(false);
-        }
-      }
+  // Subscribe to relevant events from EventBus
+  useEffect(() => {
+    if (!initialized) return;
+    
+    const handleCollectionChange = () => {
+      // Reload collections to get latest data
+      loadLocalCollections();
     };
-
-    // Subscribe to collection selection events
-    eventBus.on(EVENTS.COLLECTION_SELECTED, handleCollectionSelected);
-
-    // Clean up event listener on unmount
+    
+    // Subscribe to events
+    eventBus.on('collection:created', handleCollectionChange);
+    eventBus.on('collection:updated', handleCollectionChange);
+    eventBus.on('collection:deleted', handleCollectionChange);
+    eventBus.on('collection:imported', handleCollectionChange);
+    
+    // Cleanup
     return () => {
-      eventBus.off(EVENTS.COLLECTION_SELECTED, handleCollectionSelected);
+      eventBus.off('collection:created', handleCollectionChange);
+      eventBus.off('collection:updated', handleCollectionChange);
+      eventBus.off('collection:deleted', handleCollectionChange);
+      eventBus.off('collection:imported', handleCollectionChange);
     };
-  }, [getCollection]); // Depend on getCollection to ensure we're using the latest version
-
+  }, [initialized, loadLocalCollections]);
 
   // Create memoized context value
+  // Create memoized context value with explicit grouping
   const contextValue = useMemo(() => ({
-    // State
-    collections,
-    currentCollection,
-    isLoading,
-    error,
-    filters,
-    pagination,
-
-    // Methods
+    // System state
+    system: {
+      initialized,
+      isLoading,
+      error,
+      service: collectionService
+    },
+    
+    // State data
+    data: {
+      collections,
+      localCollections,
+      currentCollection,
+      pagination,
+      sourceDistribution,
+      filters
+    },
+    
+    // Collection list operations
+    list: {
+      loadCollections,
+      updateFilters,
+      clearFilters,
+      goToPage,
+      resetCache
+    },
+    
+    // Single collection operations
+    collection: {
+      get: getCollection,
+      format: formatForPlayer
+    },
+    
+    // Local collection management
+    local: {
+      load: loadLocalCollections,
+      create: createCollection,
+      update: updateCollection,
+      remove: removeCollection,
+      addTrack: addTrackToCollection,
+      removeTrack: removeTrackFromCollection
+    },
+    
+    // Import/Export functionality
+    transfer: {
+      export: exportCollection,
+      import: importCollection
+    },
+    
+    // Legacy flat API for backward compatibility
     loadCollections,
     getCollection,
     updateFilters,
@@ -461,16 +741,25 @@ export const CollectionProvider = ({
     goToPage,
     formatForPlayer,
     resetCache,
-
-    // Service access for advanced usage
-    service: collectionService
+    loadLocalCollections,
+    createCollection,
+    updateCollection,
+    removeCollection,
+    addTrackToCollection,
+    removeTrackFromCollection,
+    exportCollection,
+    importCollection
   }), [
+    // Dependencies remain the same
+    initialized,
     collections,
+    localCollections,
     currentCollection,
     isLoading,
     error,
     filters,
     pagination,
+    sourceDistribution,
     loadCollections,
     getCollection,
     updateFilters,
@@ -478,8 +767,17 @@ export const CollectionProvider = ({
     goToPage,
     formatForPlayer,
     resetCache,
+    loadLocalCollections,
+    createCollection,
+    updateCollection,
+    removeCollection,
+    addTrackToCollection,
+    removeTrackFromCollection,
+    exportCollection,
+    importCollection,
     collectionService
   ]);
+
 
   return (
     <CollectionContext.Provider value={contextValue}>

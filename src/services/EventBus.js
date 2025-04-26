@@ -329,38 +329,67 @@ export const EVENTS = {
   BUFFER_LOAD_PROGRESS: 'buffer:loadProgress',
   BUFFER_ERROR: 'buffer:error',
   BUFFER_CACHE_CLEARED: 'buffer:cacheCleared',
+  BUFFER_PRELOAD_START: 'buffer:preloadStart',
+  BUFFER_RELEASED: 'buffer:released',
 
-  // Collection events
+  // Collection lifecycle and system events
   COLLECTION_INITIALIZED: 'collection:initialized',
-  COLLECTION_LOADED: 'collections:loaded',
-  COLLECTION_LOADING: 'collection:loading',
-  COLLECTION_LOAD_START: 'collections:loadStart',
-  COLLECTION_SELECTED: 'collection:selected',
-  COLLECTION_FETCH_START: 'collection:fetchStart',
-  COLLECTION_FORMATTED: 'collection:formatted',
-  COLLECTION_FORMAT_START: 'collection:formatStart',
+  COLLECTION_DISPOSED: 'collection:disposed',
   COLLECTION_ERROR: 'collection:error',
   COLLECTION_NOT_FOUND: 'collection:notFound',
-  COLLECTION_FILE_WARNING: 'collection:fileWarning',
 
- // Collection API and storage events
- COLLECTION_API_FETCH_START: 'collection:apiFetchStart',
- COLLECTION_BLOB_FETCH_START: 'collection:blobFetchStart',
- COLLECTION_BLOB_FETCH_SUCCESS: 'collection:blobFetchSuccess',
- COLLECTION_BLOB_FETCH_ERROR: 'collection:blobFetchError',
- 
- // Collection verification events
- COLLECTION_VERIFY_START: 'collection:verifyStart',
- COLLECTION_VERIFY_SUCCESS: 'collection:verifySuccess',
- COLLECTION_VERIFY_ERROR: 'collection:verifyError',
- 
- // Collection cache events
- COLLECTION_CACHE_HIT: 'collection:cacheHit',
- COLLECTION_CACHE_UPDATED: 'collection:cacheUpdated',
- COLLECTION_CACHE_CLEARED: 'collection:cacheCleared',
- 
- // Collection lifecycle events
- COLLECTION_DISPOSED: 'collection:disposed',
+  // Collections list events
+  COLLECTIONS_LOAD_START: 'collections:loadStart',
+  COLLECTIONS_LOADED: 'collections:loaded',
+  COLLECTIONS_ERROR: 'collections:error',
+  
+  // Single collection loading events
+  COLLECTION_LOADING: 'collection:loading',
+  COLLECTION_LOADED: 'collection:loaded',
+  COLLECTION_FETCH_START: 'collection:fetchStart',
+  COLLECTION_SELECTED: 'collection:selected',
+  
+  // Collection file operations
+  COLLECTION_FILE_WARNING: 'collection:fileWarning',
+  COLLECTION_VERIFY_START: 'collection:verifyStart',
+  COLLECTION_VERIFY_SUCCESS: 'collection:verifySuccess',
+  COLLECTION_VERIFY_ERROR: 'collection:verifyError',
+  
+  // Collection API operations
+  COLLECTION_API_FETCH_START: 'collection:apiFetchStart',
+  
+  // Collection blob storage operations
+  COLLECTION_BLOB_FETCH_START: 'collection:blobFetchStart',
+  COLLECTION_BLOB_FETCH_SUCCESS: 'collection:blobFetchSuccess',
+  COLLECTION_BLOB_FETCH_ERROR: 'collection:blobFetchError',
+  
+  // Collection formatting operations
+  COLLECTION_FORMAT_START: 'collection:formatStart',
+  COLLECTION_FORMATTED: 'collection:formatted',
+  
+  // Collection cache operations
+  COLLECTION_CACHE_HIT: 'collection:cacheHit',
+  COLLECTION_CACHE_UPDATED: 'collection:cacheUpdated',
+  COLLECTION_CACHE_CLEARED: 'collection:cacheCleared',
+  
+  // Local collection operations
+  COLLECTION_LOCAL_LOADING: 'collection:localLoading',
+  COLLECTION_LOCAL_LOADED: 'collection:localLoaded',
+  COLLECTION_LOCAL_SAVED: 'collection:localSaved',
+  COLLECTION_LOCAL_REMOVED: 'collection:localRemoved',
+  
+  // Collection CRUD operations
+  COLLECTION_CREATED: 'collection:created',
+  COLLECTION_UPDATED: 'collection:updated',
+  COLLECTION_DELETED: 'collection:deleted',
+  
+  // Collection track operations
+  COLLECTION_TRACK_ADDED: 'collection:trackAdded',
+  COLLECTION_TRACK_REMOVED: 'collection:trackRemoved',
+  
+  // Collection import/export operations
+  COLLECTION_EXPORTED: 'collection:exported',
+  COLLECTION_IMPORTED: 'collection:imported',
 
   // Layer events
   LAYER_TRACKS_SET: 'layer:tracksSet',
@@ -372,7 +401,6 @@ export const EVENTS = {
   LAYER_LOAD_COMPLETE: 'layer:loadComplete',
   LAYER_COLLECTION_REGISTERED: 'layer:collectionRegistered',
 
-
   // Track-specific events
   TRACK_LOADED: 'track:loaded',
   TRACK_SELECTED: 'track:selected',
@@ -381,10 +409,96 @@ export const EVENTS = {
 
   // Timeline events
   TIMELINE_STARTED: 'timeline:started',
-  TIMELINE_STOPPED: 'timeline:stopped',
   TIMELINE_PAUSED: 'timeline:paused',
   TIMELINE_RESUMED: 'timeline:resumed',
-  TIMELINE_PHASE_CHANGED: 'timeline:phaseChanged',
+  TIMELINE_STOPPED: 'timeline:stopped',
+  TIMELINE_COMPLETED: 'timeline:completed',
   TIMELINE_PROGRESS: 'timeline:progress',
-  TIMELINE_EVENT_TRIGGERED: 'timeline:eventTriggered'
+  TIMELINE_PHASE_CHANGED: 'timeline:phaseChanged',
+  TIMELINE_TRANSITION_CHANGED: 'timeline:transitionChanged',
+  TIMELINE_SEEK: 'timeline:seek',
+  TIMELINE_EVENT_REGISTERED: 'timeline:eventRegistered',
+  TIMELINE_EVENTS_CLEARED: 'timeline:eventsCleared',
+  TIMELINE_ERROR: 'timeline:error',
+  TIMELINE_INITIALIZED: 'timeline:initialized',
+  
+  // Crossfade events
+  CROSSFADE_START: 'crossfade:start',
+  CROSSFADE_COMPLETE: 'crossfade:complete',
+  CROSSFADE_PROGRESS: 'crossfade:progress',
+  CROSSFADE_CANCELLED: 'crossfade:cancelled',
+  CROSSFADE_ERROR: 'crossfade:error',
+  
+  // Session events
+  SESSION_STARTED: 'session:started',
+  SESSION_ENDED: 'session:ended',
+  SESSION_SETTINGS_CHANGED: 'session:settingsChanged',
+  
+  // User interaction events
+  USER_INTERACTION: 'user:interaction',
+  USER_PREFERENCES_CHANGED: 'user:preferencesChanged',
+  
+  // UI events
+  UI_VIEW_CHANGED: 'ui:viewChanged',
+  UI_MODAL_OPENED: 'ui:modalOpened',
+  UI_MODAL_CLOSED: 'ui:modalClosed',
+  
+  // System events
+  SYSTEM_READY: 'system:ready',
+  SYSTEM_ERROR: 'system:error',
+  SYSTEM_NETWORK_STATUS: 'system:networkStatus',
+  
+  // Debugging events
+  DEBUG_LOG: 'debug:log',
+  DEBUG_ERROR: 'debug:error',
+  DEBUG_WARNING: 'debug:warning'
+};
+
+/**
+ * Create an event name with namespace
+ * Helper function to create standardized event names
+ * 
+ * @param {string} namespace - Event namespace (e.g. 'collection')
+ * @param {string} action - Event action (e.g. 'loaded')
+ * @returns {string} Namespaced event name (e.g. 'collection:loaded')
+ */
+export const createEventName = (namespace, action) => {
+  if (!namespace || !action) {
+    console.error('[EventBus] createEventName requires both namespace and action');
+    return '';
+  }
+  return `${namespace}:${action}`;
+};
+
+/**
+ * Check if an event name exists in EVENTS
+ * 
+ * @param {string} eventName - Event name to check
+ * @returns {boolean} Whether the event exists in EVENTS
+ */
+export const isRegisteredEvent = (eventName) => {
+  return Object.values(EVENTS).includes(eventName);
+};
+
+/**
+ * Register a new event name in EVENTS (development helper)
+ * Note: This is mainly for development and testing - in production
+ * events should be defined in the EVENTS object directly.
+ * 
+ * @param {string} constantName - Constant name (e.g. COLLECTION_LOADED)
+ * @param {string} eventName - Event name (e.g. 'collection:loaded')
+ * @returns {string} The registered event name
+ */
+export const registerEvent = (constantName, eventName) => {
+  if (process.env.NODE_ENV !== 'development') {
+    console.warn('[EventBus] registerEvent is intended for development only');
+  }
+  
+  if (EVENTS[constantName]) {
+    console.warn(`[EventBus] Event ${constantName} already exists with value ${EVENTS[constantName]}`);
+    return EVENTS[constantName];
+  }
+  
+  EVENTS[constantName] = eventName;
+  return eventName;
 };

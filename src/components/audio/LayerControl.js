@@ -3,7 +3,9 @@ import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useLayer } from '../../hooks/useLayer';
 import { useAudio } from '../../hooks/useAudio';
 import { useBuffer } from '../../hooks/useBuffer';
+import { useVolume } from '../../hooks/useVolume'; // Add this import
 import styles from '../../styles/components/LayerControl.module.css';
+import dropdownStyles from '../../styles/components/LayerDropdown.module.css'; // Import the original dropdown styles
 
 /**
  * Unified LayerControl component combining the functionality of 
@@ -20,24 +22,30 @@ const LayerControl = ({ layer }) => {
     getActiveTrack,
     changeTrack,
     isLayerMuted,
-    toggleMute
+    toggleMute,
+    transitions
   } = useLayer();
   
-  // Get volume control for this layer
-  const { getLayerVolume, setLayerVolume } = useAudio();
+  // Get volume control for this layer from useVolume instead of useAudio
+  const { 
+    getVolume, 
+    setVolume 
+  } = useVolume();
   
   // Get buffer loading status
   const { getLoadingStatus } = useBuffer();
   
-  // Get audio system state for crossfades
+  // Get audio system state for playback
   const { 
-    transitions: { 
-      active: activeCrossfades, 
-      progress: crossfadeProgress, 
-      preloadProgress 
-    },
     playback: { isPlaying } 
   } = useAudio();
+  
+  // Destructure transitions
+  const { 
+    active: activeCrossfades, 
+    progress: crossfadeProgress, 
+    preloadProgress 
+  } = transitions || { active: {}, progress: {}, preloadProgress: {} };
   
   // Local state
   const [isExpanded, setIsExpanded] = useState(false);
@@ -49,10 +57,10 @@ const LayerControl = ({ layer }) => {
   const toggleButtonRef = useRef(null);
   const isMounted = useRef(false);
   
-  // Get data for this layer
+  // Get data for this layer - use getVolume instead of getLayerVolume
   const tracks = getTracksForLayer(layer);
   const activeTrackId = getActiveTrack(layer);
-  const volume = getLayerVolume(layer) || 0;
+  const volume = getVolume(layer) || 0;
   const isMuted = isLayerMuted(layer);
   
   // Format volume as percentage for display and accessibility
@@ -74,6 +82,7 @@ const LayerControl = ({ layer }) => {
         return 8000; // Fallback
     }
   }, []);
+  
   
   // Track component lifecycle
   useEffect(() => {
@@ -158,8 +167,8 @@ const LayerControl = ({ layer }) => {
   // Handle volume change
   const handleVolumeChange = useCallback((e) => {
     const newVolume = parseFloat(e.target.value);
-    setLayerVolume(layer, newVolume);
-  }, [layer, setLayerVolume]);
+    setVolume(layer, newVolume);
+  }, [layer, setVolume]);
   
   // Toggle dropdown visibility
   const toggleDropdown = useCallback((e) => {
@@ -264,25 +273,25 @@ const LayerControl = ({ layer }) => {
               {isMuted ? 'Unmute' : 'Mute'}
             </button>
             
-            {/* Track dropdown toggle button - from LayerDropdown */}
-            <div className={styles.dropdownContainer} ref={dropdownRef}>
+            {/* Track dropdown toggle button - use original dropdown styles */}
+            <div className={dropdownStyles.dropdownContainer} ref={dropdownRef}>
               <button 
-                className={`${styles.dropdownToggle} ${isExpanded ? styles.expanded : ''} ${isInCrossfade ? styles.crossfading : ''}`}
+                className={`${dropdownStyles.dropdownToggle} ${isExpanded ? dropdownStyles.expanded : ''} ${isInCrossfade ? dropdownStyles.crossfading : ''}`}
                 onClick={toggleDropdown}
                 disabled={isInCrossfade}
                 type="button"
                 ref={toggleButtonRef}
               >
-                <span className={styles.currentTrack}>
+                <span className={dropdownStyles.currentTrack}>
                   {isInCrossfade ? (
-                    <span className={styles.crossfadeStatus}>
+                    <span className={dropdownStyles.crossfadeStatus}>
                       Transitioning ({getProgressPercent()}%)
                     </span>
                   ) : (
                     getActiveTrackName()
                   )}
                 </span>
-                <span className={styles.arrowIcon}>▼</span>
+                <span className={dropdownStyles.arrowIcon}>▼</span>
               </button>
             </div>
           </div>
@@ -322,12 +331,12 @@ const LayerControl = ({ layer }) => {
         </div>
       </div>
       
-      {/* Dropdown Menu for Track Selection - from LayerDropdown */}
+      {/* Dropdown Menu for Track Selection - USE ORIGINAL DROPDOWN STYLES */}
       {isExpanded && (
         <>
           {/* Add a full-screen transparent overlay to capture clicks */}
           <div 
-            className={styles.menuOverlay} 
+            className={dropdownStyles.menuOverlay} 
             onClick={(e) => {
               e.stopPropagation();
               setIsExpanded(false);
@@ -336,7 +345,7 @@ const LayerControl = ({ layer }) => {
           />
           
           <ul 
-            className={styles.dropdownMenu}
+            className={dropdownStyles.dropdownMenu}
             onClick={(e) => e.stopPropagation()} 
             style={{
               top: `${menuPosition.top}px`,
@@ -356,117 +365,54 @@ const LayerControl = ({ layer }) => {
               const isTarget = isInCrossfade && activeCrossfades[layer].to === track.id;
               const isLoading = isInCrossfade && activeCrossfades[layer].isLoading && activeCrossfades[layer].to === track.id;
               const isActive = activeTrackId === track.id;
-              
-              // Check if this track is currently preloading but not in a crossfade yet
-              const isPreloading = !isInCrossfade && preloadProgress && preloadProgress[track.id] !== undefined && preloadProgress[track.id] < 100;
-              const preloadPercent = preloadProgress && preloadProgress[track.id] ? preloadProgress[track.id] : 0;
-              // Get buffer loading status for this track
-              const bufferStatus = track.path ? getLoadingStatus(track.path) : { isLoading: false, progress: 0 };
-              
-              return (
-                <li
-                  key={track.id}
-                  className={`${styles.dropdownItem} ${isActive ? styles.active : ''} 
-                    ${isSource ? styles.crossfadeSource : ''} 
-                    ${isTarget ? styles.crossfadeTarget : ''} 
-                    ${isLoading || isPreloading || bufferStatus.isLoading ? styles.loading : ''}`}
-                  onClick={(e) => handleTrackSelect(e, track.id)}
-                >
-                  <div className={styles.trackInfo}>
-                    <span className={styles.trackName}>{track.name}</span>
-                    
-                    {/* Loading/progress indicators */}
-                    {(isLoading || isPreloading || bufferStatus.isLoading) && (
-                      <span className={styles.loadingIndicator}>
-                        {isLoading ? 'Loading...' : bufferStatus.isLoading ? `Loading ${bufferStatus.progress}%` : `Preloading ${preloadPercent}%`}
-                      </span>
-                    )}
-                    
-                    {/* Active indicator */}
-                    {isActive && !isSource && !isTarget && (
-                      <span className={styles.activeIndicator}>Active</span>
-                    )}
-                    
-                    {/* Crossfade indicators */}
-                    {isSource && (
-                      <span className={styles.crossfadeIndicator}>
-                        Fading Out ({getProgressPercent()}%)
-                      </span>
-                    )}
-                    
-                    {isTarget && (
-                      <span className={styles.crossfadeIndicator}>
-                        Fading In ({getProgressPercent()}%)
-                      </span>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-            
-            {/* Empty state if no tracks */}
-            {(!tracks || tracks.length === 0) && (
-              <li className={styles.dropdownItem}>
-                <span className={styles.emptyMessage}>No tracks available</span>
-              </li>
-            )}
-          </ul>
-        </>
-      )}
-      
-      {/* Expanded Details View - from LayerSelector */}
-      {isExpanded && (
-        <div 
-          className={styles.expandedDetails}
-          style={{ zIndex: zIndex }}
-        >
-          {/* Crossfade Progress Bar */}
-          {isInCrossfade && (
-            <div className={styles.crossfadeContainer}>
-              <div className={styles.crossfadeLabel}>
-                Crossfading: {crossfadeInfo?.from} → {crossfadeInfo?.to}
-              </div>
-              <div className={styles.progressContainer}>
-                <div 
-                  className={styles.progressBar} 
-                  style={{ width: `${getProgressPercent()}%` }}
-                ></div>
-                <div className={styles.progressText}>
-                  {getProgressPercent()}%
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {/* Layer Status Information */}
-          <div className={styles.layerStatus}>
-            <div className={styles.statusRow}>
-              <span className={styles.statusLabel}>Status:</span>
-              <span className={styles.statusValue}>
-                {isMuted ? 'Muted' : isInCrossfade ? 'Transitioning' : isPlaying ? 'Playing' : 'Ready'}
-              </span>
-            </div>
-            
-            <div className={styles.statusRow}>
-              <span className={styles.statusLabel}>Active Track:</span>
-              <span className={styles.statusValue}>{getActiveTrackName()}</span>
-            </div>
-            
-            <div className={styles.statusRow}>
-              <span className={styles.statusLabel}>Volume:</span>
-              <span className={styles.statusValue}>{volumePercentage}%</span>
-            </div>
-            
-            <div className={styles.statusRow}>
-              <span className={styles.statusLabel}>Available Tracks:</span>
-              <span className={styles.statusValue}>{tracks ? tracks.length : 0}</span>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Use memo to prevent unnecessary re-renders
-export default memo(LayerControl);
+                           // Check if this track is currently preloading but not in a crossfade yet
+                           const isPreloading = !isInCrossfade && preloadProgress && 
+                           preloadProgress[track.id] !== undefined && 
+                           preloadProgress[track.id] < 100;
+                         
+                         return (
+                           <li 
+                             key={track.id}
+                             className={`${dropdownStyles.dropdownItem} ${isActive ? dropdownStyles.active : ''}`}
+                             onClick={(e) => handleTrackSelect(e, track.id)}
+                           >
+                             <span className={dropdownStyles.trackName}>{track.name}</span>
+                             {isActive && <span className={dropdownStyles.activeIndicator}>✓</span>}
+                             {isSource && <span className={dropdownStyles.sourceIndicator}>Source</span>}
+                             {isTarget && <span className={dropdownStyles.targetIndicator}>Target</span>}
+                             {isPreloading && (
+                               <div className={dropdownStyles.preloadingIndicator}>
+                                 <span>{preloadProgress[track.id]}%</span>
+                               </div>
+                             )}
+                           </li>
+                         );
+                       })}
+                     </ul>
+                   </>
+                 )}
+                 
+                 {/* Display crossfade progress if active */}
+                 {isInCrossfade && (
+                   <div className={styles.crossfadeProgress}>
+                     <div 
+                       className={styles.progressFill} 
+                       style={{ width: `${getProgressPercent()}%` }}
+                     ></div>
+                     <span className={styles.progressText}>
+                       {crossfadeInfo && `${crossfadeInfo.from} → ${crossfadeInfo.to} (${crossfadeInfo.progress}%)`}
+                     </span>
+                   </div>
+                 )}
+                 
+                 {/* Error message display */}
+                 {errorMessage && !isExpanded && (
+                   <div className={styles.errorMessage}>{errorMessage}</div>
+                 )}
+               </div>
+             );
+           };
+           
+           // Export with memoization to prevent unnecessary re-renders
+           export default memo(LayerControl);
+           
