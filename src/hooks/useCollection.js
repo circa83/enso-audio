@@ -1,5 +1,5 @@
 // src/hooks/useCollection.js
-import { useCallback, useMemo, useEffect } from 'react';
+import { useCallback, useMemo, useEffect, useRef } from 'react';
 import { useCollectionContext } from '../contexts/CollectionContext';
 import eventBus, { EVENTS } from '../services/EventBus';
 

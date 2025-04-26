@@ -1,5 +1,5 @@
 // src/hooks/useTimeline.js
-import { useState, useEffect, useCallback, useRef } from 'react';
+import  { useState, useEffect, useCallback, useRef } from 'react';
 import { useTimelineContext } from '../contexts/TimelineContext';
 import { useAudio } from './useAudio';
 import eventBus from '../services/EventBus';

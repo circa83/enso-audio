@@ -17,7 +17,7 @@ export const LAYER_TYPES = {
 
 // Create context
 const LayerContext = createContext(null);
-const collectionContext = useCollectionContext();
+// const collectionContext = useCollectionContext();
 
 export const LayerProvider = ({ children }) => {
   // Get required services
@@ -25,6 +25,7 @@ export const LayerProvider = ({ children }) => {
   const volume = useVolumeContext();
   const crossfade = useCrossfadeContext();
   const buffer = useBufferContext();
+  const collection = useCollectionContext();
 
   // State
   const [availableTracks, setAvailableTracks] = useState({
@@ -79,7 +80,7 @@ useEffect(() => {
     // Format collection if needed before registration
     const formattedCollection = data.collection.layers 
       ? data.collection 
-      : collectionContext.formatForPlayer(data.collection);
+      : useCollectionContext.formatForPlayer(data.collection);
     
     if (formattedCollection) {
       console.log(`[LayerContext] Auto-registering collection: ${formattedCollection.id}`);
@@ -348,7 +349,7 @@ useEffect(() => {
     eventBus.off(EVENTS.COLLECTION_LOADED || 'collection:loaded', handleCollectionLoaded);
     eventBus.off(EVENTS.COLLECTION_SELECTED || 'collection:selected', handleCollectionSelected);
   };
-}, [collectionContext, registerCollection]);
+}, [useCollectionContext, registerCollection]);
 
   // Register collection with layers
   const registerCollection = useCallback((collection) => {

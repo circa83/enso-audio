@@ -3,11 +3,11 @@ import React from 'react';
 import { AudioProvider, useAudioContext } from '../../contexts/AudioContext';
 import { AuthProvider } from '../../contexts/AuthContext';
 import { VolumeProvider, useVolumeContext } from '../../contexts/VolumeContext';
-import { CollectionProvider } from '../../contexts/CollectionContext';
-import { LayerProvider } from '../../contexts/LayerContext';
+import { CollectionProvider, useCollectionContext } from '../../contexts/CollectionContext';
+import { LayerProvider, useLayerContext } from '../../contexts/LayerContext';
 import { CrossfadeProvider, useCrossfadeContext } from '../../contexts/CrossfadeContext';
-import { TimelineProvider } from '../../contexts/TimelineContext';
-import { BufferProvider } from '../../contexts/BufferContext'; // Add this import
+import { TimelineProvider, useTimelineContext } from '../../contexts/TimelineContext';
+import { BufferProvider, useBufferContext } from '../../contexts/BufferContext'; // Add this import
 
 // This intermediate component connects AudioProvider to VolumeProvider
 function VolumeProviderWithAudio({ children }) {
@@ -133,6 +133,29 @@ function CollectionProviderAdapter({ children }) {
   );
 }
 
+// Add this adapter component for LayerProvider
+function LayerProviderAdapter({ children }) {
+  // Get all required dependencies
+  const { audioContext, initialized: audioInitialized } = useAudioContext();
+  const volumeContext = useVolumeContext();
+  const crossfadeContext = useCrossfadeContext();
+  const bufferContext = useBufferContext();
+  const collectionContext = useCollectionContext();
+
+  // Only render when all dependencies are available
+  if (!audioInitialized || !audioContext || !volumeContext || 
+      !crossfadeContext || !bufferContext || !collectionContext) {
+    console.log('Waiting for dependencies before initializing LayerProvider');
+    return null;
+  }
+
+  return (
+    <LayerProvider>
+      {children}
+    </LayerProvider>
+  );
+}
+
 // Main providers wrapper
 export function ProvidersWrapper({ children }) {
   return (
@@ -147,9 +170,10 @@ export function ProvidersWrapper({ children }) {
               {/* Add TimelineProvider with adapter */}
               <CollectionProviderAdapter>
                 <TimelineProviderAdapter>
-                  <LayerProvider>
+                  {/* Replace direct LayerProvider with adapter */}
+                  <LayerProviderAdapter>
                     {children}
-                  </LayerProvider>
+                  </LayerProviderAdapter>
                 </TimelineProviderAdapter>
               </CollectionProviderAdapter>
             </CrossfadeProviderAdapter>
