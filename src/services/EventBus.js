@@ -332,9 +332,9 @@ export const EVENTS = {
 
   // Collection events
   COLLECTION_INITIALIZED: 'collection:initialized',
-  COLLECTIONS_LOADED: 'collections:loaded',
+  COLLECTION_LOADED: 'collections:loaded',
   COLLECTION_LOADING: 'collection:loading',
-  COLLECTIONS_LOAD_START: 'collections:loadStart',
+  COLLECTION_LOAD_START: 'collections:loadStart',
   COLLECTION_SELECTED: 'collection:selected',
   COLLECTION_FETCH_START: 'collection:fetchStart',
   COLLECTION_FORMATTED: 'collection:formatted',

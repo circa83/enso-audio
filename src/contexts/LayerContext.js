@@ -4,6 +4,7 @@ import { useAudioContext } from './AudioContext';
 import { useVolumeContext } from './VolumeContext';
 import { useCrossfadeContext } from './CrossfadeContext';
 import { useBufferContext } from './BufferContext';
+import { useCollectionContext } from './CollectionContext';
 import eventBus, { EVENTS } from '../services/EventBus';
 
 // Layer type constants (source of truth)
@@ -16,6 +17,7 @@ export const LAYER_TYPES = {
 
 // Create context
 const LayerContext = createContext(null);
+const collectionContext = useCollectionContext();
 
 export const LayerProvider = ({ children }) => {
   // Get required services
@@ -66,6 +68,24 @@ export const LayerProvider = ({ children }) => {
     });
   }, [activeTracks]);
 
+  // Add this effect after the other useEffects:
+useEffect(() => {
+  // Function to handle collection loaded events
+  const handleCollectionLoaded = (data) => {
+    if (!data.collection) return;
+    
+    console.log(`[LayerContext] Collection loaded event received for: ${data.collectionId}`);
+    
+    // Format collection if needed before registration
+    const formattedCollection = data.collection.layers 
+      ? data.collection 
+      : collectionContext.formatForPlayer(data.collection);
+    
+    if (formattedCollection) {
+      console.log(`[LayerContext] Auto-registering collection: ${formattedCollection.id}`);
+      registerCollection(formattedCollection);
+    }
+  };
 
   // Set tracks available for each layer
   const setLayerTracks = useCallback((layerName, tracks) => {
@@ -301,6 +321,34 @@ export const LayerProvider = ({ children }) => {
     });
   }, [volume]);
 
+   // handle collection selected events (in case they don't come with full collection data)
+   const handleCollectionSelected = (data) => {
+    if (!data.collectionId) return;
+    
+    console.log(`[LayerContext] Collection selection event received for: ${data.collectionId}`);
+    
+    // If we already have the collection data in the collection context, use it
+    if (collectionContext.currentCollection && 
+        collectionContext.currentCollection.id === data.collectionId) {
+      
+      handleCollectionLoaded({
+        collectionId: data.collectionId,
+        collection: collectionContext.currentCollection
+      });
+    }
+    // Otherwise we rely on collection context to load it and emit a COLLECTION_LOADED event
+  };
+  
+  // Subscribe to collection events
+  eventBus.on(EVENTS.COLLECTION_LOADED || 'collection:loaded', handleCollectionLoaded);
+  eventBus.on(EVENTS.COLLECTION_SELECTED || 'collection:selected', handleCollectionSelected);
+  
+  // Cleanup
+  return () => {
+    eventBus.off(EVENTS.COLLECTION_LOADED || 'collection:loaded', handleCollectionLoaded);
+    eventBus.off(EVENTS.COLLECTION_SELECTED || 'collection:selected', handleCollectionSelected);
+  };
+}, [collectionContext, registerCollection]);
 
   // Register collection with layers
   const registerCollection = useCallback((collection) => {

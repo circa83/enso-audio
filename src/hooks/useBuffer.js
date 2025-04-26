@@ -360,6 +360,237 @@ export function useBuffer() {
     return buffer.clearCache();
   }, [buffer]);
   
+  // NEW: Load audio for a collection layer with enhanced integration
+  const loadLayerAudio = useCallback(async (layerName, tracks, options = {}) => {
+    if (!buffer.service || !Array.isArray(tracks) || tracks.length === 0) {
+      console.error(`[useBuffer] Cannot load layer audio: invalid tracks or missing service`);
+      return { success: false, message: 'Invalid tracks or missing service' };
+    }
+    
+    console.log(`[useBuffer] Loading audio for layer ${layerName} with ${tracks.length} tracks`);
+    
+    try {
+      // Emit layer load start event
+      eventBus.emit(EVENTS.BUFFER_LAYER_LOAD_START || 'buffer:layerLoadStart', {
+        layer: layerName,
+        trackCount: tracks.length,
+        timestamp: Date.now()
+      });
+      
+      // Extract paths from tracks
+      const urls = tracks.map(track => track.path).filter(Boolean);
+      
+      if (urls.length === 0) {
+        console.error(`[useBuffer] No valid URLs in tracks for layer ${layerName}`);
+        return { success: false, message: 'No valid URLs in tracks' };
+      }
+      
+      // Preload all buffers for this layer
+      const results = await preloadBuffersWithTracking(urls, {
+        ...options,
+        onProgress: (progress, detailedProgress) => {
+          // Call original progress handler if provided
+          if (options.onProgress) {
+            options.onProgress(progress, detailedProgress);
+          }
+          
+          // Emit layer-specific progress event
+          eventBus.emit(EVENTS.BUFFER_LAYER_LOAD_PROGRESS || 'buffer:layerLoadProgress', {
+            layer: layerName,
+            progress,
+            detailedProgress,
+            timestamp: Date.now()
+          });
+        }
+      });
+      
+      // Map results back to tracks
+      const trackResults = tracks.map(track => {
+        if (!track.path) return { track, success: false, message: 'No path' };
+        
+        const buffer = results.get(track.path);
+        return {
+          track,
+          buffer,
+          success: !!buffer
+        };
+      });
+      
+      // Count successful loads
+      const successCount = trackResults.filter(r => r.success).length;
+      
+      // Emit layer load complete event
+      eventBus.emit(EVENTS.BUFFER_LAYER_LOAD_COMPLETE || 'buffer:layerLoadComplete', {
+        layer: layerName,
+        success: successCount > 0,
+        trackCount: tracks.length,
+        successCount,
+        timestamp: Date.now()
+      });
+      
+      return {
+        success: successCount > 0,
+        trackResults,
+        successCount,
+        totalCount: tracks.length
+      };
+    } catch (error) {
+      console.error(`[useBuffer] Error loading layer audio: ${error.message}`);
+      
+      // Emit error event
+      eventBus.emit(EVENTS.BUFFER_LAYER_LOAD_ERROR || 'buffer:layerLoadError', {
+        layer: layerName,
+        error: error.message,
+        timestamp: Date.now()
+      });
+      
+      return {
+        success: false,
+        error: error.message,
+        trackResults: tracks.map(track => ({ track, success: false, error: error.message }))
+      };
+    }
+  }, [buffer.service, preloadBuffersWithTracking]);
+  
+  // NEW: Load all audio for a collection with enhanced layer integration
+  const loadCollectionAudio = useCallback(async (collection, options = {}) => {
+    if (!buffer.service || !collection || !collection.layers) {
+      console.error('[useBuffer] Cannot load collection audio: Missing service or invalid collection');
+      return { success: false, message: 'Missing service or invalid collection' };
+    }
+    
+    console.log(`[useBuffer] Loading audio for collection: ${collection.id}`);
+    
+    try {
+      // Track overall progress
+      let totalTracks = 0;
+      let loadedTracks = 0;
+      
+      // Count total tracks
+      Object.values(collection.layers).forEach(layerTracks => {
+        totalTracks += layerTracks.length;
+      });
+      
+      if (totalTracks === 0) {
+        console.warn('[useBuffer] No tracks to load in collection');
+        return { success: false, message: 'No tracks in collection' };
+      }
+      
+      // Emit start event
+      eventBus.emit(EVENTS.BUFFER_COLLECTION_LOAD_START || 'buffer:collectionLoadStart', {
+        collectionId: collection.id,
+        trackCount: totalTracks,
+        timestamp: Date.now()
+      });
+      
+      // Results for each layer
+      const layerResults = {};
+      let hasErrors = false;
+      
+      // Process each layer
+      for (const [layerName, tracks] of Object.entries(collection.layers)) {
+        if (!tracks || tracks.length === 0) continue;
+        
+        console.log(`[useBuffer] Loading ${tracks.length} tracks for layer: ${layerName}`);
+        
+        try {
+          // Load this layer
+          const result = await loadLayerAudio(layerName, tracks, {
+            ...options,
+            onLayerProgress: (progress) => {
+              // Call original progress handler if provided
+              if (options.onLayerProgress) {
+                options.onLayerProgress(layerName, progress);
+              }
+            }
+          });
+          
+          layerResults[layerName] = result;
+          loadedTracks += result.successCount;
+          
+          // Check for errors
+          if (!result.success) {
+            hasErrors = true;
+          }
+          
+          // Update overall progress
+          const overallProgress = Math.min(Math.round((loadedTracks / totalTracks) * 100), 100);
+          
+          // Emit collection progress event
+          eventBus.emit(EVENTS.BUFFER_COLLECTION_LOAD_PROGRESS || 'buffer:collectionLoadProgress', {
+            collectionId: collection.id,
+            progress: overallProgress,
+            loadedTracks,
+            totalTracks,
+            timestamp: Date.now()
+          });
+        } catch (error) {
+          console.error(`[useBuffer] Error loading layer ${layerName}: ${error.message}`);
+          layerResults[layerName] = { success: false, error: error.message };
+          hasErrors = true;
+        }
+      }
+      
+      // Determine overall success
+      const isSuccess = loadedTracks > 0;
+      
+      // Emit completion event with appropriate type
+      const eventType = isSuccess
+        ? (hasErrors ? EVENTS.BUFFER_COLLECTION_LOAD_PARTIAL || 'buffer:collectionLoadPartial' : EVENTS.BUFFER_COLLECTION_LOAD_COMPLETE || 'buffer:collectionLoadComplete')
+        : EVENTS.BUFFER_COLLECTION_LOAD_ERROR || 'buffer:collectionLoadError';
+      
+      eventBus.emit(eventType, {
+        collectionId: collection.id,
+        success: isSuccess,
+        hasErrors,
+        loadedTracks,
+        totalTracks,
+        timestamp: Date.now()
+      });
+      
+      return {
+        success: isSuccess,
+        hasErrors,
+        layerResults,
+        loadedTracks,
+        totalTracks
+      };
+    } catch (error) {
+      console.error(`[useBuffer] Error loading collection audio: ${error.message}`);
+      
+      // Emit error event
+      eventBus.emit(EVENTS.BUFFER_COLLECTION_LOAD_ERROR || 'buffer:collectionLoadError', {
+        collectionId: collection.id,
+        error: error.message,
+        timestamp: Date.now()
+      });
+      
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }, [buffer.service, loadLayerAudio]);
+  
+  // NEW: Automatic collection audio loading when a new collection is registered with layers
+  useEffect(() => {
+    const handleCollectionRegistered = (data) => {
+      if (!data.collectionId) return;
+      
+      console.log(`[useBuffer] Collection registered event received: ${data.collectionId}`);
+      
+      // No need to take action here - the layer system itself should call loadBuffers
+      // This is just for monitoring the event flow
+    };
+    
+    // Subscribe to layer registration events
+    eventBus.on(EVENTS.LAYER_COLLECTION_REGISTERED || 'layer:collectionRegistered', handleCollectionRegistered);
+    
+    return () => {
+      eventBus.off(EVENTS.LAYER_COLLECTION_REGISTERED || 'layer:collectionRegistered', handleCollectionRegistered);
+    };
+  }, []);
+  
   // Group buffer management functionality with enhanced methods
   const management = useMemo(() => ({
     isLoading: buffer.isLoading,
@@ -376,8 +607,9 @@ export function useBuffer() {
   // Group collection-related functionality
   const collection = useMemo(() => ({
     loadTrack: buffer.loadCollectionTrack,
-    loadLayer: buffer.loadCollectionLayer
-  }), [buffer]);
+    loadLayer: loadLayerAudio,
+    loadCollection: loadCollectionAudio
+  }), [buffer, loadLayerAudio, loadCollectionAudio]);
   
   // Track real-time buffer system status
   const status = useMemo(() => ({
@@ -415,8 +647,12 @@ export function useBuffer() {
     hasBuffer: buffer.hasBuffer,
     releaseBuffer: buffer.releaseBuffer,
     clearCache: clearCacheWithTracking,
+    
+    // Enhanced collection integration
     loadCollectionTrack: buffer.loadCollectionTrack,
     loadCollectionLayer: buffer.loadCollectionLayer,
+    loadLayerAudio,
+    loadCollectionAudio,
     
     // Service access for advanced usage
     service: buffer.service
@@ -424,3 +660,4 @@ export function useBuffer() {
 }
 
 export default useBuffer;
+

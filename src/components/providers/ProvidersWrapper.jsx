@@ -13,13 +13,13 @@ import { BufferProvider } from '../../contexts/BufferContext'; // Add this impor
 function VolumeProviderWithAudio({ children }) {
   // Get audio context values from the AudioProvider
   const { audioContext, masterGain, initialized } = useAudioContext();
-  
+
   // Only render when audio is initialized
   if (!initialized || !audioContext || !masterGain) {
     console.log('Waiting for audio context to initialize...');
     return null;
   }
-  
+
   // Pass them to VolumeProvider
   return (
     <VolumeProvider
@@ -35,13 +35,13 @@ function VolumeProviderWithAudio({ children }) {
 // This connects audio with BufferProvider
 function BufferProviderWithAudio({ children }) {
   const { audioContext, initialized } = useAudioContext();
-  
+
   // Only render when audio is initialized
   if (!initialized || !audioContext) {
     console.log('Waiting for audio context before initializing BufferProvider');
     return null;
   }
-  
+
   return (
     <BufferProvider
       audioContext={audioContext}
@@ -56,19 +56,19 @@ function BufferProviderWithAudio({ children }) {
 function CrossfadeProviderAdapter({ children }) {
   // Get audio context values from the AudioProvider
   const { audioContext, masterGain, initialized } = useAudioContext();
-  
+
   // Get volume context - now we need to check if it exists
   const volumeContext = useVolumeContext();
   const volumeService = volumeContext ? volumeContext.service : null;
-  
+
   // Only render when all dependencies are available
   if (!initialized || !audioContext || !masterGain || !volumeService) {
     console.log('Waiting for audio dependencies before initializing CrossfadeProvider');
     return null;
   }
-  
+
   return (
-    <CrossfadeProvider 
+    <CrossfadeProvider
       audioContext={audioContext}
       masterGain={masterGain}
       audioInitialized={initialized}
@@ -85,21 +85,21 @@ function CrossfadeProviderAdapter({ children }) {
 function TimelineProviderAdapter({ children }) {
   // Get audio context values
   const { audioContext, initialized } = useAudioContext();
-  
+
   // Get volume context
   const volumeContext = useVolumeContext();
   const volumeService = volumeContext ? volumeContext.service : null;
-  
+
   // Get crossfade context
   const crossfadeContext = useCrossfadeContext();
   const crossfadeEngine = crossfadeContext ? crossfadeContext.service : null;
-  
+
   // Only render when dependencies are available
   if (!initialized || !audioContext || !volumeService || !crossfadeEngine) {
     console.log('Waiting for dependencies before initializing TimelineProvider');
     return null;
   }
-  
+
   return (
     <TimelineProvider
       volumeController={volumeService}
@@ -110,6 +110,26 @@ function TimelineProviderAdapter({ children }) {
     >
       {children}
     </TimelineProvider>
+  );
+}
+// Adapter for CollectionProvider
+function CollectionProviderAdapter({ children }) {
+  // Get audio context and other dependencies
+  const { audioContext, initialized } = useAudioContext();
+  const bufferContext = useBufferContext();
+
+  // Only render when dependencies are available
+  if (!initialized || !audioContext || !bufferContext || !bufferContext.initialized) {
+    console.log('Waiting for audio and buffer services before initializing CollectionProvider');
+    return null;
+  }
+
+  return (
+    <CollectionProvider
+      enableLogging={true}
+    >
+      {children}
+    </CollectionProvider>
   );
 }
 
@@ -125,13 +145,13 @@ export function ProvidersWrapper({ children }) {
             {/* Now add CrossfadeProvider with adapter */}
             <CrossfadeProviderAdapter>
               {/* Add TimelineProvider with adapter */}
-              <TimelineProviderAdapter>
-                <LayerProvider>
-                  <CollectionProvider>
+              <CollectionProviderAdapter>
+                <TimelineProviderAdapter>
+                  <LayerProvider>
                     {children}
-                  </CollectionProvider>
-                </LayerProvider>
-              </TimelineProviderAdapter>
+                  </LayerProvider>
+                </TimelineProviderAdapter>
+              </CollectionProviderAdapter>
             </CrossfadeProviderAdapter>
           </BufferProviderWithAudio>
         </VolumeProviderWithAudio>

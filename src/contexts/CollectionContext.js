@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import CollectionService from '../services/CollectionService';
 import eventBus, { EVENTS } from '../services/EventBus.js';
+import { useAudioContext } from './AudioContext.js';
 
 // Create the context
 const CollectionContext = createContext(null);
@@ -16,6 +17,9 @@ export const CollectionProvider = ({
   initialPageSize = 20,
   cacheDuration = 60000 // 1 minute default
 }) => {
+
+  // Add check for audio context
+  const { audioContext, initialized: audioInitialized } = useAudioContext();
   // Service reference
   const [collectionService, setCollectionService] = useState(null);
   
@@ -25,6 +29,7 @@ export const CollectionProvider = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState({});
+  const [initialized, setInitialized] = useState(false);
   const [pagination, setPagination] = useState({
     total: 0,
     page: 1,
@@ -38,8 +43,13 @@ export const CollectionProvider = ({
   const retriesRef = useRef(0);
   const maxRetries = 3;
   
-  // Initialize CollectionService
-  useEffect(() => {
+   // Initialize CollectionService
+   useEffect(() => {
+    if (!initialized) {
+      console.log('[CollectionContext] Waiting for AudioContext to initialize');
+      return;
+    }
+    
     console.log('[CollectionContext] Initializing CollectionService...');
     
     try {
@@ -50,6 +60,7 @@ export const CollectionProvider = ({
       });
       
       setCollectionService(service);
+      setInitialized(true);
       
       console.log('[CollectionContext] CollectionService initialized successfully');
       
@@ -67,8 +78,7 @@ export const CollectionProvider = ({
         isMountedRef.current = false;
       };
     }
-  }, [enableLogging, cacheDuration]);
-  
+  }, [audioInitialized, enableLogging, cacheDuration]);
   // Set mounted ref for cleanup
   useEffect(() => {
     isMountedRef.current = true;

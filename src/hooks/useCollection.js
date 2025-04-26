@@ -11,17 +11,73 @@ import eventBus, { EVENTS } from '../services/EventBus';
  * @param {boolean} [options.loadOnMount=true] - Whether to load collections on mount
  * @param {Object} [options.initialFilters] - Initial filters to apply
  * @param {boolean} [options.listenForEvents=true] - Whether to listen for collection events
+* @param {boolean} [options.autoloadFromUrl=true] - Whether to auto-load collection from URL
  * @returns {Object} Collection data and functions
  */
 export function useCollection(options = {}) {
   const {
     loadOnMount = true,
     initialFilters,
-    listenForEvents = true
+    listenForEvents = true,
+    autoloadFromUrl = true
   } = options;
   
   // Get collection functionality from context
   const collection = useCollectionContext();
+
+   // Track if we've already loaded a collection from URL
+   const hasLoadedFromUrlRef = useRef(false);
+
+    // Auto-detect collection ID from URL if enabled
+  useEffect(() => {
+    if (autoloadFromUrl && typeof window !== 'undefined' && !hasLoadedFromUrlRef.current) {
+      // Get collection ID from URL parameter
+      const urlParams = new URLSearchParams(window.location.search);
+      const collectionId = urlParams.get('collection');
+      
+      if (collectionId) {
+        console.log(`[useCollection] Auto-loading collection from URL: ${collectionId}`);
+        
+        // Mark as loaded to prevent duplicate loads
+        hasLoadedFromUrlRef.current = true;
+        
+        // Emit event before loading
+        eventBus.emit(EVENTS.COLLECTION_LOADING || 'collection:loading', {
+          collectionId,
+          source: 'url',
+          timestamp: Date.now()
+        });
+        
+        // Load the collection
+        collection.getCollection(collectionId)
+          .then(collectionData => {
+            console.log(`[useCollection] Successfully loaded collection: ${collectionData.name || collectionId}`);
+            
+            // Emit event for successful load
+            eventBus.emit(EVENTS.COLLECTION_LOADED || 'collection:loaded', {
+              collectionId,
+              collection: collectionData,
+              source: 'url',
+              timestamp: Date.now()
+            });
+          })
+          .catch(error => {
+            console.error(`[useCollection] Error loading collection: ${error.message}`);
+            
+            // Reset flag to allow retry
+            hasLoadedFromUrlRef.current = false;
+            
+            // Emit error event
+            eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+              collectionId,
+              error: error.message,
+              source: 'url',
+              timestamp: Date.now()
+            });
+          });
+      }
+    }
+  }, [autoloadFromUrl, collection]);
   
   // Apply initial filters if provided
   useEffect(() => {

@@ -1,226 +1,203 @@
 // src/hooks/useLayer.js
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLayerContext, LAYER_TYPES } from '../contexts/LayerContext';
+import { useCollectionContext } from '../contexts/CollectionContext';
 import eventBus, { EVENTS } from '../services/EventBus';
 
 /**
- * Hook for managing audio layers and track selection
+ * Enhanced hook for managing audio layers with improved collection integration
  * @returns {Object} Layer management functions and state
  */
 export function useLayer() {
   const layerContext = useLayerContext();
+  const collectionContext = useCollectionContext();
   
-  // Get tracks available for a specific layer
+  // Local state to track collection loading status from events
+  const [collectionLoading, setCollectionLoading] = useState(false);
+  const [collectionError, setCollectionError] = useState(null);
+  
+  // Subscribe to collection events to provide loading status
+  useEffect(() => {
+    const handleCollectionLoading = (data) => {
+      console.log(`[useLayer] Collection loading started: ${data.collectionId}`);
+      setCollectionLoading(true);
+      setCollectionError(null);
+    };
+    
+    const handleCollectionLoaded = (data) => {
+      console.log(`[useLayer] Collection loaded: ${data.collectionId}`);
+      setCollectionLoading(false);
+    };
+    
+    const handleCollectionError = (data) => {
+      console.error(`[useLayer] Collection error: ${data.error}`);
+      setCollectionLoading(false);
+      setCollectionError(data.error);
+    };
+    
+    // Track layer registration events to know when collection is ready for playback
+    const handleLayerRegistration = (data) => {
+      console.log(`[useLayer] Collection registered with layers: ${data.collectionId}`);
+    };
+    
+    // Subscribe to events
+    eventBus.on(EVENTS.COLLECTION_LOADING || 'collection:loading', handleCollectionLoading);
+    eventBus.on(EVENTS.COLLECTION_LOADED || 'collection:loaded', handleCollectionLoaded);
+    eventBus.on(EVENTS.COLLECTION_ERROR || 'collection:error', handleCollectionError);
+    eventBus.on(EVENTS.LAYER_COLLECTION_REGISTERED || 'layer:collectionRegistered', handleLayerRegistration);
+    
+    return () => {
+      // Cleanup event subscriptions
+      eventBus.off(EVENTS.COLLECTION_LOADING || 'collection:loading', handleCollectionLoading);
+      eventBus.off(EVENTS.COLLECTION_LOADED || 'collection:loaded', handleCollectionLoaded);
+      eventBus.off(EVENTS.COLLECTION_ERROR || 'collection:error', handleCollectionError);
+      eventBus.off(EVENTS.LAYER_COLLECTION_REGISTERED || 'layer:collectionRegistered', handleLayerRegistration);
+    };
+  }, []);
+  
+  // Get tracks available for a specific layer (existing method)
   const getTracksForLayer = useCallback((layerName) => {
     return layerContext.availableTracks[layerName] || [];
   }, [layerContext.availableTracks]);
   
-  // Get active track for a layer
+  // Get active track for a layer (existing method)
   const getActiveTrack = useCallback((layerName) => {
     return layerContext.activeTracks[layerName];
   }, [layerContext.activeTracks]);
   
-  // Get all active tracks across all layers
+  // Get all active tracks across all layers (existing method)
   const getAllActiveTracks = useCallback(() => {
     return { ...layerContext.activeTracks };
   }, [layerContext.activeTracks]);
   
-  // Change track with crossfade transition
-  const changeTrack = useCallback((layerName, trackId, options = {}) => {
-    const { 
-      duration = 3000, // Default crossfade duration 3 seconds
-      immediate = false, // Whether to skip crossfade (immediate switch)
-      onComplete 
-    } = options;
-    
-    console.log(`[useLayer] Changing ${layerName} track to ${trackId}`);
-    
-    // If immediate, set active track without crossfade
-    if (immediate) {
-      // Update directly in context
-      const previousTrackId = layerContext.activeTracks[layerName];
-      
-      // Update in context
-      layerContext.setActiveTracks(prev => ({
-        ...prev,
-        [layerName]: trackId
-      }));
-      
-      // Emit event
-      eventBus.emit(EVENTS.LAYER_TRACK_CHANGED || 'layer:trackChanged', { 
-        layer: layerName, 
-        trackId,
-        previousTrackId,
-        immediate: true,
-        timestamp: Date.now()
-      });
-      
-      if (onComplete) onComplete(true);
-      return true;
-    }
-    
-    // Otherwise execute with crossfade
-    return layerContext.changeTrack(layerName, trackId, duration)
-      .then(success => {
-        if (onComplete) onComplete(success);
-        return success;
-      });
-  }, [layerContext]);
-  
-  // Toggle mute for a layer
-  const toggleMute = useCallback((layerName) => {
-    return layerContext.toggleMute(layerName);
-  }, [layerContext]);
-  
-  // Get layer state (muted, solo)
-  const getLayerState = useCallback((layerName) => {
-    return layerContext.layerStates[layerName] || { muted: false, solo: false };
-  }, [layerContext.layerStates]);
-  
-  // Check if a layer is muted
-  const isLayerMuted = useCallback((layerName) => {
-    return getLayerState(layerName).muted;
-  }, [getLayerState]);
-  
-  // Set all tracks for a layer
-  const setLayerTracks = useCallback((layerName, tracks) => {
-    return layerContext.setLayerTracks(layerName, tracks);
-  }, [layerContext]);
-  
-  // Register a collection with appropriate layer tracks
-  const registerCollection = useCallback((collection) => {
-    return layerContext.registerCollection(collection);
-  }, [layerContext]);
-  
-  // Preload a track for a layer
-  const preloadTrack = useCallback((layerName, trackId) => {
+  // Get comprehensive data for a single layer
+  const getLayerData = useCallback((layerName) => {
     const tracks = getTracksForLayer(layerName);
-    const track = tracks.find(t => t.id === trackId);
+    const activeTrackId = getActiveTrack(layerName);
+    const activeTrack = tracks.find(track => track.id === activeTrackId);
+    const layerState = layerContext.layerStates[layerName] || {};
     
-    if (!track) {
-      console.error(`[useLayer] Track ${trackId} not found in ${layerName}`);
-      return false;
+    return {
+      name: layerName,
+      tracks,
+      activeTrackId,
+      activeTrack,
+      isMuted: layerState.muted || false,
+      isSolo: layerState.solo || false
+    };
+  }, [getTracksForLayer, getActiveTrack, layerContext.layerStates]);
+  
+  // Get all layer data in one call for rendering multiple controls
+  const getAllLayerData = useCallback(() => {
+    return layerContext.layerList.map(layerName => getLayerData(layerName));
+  }, [layerContext.layerList, getLayerData]);
+  
+  // Get active collection data for the current layers
+  const getActiveCollectionInfo = useCallback(() => {
+    // Get collection info from the original collection if available
+    const collection = collectionContext.currentCollection;
+    
+    if (!collection) return null;
+    
+    return {
+      id: collection.id,
+      name: collection.name,
+      description: collection.description,
+      coverImage: collection.coverImage,
+      trackCount: Object.values(layerContext.availableTracks)
+        .reduce((sum, tracks) => sum + tracks.length, 0)
+    };
+  }, [collectionContext.currentCollection, layerContext.availableTracks]);
+  
+  // Trigger a collection to be loaded by ID (convenience method)
+  const loadCollection = useCallback((collectionId) => {
+    if (!collectionId) {
+      console.error('[useLayer] Cannot load collection: No ID provided');
+      return Promise.reject(new Error('No collection ID provided'));
     }
     
-    // Emit preload request
-    eventBus.emit(EVENTS.LAYER_PRELOAD_TRACK || 'layer:preloadTrack', {
-      layer: layerName,
-      trackId: trackId,
-      path: track.path,
+    // We don't need to do anything special here anymore since
+    // LayerContext will auto-register the collection via events
+    console.log(`[useLayer] Requesting collection load: ${collectionId}`);
+    
+    // Emit collection selection event
+    eventBus.emit(EVENTS.COLLECTION_SELECTED || 'collection:selected', {
+      collectionId,
+      source: 'layer',
       timestamp: Date.now()
     });
     
-    return true;
-  }, [getTracksForLayer]);
+    return collectionContext.getCollection(collectionId);
+  }, [collectionContext]);
   
-  // Mute all layers except the specified one (solo)
-  const soloLayer = useCallback((layerName) => {
-    const allLayers = Object.values(LAYER_TYPES);
-    
-    allLayers.forEach(layer => {
-      if (layer === layerName) {
-        // Unmute this layer
-        if (isLayerMuted(layer)) {
-          toggleMute(layer);
-        }
-      } else {
-        // Mute all other layers
-        if (!isLayerMuted(layer)) {
-          toggleMute(layer);
-        }
-      }
-    });
-    
-    // Update solo state in context
-    layerContext.setLayerStates(prev => {
-      const updated = { ...prev };
-      
-      // Set solo state for all layers
-      allLayers.forEach(layer => {
-        updated[layer] = {
-          ...updated[layer],
-          solo: layer === layerName
-        };
-      });
-      
-      return updated;
-    });
-  }, [LAYER_TYPES, isLayerMuted, toggleMute, layerContext]);
-  
-  // Cancel solo state (unmute all)
-  const cancelSolo = useCallback(() => {
-    const allLayers = Object.values(LAYER_TYPES);
-    
-    // Unmute all layers
-    allLayers.forEach(layer => {
-      if (isLayerMuted(layer)) {
-        toggleMute(layer);
-      }
-    });
-    
-    // Reset solo state in context
-    layerContext.setLayerStates(prev => {
-      const updated = { ...prev };
-      
-      // Clear solo state for all layers
-      allLayers.forEach(layer => {
-        updated[layer] = {
-          ...updated[layer],
-          solo: false
-        };
-      });
-      
-      return updated;
-    });
-  }, [LAYER_TYPES, isLayerMuted, toggleMute, layerContext]);
-  
-  // Organized return value
+  // Return an organized and enhanced API
   return useMemo(() => ({
     // Constants
     TYPES: LAYER_TYPES,
     
-    // Layer state access
+    // Collection integration
+    currentCollection: collectionContext.currentCollection,
+    activeCollectionInfo: getActiveCollectionInfo(),
+    isCollectionLoading: collectionLoading || collectionContext.isLoading,
+    collectionError: collectionError || collectionContext.error,
+    loadCollection,
+    
+    // Layer state access (original API)
     availableTracks: layerContext.availableTracks,
     activeTracks: layerContext.activeTracks,
     layerStates: layerContext.layerStates,
     layerList: layerContext.layerList,
-    loadTracksForCollection: layerContext.loadTracksForCollection,
     
-    // Layer accessors
+    // Enhanced layer data access
+    getLayerData,
+    getAllLayerData,
+    
+    // Original layer accessors
     getTracksForLayer,
     getActiveTrack,
     getAllActiveTracks,
-    getLayerState,
-    isLayerMuted,
+    getLayerState: layerContext.getLayerState,
+    isLayerMuted: layerContext.isLayerMuted,
     
     // Layer operations
-    changeTrack,
-    toggleMute,
-    soloLayer,
-    cancelSolo,
-    preloadTrack,
+    changeTrack: layerContext.changeTrack,
+    toggleMute: layerContext.toggleMute,
+    soloLayer: layerContext.soloLayer,
+    cancelSolo: layerContext.cancelSolo,
+    preloadTrack: layerContext.preloadTrack,
     
-    // Collection management
-    setLayerTracks,
-    registerCollection
+    // Collection management (original API)
+    setLayerTracks: layerContext.setLayerTracks,
+    registerCollection: layerContext.registerCollection,
+    loadTracksForCollection: layerContext.loadTracksForCollection
   }), [
-    layerContext.loadTracksForCollection, 
+    // Dependencies
     layerContext.availableTracks,
     layerContext.activeTracks,
     layerContext.layerStates,
     layerContext.layerList,
+    layerContext.getLayerState,
+    layerContext.isLayerMuted,
+    layerContext.changeTrack,
+    layerContext.toggleMute, 
+    layerContext.soloLayer,
+    layerContext.cancelSolo,
+    layerContext.preloadTrack,
+    layerContext.setLayerTracks,
+    layerContext.registerCollection,
+    layerContext.loadTracksForCollection,
+    collectionContext.currentCollection,
+    collectionContext.isLoading,
+    collectionContext.error,
+    collectionLoading,
+    collectionError,
     getTracksForLayer,
     getActiveTrack,
     getAllActiveTracks,
-    getLayerState,
-    isLayerMuted,
-    changeTrack,
-    toggleMute,
-    soloLayer,
-    cancelSolo,
-    preloadTrack,
-    setLayerTracks,
-    registerCollection
+    getLayerData,
+    getAllLayerData,
+    getActiveCollectionInfo,
+    loadCollection
   ]);
 }
 
