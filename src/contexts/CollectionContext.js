@@ -361,9 +361,11 @@ export const CollectionProvider = ({
       setCurrentCollection(result.data);
 
       // Publish event through event bus
-      eventBus.emit(EVENTS.COLLECTIO_SELECTED || 'collection:selected', {
+      eventBus.emit(EVENTS.COLLECTION_SELECTED || 'collection:selected', {
+        collectionId: result.data.id,
         collection: result.data,
-        source: result.source || 'unknown',
+        source: result.source || 'api',
+        format: result.data.format || 'standard',
         timestamp: Date.now()
       });
 

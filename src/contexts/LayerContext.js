@@ -35,7 +35,7 @@ export const LayerProvider = ({ children }) => {
   const [initialized, setInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  
+
   const [availableTracks, setAvailableTracks] = useState({
     [LAYER_TYPES.LAYER1]: [],
     [LAYER_TYPES.LAYER2]: [],
@@ -74,31 +74,33 @@ export const LayerProvider = ({ children }) => {
   // Initialize component and setup refs
   useEffect(() => {
     console.log('[LayerContext] Initializing layer context');
-    
+
     // Check if dependencies are initialized
     if (!audio || !volume || !crossfade || !buffer) {
       console.log('[LayerContext] Waiting for dependencies...');
       return;
     }
-    
+
     setInitialized(true);
-    
+
     // Publish initialization event
     eventBus.emit(EVENTS.LAYER_INITIALIZED || 'layer:initialized', {
       timestamp: Date.now()
     });
-    
+
     // Cleanup on unmount
     return () => {
       isMountedRef.current = false;
     };
   }, [audio, volume, crossfade, buffer]);
 
+
+
   // Update ref when tracks change
   useEffect(() => {
     availableTracksRef.current = availableTracks;
   }, [availableTracks]);
- 
+
   // Initial render effect
   useEffect(() => {
     // Skip the initial render
@@ -113,15 +115,15 @@ export const LayerProvider = ({ children }) => {
       timestamp: Date.now()
     });
   }, [activeTracks]);
-  
+
   // Subscribe to crossfade events to track progress
   useEffect(() => {
     // Handler for crossfade started event
     const handleCrossfadeStarted = (data) => {
       if (!isMountedRef.current) return;
-      
+
       const { layer, from, to, timestamp } = data;
-      
+
       // Update crossfade state
       setCrossfadeState(prev => ({
         ...prev,
@@ -132,16 +134,16 @@ export const LayerProvider = ({ children }) => {
         lastOperation: 'started',
         error: null
       }));
-      
+
       console.log(`[LayerContext] Crossfade started for ${layer}: ${from} → ${to}`);
     };
-    
+
     // Handler for crossfade progress event
     const handleCrossfadeProgress = (data) => {
       if (!isMountedRef.current) return;
-      
+
       const { layer, progress } = data;
-      
+
       // Update crossfade progress
       setCrossfadeState(prev => ({
         ...prev,
@@ -151,21 +153,21 @@ export const LayerProvider = ({ children }) => {
         }
       }));
     };
-    
+
     // Handler for crossfade completed event
     const handleCrossfadeCompleted = (data) => {
       if (!isMountedRef.current) return;
-      
+
       const { layer, timestamp } = data;
-      
+
       // Remove from active crossfades
       setCrossfadeState(prev => {
         const newActiveCrossfades = { ...prev.activeCrossfades };
         delete newActiveCrossfades[layer];
-        
+
         const newProgress = { ...prev.progress };
         delete newProgress[layer];
-        
+
         return {
           ...prev,
           activeCrossfades: newActiveCrossfades,
@@ -173,24 +175,24 @@ export const LayerProvider = ({ children }) => {
           lastOperation: 'completed'
         };
       });
-      
+
       console.log(`[LayerContext] Crossfade completed for ${layer}`);
     };
-    
+
     // Handler for crossfade cancelled event
     const handleCrossfadeCancelled = (data) => {
       if (!isMountedRef.current) return;
-      
+
       const { layer, timestamp } = data;
-      
+
       // Remove from active crossfades
       setCrossfadeState(prev => {
         const newActiveCrossfades = { ...prev.activeCrossfades };
         delete newActiveCrossfades[layer];
-        
+
         const newProgress = { ...prev.progress };
         delete newProgress[layer];
-        
+
         return {
           ...prev,
           activeCrossfades: newActiveCrossfades,
@@ -198,24 +200,24 @@ export const LayerProvider = ({ children }) => {
           lastOperation: 'cancelled'
         };
       });
-      
+
       console.log(`[LayerContext] Crossfade cancelled for ${layer}`);
     };
-    
+
     // Handler for crossfade error event
     const handleCrossfadeError = (data) => {
       if (!isMountedRef.current) return;
-      
+
       const { layer, message, timestamp } = data;
-      
+
       // Update error state and remove active crossfade
       setCrossfadeState(prev => {
         const newActiveCrossfades = { ...prev.activeCrossfades };
         if (layer) delete newActiveCrossfades[layer];
-        
+
         const newProgress = { ...prev.progress };
         if (layer) delete newProgress[layer];
-        
+
         return {
           ...prev,
           activeCrossfades: newActiveCrossfades,
@@ -224,21 +226,21 @@ export const LayerProvider = ({ children }) => {
           error: message
         };
       });
-      
+
       console.error(`[LayerContext] Crossfade error for ${layer || 'unknown layer'}: ${message}`);
     };
-    
+
     // Handler for buffer load progress
     const handleBufferLoadProgress = (data) => {
       if (!isMountedRef.current) return;
-      
+
       const { url, progress, phase } = data;
-      
+
       // Only track download phase
       if (phase === 'download') {
         // Extract trackId from URL - this might need to be adjusted based on your URL structure
         const trackId = url.split('/').pop().replace(/\.[^/.]+$/, "");
-        
+
         setCrossfadeState(prev => ({
           ...prev,
           preloadProgress: {
@@ -248,7 +250,7 @@ export const LayerProvider = ({ children }) => {
         }));
       }
     };
-    
+
     // Subscribe to events
     eventBus.on(CROSSFADE_EVENTS.STARTED, handleCrossfadeStarted);
     eventBus.on(CROSSFADE_EVENTS.PROGRESS, handleCrossfadeProgress);
@@ -256,7 +258,7 @@ export const LayerProvider = ({ children }) => {
     eventBus.on(CROSSFADE_EVENTS.CANCELLED, handleCrossfadeCancelled);
     eventBus.on(CROSSFADE_EVENTS.ERROR, handleCrossfadeError);
     eventBus.on(EVENTS.BUFFER_LOAD_PROGRESS || 'buffer:loadProgress', handleBufferLoadProgress);
-    
+
     return () => {
       // Unsubscribe from events
       eventBus.off(CROSSFADE_EVENTS.STARTED, handleCrossfadeStarted);
@@ -271,9 +273,9 @@ export const LayerProvider = ({ children }) => {
   // Set tracks available for each layer
   const setLayerTracks = useCallback((layerName, tracks) => {
     if (!isMountedRef.current) return;
-    
+
     console.log(`[LayerContext] Setting ${tracks.length} tracks for ${layerName}`);
-    
+
     setAvailableTracks(prev => ({
       ...prev,
       [layerName]: tracks
@@ -314,10 +316,10 @@ export const LayerProvider = ({ children }) => {
   // Preload a specific track
   const preloadTrack = useCallback(async (layerName, trackId, trackPath) => {
     if (!isMountedRef.current || !buffer || !trackPath) return false;
-    
+
     try {
       console.log(`[LayerContext] Preloading track ${trackId} for ${layerName}`);
-      
+
       // Use CrossfadeContext's preloadAudio method
       if (crossfade && crossfade.preloadAudio) {
         // Update UI to show preloading
@@ -328,25 +330,25 @@ export const LayerProvider = ({ children }) => {
             [trackId]: 0
           }
         }));
-        
+
         // Use the preloadAudio method from CrossfadeContext
         const success = await crossfade.preloadAudio(trackPath);
-        
+
         if (success) {
           console.log(`[LayerContext] Successfully preloaded track ${trackId}`);
-          
+
           // Clear preload progress indicator
           setCrossfadeState(prev => {
             const newProgress = { ...prev.preloadProgress };
             delete newProgress[trackId];
-            
+
             return {
               ...prev,
               preloadProgress: newProgress
             };
           });
         }
-        
+
         return success;
       } else {
         // Fallback to BufferContext's loadAudioBuffer method
@@ -361,7 +363,7 @@ export const LayerProvider = ({ children }) => {
   // Load tracks for a collection with progress tracking and buffer preloading
   const loadTracksForCollection = useCallback(async (collection) => {
     if (!isMountedRef.current) return false;
-    
+
     if (!collection || !collection.layers) {
       const errorMsg = 'Cannot load tracks: Invalid collection format';
       console.error(`[LayerContext] ${errorMsg}`);
@@ -409,7 +411,7 @@ export const LayerProvider = ({ children }) => {
             await crossfade.preloadCollection(tracks, {
               onProgress: (progress, trackId) => {
                 if (!isMountedRef.current) return;
-                
+
                 // Emit progress event for UI feedback
                 eventBus.emit(EVENTS.LAYER_LOAD_PROGRESS || 'layer:loadProgress', {
                   layer: layerName,
@@ -424,7 +426,7 @@ export const LayerProvider = ({ children }) => {
           } catch (error) {
             console.warn(`[LayerContext] Error preloading with CrossfadeContext for ${layerName}: ${error.message}`);
           }
-        } 
+        }
         // Fallback to BufferContext preloading
         else if (buffer) {
           try {
@@ -433,7 +435,7 @@ export const LayerProvider = ({ children }) => {
               {
                 onProgress: (progress) => {
                   if (!isMountedRef.current) return;
-                  
+
                   // Emit progress event for UI feedback
                   eventBus.emit(EVENTS.LAYER_LOAD_PROGRESS || 'layer:loadProgress', {
                     layer: layerName,
@@ -456,7 +458,7 @@ export const LayerProvider = ({ children }) => {
         // If this is the first track loaded, initialize audio elements
         if (tracks.length > 0) {
           const firstTrack = tracks[0];
-          
+
           // Check if we already have an active track for this layer
           if (!activeTracks[layerName]) {
             // Initialize with audio context first
@@ -489,17 +491,17 @@ export const LayerProvider = ({ children }) => {
       return true;
     } catch (error) {
       if (!isMountedRef.current) return false;
-      
+
       console.error(`[LayerContext] Error loading tracks: ${error.message}`);
       setError(error.message);
-      
+
       // Emit error event
       eventBus.emit(EVENTS.LAYER_ERROR || 'layer:error', {
         operation: 'loadTracksForCollection',
         error: error.message,
         timestamp: Date.now()
       });
-      
+
       return false;
     } finally {
       if (isMountedRef.current) {
@@ -512,7 +514,7 @@ export const LayerProvider = ({ children }) => {
   const isTrackInCrossfade = useCallback((layerName, trackId) => {
     const activeCrossfade = crossfadeState.activeCrossfades[layerName];
     if (!activeCrossfade) return false;
-    
+
     return activeCrossfade.from === trackId || activeCrossfade.to === trackId;
   }, [crossfadeState.activeCrossfades]);
 
@@ -530,7 +532,7 @@ export const LayerProvider = ({ children }) => {
   const getCrossfadeInfo = useCallback((layerName) => {
     const activeCrossfade = crossfadeState.activeCrossfades[layerName];
     if (!activeCrossfade) return null;
-    
+
     return {
       from: activeCrossfade.from,
       to: activeCrossfade.to,
@@ -547,9 +549,9 @@ export const LayerProvider = ({ children }) => {
   // Change active track with crossfade - Enhanced with CrossfadeContext integration
   const changeTrack = useCallback(async (layerName, trackId, options = {}) => {
     if (!isMountedRef.current) return false;
-    
+
     // Extract options with defaults
-    const { 
+    const {
       duration = 3000,
       onComplete,
       fadeOutOnly = false,
@@ -557,7 +559,7 @@ export const LayerProvider = ({ children }) => {
       syncPosition = true,
       stopPrevious = false
     } = typeof options === 'object' ? options : { duration: options };
-    
+
     // Skip if it's already the active track
     if (activeTracks[layerName] === trackId) {
       console.log(`[LayerContext] Track ${trackId} is already active in ${layerName}`);
@@ -576,7 +578,7 @@ export const LayerProvider = ({ children }) => {
       // 1. Find track information
       const tracks = availableTracksRef.current[layerName] || [];
       const track = tracks.find(t => t.id === trackId);
-      
+
       if (!track) {
         throw new Error(`Track ${trackId} not found in ${layerName}`);
       }
@@ -586,10 +588,10 @@ export const LayerProvider = ({ children }) => {
         ...prev,
         activeCrossfades: {
           ...prev.activeCrossfades,
-          [layerName]: { 
-            from: activeTracks[layerName], 
-            to: trackId, 
-            isLoading: true 
+          [layerName]: {
+            from: activeTracks[layerName],
+            to: trackId,
+            isLoading: true
           }
         },
         lastOperation: 'loading'
@@ -597,7 +599,7 @@ export const LayerProvider = ({ children }) => {
 
       // 3. Preload the track if needed using CrossfadeContext
       let needsPreload = true;
-      
+
       if (crossfade && crossfade.preloadAudio) {
         try {
           // Use the enhanced preloading from CrossfadeContext
@@ -606,7 +608,7 @@ export const LayerProvider = ({ children }) => {
           console.warn(`[LayerContext] Failed to preload with CrossfadeContext: ${error.message}`);
         }
       }
-      
+
       // 4. If we still need to preload and have a buffer service, use it
       if (needsPreload && buffer) {
         try {
@@ -621,12 +623,12 @@ export const LayerProvider = ({ children }) => {
       setCrossfadeState(prev => {
         // Skip if this layer is no longer in active crossfades
         if (!prev.activeCrossfades[layerName]) return prev;
-        
+
         return {
           ...prev,
           activeCrossfades: {
             ...prev.activeCrossfades,
-            [layerName]: { 
+            [layerName]: {
               ...prev.activeCrossfades[layerName],
               isLoading: false
             }
@@ -636,11 +638,11 @@ export const LayerProvider = ({ children }) => {
 
       // 6. Execute crossfade using preferred method
       let success = false;
-      
+
       // 6.1 First try to use CrossfadeContext's crossfadeToTrack method if available
       if (crossfade && crossfade.crossfadeToTrack) {
         console.log(`[LayerContext] Using CrossfadeContext.crossfadeToTrack for ${layerName}`);
-        
+
         success = await crossfade.crossfadeToTrack(layerName, {
           fromTrackId: activeTracks[layerName],
           toTrackId: trackId,
@@ -655,7 +657,7 @@ export const LayerProvider = ({ children }) => {
       // 6.2 Fall back to basic executeCrossfade method
       else if (crossfade && crossfade.executeCrossfade) {
         console.log(`[LayerContext] Using CrossfadeContext.executeCrossfade for ${layerName}`);
-        
+
         // Get previous track's audio element
         const prevTrackId = activeTracks[layerName];
         const sourceElement = audio.getAudioElement(layerName, prevTrackId);
@@ -690,10 +692,10 @@ export const LayerProvider = ({ children }) => {
       // 6.3 If all else fails, perform a basic transition
       else {
         console.log(`[LayerContext] No CrossfadeContext methods available, using basic transition for ${layerName}`);
-        
+
         // Get previous track's audio element
         const prevTrackId = activeTracks[layerName];
-        
+
         // Create new audio element
         audio.getOrCreateAudioElement(layerName, trackId, {
           path: track.path,
@@ -702,16 +704,16 @@ export const LayerProvider = ({ children }) => {
           isActive: true,
           volume: 0
         });
-        
+
         // Fade out old track
         if (prevTrackId) {
           volume.fadeOut(layerName, prevTrackId, duration / 2);
         }
-        
+
         // Fade in new track with delay
         setTimeout(() => {
           volume.fadeIn(layerName, trackId, duration / 2);
-          
+
           // Clean up old track after fade completes
           if (prevTrackId) {
             setTimeout(() => {
@@ -719,7 +721,7 @@ export const LayerProvider = ({ children }) => {
             }, duration / 2 + 100);
           }
         }, duration / 2);
-        
+
         success = true;
       }
 
@@ -739,7 +741,7 @@ export const LayerProvider = ({ children }) => {
           duration,
           timestamp: Date.now()
         });
-        
+
         // Call onComplete callback if provided
         if (onComplete && typeof onComplete === 'function') {
           onComplete(success);
@@ -751,7 +753,7 @@ export const LayerProvider = ({ children }) => {
       }
     } catch (error) {
       console.error(`[LayerContext] Error changing track: ${error.message}`);
-      
+
       // Emit error event
       eventBus.emit(EVENTS.LAYER_ERROR || 'layer:error', {
         operation: 'changeTrack',
@@ -760,20 +762,20 @@ export const LayerProvider = ({ children }) => {
         error: error.message,
         timestamp: Date.now()
       });
-      
+
       // Call onComplete callback with failure if provided
       if (onComplete && typeof onComplete === 'function') {
         onComplete(false, error.message);
       }
-      
+
       // Clear the crossfade state
       setCrossfadeState(prev => {
         const newActiveCrossfades = { ...prev.activeCrossfades };
         delete newActiveCrossfades[layerName];
-        
+
         const newProgress = { ...prev.progress };
         delete newProgress[layerName];
-        
+
         return {
           ...prev,
           activeCrossfades: newActiveCrossfades,
@@ -782,30 +784,30 @@ export const LayerProvider = ({ children }) => {
           error: error.message
         };
       });
-      
+
       return false;
     }
   }, [activeTracks, audio, buffer, crossfade, volume, isLayerCrossfading]);
 
-   // Cancel an active crossfade
-   const cancelCrossfade = useCallback((layerName) => {
+  // Cancel an active crossfade
+  const cancelCrossfade = useCallback((layerName) => {
     if (!isMountedRef.current || !isLayerCrossfading(layerName)) return false;
-    
+
     console.log(`[LayerContext] Cancelling crossfade for ${layerName}`);
-    
+
     try {
       // 1. First try to use CrossfadeContext's cancelCrossfade method
       if (crossfade && crossfade.cancelCrossfade) {
         crossfade.cancelCrossfade(layerName);
         return true;
       }
-      
+
       // 2. If not available, emit a cancellation event that CrossfadeService might be listening for
       eventBus.emit(CROSSFADE_EVENTS.CANCEL || 'crossfade:cancel', {
         layer: layerName,
         timestamp: Date.now()
       });
-      
+
       return true;
     } catch (error) {
       console.error(`[LayerContext] Error cancelling crossfade: ${error.message}`);
@@ -816,7 +818,7 @@ export const LayerProvider = ({ children }) => {
   // Toggle layer mute
   const toggleMute = useCallback((layerName) => {
     if (!isMountedRef.current) return;
-    
+
     // Update layer state
     setLayerStates(prev => {
       const newState = {
@@ -833,7 +835,7 @@ export const LayerProvider = ({ children }) => {
         if (isLayerCrossfading(layerName)) {
           cancelCrossfade(layerName);
         }
-        
+
         volume.muteLayer(layerName);
       } else {
         volume.unmuteLayer(layerName);
@@ -854,11 +856,11 @@ export const LayerProvider = ({ children }) => {
   // Toggle solo mode for a layer 
   const toggleSolo = useCallback((layerName) => {
     if (!isMountedRef.current) return;
-    
+
     setLayerStates(prev => {
       // Get current solo state for this layer
       const currentSolo = prev[layerName].solo;
-      
+
       // Create new state with updated solo value
       const newState = {
         ...prev,
@@ -867,7 +869,7 @@ export const LayerProvider = ({ children }) => {
           solo: !currentSolo
         }
       };
-      
+
       // When enabling solo, mute all other layers
       // When disabling solo, restore all layers
       Object.keys(newState).forEach(layer => {
@@ -875,12 +877,12 @@ export const LayerProvider = ({ children }) => {
           if (!currentSolo) {
             // Enabling solo - mute other layers
             newState[layer].muted = true;
-            
+
             // Cancel any crossfades on layers being muted
             if (isLayerCrossfading(layer)) {
               cancelCrossfade(layer);
             }
-            
+
             volume.muteLayer(layer);
           } else {
             // Disabling solo - unmute other layers if they weren't already muted
@@ -891,14 +893,14 @@ export const LayerProvider = ({ children }) => {
           }
         }
       });
-      
+
       // Emit event
       eventBus.emit(EVENTS.LAYER_SOLO_TOGGLED || 'layer:soloToggled', {
         layer: layerName,
         solo: !currentSolo,
         timestamp: Date.now()
       });
-      
+
       return newState;
     });
   }, [volume, isLayerCrossfading, cancelCrossfade]);
@@ -926,7 +928,7 @@ export const LayerProvider = ({ children }) => {
   // Register collection with layers
   const registerCollection = useCallback((collection) => {
     if (!isMountedRef.current || !initialized) return;
-    
+
     if (!collection || !collection.layers) {
       console.error('[LayerContext] Invalid collection', collection);
       setError('Invalid collection format');
@@ -996,22 +998,65 @@ export const LayerProvider = ({ children }) => {
     }
   }, [initialized, audio, buffer, setLayerTracks, loadTracksForCollection]);
 
+  // Enhance the listener for collection selection events in LayerContext.js
+
   // Listen for collection selection events
   useEffect(() => {
     if (!initialized) return;
-    
+
     const handleCollectionSelected = (data) => {
       if (!data.collection) return;
-      
-      console.log(`[LayerContext] Collection selected event received: ${data.collection.name}`);
+
+      console.log(`[LayerContext] Collection selected event received: ${data.collection.name || data.collectionId}`);
+
+      // First, register the collection with layers
       registerCollection(data.collection);
+
+      // Emit specific event for buffer system to react to
+      eventBus.emit(EVENTS.LAYER_COLLECTION_REGISTERED || 'layer:collectionRegistered', {
+        collectionId: data.collection.id,
+        collection: data.collection,
+        layerCount: Object.keys(data.collection.layers || {}).length,
+        trackCounts: Object.entries(data.collection.layers || {}).reduce((counts, [layer, tracks]) => {
+          counts[layer] = tracks.length;
+          return counts;
+        }, {}),
+        timestamp: Date.now()
+      });
     };
-    
-    // Subscribe to collection events
+
+    // Track buffer loading progress so UI can show status
+    const handleBufferProgress = (data) => {
+      if (!isMountedRef.current) return;
+
+      // Update UI with buffer loading progress if needed
+      if (data.collectionId) {
+        console.log(`[LayerContext] Buffer loading progress for collection ${data.collectionId}: ${data.progress}%`);
+      }
+    };
+
+    // React when all buffers are loaded
+    const handleBuffersLoaded = (data) => {
+      if (!isMountedRef.current) return;
+
+      console.log(`[LayerContext] All buffers loaded for collection ${data.collectionId}`);
+
+      // When all buffers are loaded, we can mark the layer system as ready
+      eventBus.emit(EVENTS.LAYER_READY || 'layer:ready', {
+        collectionId: data.collectionId,
+        timestamp: Date.now()
+      });
+    };
+
+    // Subscribe to events
     eventBus.on(EVENTS.COLLECTION_SELECTED || 'collection:selected', handleCollectionSelected);
-    
+    eventBus.on(EVENTS.BUFFER_COLLECTION_LOAD_PROGRESS || 'buffer:collectionLoadProgress', handleBufferProgress);
+    eventBus.on(EVENTS.BUFFER_COLLECTION_LOAD_COMPLETE || 'buffer:collectionLoadComplete', handleBuffersLoaded);
+
     return () => {
       eventBus.off(EVENTS.COLLECTION_SELECTED || 'collection:selected', handleCollectionSelected);
+      eventBus.off(EVENTS.BUFFER_COLLECTION_LOAD_PROGRESS || 'buffer:collectionLoadProgress', handleBufferProgress);
+      eventBus.off(EVENTS.BUFFER_COLLECTION_LOAD_COMPLETE || 'buffer:collectionLoadComplete', handleBuffersLoaded);
     };
   }, [initialized, registerCollection]);
 
@@ -1021,15 +1066,15 @@ export const LayerProvider = ({ children }) => {
     initialized,
     isLoading,
     error,
-    
+
     // Constants
     TYPES: LAYER_TYPES,
-    
+
     // State
     availableTracks,
     activeTracks,
     layerStates,
-    
+
     // Enhanced crossfade tracking
     crossfadeState: {
       activeCrossfades: crossfadeState.activeCrossfades,
@@ -1037,21 +1082,21 @@ export const LayerProvider = ({ children }) => {
       lastOperation: crossfadeState.lastOperation,
       error: crossfadeState.error
     },
-    
+
     // Track methods
     setLayerTracks,
     loadTracksForCollection,
     preloadTrack,
     getActiveTrack,
     getTracksForLayer,
-    
+
     // Layer control methods
     changeTrack,
     toggleMute,
     toggleSolo,
     isLayerMuted,
     isLayerSolo,
-    
+
     // Crossfade methods
     cancelCrossfade,
     isLayerCrossfading,
@@ -1059,10 +1104,10 @@ export const LayerProvider = ({ children }) => {
     getCrossfadeProgress,
     getCrossfadeInfo,
     getTrackPreloadProgress,
-    
+
     // Collection integration
     registerCollection,
-    
+
     // Derived data
     layerList: Object.values(LAYER_TYPES)
   }), [
@@ -1092,7 +1137,7 @@ export const LayerProvider = ({ children }) => {
     getActiveTrack,
     getTracksForLayer
   ]);
-  
+
   return (
     <LayerContext.Provider value={value}>
       {children}
@@ -1118,33 +1163,33 @@ export const useLayerContext = () => {
  */
 export const useLayer = () => {
   const context = useLayerContext();
-  
+
   // Return a clean API
   return {
     // Status
     initialized: context.initialized,
     isLoading: context.isLoading,
     error: context.error,
-    
+
     // Layers
     layerList: context.layerList,
-    
+
     // State accessors
     availableTracks: context.availableTracks,
     activeTracks: context.activeTracks,
     layerStates: context.layerStates,
-    
+
     // Track access methods
     getTracksForLayer: context.getTracksForLayer,
     getActiveTrack: context.getActiveTrack,
-    
+
     // Layer control methods
     changeTrack: context.changeTrack,
     toggleMute: context.toggleMute,
     toggleSolo: context.toggleSolo,
     isLayerMuted: context.isLayerMuted,
     isLayerSolo: context.isLayerSolo,
-    
+
     // Crossfade methods and tracking
     isCrossfading: context.isLayerCrossfading,
     isTrackInCrossfade: context.isTrackInCrossfade,
@@ -1152,12 +1197,12 @@ export const useLayer = () => {
     getCrossfadeInfo: context.getCrossfadeInfo,
     getTrackPreloadProgress: context.getTrackPreloadProgress,
     cancelCrossfade: context.cancelCrossfade,
-    
+
     // Collection integration
     registerCollection: context.registerCollection,
     loadTracksForCollection: context.loadTracksForCollection,
     preloadTrack: context.preloadTrack,
-    
+
     // Constants for convenience
     LAYER_TYPES
   };

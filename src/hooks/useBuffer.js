@@ -572,6 +572,56 @@ export function useBuffer() {
     }
   }, [buffer.service, loadLayerAudio]);
   
+  // Auto-load buffers when a collection is selected
+  useEffect(() => {
+    const handleCollectionSelected = async (data) => {
+      if (!data.collection) return;
+      
+      console.log(`[useBuffer] Collection selected event received: ${data.collection.name || data.collectionId}`);
+      
+      // Check if we have everything needed to load audio
+      if (!buffer.service || !audioContext) {
+        console.warn('[useBuffer] Buffer service or audio context not available, skipping auto-load');
+        return;
+      }
+      
+      try {
+        // Preload all audio for this collection
+        console.log(`[useBuffer] Auto-loading audio for collection: ${data.collection.id}`);
+        
+        // Emit a pre-loading event
+        eventBus.emit(EVENTS.BUFFER_COLLECTION_LOAD_START || 'buffer:collectionLoadStart', {
+          collectionId: data.collection.id,
+          source: data.source,
+          timestamp: Date.now()
+        });
+        
+        // Use loadCollectionAudio to load all tracks
+        const result = await loadCollectionAudio(data.collection, {
+          onLayerProgress: (layerName, progress) => {
+            console.log(`[useBuffer] Loading ${layerName}: ${Math.round(progress * 100)}%`);
+          }
+        });
+        
+        if (result.success) {
+          console.log(`[useBuffer] Successfully loaded ${result.loadedTracks}/${result.totalTracks} tracks for collection ${data.collection.id}`);
+        } else {
+          console.warn(`[useBuffer] Partial or failed loading of collection audio: ${result.error || 'Unknown error'}`);
+        }
+      } catch (error) {
+        console.error(`[useBuffer] Error auto-loading collection audio: ${error.message}`);
+      }
+    };
+    
+    // Subscribe to collection selection events
+    eventBus.on(EVENTS.COLLECTION_SELECTED || 'collection:selected', handleCollectionSelected);
+    
+    return () => {
+      eventBus.off(EVENTS.COLLECTION_SELECTED || 'collection:selected', handleCollectionSelected);
+    };
+  }, [buffer.service, audioContext, loadCollectionAudio]);
+
+
   // NEW: Automatic collection audio loading when a new collection is registered with layers
   useEffect(() => {
     const handleCollectionRegistered = (data) => {

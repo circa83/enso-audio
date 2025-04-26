@@ -68,38 +68,44 @@ useEffect(() => {
   };
 
   // Handle collection selection with logging
-  const handleCollectionSelect = (collectionId) => {
-    console.log(`[AmbientArchive] Selected collection: ${collectionId}`);
+// Update the handleCollectionSelect function in ambient-archive.js
 
-     // Use the hook's selectCollection method with navigation option
+// Handle collection selection with enhanced buffer loading
+const handleCollectionSelect = (collectionId) => {
+  console.log(`[AmbientArchive] Selected collection: ${collectionId}`);
+
+  // Use the hook's selectCollection method with navigation option
   selectCollection(collectionId, {
     source: 'ambient-archive',
     action: 'play',
+    preloadBuffers: true, // Indicate buffer preloading should happen
     navigate: true,
     queryParams: {
       source: 'archive',
       action: 'play'
     }
   });
-    
-    // Enhanced event emission with standardized payload structure
-    eventBus.emit(EVENTS.COLLECTION_SELECTED, { 
-      collectionId, 
-      source: 'ambient-archive',
-      action: 'play',
-      timestamp: Date.now() 
-    });
-    
-    // Then use Next.js router for navigation with consistent structured data
-    router.push({
-      pathname: '/player',
-      query: { 
-        collection: collectionId,
-        source: 'archive',
-        action: 'play'
-      }
-    });
-  };
+  
+  // Enhanced event emission with standardized payload structure
+  eventBus.emit(EVENTS.COLLECTION_SELECTED, { 
+    collectionId, 
+    source: 'ambient-archive',
+    action: 'play',
+    preloadBuffers: true,
+    timestamp: Date.now() 
+  });
+  
+  // Then use Next.js router for navigation with consistent structured data
+  router.push({
+    pathname: '/player',
+    query: { 
+      collection: collectionId,
+      source: 'archive',
+      action: 'play'
+    }
+  });
+};
+
 
   // Error recovery function
   const handleRetryLoad = () => {
