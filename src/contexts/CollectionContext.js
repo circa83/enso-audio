@@ -102,69 +102,112 @@ export const CollectionProvider = ({
     };
   }, []);
 
-  // Load collections with current filters and pagination
-  const loadCollections = useCallback(async (page = 1, currentFilters = filtersRef.current, source = 'all') => {
-    if (!isMountedRef.current || !collectionService) {
-      console.log('[CollectionContext] Component not mounted or service unavailable, skipping load');
-      return;
-    }
+ // Consolidated loadCollections that handles both general and local collections
+const loadCollections = useCallback(async (
+  page = 1, 
+  currentFilters = filtersRef.current, 
+  source = 'all',
+  options = {}
+) => {
+  if (!isMountedRef.current || !collectionService) {
+    console.log('[CollectionContext] Component not mounted or service unavailable, skipping load');
+    return;
+  }
 
-     // Add flag to prevent multiple simultaneous requests
-  if (isLoading) {
+  // Add flag to prevent multiple simultaneous requests
+  if (isLoading && !options.force) {
     console.log('[CollectionContext] Already loading collections, skipping duplicate request');
     return;
   }
 
-    try {
-      setIsLoading(true);
-      setError(null);
+  try {
+    setIsLoading(true);
+    setError(null);
 
-      console.log(`[CollectionContext] Loading collections page ${page} from source ${source} with filters:`, currentFilters);
+    console.log(`[CollectionContext] Loading collections page ${page} from source ${source} with filters:`, currentFilters);
 
-      const result = await collectionService.getCollections({
-        ...currentFilters,
-        page,
-        limit: pagination.limit,
-        useCache: true,
-        source
+    const result = await collectionService.getCollections({
+      ...currentFilters,
+      page,
+      limit: pagination.limit,
+      useCache: true,
+      source
+    });
+
+    if (!isMountedRef.current) return; // Check if still mounted
+
+    if (result.success) {
+      // Add deduplication logic
+      const uniqueCollections = [];
+      const seenIds = new Set();
+      
+      result.data.forEach(collection => {
+        if (!seenIds.has(collection.id)) {
+          seenIds.add(collection.id);
+          uniqueCollections.push(collection);
+        } else {
+          console.warn(`[CollectionContext] Duplicate collection ID detected: ${collection.id} - "${collection.name}"`);
+        }
       });
+      
+      if (uniqueCollections.length !== result.data.length) {
+        console.log(`[CollectionContext] Filtered ${result.data.length} collections to ${uniqueCollections.length} unique collections`);
+      }
 
-      if (!isMountedRef.current) return; // Check if still mounted
-
-      if (result.success) {
-        console.log(`[CollectionContext] Successfully loaded ${result.data.length} collections (${result.pagination?.total || 0} total)`);
-        setCollections(result.data);
-        setPagination(result.pagination || {
-          total: result.data.length,
+      console.log(`[CollectionContext] Successfully loaded ${uniqueCollections.length} collections (${result.pagination?.total || 0} total)`);
+      
+      // Update appropriate state based on source and options
+      if (source === 'local' || options.updateLocalCollections) {
+        setLocalCollections(uniqueCollections);
+      }
+      
+      // Always update main collections unless specified not to
+      if (!options.skipMainUpdate) {
+        setCollections(uniqueCollections);
+        
+        // Adjust pagination if needed due to filtering
+        const adjustedPagination = {
+          ...result.pagination,
+          total: Math.max(result.pagination?.total - (result.data.length - uniqueCollections.length), uniqueCollections.length),
+          pages: Math.ceil(Math.max(result.pagination?.total - (result.data.length - uniqueCollections.length), uniqueCollections.length) / pagination.limit)
+        };
+        
+        setPagination(adjustedPagination || {
+          total: uniqueCollections.length,
           page: 1,
           limit: pagination.limit,
           pages: 1
         });
-
-        // Update source distribution when available
-        if (result.sources) {
-          setSourceDistribution(result.sources);
-        }
-
-        // Reset retry counter on success
-        retriesRef.current = 0;
-
-        // Publish event through event bus
-        eventBus.emit(EVENTS.COLLECTION_LOADED || 'collections:loaded', {
-          collections: result.data,
-          pagination: result.pagination,
-          timestamp: Date.now()
-        });
-      } else {
-        throw new Error(result.error || 'Failed to load collections');
       }
-    } catch (err) {
-      console.error(`[CollectionContext] Error loading collections:`, err);
 
-      if (!isMountedRef.current) return; // Check if still mounted
+      // Update source distribution when available
+      if (result.sources) {
+        setSourceDistribution(result.sources);
+      }
 
-        // Implement retry logic - but don't retry missing local folder collections
+      // Reset retry counter on success
+      retriesRef.current = 0;
+
+      // Publish event through event bus
+      eventBus.emit(EVENTS.COLLECTION_LOADED || 'collections:loaded', {
+        collections: uniqueCollections,
+        pagination: result.pagination,
+        source,
+        timestamp: Date.now()
+      });
+      
+      return uniqueCollections;
+    } else {
+      throw new Error(result.error || 'Failed to load collections');
+    }
+  } catch (err) {
+    console.error(`[CollectionContext] Error loading collections:`, err);
+
+    if (!isMountedRef.current) return; // Check if still mounted
+
+    // Implement retry logic - but don't retry missing local folder collections
     if (retriesRef.current < maxRetries && 
+        !options.noRetry &&
         !err.message.includes('collections index') && 
         !err.message.includes('404')) {
       retriesRef.current++;
@@ -173,54 +216,37 @@ export const CollectionProvider = ({
         const delay = Math.pow(2, retriesRef.current) * 500;
         setTimeout(() => {
           if (isMountedRef.current) {
-            loadCollections(page, currentFilters, source);
+            loadCollections(page, currentFilters, source, options);
           }
         }, delay);
 
         return;
-      }
-
-      setError(err.message);
-
-      // Publish error event
-      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collections:error', {
-        error: err.message,
-        timestamp: Date.now()
-      });
-    } finally {
-      if (isMountedRef.current) {
-        setIsLoading(false);
-      }
     }
-  }, [collectionService, pagination.limit, isLoading]);
 
-  // Load local collections
-  const loadLocalCollections = useCallback(async () => {
-    if (!collectionService || !isMountedRef.current) return;
+    setError(err.message);
 
-    try {
-      setIsLoading(true);
-      
-      // Use the service's local source handler
-      const sourceCollections = await collectionService.sourceHandlers.local.getCollections();
-      
-      if (!isMountedRef.current) return;
-      
-      setLocalCollections(sourceCollections);
-      console.log(`[CollectionContext] Loaded ${sourceCollections.length} local collections`);
-      
-      return sourceCollections;
-    } catch (error) {
-      console.error('[CollectionContext] Error loading local collections:', error);
-      if (isMountedRef.current) {
-        setError(error.message);
-      }
-    } finally {
-      if (isMountedRef.current) {
-        setIsLoading(false);
-      }
+    // Publish error event
+    eventBus.emit(EVENTS.COLLECTION_ERROR || 'collections:error', {
+      error: err.message,
+      timestamp: Date.now()
+    });
+    
+    return null;
+  } finally {
+    if (isMountedRef.current) {
+      setIsLoading(false);
     }
-  }, [collectionService]);
+  }
+}, [collectionService, pagination.limit, isLoading]);
+
+// Simple wrapper for backward compatibility
+const loadLocalCollections = useCallback(async () => {
+  return loadCollections(1, {}, 'local', { 
+    updateLocalCollections: true,
+    skipMainUpdate: true, 
+    noRetry: true 
+  });
+}, [loadCollections]);
 
   // Update filters and reload collections
   const updateFilters = useCallback((newFilters) => {
@@ -336,54 +362,88 @@ export const CollectionProvider = ({
     // No cleanup needed for this effect
   }, [filters, collectionService, pagination.limit, initialized]);
 
-  // Load a specific collection by ID
+  // Fetch a specific collection by ID
   const getCollection = useCallback(async (id) => {
     if (!id || !collectionService) {
       console.error('[CollectionContext] Collection ID is required and service must be available');
       throw new Error('Collection ID is required');
     }
-
+  
     try {
       console.log(`[CollectionContext] Loading collection: ${id}`);
       setIsLoading(true);
-
+  
       const result = await collectionService.getCollection(id);
-
+  
       if (!isMountedRef.current) return null; // Check if still mounted
-
+  
       if (!result.success) {
         throw new Error(result.error || `Collection ${id} not found`);
       }
-
+  
       console.log(`[CollectionContext] Successfully loaded collection: ${result.data.name} from source: ${result.source || 'unknown'}`);
-
-      // Store as current collection
+  
+      // Store raw collection as current collection
       setCurrentCollection(result.data);
-
-      // Publish event through event bus
+  
+      // Check if collection has required track data structure for formatting
+      const hasValidTrackData = 
+        result.data && 
+        Array.isArray(result.data.tracks) && 
+        result.data.tracks.length > 0 &&
+        result.data.tracks[0].layerFolder;
+  
+      // Only try to format if the collection has the expected track structure
+      if (hasValidTrackData) {
+        try {
+          console.log(`[CollectionContext] Formatting collection for player: ${result.data.tracks.length} tracks`);
+          const formattedCollection = collectionService.formatCollectionForPlayer(result.data);
+          
+          // Publish event with formatted collection
+          eventBus.emit(EVENTS.COLLECTION_SELECTED || 'collection:selected', {
+            collectionId: result.data.id,
+            collection: formattedCollection,  // Formatted with layers property
+            rawCollection: result.data,
+            source: result.source || 'api',
+            format: 'player-ready',
+            timestamp: Date.now()
+          });
+          
+          console.log(`[CollectionContext] Emitted event with formatted collection`);
+          return result.data;
+        } catch (formatError) {
+          console.error(`[CollectionContext] Error formatting collection: ${formatError.message}`);
+          // Fall through to default handling below
+        }
+      } else {
+        console.warn(`[CollectionContext] Collection lacks proper track structure for formatting`);
+      }
+      
+      // Default handling if formatting wasn't possible or failed
       eventBus.emit(EVENTS.COLLECTION_SELECTED || 'collection:selected', {
         collectionId: result.data.id,
         collection: result.data,
         source: result.source || 'api',
-        format: result.data.format || 'standard',
+        format: 'raw',
+        requiresFormatting: true,
         timestamp: Date.now()
       });
-
+      
       return result.data;
     } catch (err) {
       console.error(`[CollectionContext] Error loading collection ${id}:`, err);
-
-      if (!isMountedRef.current) return null; // Check if still mounted
-
+  
+      if (!isMountedRef.current) return null;
+  
       setError(err.message);
-
+  
       // Publish error event
       eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
         id,
         error: err.message,
         timestamp: Date.now()
       });
-
+  
       throw err;
     } finally {
       if (isMountedRef.current) {
@@ -391,6 +451,7 @@ export const CollectionProvider = ({
       }
     }
   }, [collectionService]);
+  
 
   // Format a collection for the player
   const formatForPlayer = useCallback((collection) => {

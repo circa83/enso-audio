@@ -1,0 +1,117 @@
+ENSŌ AUDIO COLLECTION MANAGEMENT GUIDE
+===========================================
+
+This document explains how to use the collection management scripts to update, generate, and maintain your audio collections.
+
+SETUP PREREQUISITES
+Make sure you're in the project root directory: cd /path/to/enso-audio
+
+Ensure the scripts are executable: 
+chmod +x scripts/generateCollectionMetadata.js scripts/updateCollections.js
+
+WORKFLOW 1: ADDING A NEW COLLECTION
+Step 1: Create the collection folder structure 
+public/collections/YourNewCollection/ 
+├── cover/ 
+│ └── YourNewCollection_EnsoAudio.png 
+├── Layer_1/ 
+│ ├── track1.mp3 
+│ └── track2.mp3 
+├── Layer_2/ 
+│ └── track3.mp3 
+└── Layer_3/ 
+└── track4.mp3
+
+Step 2: Generate metadata for your new collection: 
+node scripts/generateCollectionMetadata.js YourNewCollection
+
+Step 3: Update the collections index: 
+node scripts/updateCollections.js
+
+Step 4: Verify the collection appears correctly Open your browser and navigate to your app's collection list page.
+
+
+WORKFLOW 2: UPDATING AN EXISTING COLLECTION
+===========================================
+Step 1: Make changes to your collection folder Add/remove audio files in the layer folders or update the cover image.
+
+Step 2: Regenerate the collection's metadata: 
+node scripts/generateCollectionMetadata.js YourExistingCollection --force
+
+Step 3: Update the collections index: 
+node scripts/updateCollections.js
+
+WORKFLOW 3: PROCESSING ALL COLLECTIONS AT ONCE
+===========================================
+Step 1: Generate metadata for all collections: 
+node scripts/generateCollectionMetadata.js --all
+
+Step 2: Update the collections index: 
+node scripts/updateCollections.js
+
+WORKFLOW 4: CONTINUOUS DEVELOPMENT MODE
+===========================================
+Start a file watcher that automatically updates when collection files change:
+ node scripts/updateCollections.js --watch
+
+Leave this running in a terminal while you work on your collections. It will automatically update collections.json whenever you:
+
+Add/remove a collection folder
+Change a metadata.json file
+Add/remove a cover image
+SCRIPT OPTIONS AND FLAGS
+generateCollectionMetadata.js:
+
+node scripts/generateCollectionMetadata.js CollectionName Generate metadata for a specific collection
+node scripts/generateCollectionMetadata.js --all Process all collections
+node scripts/generateCollectionMetadata.js CollectionName --force Overwrite existing metadata.json
+updateCollections.js:
+
+node scripts/updateCollections.js Update collections.json once
+node scripts/updateCollections.js --watch Start watching for changes and automatically update
+
+
+COMMON ISSUES AND SOLUTIONS
+===========================================
+Duplicate Collection ID Error: If you see "Encountered two children with the same key" error:
+
+Check for duplicate collection IDs: node scripts/updateCollections.js Look for warnings about duplicate IDs in the console output.
+
+If found, rename one of the collection folders or regenerate its metadata: node scripts/generateCollectionMetadata.js DuplicateCollection --force
+
+Missing Audio Files: If your collection doesn't play audio correctly:
+
+Verify the paths in metadata.json match your folder structure
+Run the generator with --force to recreate the metadata: node scripts/generateCollectionMetadata.js ProblemCollection --force
+Incorrect Layer Assignment: If tracks are assigned to the wrong layers:
+
+Make sure your folders are named correctly: Layer_1, Layer_2, etc.
+Ensure audio files are in the correct layer folders
+Regenerate metadata with --force flag
+AUTOMATION FOR PRODUCTION
+For production deployment, add these scripts to your build process:
+
+Add to package.json: "scripts": { "build:collections": "node scripts/generateCollectionMetadata.js --all && node scripts/updateCollections.js", "build": "npm run build:collections && next build" }
+
+Now you can run: npm run build
+
+This will ensure all collections are properly processed before building your application.
+
+
+
+
+SUMMARY OF COMMANDS
+===========================================
+Create metadata for one collection: node scripts/generateCollectionMetadata.js CollectionName
+
+Create metadata for all collections: node scripts/generateCollectionMetadata.js --all
+
+Overwrite existing metadata: node scripts/generateCollectionMetadata.js CollectionName --force
+
+Update collections index once: node scripts/updateCollections.js
+
+Watch and auto-update collections: node scripts/updateCollections.js --watch
+
+Process everything (clean rebuild): node scripts/generateCollectionMetadata.js --all --force && node scripts/updateCollections.js
+
+END OF DOCUMENT

@@ -2,7 +2,7 @@
   "id": "Stillness",
   "name": "Stillness",
   "description": "A collection of ambient audio tracks for stillness",
-  "coverImage": "/collections/Stillness/cover/Stillness_EnsoAudio_bkcp.png",
+  "coverImage": "cover/Stillness_EnsoAudio_bkcp.png",
   "metadata": {
     "artist": "Ensō Audio",
     "year": 2025,
@@ -11,57 +11,60 @@
       "meditation",
       "peaceful",
       "soundscape"
-    ]
+    ],
+    "createdAt": "2025-04-26T20:35:41.648Z",
+    "updatedAt": "2025-04-26T20:35:41.648Z",
+    "version": 1
   },
   "tracks": [
     {
       "id": "layer_1",
       "title": "Stillness Drone",
-      "audioUrl": "/collections/Stillness/Layer_1/Stillness_drone.mp3",
+      "audioUrl": "Layer_1/Stillness_drone.mp3",
       "layerFolder": "Layer_1",
       "variations": [
         {
           "id": "layer_1-01",
           "title": "Stillness Drone 01",
-          "audioUrl": "/collections/Stillness/Layer_1/Stillness_drone_01.mp3"
+          "audioUrl": "Layer_1/Stillness_drone_01.mp3"
         },
         {
           "id": "layer_1-02",
           "title": "Stillness Drone 02",
-          "audioUrl": "/collections/Stillness/Layer_1/Stillness_drone_02.mp3"
+          "audioUrl": "Layer_1/Stillness_drone_02.mp3"
         }
       ]
     },
     {
       "id": "layer_2",
       "title": "Stillness Melody",
-      "audioUrl": "/collections/Stillness/Layer_2/Stillness_melody.mp3",
+      "audioUrl": "Layer_2/Stillness_melody.mp3",
       "layerFolder": "Layer_2",
       "variations": [
         {
           "id": "layer_2-01",
           "title": "Stillness Melody 01",
-          "audioUrl": "/collections/Stillness/Layer_2/Stillness_melody_01.mp3"
+          "audioUrl": "Layer_2/Stillness_melody_01.mp3"
         }
       ]
     },
     {
       "id": "layer_3",
       "title": "Stillness Rhythm",
-      "audioUrl": "/collections/Stillness/Layer_3/Stillness_rhythm.mp3",
+      "audioUrl": "Layer_3/Stillness_rhythm.mp3",
       "layerFolder": "Layer_3",
       "variations": [
         {
           "id": "layer_3-01",
           "title": "Stillness Rhythm 01",
-          "audioUrl": "/collections/Stillness/Layer_3/Stillness_rhythm_01.mp3"
+          "audioUrl": "Layer_3/Stillness_rhythm_01.mp3"
         }
       ]
     },
     {
       "id": "layer_4",
       "title": "Stillness Nature",
-      "audioUrl": "/collections/Stillness/Layer_4/Stillness_nature.mp3",
+      "audioUrl": "Layer_4/Stillness_nature.mp3",
       "layerFolder": "Layer_4",
       "variations": []
     }

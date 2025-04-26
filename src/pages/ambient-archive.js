@@ -32,17 +32,6 @@ const AmbientArchive = () => {
 
   
 
-  // Diagnostic console logs
-  useEffect(() => {
-    console.log('[AmbientArchive] Current collections state:', { 
-      count: collections?.length || 0,
-      isLoading, 
-      error,
-      filters 
-    });
-  }, [collections, isLoading, error, filters]);
-
-
   // a clean-up reference to prevent over-rendering
 useEffect(() => {
   let isMounted = true;
@@ -66,9 +55,6 @@ useEffect(() => {
   const handleFilterChange = (newFilters) => {
     updateFilters(newFilters);
   };
-
-  // Handle collection selection with logging
-// Update the handleCollectionSelect function in ambient-archive.js
 
 // Handle collection selection with enhanced buffer loading
 const handleCollectionSelect = (collectionId) => {

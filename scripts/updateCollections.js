@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const chokidar = require('chokidar');
+const { generateCollectionMetadata, writeMetadataFile } = require('./generateCollectionMetadata');
 
 // Define paths
 const collectionsDir = path.join(__dirname, '../public/collections');
@@ -29,32 +30,31 @@ const readCollectionMetadata = (folderName) => {
     if (fs.existsSync(metadataPath)) {
       const data = fs.readFileSync(metadataPath, 'utf8');
       console.log(`[updateCollections] Found metadata file for ${folderName}`);
-      return JSON.parse(data);
-    } else {
-      console.log(`[updateCollections] No metadata.json found for ${folderName}, checking collection structure`);
       
-      // Check if collection has the expected structure
-      const hasRequiredFolders = checkCollectionStructure(folderName);
+      // Parse and normalize the JSON data
+      const metadata = JSON.parse(data);
       
-      if (hasRequiredFolders) {
-        console.log(`[updateCollections] Structure validation passed for ${folderName}, generating basic metadata`);
-        // Create a basic metadata entry
-        return {
-          id: folderName,
-          name: folderName.charAt(0).toUpperCase() + folderName.slice(1).replace(/-/g, ' '),
-          description: `A collection of ambient layers for ${folderName.toLowerCase()}`,
-          coverImage: findCoverImage(folderName),
-          metadata: {
-            artist: "Ensō Audio",
-            year: new Date().getFullYear(),
-            tags: ["ambient", "meditation", "peaceful", "soundscape"]
-          },
-          tracks: [] // Empty tracks array will be filled when generateCollectionMetadata.js is run
-        };
-      } else {
-        console.log(`[updateCollections] Structure validation failed for ${folderName}, skipping`);
-        return null;
+      // Ensure the ID matches the folder name for consistency
+      if (metadata.id !== folderName) {
+        console.log(`[updateCollections] Fixing inconsistent ID for ${folderName}: changing ${metadata.id} to ${folderName}`);
+        metadata.id = folderName;
       }
+      
+      // Update the updatedAt timestamp
+      if (metadata.metadata) {
+        metadata.metadata.updatedAt = new Date().toISOString();
+      }
+      
+      return metadata;
+    } else {
+      console.log(`[updateCollections] No metadata.json found for ${folderName}, generating new metadata`);
+      
+      // Generate new metadata for this collection
+      const generatedMetadata = generateCollectionMetadata(path.join(collectionsDir, folderName));
+      
+      // Write the generated metadata to file
+      writeMetadataFile(path.join(collectionsDir, folderName), generatedMetadata);
+      return generatedMetadata;
     }
   } catch (err) {
     console.error(`[updateCollections] Error reading metadata for ${folderName}:`, err);
@@ -62,179 +62,186 @@ const readCollectionMetadata = (folderName) => {
   }
 };
 
-// Function to check if a collection has the required folder structure
-const checkCollectionStructure = (folderName) => {
-  // Check if at least one of Layer_1, Layer_2, etc. exists
-  const collectionPath = path.join(collectionsDir, folderName);
-  const layerFolders = ['Layer_1', 'Layer_2', 'Layer_3', 'Layer_4'];
+// Function to update the collections.json file
+const updateCollectionsFile = () => {
+  console.log('[updateCollections] Updating collections.json file...');
   
-  // At least one layer folder should exist for a valid collection
-  return layerFolders.some(layer => {
-    const layerPath = path.join(collectionPath, layer);
-    return fs.existsSync(layerPath) && fs.statSync(layerPath).isDirectory();
-  });
-};
-
-// Function to find a cover image in the collection
-const findCoverImage = (folderName) => {
-  const coverDir = path.join(collectionsDir, folderName, 'cover');
-  
-  if (fs.existsSync(coverDir) && fs.statSync(coverDir).isDirectory()) {
-    try {
-      const files = fs.readdirSync(coverDir);
-      
-      // Look for image files
-      const imageFile = files.find(file => {
-        const ext = path.extname(file).toLowerCase();
-        return ['.jpg', '.jpeg', '.png', '.webp'].includes(ext);
-      });
-      
-      if (imageFile) {
-        return `/collections/${folderName}/cover/${imageFile}`;
-      }
-    } catch (err) {
-      console.error(`[updateCollections] Error reading cover directory for ${folderName}:`, err);
-    }
-  }
-  
-  return null; // No cover image found
-};
-
-// Function to check if a path is a collection directory
-const isCollectionDirectory = (dirPath) => {
   try {
-    return fs.statSync(dirPath).isDirectory() && 
-           path.basename(dirPath) !== 'assets' &&
-           !path.basename(dirPath).startsWith('.');
+    // Get all collection directories
+    const folders = fs.readdirSync(collectionsDir)
+      .filter(item => {
+        const fullPath = path.join(collectionsDir, item);
+        return fs.statSync(fullPath).isDirectory() && 
+               !item.startsWith('.') && 
+               item !== 'node_modules';
+      });
+    
+    console.log(`[updateCollections] Found ${folders.length} collection folders`);
+    
+    // Read metadata from each collection folder
+    const metadataList = [];
+    const idMap = new Map(); // Track IDs to prevent duplicates
+    
+    for (const folder of folders) {
+      const metadata = readCollectionMetadata(folder);
+      
+      if (metadata) {
+        const existingIndex = idMap.get(metadata.id);
+        
+        if (existingIndex !== undefined) {
+          console.warn(`[updateCollections] Duplicate collection ID detected: ${metadata.id}`);
+          console.warn(`[updateCollections] First occurrence in folder: ${folders[existingIndex]}`);
+          console.warn(`[updateCollections] Second occurrence in folder: ${folder}`);
+          
+          // Rename the second occurrence to avoid conflicts
+          const newId = `${metadata.id}-${Date.now().toString().slice(-6)}`;
+          console.warn(`[updateCollections] Changing duplicate ID to: ${newId}`);
+          
+          metadata.id = newId;
+          
+          // Update the metadata file with the new ID
+          const metadataPath = path.join(collectionsDir, folder, 'metadata.json');
+          fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
+        }
+        
+        // Add to our collections list and track the ID
+        metadataList.push(metadata);
+        idMap.set(metadata.id, metadataList.length - 1);
+      }
+    }
+    
+    // Create a summary version for collections.json
+    // This includes only essential metadata, not full track details
+    const collectionsData = metadataList.map(metadata => ({
+      id: metadata.id,
+      name: metadata.name,
+      description: metadata.description,
+      coverImage: metadata.coverImage,
+      trackCount: metadata.tracks?.length || 0,
+      variationCount: metadata.tracks?.reduce((count, track) => 
+        count + (track.variations?.length || 0), 0) || 0,
+      tags: metadata.metadata?.tags || [],
+      artist: metadata.metadata?.artist || 'Ensō Audio',
+      year: metadata.metadata?.year || new Date().getFullYear(),
+      updatedAt: metadata.metadata?.updatedAt || new Date().toISOString()
+    }));
+    
+    // Write the collections.json file
+    fs.writeFileSync(collectionsFile, JSON.stringify({ 
+      collections: collectionsData,
+      updatedAt: new Date().toISOString(),
+      count: collectionsData.length
+    }, null, 2));
+    
+    console.log(`[updateCollections] Successfully updated collections.json with ${collectionsData.length} collections`);
+    return true;
   } catch (err) {
+    console.error('[updateCollections] Error updating collections.json:', err);
     return false;
   }
 };
 
-// Function to update collections.json
-const updateCollectionsJson = () => {
-  try {
-    // Get all directories in the collections folder
-    const files = fs.readdirSync(collectionsDir);
-    
-    // Filter for collection folders
-    const collectionFolders = files.filter(file => {
-      const fullPath = path.join(collectionsDir, file);
-      return isCollectionDirectory(fullPath);
-    });
-    
-    console.log(`[updateCollections] Found ${collectionFolders.length} collection folders`);
-    
-    // Get existing collections from collections.json
-    const existingCollections = readExistingCollections();
-    const existingCollectionsMap = new Map(
-      existingCollections.map(collection => [collection.id, collection])
-    );
-    
-    // Process each collection folder and gather metadata
-    const updatedCollections = [];
-    
-    for (const folder of collectionFolders) {
-      const metadata = readCollectionMetadata(folder);
-      
-      if (metadata) {
-        // Update existing entry or add new one
-        updatedCollections.push(metadata);
-        console.log(`[updateCollections] Added collection: ${metadata.name}`);
+// Watch for changes in collection directories
+const watchCollections = () => {
+  console.log(`[updateCollections] Starting to watch collections directory: ${collectionsDir}`);
+  
+  // First, ensure we have an up-to-date collections.json file
+  updateCollectionsFile();
+  
+  // Set up file watcher
+  const watcher = chokidar.watch([
+    path.join(collectionsDir, '*/'),         // Watch for new collection folders
+    path.join(collectionsDir, '*/metadata.json') // Watch for changes to metadata files
+  ], {
+    persistent: true,
+    ignoreInitial: true,
+    ignored: [
+      /(^|[\/\\])\../, // Ignore dotfiles
+      '**/node_modules/**', // Ignore node_modules
+      collectionsFile // Ignore collections.json itself to avoid loops
+    ],
+    depth: 2 // Only watch up to depth 2 (collections dir → collection folder → files)
+  });
+  
+  // Handle file events
+  watcher
+    .on('add', filePath => {
+      console.log(`[updateCollections] File added: ${filePath}`);
+      if (filePath.endsWith('metadata.json')) {
+        updateCollectionsFile();
       }
-    }
-    
-    // Write the updated collections to the JSON file
-    fs.writeFileSync(collectionsFile, JSON.stringify(updatedCollections, null, 2));
-    
-    console.log(`[updateCollections] ✅ collections.json has been updated with ${updatedCollections.length} collections!`);
-    
-    // Log added or removed collections
-    const newCollections = updatedCollections.filter(c => !existingCollectionsMap.has(c.id));
-    const removedCollections = existingCollections.filter(c => 
-      !updatedCollections.some(uc => uc.id === c.id)
-    );
-    
-    if (newCollections.length > 0) {
-      console.log(`[updateCollections] 📁 Added new collections: ${newCollections.map(c => c.name).join(', ')}`);
-    }
-    
-    if (removedCollections.length > 0) {
-      console.log(`[updateCollections] 🗑️ Removed collections: ${removedCollections.map(c => c.name).join(', ')}`);
-    }
-    
-    return updatedCollections;
-  } catch (err) {
-    console.error('[updateCollections] Error updating collections.json:', err);
-    return [];
+    })
+    .on('change', filePath => {
+      console.log(`[updateCollections] File changed: ${filePath}`);
+      if (filePath.endsWith('metadata.json')) {
+        updateCollectionsFile();
+      }
+    })
+    .on('unlink', filePath => {
+      console.log(`[updateCollections] File removed: ${filePath}`);
+      if (filePath.endsWith('metadata.json')) {
+        updateCollectionsFile();
+      }
+    })
+    .on('addDir', dirPath => {
+      console.log(`[updateCollections] Directory added: ${dirPath}`);
+      // Only trigger for collection directories, not subdirectories
+      if (path.dirname(dirPath) === collectionsDir) {
+        updateCollectionsFile();
+      }
+    })
+    .on('unlinkDir', dirPath => {
+      console.log(`[updateCollections] Directory removed: ${dirPath}`);
+      // Only trigger for collection directories, not subdirectories
+      if (path.dirname(dirPath) === collectionsDir) {
+        updateCollectionsFile();
+      }
+    })
+    .on('error', error => {
+      console.error(`[updateCollections] Watcher error: ${error}`);
+    })
+    .on('ready', () => {
+      console.log('[updateCollections] Initial scan complete, watching for changes...');
+    });
+  
+  // Handle process termination
+  process.on('SIGINT', () => {
+    console.log('[updateCollections] Stopping file watcher...');
+    watcher.close().then(() => {
+      console.log('[updateCollections] Watcher closed, exiting.');
+      process.exit(0);
+    });
+  });
+};
+
+// Main function
+const main = () => {
+  // Get command line arguments
+  const args = process.argv.slice(2);
+  const watchMode = args.includes('--watch');
+  
+  // Create collections.json file if it doesn't exist
+  if (!fs.existsSync(collectionsFile)) {
+    fs.writeFileSync(collectionsFile, JSON.stringify({ collections: [], updatedAt: new Date().toISOString(), count: 0 }, null, 2));
+    console.log('[updateCollections] Created initial collections.json file');
+  }
+  
+  if (watchMode) {
+    watchCollections();
+  } else {
+    // Just update the collections file once
+    updateCollectionsFile();
   }
 };
 
-// Initial update
-console.log('[updateCollections] 🔄 Initializing collections.json...');
-updateCollectionsJson();
-
-// Watch the collections directory for changes
-console.log('[updateCollections] 👀 Watching collections directory for changes...');
-
-const watcher = chokidar.watch(collectionsDir, {
-  persistent: true,
-  ignoreInitial: true,
-  ignored: [
-    '**/node_modules/**',
-    '**/.git/**',
-    // Ignore collections.json itself to prevent circular updates
-    path.join(collectionsDir, 'collections.json')
-  ],
-  awaitWriteFinish: {
-    stabilityThreshold: 2000,
-    pollInterval: 100
-  }
-});
-
-watcher
-  .on('addDir', (changedPath) => {
-    // Only process changes at the collection root level or metadata.json changes
-    if (path.dirname(changedPath) === collectionsDir || 
-        path.basename(changedPath) === 'metadata.json') {
-      console.log(`[updateCollections] 📂 New folder added: ${changedPath}`);
-      updateCollectionsJson();
-    }
-  })
-  .on('change', (changedPath) => {
-    // Only process metadata.json changes
-    if (path.basename(changedPath) === 'metadata.json') {
-      console.log(`[updateCollections] 🔄 Metadata file changed: ${changedPath}`);
-      updateCollectionsJson();
-    }
-  })
-  .on('unlink', (changedPath) => {
-    // Only process metadata.json removals
-    if (path.basename(changedPath) === 'metadata.json') {
-      console.log(`[updateCollections] 🗑️ Metadata file removed: ${changedPath}`);
-      updateCollectionsJson();
-    }
-  })
-  .on('unlinkDir', (changedPath) => {
-    // Only process collection directory removals
-    if (path.dirname(changedPath) === collectionsDir) {
-      console.log(`[updateCollections] 🗑️ Directory removed: ${changedPath}`);
-      updateCollectionsJson();
-    }
-  })
-  .on('error', (error) => {
-    console.error('[updateCollections] ❌ Watcher error:', error);
-  });
-
-console.log('[updateCollections] 🚀 Collections watcher is now running. Press Ctrl+C to stop.');
-
-// Allow direct execution
+// Only run main if this script is directly executed
 if (require.main === module) {
-  // The script is already running at this point
-} else {
-  // Export functions for potential use in other scripts
-  module.exports = {
-    updateCollectionsJson,
-    readCollectionMetadata
-  };
+  main();
 }
+
+// Export functions for use in other scripts
+module.exports = {
+  updateCollectionsFile,
+  readCollectionMetadata
+};
+

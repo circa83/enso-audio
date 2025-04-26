@@ -151,15 +151,24 @@ export function useCollection(options = {}) {
 
     console.log(`[useCollection] Selecting collection: ${collectionId}`);
 
-    // Emit selection event with preloadBuffers option
-    eventBus.emit(EVENTS.COLLECTION_SELECTED, {
-      collectionId,
-      source: options.source || 'hook',
-      action: options.action || 'select',
-      preloadBuffers: options.preloadBuffers || false,
-      timestamp: Date.now()
-    });
+   // First get the full collection data
+   collection.getCollection(collectionId)
+   .then(collectionData => {
+     // Format collection for player if needed
+     const formattedCollection = collection.formatForPlayer 
+       ? collection.formatForPlayer(collectionData)
+       : collectionData;
 
+     // Emit selection event with the formatted collection
+     eventBus.emit(EVENTS.COLLECTION_SELECTED, {
+       collectionId,
+       collection: formattedCollection, // Pass the FORMATTED collection
+       source: options.source || 'hook',
+       action: options.action || 'select',
+       preloadBuffers: options.preloadBuffers !== false, // Default to true
+       timestamp: Date.now()
+     });
+    })
     // If we need to get the full collection data first, do it here
     if (options.preloadBuffers && collection.getCollection) {
       // Request the full collection to be loaded so it can be passed to buffer system
