@@ -5,6 +5,7 @@
  * Handles fetching, filtering, and processing collection data
  */
 import eventBus, { EVENTS } from './EventBus';
+import AppConfig from '../config/appConfig';
 
 
 class CollectionService {
@@ -14,6 +15,8 @@ class CollectionService {
    * @param {string} [options.apiBasePath='/api'] - Base path for API endpoints
    * @param {number} [options.cacheDuration=60000] - Cache duration in milliseconds (default: 1 minute)
    * @param {boolean} [options.enableLogging=false] - Enable detailed console logging
+   * @param {boolean} [options.enableLocalStorage=true] - Enable local storage collections
+   * @param {string} [options.localStorageKey='enso_collections'] - Key for storing collections in localStorage
    */
   constructor(options = {}) {
     // Configuration
@@ -21,22 +24,32 @@ class CollectionService {
       apiBasePath: options.apiBasePath || '/api',
       cacheDuration: options.cacheDuration || 60000, // 1 minute default
       enableLogging: options.enableLogging || false,
-      blobBaseUrl: process.env.NEXT_PUBLIC_BLOB_BASE_URL || 'https://uggtzauwx9gzthtf.public.blob.vercel-storage.com'
+      blobBaseUrl: process.env.NEXT_PUBLIC_BLOB_BASE_URL || 'https://uggtzauwx9gzthtf.public.blob.vercel-storage.com',
+      // Local storage configuration
+      enableLocalStorage: options.enableLocalStorage !== false, // Enable by default
+      localStorageKey: options.localStorageKey || '/collections'
     };
 
     // Internal state
     this.collectionsCache = null;
     this.lastCacheTime = 0;
     this.pendingRequests = new Map();
+    this.localCollections = new Map(); // Storage for local collections
 
     this.log('CollectionService initialized');
-    
+
+    // Load local collections if enabled
+    if (this.config.enableLocalStorage && typeof window !== 'undefined') {
+      this._loadLocalCollections();
+    }
+
     // Emit initialization event
     eventBus.emit(EVENTS.COLLECTION_INITIALIZED || 'collection:initialized', {
       config: {
         apiBasePath: this.config.apiBasePath,
         cacheDuration: this.config.cacheDuration,
-        enableLogging: this.config.enableLogging
+        enableLogging: this.config.enableLogging,
+        enableLocalStorage: this.config.enableLocalStorage
       },
       timestamp: Date.now()
     });
@@ -53,7 +66,7 @@ class CollectionService {
       eventBus.emit(EVENTS.COLLECTION_BLOB_FETCH_START || 'collection:blobFetchStart', {
         timestamp: Date.now()
       });
-      
+
       const response = await fetch('/api/blob/list?prefix=collections/');
 
       if (!response.ok) {
@@ -160,7 +173,7 @@ class CollectionService {
         trackCount: collection.tracks.length,
         timestamp: Date.now()
       });
-      
+
       // Check each track's audio URL
       for (const track of collection.tracks) {
         if (!track.audioUrl) return false;
@@ -184,17 +197,17 @@ class CollectionService {
         collectionId: collection.id,
         timestamp: Date.now()
       });
-      
+
       return true;
     } catch (error) {
       this.log(`Error verifying files: ${error.message}`, 'error');
-      
+
       eventBus.emit(EVENTS.COLLECTION_VERIFY_ERROR || 'collection:verifyError', {
         collectionId: collection.id,
         error: error.message,
         timestamp: Date.now()
       });
-      
+
       return false;
     }
   }
@@ -219,358 +232,571 @@ class CollectionService {
   }
 
   /**
-   * Get all collections with optional filtering
-   * @param {Object} [options] - Fetch options
-   * @param {boolean} [options.useCache=true] - Use cached data if available
-   * @param {string} [options.tag] - Filter by tag
-   * @param {string} [options.artist] - Filter by artist name
-   * @param {number} [options.limit] - Maximum number of results
-   * @param {number} [options.page] - Page number for pagination
-   * @returns {Promise<Object>} Collections data with pagination info
+   * Load collections from localStorage
+   * @private
    */
-  async getCollections(options = {}) {
-    const {
-      useCache = true,
-      tag,
-      artist,
-      limit = 10,
-      page = 1
-    } = options;
-
-    // Emit fetch start event
-    eventBus.emit(EVENTS.COLLECTIONS_LOADED || 'collections:loadStart', {
-      options,
-      useCache,
-      timestamp: Date.now()
-    });
-
+  _loadLocalCollections() {
     try {
-      // First, get the list of collections from Vercel Blob Storage
-      const blobFolders = await this._getBlobCollectionFolders();
-      this.log(`Found ${blobFolders.length} collections in Blob Storage`);
+      const storedData = localStorage.getItem(this.config.localStorageKey);
+      if (!storedData) return;
 
-      if (blobFolders.length === 0) {
-        this.log('No collections found in Blob Storage');
-        
-        // Emit empty result event
-        eventBus.emit(EVENTS.COLLECTIONS_LOADED || 'collections:loaded', {
-          count: 0,
-          useCache,
-          fromCache: false,
-          filters: { tag, artist },
-          timestamp: Date.now()
-        });
-        
-        return {
-          success: true,
-          data: [],
-          pagination: {
-            total: 0,
-            page: 1,
-            limit: parseInt(limit),
-            pages: 0
+      const collections = JSON.parse(storedData);
+
+      if (Array.isArray(collections)) {
+        // Handle array format
+        collections.forEach(collection => {
+          if (collection && collection.id) {
+            this.localCollections.set(collection.id, collection);
           }
-        };
-      }
-
-      // Generate cache key based on filter options
-      const cacheKey = JSON.stringify({ tag, artist, limit, page });
-
-      // Check cache if enabled
-      if (useCache &&
-        this.collectionsCache &&
-        Date.now() - this.lastCacheTime < this.config.cacheDuration &&
-        !tag && !artist) {
-        this.log(`Using cached collections data (${this.collectionsCache.data.length} items)`);
-
-        // Still filter the cached data by blob folders
-        const filteredData = this.collectionsCache.data.filter(collection =>
-          blobFolders.includes(collection.id)
-        );
-
-        const filteredResult = {
-          ...this.collectionsCache,
-          data: filteredData,
-          pagination: {
-            ...this.collectionsCache.pagination,
-            total: filteredData.length,
-            pages: Math.ceil(filteredData.length / parseInt(limit))
-          }
-        };
-
-        // Emit cache hit event
-        eventBus.emit(EVENTS.COLLECTIONS_LOADED || 'collections:loaded', {
-          count: filteredData.length,
-          useCache,
-          fromCache: true,
-          filters: { tag, artist },
-          timestamp: Date.now()
         });
-
-        return filteredResult;
+      } else if (typeof collections === 'object') {
+        // Handle object format
+        Object.entries(collections).forEach(([id, collection]) => {
+          if (collection) {
+            this.localCollections.set(id, collection);
+          }
+        });
       }
 
-      // Check for pending request with same parameters
-      if (this.pendingRequests.has(cacheKey)) {
-        this.log(`Using pending request for key: ${cacheKey}`);
-        return this.pendingRequests.get(cacheKey);
-      }
+      this.log(`Loaded ${this.localCollections.size} collections from localStorage`);
 
-      // Then, fetch the corresponding collections from MongoDB
-      const endpoint = `${this.config.apiBasePath}/collections${this._buildQueryString(options)}`;
-      this.log(`Fetching from API: ${endpoint}`);
-      
-      // Emit API fetch start event
-      eventBus.emit(EVENTS.COLLECTION_API_FETCH_START || 'collection:apiFetchStart', {
-        endpoint,
-        options,
+      // Emit loaded event
+      eventBus.emit(EVENTS.COLLECTION_LOCAL_LOADED || 'collection:localLoaded', {
+        count: this.localCollections.size,
         timestamp: Date.now()
       });
-
-      const response = await fetch(endpoint);
-
-      if (!response.ok) {
-        const errorMsg = `API error: ${response.status}`;
-        // Emit API error event
-        eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-          status: response.status,
-          endpoint,
-          options,
-          error: errorMsg,
-          timestamp: Date.now()
-        });
-        
-        throw new Error(errorMsg);
-      }
-
-      const apiData = await response.json();
-
-      // Filter collections to only include those that exist in blob storage
-      const filteredCollections = apiData.data.filter(collection =>
-        blobFolders.includes(collection.id)
-      );
-
-      this.log(`Filtered to ${filteredCollections.length} valid collections`);
-
-      // Create result with updated pagination
-      const result = {
-        success: true,
-        data: filteredCollections,
-        pagination: {
-          total: filteredCollections.length,
-          page: parseInt(page),
-          limit: parseInt(limit),
-          pages: Math.ceil(filteredCollections.length / parseInt(limit))
-        }
-      };
-
-      // Update cache if this was a full request (no filters)
-      if (!tag && !artist) {
-        this.collectionsCache = result;
-        this.lastCacheTime = Date.now();
-        this.log(`Updated cache with ${filteredCollections.length} collections`);
-        
-        // Emit cache update event
-        eventBus.emit(EVENTS.COLLECTION_CACHE_UPDATED || 'collection:cacheUpdated', {
-          count: filteredCollections.length,
-          timestamp: Date.now()
-        });
-      }
-
-      // Emit collections loaded event
-      eventBus.emit(EVENTS.COLLECTIONS_LOADED || 'collections:loaded', {
-        count: filteredCollections.length,
-        useCache,
-        fromCache: false,
-        filters: { tag, artist },
-        timestamp: Date.now()
-      });
-
-      return result;
     } catch (error) {
-      this.log(`Error getting collections: ${error.message}`, 'error');
-      
-      // Only emit error if not already emitted above
-      if (!error.message.includes('API error:')) {
-        eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-          error: error.message,
-          options,
-          timestamp: Date.now()
-        });
-      }
-      
-      return {
-        success: false,
-        error: error.message
-      };
+      this.log(`Error loading local collections: ${error.message}`, 'error');
+
+      // Emit error event
+      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+        source: 'localStorage',
+        error: error.message,
+        timestamp: Date.now()
+      });
     }
   }
 
   /**
-   * Get a specific collection by ID with its tracks
-   * @param {string} id - Collection ID
-   * @param {boolean} [useCache=true] - Use cached data if possible
-   * @returns {Promise<Object>} Collection data with tracks
+   * Save collections to localStorage
+   * @private
    */
-  async getCollection(id, useCache = true) {
-    if (!id) {
-      const error = 'Collection ID is required';
+  _saveLocalCollections() {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const collections = Array.from(this.localCollections.values());
+      localStorage.setItem(this.config.localStorageKey, JSON.stringify(collections));
+
+      this.log(`Saved ${collections.length} collections to localStorage`);
+
+      // Emit saved event
+      eventBus.emit(EVENTS.COLLECTION_LOCAL_SAVED || 'collection:localSaved', {
+        count: collections.length,
+        timestamp: Date.now()
+      });
+    } catch (error) {
+      this.log(`Error saving local collections: ${error.message}`, 'error');
+
+      // Emit error event
       eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-        id,
-        error,
+        operation: 'saveLocal',
+        error: error.message,
         timestamp: Date.now()
       });
-      throw new Error(error);
     }
-
-    // Emit collection fetch start event
-    eventBus.emit(EVENTS.COLLECTION_SELECTED || 'collection:fetchStart', {
-      id,
-      useCache,
-      timestamp: Date.now()
-    });
-    // Check if collection exists in cache
-    if (useCache &&
-      this.collectionsCache &&
-      Date.now() - this.lastCacheTime < this.config.cacheDuration) {
-      const cachedCollection = this.collectionsCache.data.find(c => c.id === id);
-      if (cachedCollection) {
-        this.log(`Using cached data for collection: ${id}`);
-        
-        // Emit cache hit event
-        eventBus.emit(EVENTS.COLLECTION_CACHE_HIT || 'collection:cacheHit', {
-          id,
-          name: cachedCollection.name,
-          timestamp: Date.now()
-        });
-        
-        return { success: true, data: cachedCollection };
-      }
-    }
-
-    // Check for pending request
-    const cacheKey = `collection:${id}`;
-    if (this.pendingRequests.has(cacheKey)) {
-      this.log(`Using pending request for: ${id}`);
-      return this.pendingRequests.get(cacheKey);
-    }
-
-    // First verify this collection exists in blob storage
-    const blobFolders = await this._getBlobCollectionFolders();
-    if (!blobFolders.includes(id)) {
-      this.log(`Collection ${id} not found in Blob Storage`, 'warn');
-      
-      // Emit not found event
-      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:notFound', {
-        id,
-        error: `Collection with ID '${id}' not found in storage`,
-        timestamp: Date.now()
-      });
-      
-      return {
-        success: false,
-        error: `Collection with ID '${id}' not found in storage`
-      };
-    }
-
-    const endpoint = `${this.config.apiBasePath}/collections/${id}?bypassVerify=true`;
-    this.log(`Fetching collection from: ${endpoint}`);
-    
-    // Emit API fetch start
-    eventBus.emit(EVENTS.COLLECTION_API_FETCH_START || 'collection:apiFetchStart', {
-      id,
-      endpoint,
-      timestamp: Date.now()
-    });
-
-    // Create request promise
-    const requestPromise = (async () => {
-      try {
-        const response = await fetch(endpoint);
-
-        if (!response.ok) {
-          const error = response.status === 404 
-            ? `Collection with ID '${id}' not found`
-            : `Failed to fetch collection: ${response.status} ${response.statusText}`;
-            
-          // Emit error event
-          eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-            id,
-            status: response.status,
-            error,
-            timestamp: Date.now()
-          });
-          
-          if (response.status === 404) {
-            return { success: false, error: `Collection with ID '${id}' not found` };
-          }
-
-          const errorText = await response.text();
-          throw new Error(`Failed to fetch collection: ${response.status} ${response.statusText}. ${errorText}`);
-        }
-
-        const data = await response.json();
-
-        if (!data.success || !data.data) {
-          const error = 'Invalid response format from collection API';
-          eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-            id,
-            error,
-            timestamp: Date.now()
-          });
-          throw new Error(error);
-        }
-
-        // Verify collection has valid files in blob storage
-        this.log(`Verifying blob files for collection: ${id}`);
-        const filesExist = await this._verifyBlobFiles(data.data);
-
-        if (!filesExist) {
-          this.log(`Some audio files for collection ${id} are not accessible`, 'warn');
-          data.warning = "Some audio files may not be accessible";
-          
-          // Emit warning event
-          eventBus.emit(EVENTS.COLLECTION_FILE_WARNING || 'collection:fileWarning', {
-            id,
-            warning: "Some audio files may not be accessible",
-            timestamp: Date.now()
-          });
-        }
-
-        // Emit success event
-        eventBus.emit(EVENTS.COLLECTION_SELECTED || 'collection:loaded', {
-          id,
-          name: data.data.name,
-          trackCount: data.data.tracks?.length || 0,
-          timestamp: Date.now()
-        });
-        
-        return data;
-      } catch (error) {
-        this.log(`Error fetching collection: ${error.message}`, 'error');
-        
-        // Emit error event if not already emitted
-        if (!error.message.includes('Failed to fetch collection:') && 
-            !error.message.includes('Invalid response format')) {
-          eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-            id,
-            error: error.message,
-            timestamp: Date.now()
-          });
-        }
-        
-        throw error;
-      } finally {
-        // Remove from pending requests
-        this.pendingRequests.delete(cacheKey);
-      }
-    })();
-
-    // Store promise in pending requests
-    this.pendingRequests.set(cacheKey, requestPromise);
-
-    return requestPromise;
   }
+
+  /**
+   * Get all local collections
+   * @returns {Array} Array of collection objects
+   */
+  getLocalCollections() {
+    return Array.from(this.localCollections.values());
+  }
+
+  /**
+   * Get a local collection by ID
+   * @param {string} id - Collection ID
+   * @returns {Object|null} Collection object or null if not found
+   */
+  getLocalCollection(id) {
+    return this.localCollections.get(id) || null;
+  }
+
+  /**
+   * Save a collection to localStorage
+   * @param {Object} collection - Collection object to save
+   * @returns {Object} Saved collection with ID
+   */
+  saveLocalCollection(collection) {
+    if (!collection) {
+      throw new Error('Collection data is required');
+    }
+
+    // Ensure collection has an ID
+    const collectionToSave = { ...collection };
+    if (!collectionToSave.id) {
+      collectionToSave.id = `local_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    }
+
+    // Add local source marker
+    collectionToSave.source = 'local';
+    collectionToSave.updatedAt = new Date().toISOString();
+
+    if (!collectionToSave.createdAt) {
+      collectionToSave.createdAt = collectionToSave.updatedAt;
+    }
+
+    // Save to local map
+    this.localCollections.set(collectionToSave.id, collectionToSave);
+
+    // Persist to localStorage
+    this._saveLocalCollections();
+
+    this.log(`Saved collection '${collectionToSave.name}' (${collectionToSave.id}) to localStorage`);
+
+    // Emit saved event
+    eventBus.emit(EVENTS.COLLECTION_LOCAL_SAVED || 'collection:localSaved', {
+      id: collectionToSave.id,
+      name: collectionToSave.name,
+      timestamp: Date.now()
+    });
+
+    return collectionToSave;
+  }
+
+  /**
+   * Delete a local collection
+   * @param {string} id - Collection ID to delete
+   * @returns {boolean} True if collection was deleted
+   */
+  deleteLocalCollection(id) {
+    if (!this.localCollections.has(id)) {
+      return false;
+    }
+
+    // Get collection for event
+    const collection = this.localCollections.get(id);
+
+    // Remove from map
+    this.localCollections.delete(id);
+
+    // Save updated collections
+    this._saveLocalCollections();
+
+    this.log(`Deleted local collection: ${id}`);
+
+    // Emit deleted event
+    eventBus.emit(EVENTS.COLLECTION_LOCAL_DELETED || 'collection:localDeleted', {
+      id,
+      name: collection.name,
+      timestamp: Date.now()
+    });
+
+    return true;
+  }
+
+
+/**
+ * Get all collections with optional filtering
+ * @param {Object} [options] - Fetch options
+ * @param {boolean} [options.useCache=true] - Use cached data if available
+ * @param {string} [options.tag] - Filter by tag
+ * @param {string} [options.artist] - Filter by artist name
+ * @param {number} [options.limit] - Maximum number of results
+ * @param {number} [options.page] - Page number for pagination
+ * @param {string} [options.source='all'] - Source filter: 'all', 'blob', or 'local'
+ * @returns {Promise<Object>} Collections data with pagination info
+ */
+async getCollections(options = {}) {
+  const {
+    useCache = true,
+    tag,
+    artist,
+    limit = 10,
+    page = 1,
+    source = 'all' // New parameter to filter by source
+  } = options;
+
+  // Emit fetch start event
+  eventBus.emit(EVENTS.COLLECTIONS_LOADED || 'collections:loadStart', {
+    options,
+    useCache,
+    timestamp: Date.now()
+  });
+
+  try {
+    // Initialize collections array
+    let collections = [];
+    
+    // If we want blob collections (all or blob)
+    if (source === 'all' || source === 'blob') {
+      // First, get the list of collections from Vercel Blob Storage
+      const blobFolders = await this._getBlobCollectionFolders();
+      this.log(`Found ${blobFolders.length} collections in Blob Storage`);
+
+      if (blobFolders.length > 0) {
+        // Check cache if enabled for blob collections
+        if (useCache &&
+          this.collectionsCache &&
+          Date.now() - this.lastCacheTime < this.config.cacheDuration &&
+          !tag && !artist) {
+          this.log(`Using cached collections data (${this.collectionsCache.data.length} items)`);
+
+          // Filter the cached data by blob folders
+          collections = this.collectionsCache.data.filter(collection =>
+            blobFolders.includes(collection.id)
+          );
+        } else {
+          // Fetch from API
+          const apiData = await this._fetchCollectionsFromAPI(options);
+
+          // Filter to only include collections that exist in blob storage
+          const blobCollections = apiData.data.filter(collection =>
+            blobFolders.includes(collection.id)
+          );
+          
+          // Add source information
+          blobCollections.forEach(collection => {
+            collection.source = 'blob';
+          });
+          
+          collections = blobCollections;
+        }
+      }
+    }
+    
+    // If we want local collections (all or local)
+    if (source === 'all' || source === 'local') {
+      // Get collections from localStorage
+      const localCollections = this.getLocalCollections();
+      
+      // Add to collections array
+      collections = [...collections, ...localCollections];
+    }
+    
+    // Apply filtering
+    if (tag || artist) {
+      collections = this._filterCollections(collections, { tag, artist });
+    }
+    
+    // Apply pagination
+    const total = collections.length;
+    const pages = Math.ceil(total / parseInt(limit));
+    const startIndex = (parseInt(page) - 1) * parseInt(limit);
+    const endIndex = startIndex + parseInt(limit);
+    const paginatedCollections = collections.slice(startIndex, endIndex);
+
+    // Create result object
+    const result = {
+      success: true,
+      data: paginatedCollections,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages
+      },
+      sources: {
+        blob: collections.filter(c => c.source === 'blob').length,
+        local: collections.filter(c => c.source === 'local').length
+      }
+    };
+
+    // Update cache if appropriate
+    if (source === 'all' && !tag && !artist) {
+      this.collectionsCache = result;
+      this.lastCacheTime = Date.now();
+      this.log(`Updated cache with ${paginatedCollections.length} collections`);
+      
+      // Emit cache update event
+      eventBus.emit(EVENTS.COLLECTION_CACHE_UPDATED || 'collection:cacheUpdated', {
+        count: paginatedCollections.length,
+        timestamp: Date.now()
+      });
+    }
+
+    // Emit collections loaded event
+    eventBus.emit(EVENTS.COLLECTIONS_LOADED || 'collections:loaded', {
+      count: paginatedCollections.length,
+      useCache,
+      fromCache: false,
+      filters: { tag, artist, source },
+      timestamp: Date.now()
+    });
+
+    return result;
+  } catch (error) {
+    this.log(`Error getting collections: ${error.message}`, 'error');
+    
+    // Emit error event
+    eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+      error: error.message,
+      options,
+      timestamp: Date.now()
+    });
+    
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Helper method to filter collections
+ * @private
+ * @param {Array} collections - Array of collections to filter
+ * @param {Object} filters - Filter options
+ * @returns {Array} Filtered collections
+ */
+_filterCollections(collections, filters = {}) {
+  const { tag, artist } = filters;
+  let filtered = [...collections];
+  
+  if (tag) {
+    filtered = filtered.filter(collection => 
+      collection.tags && 
+      Array.isArray(collection.tags) && 
+      collection.tags.includes(tag)
+    );
+  }
+  
+  if (artist) {
+    filtered = filtered.filter(collection => 
+      collection.artist && 
+      collection.artist.toLowerCase().includes(artist.toLowerCase())
+    );
+  }
+  
+  return filtered;
+}
+
+/**
+ * Helper method to fetch collections from API
+ * @private
+ * @param {Object} options - API request options
+ * @returns {Promise<Object>} API response
+ */
+async _fetchCollectionsFromAPI(options = {}) {
+  const endpoint = `${this.config.apiBasePath}/collections${this._buildQueryString(options)}`;
+  this.log(`Fetching collections from API: ${endpoint}`);
+  
+  // Emit API fetch start event
+  eventBus.emit(EVENTS.COLLECTION_API_FETCH_START || 'collection:apiFetchStart', {
+    endpoint,
+    options,
+    timestamp: Date.now()
+  });
+
+  const response = await fetch(endpoint);
+
+  if (!response.ok) {
+    const errorMsg = `API error: ${response.status}`;
+    // Emit API error event
+    eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+      status: response.status,
+      endpoint,
+      options,
+      error: errorMsg,
+      timestamp: Date.now()
+    });
+    
+    throw new Error(errorMsg);
+  }
+
+  return await response.json();
+}
+
+ /**
+ * Get a specific collection by ID with its tracks
+ * @param {string} id - Collection ID
+ * @param {boolean} [useCache=true] - Use cached data if possible
+ * @returns {Promise<Object>} Collection data with tracks
+ */
+async getCollection(id, useCache = true) {
+  if (!id) {
+    const error = 'Collection ID is required';
+    eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+      id,
+      error,
+      timestamp: Date.now()
+    });
+    throw new Error(error);
+  }
+
+  // Emit collection fetch start event
+  eventBus.emit(EVENTS.COLLECTION_SELECTED || 'collection:fetchStart', {
+    id,
+    useCache,
+    timestamp: Date.now()
+  });
+  
+  // First check if this is a local collection
+  if (this.config.enableLocalStorage && this.localCollections.has(id)) {
+    const localCollection = this.localCollections.get(id);
+    this.log(`Found local collection: ${id}`);
+    
+    // Emit local collection loaded event
+    eventBus.emit(EVENTS.COLLECTION_SELECTED || 'collection:loaded', {
+      id,
+      name: localCollection.name,
+      source: 'local',
+      trackCount: localCollection.tracks?.length || 0,
+      timestamp: Date.now()
+    });
+    
+    return { success: true, data: localCollection, source: 'local' };
+  }
+  
+  // If not local, check cache for blob collection
+  if (useCache &&
+    this.collectionsCache &&
+    Date.now() - this.lastCacheTime < this.config.cacheDuration) {
+    const cachedCollection = this.collectionsCache.data.find(c => c.id === id);
+    if (cachedCollection) {
+      this.log(`Using cached data for collection: ${id}`);
+      
+      // Emit cache hit event
+      eventBus.emit(EVENTS.COLLECTION_CACHE_HIT || 'collection:cacheHit', {
+        id,
+        name: cachedCollection.name,
+        timestamp: Date.now()
+      });
+      
+      return { success: true, data: cachedCollection, source: 'blob' };
+    }
+  }
+
+  // Check for pending request
+  const cacheKey = `collection:${id}`;
+  if (this.pendingRequests.has(cacheKey)) {
+    this.log(`Using pending request for: ${id}`);
+    return this.pendingRequests.get(cacheKey);
+  }
+
+  // First verify this collection exists in blob storage
+  const blobFolders = await this._getBlobCollectionFolders();
+  if (!blobFolders.includes(id)) {
+    this.log(`Collection ${id} not found in Blob Storage`, 'warn');
+    
+    // Emit not found event
+    eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:notFound', {
+      id,
+      error: `Collection with ID '${id}' not found in storage`,
+      timestamp: Date.now()
+    });
+    
+    return {
+      success: false,
+      error: `Collection with ID '${id}' not found in storage`
+    };
+  }
+
+  const endpoint = `${this.config.apiBasePath}/collections/${id}?bypassVerify=true`;
+  this.log(`Fetching collection from: ${endpoint}`);
+  
+  // Emit API fetch start
+  eventBus.emit(EVENTS.COLLECTION_API_FETCH_START || 'collection:apiFetchStart', {
+    id,
+    endpoint,
+    timestamp: Date.now()
+  });
+
+  // Create request promise
+  const requestPromise = (async () => {
+    try {
+      const response = await fetch(endpoint);
+
+      if (!response.ok) {
+        const error = response.status === 404 
+          ? `Collection with ID '${id}' not found`
+          : `Failed to fetch collection: ${response.status} ${response.statusText}`;
+          
+        // Emit error event
+        eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+          id,
+          status: response.status,
+          error,
+          timestamp: Date.now()
+        });
+        
+        if (response.status === 404) {
+          return { success: false, error: `Collection with ID '${id}' not found` };
+        }
+
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch collection: ${response.status} ${response.statusText}. ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.success || !data.data) {
+        const error = 'Invalid response format from collection API';
+        eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+          id,
+          error,
+          timestamp: Date.now()
+        });
+        throw new Error(error);
+      }
+
+      // Mark as coming from blob storage
+      data.data.source = 'blob';
+
+      // Verify collection has valid files in blob storage
+      this.log(`Verifying blob files for collection: ${id}`);
+      const filesExist = await this._verifyBlobFiles(data.data);
+
+      if (!filesExist) {
+        this.log(`Some audio files for collection ${id} are not accessible`, 'warn');
+        data.warning = "Some audio files may not be accessible";
+        
+        // Emit warning event
+        eventBus.emit(EVENTS.COLLECTION_FILE_WARNING || 'collection:fileWarning', {
+          id,
+          warning: "Some audio files may not be accessible",
+          timestamp: Date.now()
+        });
+      }
+
+      // Emit success event
+      eventBus.emit(EVENTS.COLLECTION_SELECTED || 'collection:loaded', {
+        id,
+        name: data.data.name,
+        source: 'blob',
+        trackCount: data.data.tracks?.length || 0,
+        timestamp: Date.now()
+      });
+      
+      return data;
+    } catch (error) {
+      this.log(`Error fetching collection: ${error.message}`, 'error');
+      
+      // Emit error event if not already emitted
+      if (!error.message.includes('Failed to fetch collection:') && 
+          !error.message.includes('Invalid response format')) {
+        eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+          id,
+          error: error.message,
+          timestamp: Date.now()
+        });
+      }
+      
+      throw error;
+    } finally {
+      // Remove from pending requests
+      this.pendingRequests.delete(cacheKey);
+    }
+  })();
+
+  // Store promise in pending requests
+  this.pendingRequests.set(cacheKey, requestPromise);
+
+  return requestPromise;
+}
+
 
   /**
    * Format collection data for consumption by the audio player
@@ -589,7 +815,7 @@ class CollectionService {
 
     try {
       this.log(`Formatting collection: ${collection.id}`);
-      
+
       // Emit format start event
       eventBus.emit(EVENTS.COLLECTION_FORMAT_START || 'collection:formatStart', {
         id: collection.id,
@@ -617,14 +843,14 @@ class CollectionService {
       if (!collection.tracks || !Array.isArray(collection.tracks) || collection.tracks.length === 0) {
         const error = `Collection "${collection.name || collection.id}" has no audio tracks`;
         this.log(`Collection ${collection.id} has no tracks`, 'error');
-        
+
         // Emit format error event
         eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:formatError', {
           id: collection.id,
           error,
           timestamp: Date.now()
         });
-        
+
         throw new Error(error);
       }
 
@@ -712,14 +938,14 @@ class CollectionService {
       if (formattedTrackCount === 0) {
         const error = 'No valid audio tracks found in this collection';
         this.log('No valid tracks found in collection', 'error');
-        
+
         // Emit format error event
         eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:formatError', {
           id: collection.id,
           error,
           timestamp: Date.now()
         });
-        
+
         throw new Error(error);
       }
 
@@ -753,20 +979,152 @@ class CollectionService {
       return formattedCollection;
     } catch (error) {
       this.log(`Error formatting collection: ${error.message}`, 'error');
-      
+
       // Emit error event if not already emitted
-      if (!error.message.includes('has no audio tracks') && 
-          !error.message.includes('No valid audio tracks')) {
+      if (!error.message.includes('has no audio tracks') &&
+        !error.message.includes('No valid audio tracks')) {
         eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:formatError', {
           id: collection?.id,
           error: error.message,
           timestamp: Date.now()
         });
       }
-      
+
       throw new Error(`Failed to format collection: ${error.message}`);
     }
   }
+
+/**
+ * Export all local collections as a JSON string
+ * @returns {string} JSON string of all local collections
+ */
+exportLocalCollections() {
+  const collections = this.getLocalCollections();
+  
+  try {
+    // Format for better readability
+    const exportData = JSON.stringify(collections, null, 2);
+    
+    // Emit export event
+    eventBus.emit(EVENTS.COLLECTION_LOCAL_EXPORTED || 'collection:localExported', {
+      count: collections.length,
+      timestamp: Date.now()
+    });
+    
+    return exportData;
+  } catch (error) {
+    this.log(`Error exporting collections: ${error.message}`, 'error');
+    
+    // Emit error event
+    eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+      operation: 'export',
+      error: error.message,
+      timestamp: Date.now()
+    });
+    
+    throw new Error(`Failed to export collections: ${error.message}`);
+  }
+}
+
+/**
+ * Import collections from JSON string
+ * @param {string} jsonData - JSON string with collections data
+ * @param {boolean} [replace=false] - Whether to replace existing collections
+ * @returns {Object} Import results with counts
+ */
+importLocalCollections(jsonData, replace = false) {
+  if (!jsonData) {
+    throw new Error('Import data is required');
+  }
+  
+  try {
+    // Parse the JSON data
+    const collections = JSON.parse(jsonData);
+    
+    if (!Array.isArray(collections)) {
+      throw new Error('Import data must be an array of collections');
+    }
+    
+    // Track import statistics
+    const stats = {
+      total: collections.length,
+      imported: 0,
+      skipped: 0,
+      errors: 0
+    };
+    
+    // Clear existing collections if replace is true
+    if (replace) {
+      this.localCollections.clear();
+      this.log('Cleared existing local collections for import');
+    }
+    
+    // Import each collection
+    collections.forEach(collection => {
+      try {
+        if (!collection.id || !collection.name) {
+          this.log(`Skipping invalid collection in import data`, 'warn');
+          stats.errors++;
+          return;
+        }
+        
+        // Check for existing collection with same ID
+        if (!replace && this.localCollections.has(collection.id)) {
+          this.log(`Skipping existing collection: ${collection.id}`);
+          stats.skipped++;
+          return;
+        }
+        
+        // Mark as local source
+        collection.source = 'local';
+        
+        // Add updated timestamp if missing
+        if (!collection.updatedAt) {
+          collection.updatedAt = new Date().toISOString();
+        }
+        
+        // Save to local collections
+        this.localCollections.set(collection.id, collection);
+        stats.imported++;
+      } catch (error) {
+        this.log(`Error importing collection: ${error.message}`, 'error');
+        stats.errors++;
+      }
+    });
+    
+    // Save to localStorage
+    this._saveLocalCollections();
+    
+    this.log(`Imported ${stats.imported} collections, skipped ${stats.skipped}, ${stats.errors} errors`);
+    
+    // Emit import event
+    eventBus.emit(EVENTS.COLLECTION_LOCAL_IMPORTED || 'collection:localImported', {
+      ...stats,
+      timestamp: Date.now()
+    });
+    
+    return {
+      success: true,
+      stats
+    };
+  } catch (error) {
+    this.log(`Error importing collections: ${error.message}`, 'error');
+    
+    // Emit error event
+    eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+      operation: 'import',
+      error: error.message,
+      timestamp: Date.now()
+    });
+    
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+
 
   /**
    * Helper method to determine layer from folder structure
@@ -790,6 +1148,8 @@ class CollectionService {
     return 'Layer_1';
   }
 
+
+
   /**
    * Reset the collection cache
    */
@@ -797,7 +1157,7 @@ class CollectionService {
     this.collectionsCache = null;
     this.lastCacheTime = 0;
     this.log('Collection cache cleared');
-    
+
     // Emit cache cleared event
     eventBus.emit(EVENTS.COLLECTION_CACHE_CLEARED || 'collection:cacheCleared', {
       timestamp: Date.now()
@@ -836,7 +1196,7 @@ class CollectionService {
     this.resetCache();
     this.pendingRequests.clear();
     this.log('CollectionService disposed');
-    
+
     // Emit disposal event
     eventBus.emit(EVENTS.COLLECTION_DISPOSED || 'collection:disposed', {
       timestamp: Date.now()

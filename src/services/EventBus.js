@@ -324,6 +324,7 @@ export const EVENTS = {
   VOLUME_UNMUTED: 'volume:unmuted',
 
   // Buffer events
+  BUFFER_LOADING: 'buffer:loading',
   BUFFER_LOADED: 'buffer:loaded',
   BUFFER_LOAD_PROGRESS: 'buffer:loadProgress',
   BUFFER_ERROR: 'buffer:error',
@@ -332,6 +333,7 @@ export const EVENTS = {
   // Collection events
   COLLECTION_INITIALIZED: 'collection:initialized',
   COLLECTIONS_LOADED: 'collections:loaded',
+  COLLECTION_LOADING: 'collection:loading',
   COLLECTIONS_LOAD_START: 'collections:loadStart',
   COLLECTION_SELECTED: 'collection:selected',
   COLLECTION_FETCH_START: 'collection:fetchStart',
@@ -362,6 +364,7 @@ export const EVENTS = {
 
   // Layer events
   LAYER_TRACKS_SET: 'layer:tracksSet',
+  LAYER_READY: 'layer:ready',
   LAYER_MUTE_TOGGLED: 'layer:muteToggled',
   LAYER_ACTIVE_TRACKS_CHANGED: 'layer:activeTracksChanged',
   LAYER_TRACK_CHANGED: 'layer:trackChanged',

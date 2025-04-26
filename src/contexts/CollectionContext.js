@@ -188,13 +188,85 @@ export const CollectionProvider = ({
     loadCollections(1, {});
   }, [loadCollections]);
   
-  // Effect to handle filter changes
-  useEffect(() => {
-    if (!isMountedRef.current || !collectionService) return;
+
+// Effect to handle filter changes
+useEffect(() => {
+  if (!isMountedRef.current || !collectionService) return;
+  
+  console.log(`[CollectionContext] Filters changed, reloading collections from page 1`);
+  
+  // Use the ref to get current filters
+  const currentFilters = filtersRef.current;
+  
+  // Define a function inside the effect to avoid the dependency cycle
+  const loadCurrentCollections = async () => {
+    if (!isMountedRef.current || !collectionService) {
+      console.log('[CollectionContext] Component not mounted or service unavailable, skipping load');
+      return;
+    }
     
-    console.log(`[CollectionContext] Filters changed, reloading collections from page 1`);
-    loadCollections(1, filtersRef.current);
-  }, [filters, loadCollections, collectionService]);
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      console.log(`[CollectionContext] Loading collections page 1 with filters:`, currentFilters);
+      
+      const result = await collectionService.getCollections({
+        ...currentFilters,
+        page: 1,
+        limit: pagination.limit,
+        useCache: true
+      });
+      
+      if (!isMountedRef.current) return; // Check if still mounted
+      
+      if (result.success) {
+        console.log(`[CollectionContext] Successfully loaded ${result.data.length} collections (${result.pagination?.total || 0} total)`);
+        setCollections(result.data);
+        setPagination(result.pagination || {
+          total: result.data.length,
+          page: 1,
+          limit: pagination.limit,
+          pages: 1
+        });
+        
+        // Reset retry counter on success
+        retriesRef.current = 0;
+        
+        // Publish event through event bus
+        eventBus.emit(EVENTS.COLLECTIONS_LOADED || 'collections:loaded', {
+          collections: result.data,
+          pagination: result.pagination,
+          timestamp: Date.now()
+        });
+      } else {
+        throw new Error(result.error || 'Failed to load collections');
+      }
+    } catch (err) {
+      console.error(`[CollectionContext] Error loading collections:`, err);
+      
+      if (!isMountedRef.current) return;
+      
+      setError(err.message);
+      
+      // Publish error event
+      eventBus.emit(EVENTS.COLLECTIONS_ERROR || 'collections:error', {
+        error: err.message,
+        timestamp: Date.now()
+      });
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
+    }
+  };
+  
+  // Execute the function
+  loadCurrentCollections();
+  
+  // No cleanup needed for this effect
+}, [filters, collectionService, pagination.limit]); // Remove loadCollections from dependencies
+
   
   // Load a specific collection by ID
   const getCollection = useCallback(async (id) => {
@@ -288,6 +360,78 @@ export const CollectionProvider = ({
     // Reload collections
     loadCollections(1, filtersRef.current);
   }, [collectionService, loadCollections]);
+
+  // Handle Collection Selection
+useEffect(() => {
+  // Handle collection selection events from throughout the app
+  const handleCollectionSelected = async (data) => {
+    if (!data || !data.collectionId) {
+      console.warn('[CollectionContext] Received malformed collection selection event', data);
+      return;
+    }
+    
+    console.log(`[CollectionContext] Collection selected: ${data.collectionId} from ${data.source}`);
+    
+    try {
+      // Start loading the collection immediately
+      setIsLoading(true);
+      setError(null);
+      
+      // Emit loading event
+      eventBus.emit(EVENTS.COLLECTION_LOADING, {
+        collectionId: data.collectionId,
+        source: data.source,
+        timestamp: Date.now()
+      });
+      
+      // Load the collection data
+      const result = await getCollection(data.collectionId);
+      
+      if (!isMountedRef.current) return; // Check if still mounted
+      
+      if (result && result.success) {
+        setCurrentCollection(result.data);
+        
+        // Emit loaded event to trigger buffer loading
+        eventBus.emit(EVENTS.COLLECTION_LOADED, {
+          collectionId: data.collectionId,
+          collection: result.data,
+          source: data.source || 'unknown',
+          timestamp: Date.now()
+        });
+      } else {
+        throw new Error(result?.error || 'Failed to load collection');
+      }
+    } catch (err) {
+      console.error(`[CollectionContext] Error handling collection selection:`, err);
+      
+      if (!isMountedRef.current) return; // Check if still mounted
+      
+      setError(err.message);
+      
+      // Emit error event
+      eventBus.emit(EVENTS.COLLECTION_ERROR, {
+        collectionId: data.collectionId,
+        error: err.message,
+        source: data.source,
+        timestamp: Date.now()
+      });
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
+    }
+  };
+  
+  // Subscribe to collection selection events
+  eventBus.on(EVENTS.COLLECTION_SELECTED, handleCollectionSelected);
+  
+  // Clean up event listener on unmount
+  return () => {
+    eventBus.off(EVENTS.COLLECTION_SELECTED, handleCollectionSelected);
+  };
+}, [getCollection]); // Depend on getCollection to ensure we're using the latest version
+
   
   // Create memoized context value
   const contextValue = useMemo(() => ({

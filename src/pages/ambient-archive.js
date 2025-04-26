@@ -7,6 +7,7 @@ import withAuth from '../components/auth/ProtectedRoute';
 import ArchiveLayout from '../components/layout/ArchiveLayout';
 import { useCollection } from '../hooks/useCollection';
 import styles from '../styles/pages/AmbientArchive.module.css';
+import eventBus, { EVENTS } from '../services/EventBus';
 
 const AmbientArchive = () => {
   const router = useRouter();
@@ -22,7 +23,8 @@ const AmbientArchive = () => {
     error,
     filters,
     updateFilters,
-    loadCollections
+    loadCollections,
+    selectCollection
   } = useCollection({
     loadOnMount: true,
     filters: {} // Initial empty filters
@@ -47,17 +49,34 @@ const AmbientArchive = () => {
   // Handle collection selection with logging
   const handleCollectionSelect = (collectionId) => {
     console.log(`[AmbientArchive] Selected collection: ${collectionId}`);
+
+     // Use the hook's selectCollection method with navigation option
+  selectCollection(collectionId, {
+    source: 'ambient-archive',
+    action: 'play',
+    navigate: true,
+    queryParams: {
+      source: 'archive',
+      action: 'play'
+    }
+  });
     
-    // First, emit an event to notify the system about collection selection
+    // Enhanced event emission with standardized payload structure
     eventBus.emit(EVENTS.COLLECTION_SELECTED, { 
       collectionId, 
-      source: 'ambient-archive' 
+      source: 'ambient-archive',
+      action: 'play',
+      timestamp: Date.now() 
     });
     
-    // Then use Next.js router for navigation
+    // Then use Next.js router for navigation with consistent structured data
     router.push({
       pathname: '/player',
-      query: { collection: collectionId }
+      query: { 
+        collection: collectionId,
+        source: 'archive',
+        action: 'play'
+      }
     });
   };
 

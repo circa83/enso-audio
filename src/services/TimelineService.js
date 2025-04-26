@@ -536,7 +536,7 @@ class TimelineService {
     // Calculate current elapsed time and progress
     const now = Date.now();
     this.elapsedTime = now - this._startTime;
-    
+
     // Calculate progress (0-1)
     this.progress = Math.min(1, this.elapsedTime / this.config.sessionDuration);
 
@@ -692,7 +692,7 @@ class TimelineService {
     // Check each event starting from the next one
     for (let i = this._nextEventIndex; i < sortedEvents.length; i++) {
       const event = sortedEvents[i];
-      
+
       // Skip events that were triggered already
       if (event.triggered) continue;
 
@@ -791,7 +791,7 @@ class TimelineService {
 
     // Emit events cleared via EventBus
     if (this.config.enableEventBus) {
-    eventBus.emit(EVENTS.TIMELINE_EVENTS_CLEARED || 'timeline:eventsCleared', {
+      eventBus.emit(EVENTS.TIMELINE_EVENTS_CLEARED || 'timeline:eventsCleared', {
         count,
         timestamp: Date.now()
       });
@@ -818,7 +818,7 @@ class TimelineService {
     // Check if current active phase is still valid
     if (this.activePhaseId) {
       const phaseStillExists = this.phases.some(p => p.id === this.activePhaseId);
-      
+
       if (!phaseStillExists) {
         this.log(`Active phase ${this.activePhaseId} no longer exists, resetting active phase`);
         this.activePhaseId = null;
@@ -852,7 +852,7 @@ class TimelineService {
     this.log(`Setting session duration to ${duration}ms`);
 
     this.config.sessionDuration = duration;
-    
+
     // Recalculate progress with new duration
     if (this.elapsedTime > 0) {
       this.progress = Math.min(1, this.elapsedTime / this.config.sessionDuration);
@@ -910,348 +910,347 @@ class TimelineService {
 
     // Clamp to session duration
     const clampedTime = Math.min(timeMs, this.config.sessionDuration);
-    
-       // Update start time if playing
-       if (this.isPlaying) {
-        this._startTime = Date.now() - clampedTime;
-      } else if (this.isPaused) {
-        this._pausedTime = clampedTime;
+
+    // Update start time if playing
+    if (this.isPlaying) {
+      this._startTime = Date.now() - clampedTime;
+    } else if (this.isPaused) {
+      this._pausedTime = clampedTime;
+    }
+
+    // Reset event triggered state for events after new position
+    this.events.forEach(event => {
+      if (event.time > clampedTime) {
+        event.triggered = false;
       }
-  
-      // Reset event triggered state for events after new position
-      this.events.forEach(event => {
-        if (event.time > clampedTime) {
-          event.triggered = false;
-        }
-      });
-  
-      // Reset next event index to ensure we check all relevant events
-      this._nextEventIndex = 0;
-  
-      // Check for phase transitions immediately
-      this._checkPhaseTransitions();
-  
-      // Call progress callback
-      if (this.onProgress) {
-        this.onProgress(this.progress, this.elapsedTime);
-      }
-  
-      // Update stats
-      this.stats.seekOperations++;
-      this.stats.lastOperation = {
-        type: 'seek',
-        position: clampedTime,
-        timestamp: Date.now()
-      };
-  
-      // Emit seek event via EventBus
-      if (this.config.enableEventBus) {
-        eventBus.emit(EVENTS.TIMELINE_SEEK || 'timeline:seek', {
-          time: clampedTime,
-          progress: this.progress,
-          type: 'absolute',
-          timestamp: Date.now()
-        });
-      }
-  
-      return true;
+    });
+
+    // Reset next event index to ensure we check all relevant events
+    this._nextEventIndex = 0;
+
+    // Check for phase transitions immediately
+    this._checkPhaseTransitions();
+
+    // Call progress callback
+    if (this.onProgress) {
+      this.onProgress(this.progress, this.elapsedTime);
     }
-  
-    /**
-     * Seek to a percentage of the session duration
-     * @param {number} percent - Percentage (0-100)
-     * @returns {boolean} Success state
-     */
-    seekToPercent(percent) {
-      if (typeof percent !== 'number' || percent < 0 || percent > 100) {
-        this.log('Invalid seek percentage', 'error');
-        return false;
-      }
-  
-      this.log(`Seeking to ${percent}%`);
-  
-      // Convert percent to time
-      const timeMs = (percent / 100) * this.config.sessionDuration;
-  
-      // Use the seekTo method for the actual seeking
-      const result = this.seekTo(timeMs);
-  
-      // Emit percent-specific seek event via EventBus
-      if (result && this.config.enableEventBus) {
-        eventBus.emit(EVENTS.TIMELINE_SEEK || 'timeline:seek', {
-          percent,
-          time: timeMs,
-          progress: this.progress,
-          type: 'percent',
-          timestamp: Date.now()
-        });
-      }
-  
-      return result;
-    }
-  
-    /**
-     * Get the current elapsed time
-     * @returns {number} Elapsed time in milliseconds
-     */
-    getElapsedTime() {
-      return this.elapsedTime;
-    }
-  
-    /**
-     * Get the current progress (0-1)
-     * @returns {number} Progress value
-     */
-    getProgress() {
-      return this.progress;
-    }
-  
-    /**
-     * Get the active phase ID
-     * @returns {string|null} Active phase ID or null if no active phase
-     */
-    getActivePhaseId() {
-      return this.activePhaseId;
-    }
-  
-    /**
-     * Get the active phase data
-     * @returns {Object|null} Active phase data or null if no active phase
-     */
-    getActivePhase() {
-      if (!this.activePhaseId) return null;
-      return this.phases.find(p => p.id === this.activePhaseId) || null;
-    }
-  
-    /**
-     * Get all phase data
-     * @returns {Array} Array of all phases
-     */
-    getPhases() {
-      return [...this.phases];
-    }
-  
-    /**
-     * Get data for a specific phase
-     * @param {string} phaseId - Phase ID to get
-     * @returns {Object|null} Phase data or null if not found
-     */
-    getPhase(phaseId) {
-      if (!phaseId) return null;
-      return this.phases.find(p => p.id === phaseId) || null;
-    }
-  
-    /**
-     * Get all pending events
-     * @returns {Array} Array of events that haven't triggered yet
-     */
-    getPendingEvents() {
-      return this.events.filter(e => !e.triggered);
-    }
-  
-    /**
-     * Get all triggered events
-     * @returns {Array} Array of events that have already triggered
-     */
-    getTriggeredEvents() {
-      return this.events.filter(e => e.triggered);
-    }
-  
-    /**
-     * Get service statistics
-     * @returns {Object} Statistics object
-     */
-    getStats() {
-      return {
-        ...this.stats,
-        isPlaying: this.isPlaying,
-        isPaused: this.isPaused,
-        sessionDuration: this.config.sessionDuration,
-        transitionDuration: this.config.transitionDuration,
-        elapsedTime: this.elapsedTime,
+
+    // Update stats
+    this.stats.seekOperations++;
+    this.stats.lastOperation = {
+      type: 'seek',
+      position: clampedTime,
+      timestamp: Date.now()
+    };
+
+    // Emit seek event via EventBus
+    if (this.config.enableEventBus) {
+      eventBus.emit(EVENTS.TIMELINE_SEEK || 'timeline:seek', {
+        time: clampedTime,
         progress: this.progress,
-        activePhase: this.activePhaseId,
-        phaseCount: this.phases.length,
-        eventCount: this.events.length,
-        pendingEventCount: this.events.filter(e => !e.triggered).length,
-        triggeredEventCount: this.events.filter(e => e.triggered).length
-      };
-    }
-  
-    /**
-     * Apply phase changes according to the phase data
-     * This method can be used to manually apply a phase's state
-     * @param {string} phaseId - Phase ID to apply
-     * @param {Object} [options] - Options for applying the phase
-     * @param {boolean} [options.immediate=false] - Apply without transition
-     * @param {number} [options.duration] - Custom transition duration
-     * @returns {Promise<boolean>} Promise resolving to success state
-     */
-    applyPhase(phaseId, options = {}) {
-      return new Promise(async (resolve) => {
-        try {
-          if (!phaseId) {
-            this.log('Cannot apply phase: Missing phase ID', 'error');
-            resolve(false);
-            return;
-          }
-  
-          const phase = this.phases.find(p => p.id === phaseId);
-          if (!phase) {
-            this.log(`Phase not found: ${phaseId}`, 'error');
-            resolve(false);
-            return;
-          }
-  
-          this.log(`Applying phase ${phaseId}`);
-  
-          // Skip if no state to apply
-          if (!phase.state) {
-            this.log(`Phase ${phaseId} has no saved state to apply`, 'warn');
-            resolve(true);
-            return;
-          }
-  
-          // Default options
-          const transitionDuration = options.duration || this.config.transitionDuration;
-          const immediate = options.immediate === true;
-  
-          // Apply volume changes if defined
-          const volumeChanges = phase.state.volumes;
-          if (volumeChanges && this.volumeController) {
-            const durationsInSeconds = immediate ? 0 : transitionDuration / 1000;
-            
-            // Apply volumes using VolumeController
-            for (const [layer, volume] of Object.entries(volumeChanges)) {
-              this.log(`Setting volume for ${layer} to ${volume} with ${durationsInSeconds}s transition`);
-              
-              // For immediate changes, use setVolume
-              if (immediate) {
-                this.volumeController.setVolume(layer, volume, { immediate: true });
-              } 
-              // For transitions, use fadeVolume
-              else if (durationsInSeconds > 0) {
-                try {
-                  await this.volumeController.fadeVolume(layer, volume, durationsInSeconds);
-                } catch (err) {
-                  this.log(`Error fading volume for ${layer}: ${err.message}`, 'error');
-                }
-              }
-            }
-          }
-  
-          // Apply audio track changes if defined and we have crossfade engine
-          const audioChanges = phase.state.activeAudio;
-          if (audioChanges && this.crossfadeEngine) {
-            for (const [layer, trackId] of Object.entries(audioChanges)) {
-              this.log(`Crossfading ${layer} to track ${trackId}`);
-              
-              // Use crossfade engine to change tracks
-              try {
-                await this.crossfadeEngine.crossfade({
-                  layer,
-                  targetTrackId: trackId,
-                  duration: immediate ? 100 : transitionDuration
-                });
-              } catch (err) {
-                this.log(`Error crossfading ${layer} to ${trackId}: ${err.message}`, 'error');
-              }
-            }
-          }
-  
-          this.log(`Phase ${phaseId} applied successfully`);
-          resolve(true);
-        } catch (error) {
-          this.log(`Error applying phase ${phaseId}: ${error.message}`, 'error');
-          
-          // Update stats
-          this.stats.errors++;
-          this.stats.lastOperation = {
-            type: 'error',
-            action: 'applyPhase',
-            phaseId,
-            message: error.message,
-            timestamp: Date.now()
-          };
-          
-          resolve(false);
-        }
+        type: 'absolute',
+        timestamp: Date.now()
       });
     }
-  
-    /**
-     * Enable or disable event bus integration
-     * @param {boolean} enabled - Whether to enable event bus
-     */
-    setEventBusEnabled(enabled) {
-      this.config.enableEventBus = enabled === true;
-      this.log(`EventBus integration ${enabled ? 'enabled' : 'disabled'}`);
+
+    return true;
+  }
+
+  /**
+   * Seek to a percentage of the session duration
+   * @param {number} percent - Percentage (0-100)
+   * @returns {boolean} Success state
+   */
+  seekToPercent(percent) {
+    if (typeof percent !== 'number' || percent < 0 || percent > 100) {
+      this.log('Invalid seek percentage', 'error');
+      return false;
     }
-  
-    /**
-     * Enable or disable logging
-     * @param {boolean} enabled - Whether to enable logging
-     */
-    setLoggingEnabled(enabled) {
-      this.config.enableLogging = enabled === true;
-      this.log(`Logging ${enabled ? 'enabled' : 'disabled'}`);
+
+    this.log(`Seeking to ${percent}%`);
+
+    // Convert percent to time
+    const timeMs = (percent / 100) * this.config.sessionDuration;
+
+    // Use the seekTo method for the actual seeking
+    const result = this.seekTo(timeMs);
+
+    // Emit percent-specific seek event via EventBus
+    if (result && this.config.enableEventBus) {
+      eventBus.emit(EVENTS.TIMELINE_SEEK || 'timeline:seek', {
+        percent,
+        time: timeMs,
+        progress: this.progress,
+        type: 'percent',
+        timestamp: Date.now()
+      });
     }
-  
-    /**
-     * Clean up resources used by TimelineService
-     * Should be called when the service is no longer needed
-     */
-    dispose() {
-      this.log('Disposing TimelineService');
-  
-      // Stop the timeline
-      this.stop();
-  
-      // Clean up callbacks
-      this.onPhaseChange = null;
-      this.onProgress = null;
-      this.onScheduledEvent = null;
-  
-      // Clear references to other services
-      this.volumeController = null;
-      this.crossfadeEngine = null;
-  
-      // Clear data
-      this.events = [];
-      this.phases = [];
-    }
-  
-    /**
-     * Alias for dispose to maintain API compatibility
-     */
-    cleanup() {
-      this.dispose();
-    }
-  
-    /**
-     * Logging helper that respects configuration
-     * @param {string} message - Message to log
-     * @param {string} [level='info'] - Log level (info, warn, error)
-     */
-    log(message, level = 'info') {
-      if (!this.config.enableLogging) return;
-  
-      const prefix = '[TimelineService]';
-  
-      switch (level) {
-        case 'error':
-          console.error(`${prefix} ${message}`);
-          break;
-        case 'warn':
-          console.warn(`${prefix} ${message}`);
-          break;
-        case 'info':
-        default:
-          console.log(`${prefix} ${message}`);
-          break;
+
+    return result;
+  }
+
+  /**
+   * Get the current elapsed time
+   * @returns {number} Elapsed time in milliseconds
+   */
+  getElapsedTime() {
+    return this.elapsedTime;
+  }
+
+  /**
+   * Get the current progress (0-1)
+   * @returns {number} Progress value
+   */
+  getProgress() {
+    return this.progress;
+  }
+
+  /**
+   * Get the active phase ID
+   * @returns {string|null} Active phase ID or null if no active phase
+   */
+  getActivePhaseId() {
+    return this.activePhaseId;
+  }
+
+  /**
+   * Get the active phase data
+   * @returns {Object|null} Active phase data or null if no active phase
+   */
+  getActivePhase() {
+    if (!this.activePhaseId) return null;
+    return this.phases.find(p => p.id === this.activePhaseId) || null;
+  }
+
+  /**
+   * Get all phase data
+   * @returns {Array} Array of all phases
+   */
+  getPhases() {
+    return [...this.phases];
+  }
+
+  /**
+   * Get data for a specific phase
+   * @param {string} phaseId - Phase ID to get
+   * @returns {Object|null} Phase data or null if not found
+   */
+  getPhase(phaseId) {
+    if (!phaseId) return null;
+    return this.phases.find(p => p.id === phaseId) || null;
+  }
+
+  /**
+   * Get all pending events
+   * @returns {Array} Array of events that haven't triggered yet
+   */
+  getPendingEvents() {
+    return this.events.filter(e => !e.triggered);
+  }
+
+  /**
+   * Get all triggered events
+   * @returns {Array} Array of events that have already triggered
+   */
+  getTriggeredEvents() {
+    return this.events.filter(e => e.triggered);
+  }
+
+  /**
+   * Get service statistics
+   * @returns {Object} Statistics object
+   */
+  getStats() {
+    return {
+      ...this.stats,
+      isPlaying: this.isPlaying,
+      isPaused: this.isPaused,
+      sessionDuration: this.config.sessionDuration,
+      transitionDuration: this.config.transitionDuration,
+      elapsedTime: this.elapsedTime,
+      progress: this.progress,
+      activePhase: this.activePhaseId,
+      phaseCount: this.phases.length,
+      eventCount: this.events.length,
+      pendingEventCount: this.events.filter(e => !e.triggered).length,
+      triggeredEventCount: this.events.filter(e => e.triggered).length
+    };
+  }
+
+  /**
+   * Apply phase changes according to the phase data
+   * This method can be used to manually apply a phase's state
+   * @param {string} phaseId - Phase ID to apply
+   * @param {Object} [options] - Options for applying the phase
+   * @param {boolean} [options.immediate=false] - Apply without transition
+   * @param {number} [options.duration] - Custom transition duration
+   * @returns {Promise<boolean>} Promise resolving to success state
+   */
+  applyPhase(phaseId, options = {}) {
+    return new Promise(async (resolve) => {
+      try {
+        if (!phaseId) {
+          this.log('Cannot apply phase: Missing phase ID', 'error');
+          resolve(false);
+          return;
+        }
+
+        const phase = this.phases.find(p => p.id === phaseId);
+        if (!phase) {
+          this.log(`Phase not found: ${phaseId}`, 'error');
+          resolve(false);
+          return;
+        }
+
+        this.log(`Applying phase ${phaseId}`);
+
+        // Skip if no state to apply
+        if (!phase.state) {
+          this.log(`Phase ${phaseId} has no saved state to apply`, 'warn');
+          resolve(true);
+          return;
+        }
+
+        // Default options
+        const transitionDuration = options.duration || this.config.transitionDuration;
+        const immediate = options.immediate === true;
+
+        // Apply volume changes if defined
+        const volumeChanges = phase.state.volumes;
+        if (volumeChanges && this.volumeController) {
+          const durationsInSeconds = immediate ? 0 : transitionDuration / 1000;
+
+          // Apply volumes using VolumeController
+          for (const [layer, volume] of Object.entries(volumeChanges)) {
+            this.log(`Setting volume for ${layer} to ${volume} with ${durationsInSeconds}s transition`);
+
+            // For immediate changes, use setVolume
+            if (immediate) {
+              this.volumeController.setVolume(layer, volume, { immediate: true });
+            }
+            // For transitions, use fadeVolume
+            else if (durationsInSeconds > 0) {
+              try {
+                await this.volumeController.fadeVolume(layer, volume, durationsInSeconds);
+              } catch (err) {
+                this.log(`Error fading volume for ${layer}: ${err.message}`, 'error');
+              }
+            }
+          }
+        }
+
+        // Apply audio track changes if defined and we have crossfade engine
+        const audioChanges = phase.state.activeAudio;
+        if (audioChanges && this.crossfadeEngine) {
+          for (const [layer, trackId] of Object.entries(audioChanges)) {
+            this.log(`Crossfading ${layer} to track ${trackId}`);
+
+            // Use crossfade engine to change tracks
+            try {
+              await this.crossfadeEngine.crossfade({
+                layer,
+                targetTrackId: trackId,
+                duration: immediate ? 100 : transitionDuration
+              });
+            } catch (err) {
+              this.log(`Error crossfading ${layer} to ${trackId}: ${err.message}`, 'error');
+            }
+          }
+        }
+
+        this.log(`Phase ${phaseId} applied successfully`);
+        resolve(true);
+      } catch (error) {
+        this.log(`Error applying phase ${phaseId}: ${error.message}`, 'error');
+
+        // Update stats
+        this.stats.errors++;
+        this.stats.lastOperation = {
+          type: 'error',
+          action: 'applyPhase',
+          phaseId,
+          message: error.message,
+          timestamp: Date.now()
+        };
+
+        resolve(false);
       }
+    });
+  }
+
+  /**
+   * Enable or disable event bus integration
+   * @param {boolean} enabled - Whether to enable event bus
+   */
+  setEventBusEnabled(enabled) {
+    this.config.enableEventBus = enabled === true;
+    this.log(`EventBus integration ${enabled ? 'enabled' : 'disabled'}`);
+  }
+
+  /**
+   * Enable or disable logging
+   * @param {boolean} enabled - Whether to enable logging
+   */
+  setLoggingEnabled(enabled) {
+    this.config.enableLogging = enabled === true;
+    this.log(`Logging ${enabled ? 'enabled' : 'disabled'}`);
+  }
+
+  /**
+   * Clean up resources used by TimelineService
+   * Should be called when the service is no longer needed
+   */
+  dispose() {
+    this.log('Disposing TimelineService');
+
+    // Stop the timeline
+    this.stop();
+
+    // Clean up callbacks
+    this.onPhaseChange = null;
+    this.onProgress = null;
+    this.onScheduledEvent = null;
+
+    // Clear references to other services
+    this.volumeController = null;
+    this.crossfadeEngine = null;
+
+    // Clear data
+    this.events = [];
+    this.phases = [];
+  }
+
+  /**
+   * Alias for dispose to maintain API compatibility
+   */
+  cleanup() {
+    this.dispose();
+  }
+
+  /**
+   * Logging helper that respects configuration
+   * @param {string} message - Message to log
+   * @param {string} [level='info'] - Log level (info, warn, error)
+   */
+  log(message, level = 'info') {
+    if (!this.config.enableLogging) return;
+
+    const prefix = '[TimelineService]';
+
+    switch (level) {
+      case 'error':
+        console.error(`${prefix} ${message}`);
+        break;
+      case 'warn':
+        console.warn(`${prefix} ${message}`);
+        break;
+      case 'info':
+      default:
+        console.log(`${prefix} ${message}`);
+        break;
     }
   }
-  
-  export default TimelineService;
-  
+}
+
+export default TimelineService;
