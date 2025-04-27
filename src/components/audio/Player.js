@@ -85,27 +85,7 @@ const Player = () => {
   const settingsInitialized = useRef(false);
 
 
-  // Register collection with layer manager when it changes
-  useEffect(() => {
-    console.log("[Player] Current collection changed:", currentCollection ? {
-      id: currentCollection.id,
-      name: currentCollection.name,
-      hasCover: !!currentCollection.coverImage,
-    } : "No collection loaded");
-    
-    if (currentCollection) {
-      // Format collection for player if needed
-      const formattedCollection = currentCollection.layers 
-        ? currentCollection  // Already formatted
-        : formatForPlayer(currentCollection);
-      
-      if (formattedCollection) {
-        console.log("[Player] Registering collection with layer manager");
-        registerCollection(formattedCollection);
-      }
-    }
-  }, [currentCollection, formatForPlayer, registerCollection]);
-
+ 
   // Update wasPlaying ref when playback changes
   useEffect(() => {
     wasPlaying.current = playback.isPlaying;
@@ -169,15 +149,6 @@ const Player = () => {
     };
   }, []);
 
-// Use useEffect to load the collection when the ID is available
-useEffect(() => {
-  if (collectionId) {
-    console.log(`[Player] Loading collection from URL parameter: ${collectionId}`);
-    getCollection(collectionId).catch(error => {
-      console.error(`[Player] Error loading collection: ${error.message}`);
-    });
-  }
-}, [collectionId, getCollection]);
 
   // Handle duration change - now uses the timeline hook
   const handleDurationChange = useCallback((newDuration) => {

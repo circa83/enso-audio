@@ -70,25 +70,25 @@ export const BufferProvider = ({
         isMountedRef.current = false;
         if (service && typeof service.dispose === 'function') {
           console.log('[BufferContext] Cleaning up BufferService');
-          
+
           // Emit disposal event
           eventBus.emit(EVENTS.BUFFER_DISPOSED || 'buffer:disposed', {
             timestamp: Date.now()
           });
-          
+
           service.dispose();
         }
       };
     } catch (error) {
       console.error('[BufferContext] Error initializing BufferService:', error);
-      
+
       // Emit error event
       eventBus.emit(EVENTS.BUFFER_ERROR || 'buffer:error', {
         operation: 'initialize',
         error: error.message,
         timestamp: Date.now()
       });
-      
+
       return () => {
         isMountedRef.current = false;
       };
@@ -116,7 +116,7 @@ export const BufferProvider = ({
       pendingCount: info.pendingCount || 0,
       maxCacheSize: info.maxCacheSize || maxCacheSize
     });
-    
+
     // Emit cache updated event
     eventBus.emit(EVENTS.BUFFER_CACHE_UPDATED || 'buffer:cacheUpdated', {
       bufferCount: info.bufferCount || 0,
@@ -132,7 +132,7 @@ export const BufferProvider = ({
   const loadBuffer = useCallback(async (url, options = {}) => {
     if (!bufferService || !url) {
       console.error('[BufferContext] Cannot load buffer: service unavailable or no URL provided');
-      
+
       // Emit error event
       eventBus.emit(EVENTS.BUFFER_ERROR || 'buffer:error', {
         operation: 'loadBuffer',
@@ -140,7 +140,7 @@ export const BufferProvider = ({
         error: 'Service unavailable or no URL provided',
         timestamp: Date.now()
       });
-      
+
       return null;
     }
 
@@ -171,8 +171,8 @@ export const BufferProvider = ({
         }));
 
         // Emit progress event with standard payload
-        eventBus.emit(EVENTS.BUFFER_LOAD_PROGRESS || 'buffer:loadProgress', { 
-          url, 
+        eventBus.emit(EVENTS.BUFFER_LOAD_PROGRESS || 'buffer:loadProgress', {
+          url,
           progress,
           phase: 'download',
           timestamp: Date.now()
@@ -216,8 +216,8 @@ export const BufferProvider = ({
       updateCacheInfo();
 
       // Emit loaded event with enhanced payload
-      eventBus.emit(EVENTS.BUFFER_LOADED || 'buffer:loaded', { 
-        url, 
+      eventBus.emit(EVENTS.BUFFER_LOADED || 'buffer:loaded', {
+        url,
         buffer,
         duration: buffer ? buffer.duration : 0,
         sampleRate: buffer ? buffer.sampleRate : 0,
@@ -246,8 +246,8 @@ export const BufferProvider = ({
       });
 
       // Emit error event with detailed payload
-      eventBus.emit(EVENTS.BUFFER_ERROR || 'buffer:error', { 
-        url, 
+      eventBus.emit(EVENTS.BUFFER_ERROR || 'buffer:error', {
+        url,
         operation: 'loadBuffer',
         error: error.message,
         timestamp: Date.now()
@@ -266,14 +266,14 @@ export const BufferProvider = ({
   const preloadBuffers = useCallback(async (urls, options = {}) => {
     if (!bufferService || !Array.isArray(urls) || urls.length === 0) {
       console.error('[BufferContext] Cannot preload buffers: service unavailable or no URLs provided');
-      
+
       // Emit error event
       eventBus.emit(EVENTS.BUFFER_PRELOAD_ERROR || 'buffer:preloadError', {
         operation: 'preloadBuffers',
         error: 'Service unavailable or no URLs provided',
         timestamp: Date.now()
       });
-      
+
       return new Map();
     }
 
@@ -306,8 +306,8 @@ export const BufferProvider = ({
         });
 
         // Emit progress event with enhanced payload
-        eventBus.emit(EVENTS.BUFFER_PRELOAD_PROGRESS || 'buffer:preloadProgress', { 
-          overallProgress, 
+        eventBus.emit(EVENTS.BUFFER_PRELOAD_PROGRESS || 'buffer:preloadProgress', {
+          overallProgress,
           detailedProgress,
           count: urls.length,
           timestamp: Date.now()
@@ -346,7 +346,7 @@ export const BufferProvider = ({
       console.error('[BufferContext] Error preloading buffers:', error);
 
       // Emit error event
-      eventBus.emit(EVENTS.BUFFER_PRELOAD_ERROR || 'buffer:preloadError', { 
+      eventBus.emit(EVENTS.BUFFER_PRELOAD_ERROR || 'buffer:preloadError', {
         error: error.message,
         urls,
         count: urls.length,
@@ -362,9 +362,9 @@ export const BufferProvider = ({
   // Get a buffer from the cache
   const getBuffer = useCallback((url) => {
     if (!bufferService || !url) return null;
-    
+
     const buffer = bufferService.getBuffer(url);
-    
+
     // Emit cache hit event if buffer was found
     if (buffer) {
       eventBus.emit(EVENTS.BUFFER_CACHE_HIT || 'buffer:cacheHit', {
@@ -372,7 +372,7 @@ export const BufferProvider = ({
         timestamp: Date.now()
       });
     }
-    
+
     return buffer;
   }, [bufferService]);
 
@@ -393,7 +393,7 @@ export const BufferProvider = ({
       updateCacheInfo();
 
       // Emit release event with standard payload
-      eventBus.emit(EVENTS.BUFFER_RELEASED || 'buffer:released', { 
+      eventBus.emit(EVENTS.BUFFER_RELEASED || 'buffer:released', {
         url,
         timestamp: Date.now()
       });
@@ -412,7 +412,7 @@ export const BufferProvider = ({
     updateCacheInfo();
 
     // Emit clear event with standard payload
-    eventBus.emit(EVENTS.BUFFER_CACHE_CLEARED || 'buffer:cacheCleared', { 
+    eventBus.emit(EVENTS.BUFFER_CACHE_CLEARED || 'buffer:cacheCleared', {
       count,
       timestamp: Date.now()
     });
@@ -424,26 +424,26 @@ export const BufferProvider = ({
   const loadCollectionTrack = useCallback(async (track, options = {}) => {
     if (!bufferService || !track || !track.path) {
       console.error('[BufferContext] Cannot load collection track: missing service, track, or path');
-      
+
       // Emit error event
-      eventBus.emit(EVENTS.BUFFER_COLLECTION_TRACK_ERROR || 'buffer:collectionTrackError', {
+      eventBus.emit(EVENTS.BUFFER_ERROR || 'buffer:error', {
+        operation: 'loadCollectionTrack',
         trackId: track?.id,
-        path: track?.path,
         error: 'Missing service, track, or path',
         timestamp: Date.now()
       });
-      
+
       return null;
     }
 
     try {
       console.log(`[BufferContext] Loading collection track: ${track.name || track.id}`);
-      
-      // Emit track loading start event
-      eventBus.emit(EVENTS.BUFFER_COLLECTION_TRACK_LOAD_START || 'buffer:collectionTrackLoadStart', {
+
+      // Emit track loading event
+      eventBus.emit(EVENTS.BUFFER_TRACK_LOADING || 'buffer:trackLoading', {
         trackId: track.id,
         path: track.path,
-        name: track.name,
+        name: track.name || track.id,
         layer: track.layer,
         timestamp: Date.now()
       });
@@ -452,11 +452,9 @@ export const BufferProvider = ({
       const buffer = await loadBuffer(track.path, options);
 
       // Emit track loaded event with enhanced payload
-      eventBus.emit(EVENTS.BUFFER_COLLECTION_TRACK_LOADED || 'buffer:collectionTrackLoaded', { 
+      eventBus.emit(EVENTS.BUFFER_TRACK_LOADED || 'buffer:trackLoaded', {
         trackId: track.id,
         path: track.path,
-        name: track.name,
-        layer: track.layer,
         buffer,
         duration: buffer ? buffer.duration : 0,
         timestamp: Date.now()
@@ -470,12 +468,10 @@ export const BufferProvider = ({
     } catch (error) {
       console.error(`[BufferContext] Error loading collection track ${track.id}:`, error);
 
-      // Emit error event with detailed payload
-      eventBus.emit(EVENTS.BUFFER_COLLECTION_TRACK_ERROR || 'buffer:collectionTrackError', { 
+      // Emit error event with detailed track info
+      eventBus.emit(EVENTS.BUFFER_TRACK_ERROR || 'buffer:trackError', {
         trackId: track.id,
         path: track.path,
-        name: track.name,
-        layer: track.layer,
         error: error.message,
         timestamp: Date.now()
       });
@@ -493,14 +489,15 @@ export const BufferProvider = ({
   const loadCollectionLayer = useCallback(async (layer, tracks, options = {}) => {
     if (!bufferService || !layer || !Array.isArray(tracks) || tracks.length === 0) {
       console.error('[BufferContext] Cannot load collection layer: missing service, layer, or tracks');
-      
+
       // Emit error event
-      eventBus.emit(EVENTS.BUFFER_COLLECTION_LAYER_ERROR || 'buffer:collectionLayerError', {
+      eventBus.emit(EVENTS.BUFFER_ERROR || 'buffer:error', {
+        operation: 'loadCollectionLayer',
         layer,
         error: 'Missing service, layer, or tracks',
         timestamp: Date.now()
       });
-      
+
       return [];
     }
 
@@ -508,10 +505,9 @@ export const BufferProvider = ({
       console.log(`[BufferContext] Loading collection layer "${layer}" with ${tracks.length} tracks`);
 
       // Emit layer loading start event
-      eventBus.emit(EVENTS.BUFFER_COLLECTION_LAYER_LOAD_START || 'buffer:collectionLayerLoadStart', {
+      eventBus.emit(EVENTS.BUFFER_LAYER_LOADING || 'buffer:layerLoading', {
         layer,
         trackCount: tracks.length,
-        tracks: tracks.map(t => ({ id: t.id, name: t.name })),
         timestamp: Date.now()
       });
 
@@ -524,8 +520,24 @@ export const BufferProvider = ({
         if (track.path) trackIdToUrl.set(track.id, track.path);
       });
 
-      // Preload all URLs
-      const buffers = await preloadBuffers(urls, options);
+      // Preload all URLs with progress tracking
+      const buffers = await preloadBuffers(urls, {
+        ...options,
+        onProgress: (progress, detailedProgress) => {
+          // Pass through to options.onProgress if provided
+          if (options.onProgress) {
+            options.onProgress(progress, detailedProgress);
+          }
+
+          // Emit layer-specific progress event
+          eventBus.emit(EVENTS.BUFFER_LAYER_PROGRESS || 'buffer:layerProgress', {
+            layer,
+            progress,
+            trackCount: tracks.length,
+            timestamp: Date.now()
+          });
+        }
+      });
 
       // Map buffers back to tracks
       const results = tracks.map(track => {
@@ -539,15 +551,11 @@ export const BufferProvider = ({
         };
       });
 
-      // Count successful loads
-      const successCount = results.filter(r => r.success).length;
-
-      // Emit layer loaded event with detailed results
-      eventBus.emit(EVENTS.BUFFER_COLLECTION_LAYER_LOADED || 'buffer:collectionLayerLoaded', {
+      // Emit layer loaded event with enhanced payload
+      eventBus.emit(EVENTS.BUFFER_LAYER_LOADED || 'buffer:layerLoaded', {
         layer,
         trackCount: tracks.length,
-        loadedCount: successCount,
-        successRate: tracks.length > 0 ? (successCount / tracks.length) : 0,
+        loadedCount: results.filter(r => r.success).length,
         timestamp: Date.now()
       });
 
@@ -555,11 +563,11 @@ export const BufferProvider = ({
     } catch (error) {
       console.error(`[BufferContext] Error loading collection layer ${layer}:`, error);
 
-      // Emit error event with detailed payload
-      eventBus.emit(EVENTS.BUFFER_COLLECTION_LAYER_ERROR || 'buffer:collectionLayerError', {
+      // Emit error event with enhanced payload
+      eventBus.emit(EVENTS.BUFFER_LAYER_ERROR || 'buffer:layerError', {
         layer,
-        trackCount: tracks.length,
         error: error.message,
+        trackCount: tracks.length,
         timestamp: Date.now()
       });
 
@@ -573,130 +581,160 @@ export const BufferProvider = ({
     }
   }, [bufferService, preloadBuffers]);
 
-  // Load all audio for a collection
+  // NEW METHOD: Load all audio for a collection
   const loadCollectionAudio = useCallback(async (collection, options = {}) => {
     if (!bufferService || !collection || !collection.layers) {
-      console.error('[BufferContext] Cannot load collection audio: missing service or invalid collection format');
-      
+      console.error('[BufferContext] Cannot load collection audio: invalid collection or missing service');
+
       // Emit error event
-      eventBus.emit(EVENTS.BUFFER_COLLECTION_LOAD_ERROR || 'buffer:collectionLoadError', {
+      eventBus.emit(EVENTS.BUFFER_ERROR || 'buffer:error', {
+        operation: 'loadCollectionAudio',
         collectionId: collection?.id,
-        error: 'Missing service or invalid collection format',
+        error: 'Invalid collection or missing service',
         timestamp: Date.now()
       });
-      
+
       return {
         success: false,
-        error: 'Missing service or invalid collection format',
-        loadedTracks: 0,
-        totalTracks: 0
+        error: 'Invalid collection or missing service'
       };
     }
 
     try {
-      // Count total tracks across all layers
-      let totalTracks = 0;
-      Object.values(collection.layers).forEach(layerTracks => {
-        totalTracks += layerTracks.length;
-      });
+      console.log(`[BufferContext] Loading audio for collection: ${collection.name || collection.id}`);
 
-      console.log(`[BufferContext] Loading audio for collection "${collection.name}" with ${totalTracks} tracks`);
+      // Set loading state
+      setIsLoading(true);
 
       // Emit collection loading start event
       eventBus.emit(EVENTS.BUFFER_COLLECTION_LOAD_START || 'buffer:collectionLoadStart', {
         collectionId: collection.id,
         name: collection.name,
-        totalTracks,
-        layerCount: Object.keys(collection.layers).length,
         timestamp: Date.now()
       });
 
-      // Track overall progress
+      // Calculate total tracks to load
+      let totalTracks = 0;
+      Object.values(collection.layers).forEach(layerTracks => {
+        totalTracks += layerTracks.length;
+      });
+
+      // Track loaded count and progress
       let loadedTracks = 0;
-      let failedTracks = 0;
-      const layerResults = {};
+      let layerProgress = {};
 
-      // Process each layer
-      for (const [layerName, tracks] of Object.entries(collection.layers)) {
-        if (!tracks || tracks.length === 0) continue;
+      // Create progress tracking function
+      const trackLayerProgress = (layer, progress) => {
+        // Store layer progress 
+        layerProgress[layer] = progress;
 
-        // Create progress handler for this layer
-        const layerProgressHandler = options.onLayerProgress ? 
-          (progress) => options.onLayerProgress(layerName, progress) : null;
+        // Calculate overall progress based on layers
+        const layerCount = Object.keys(collection.layers).length;
+        const layersWithProgress = Object.keys(layerProgress).length;
 
-        // Load this layer's tracks
-        const layerOptions = {
-          ...options,
-          onProgress: layerProgressHandler
-        };
+        // Weight each layer equally for overall progress
+        let overallProgress = 0;
+        if (layersWithProgress > 0) {
+          const sum = Object.values(layerProgress).reduce((total, p) => total + p, 0);
+          overallProgress = Math.round((sum / layerCount) * 100);
+        } else {
+          // If no layers have reported progress yet, use loaded tracks ratio
+          overallProgress = Math.round((loadedTracks / totalTracks) * 100);
+        }
 
-        // Load layer and track progress
-        const results = await loadCollectionLayer(layerName, tracks, layerOptions);
-        
-        // Store results for this layer
-        layerResults[layerName] = results;
-        
-        // Update counts
-        const successfulTracks = results.filter(r => r.success).length;
-        loadedTracks += successfulTracks;
-        failedTracks += (tracks.length - successfulTracks);
-
-        // Emit layer progress event
+        // Emit collection-level progress event
         eventBus.emit(EVENTS.BUFFER_COLLECTION_LOAD_PROGRESS || 'buffer:collectionLoadProgress', {
           collectionId: collection.id,
-          layer: layerName,
+          progress: overallProgress,
           loadedTracks,
           totalTracks,
-          progress: totalTracks > 0 ? (loadedTracks / totalTracks) * 100 : 0,
           timestamp: Date.now()
         });
+
+        // Call custom progress handler if provided
+        if (options.onProgress) {
+          options.onProgress(overallProgress, loadedTracks, totalTracks);
+        }
+
+        // Call layer-specific progress handler if provided
+        if (options.onLayerProgress) {
+          options.onLayerProgress(layer, progress);
+        }
+      };
+
+      // Process each layer
+      const results = {};
+      let errorCount = 0;
+
+      for (const [layerName, tracks] of Object.entries(collection.layers)) {
+        // Skip empty layers
+        if (!tracks || tracks.length === 0) continue;
+
+        try {
+          console.log(`[BufferContext] Loading layer "${layerName}" with ${tracks.length} tracks`);
+
+          // Load the layer with progress tracking
+          const layerResults = await loadCollectionLayer(layerName, tracks, {
+            onProgress: (progress) => trackLayerProgress(layerName, progress)
+          });
+
+          // Store results
+          results[layerName] = layerResults;
+
+          // Update loaded count
+          loadedTracks += layerResults.filter(r => r.success).length;
+
+          // Add error count
+          errorCount += layerResults.filter(r => !r.success).length;
+
+        } catch (error) {
+          console.error(`[BufferContext] Error loading layer "${layerName}": ${error.message}`);
+
+          // Update error count
+          errorCount += tracks.length;
+
+          // Store error result
+          results[layerName] = tracks.map(track => ({
+            track,
+            buffer: null,
+            success: false,
+            error: error.message
+          }));
+        }
       }
 
-      // Determine overall success
-      const allTracksLoaded = loadedTracks === totalTracks;
-      
-      // Emit appropriate completion event
-      if (allTracksLoaded) {
-        eventBus.emit(EVENTS.BUFFER_COLLECTION_LOAD_COMPLETE || 'buffer:collectionLoadComplete', {
+      // Calculate success rate
+      const success = loadedTracks > 0 && loadedTracks >= (totalTracks * 0.5); // Consider success if at least 50% loaded
+
+      // Emit collection loaded event with detailed results
+      eventBus.emit(
+        success
+          ? (EVENTS.BUFFER_COLLECTION_LOAD_COMPLETE || 'buffer:collectionLoadComplete')
+          : (EVENTS.BUFFER_COLLECTION_LOAD_PARTIAL || 'buffer:collectionLoadPartial'),
+        {
           collectionId: collection.id,
-          name: collection.name,
           loadedTracks,
           totalTracks,
-          layerResults: Object.keys(layerResults).reduce((acc, layer) => {
-            acc[layer] = {
-              total: layerResults[layer].length,
-              loaded: layerResults[layer].filter(r => r.success).length
-            };
-            return acc;
-          }, {}),
+          errorCount,
           timestamp: Date.now()
-        });
-      } else {
-        eventBus.emit(EVENTS.BUFFER_COLLECTION_LOAD_PARTIAL || 'buffer:collectionLoadPartial', {
+        }
+      );
+
+      // Emit audio ready event for player to start playback
+      if (success) {
+        eventBus.emit(EVENTS.BUFFER_READY || 'buffer:ready', {
           collectionId: collection.id,
-          name: collection.name,
-          loadedTracks,
-          failedTracks,
-          totalTracks,
-          successRate: totalTracks > 0 ? (loadedTracks / totalTracks) : 0,
-          layerResults: Object.keys(layerResults).reduce((acc, layer) => {
-            acc[layer] = {
-              total: layerResults[layer].length,
-              loaded: layerResults[layer].filter(r => r.success).length
-            };
-            return acc;
-          }, {}),
           timestamp: Date.now()
         });
       }
 
       return {
-        success: true,
+        success,
+        results,
         loadedTracks,
-        failedTracks,
         totalTracks,
-        layerResults,
-        complete: allTracksLoaded
+        errorCount,
+        error: errorCount > 0 ? `Failed to load ${errorCount} tracks` : null
       };
     } catch (error) {
       console.error(`[BufferContext] Error loading collection audio: ${error.message}`);
@@ -704,54 +742,60 @@ export const BufferProvider = ({
       // Emit error event
       eventBus.emit(EVENTS.BUFFER_COLLECTION_LOAD_ERROR || 'buffer:collectionLoadError', {
         collectionId: collection.id,
-        name: collection.name,
         error: error.message,
         timestamp: Date.now()
       });
 
       return {
         success: false,
-        error: error.message,
-        loadedTracks: 0,
-        totalTracks: 0
+        error: error.message
       };
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [bufferService, loadCollectionLayer]);
 
-  // Listen for collection selection events to auto-load buffers
+  // ADDED: New effect to listen for layer collection registration
   useEffect(() => {
-    if (!bufferService || !initialized) return;
-    
-    const handleCollectionSelected = async (data) => {
-      if (!data.collection) return;
-      
-      console.log(`[BufferContext] Collection selected event received: ${data.collection.name || data.collectionId}`);
-      
-      // Check if we should preload buffers
-      if (data.preloadBuffers === false) {
-        console.log('[BufferContext] Skipping buffer preload as requested');
+    if (!initialized || !bufferService || !audioContext) return;
+
+    console.log('[BufferContext] Setting up listener for layer collection registration');
+
+    // Handle layer registration events to start buffer loading
+    const handleLayerRegistration = (data) => {
+      if (!data.collectionId) {
+        console.warn('[BufferContext] Layer registration event missing collection ID');
         return;
       }
-      
-      try {
-        // Auto-load collection audio
-        await loadCollectionAudio(data.collection, {
-          onLayerProgress: (layer, progress) => {
-            console.log(`[BufferContext] Loading ${layer}: ${Math.round(progress * 100)}%`);
-          }
-        });
-      } catch (error) {
-        console.error(`[BufferContext] Error auto-loading collection audio: ${error.message}`);
+
+      console.log(`[BufferContext] Layer registration received for collection: ${data.collectionId}`);
+
+      // Skip if collection data isn't included
+      if (!data.collection) {
+        console.warn(`[BufferContext] Layer registration missing collection data for: ${data.collectionId}`);
+        return;
       }
+
+      // Start loading audio for this collection
+      loadCollectionAudio(data.collection)
+        .then(result => {
+          console.log(`[BufferContext] Collection audio loading ${result.success ? 'succeeded' : 'failed'}: ${data.collectionId}`);
+        })
+        .catch(error => {
+          console.error(`[BufferContext] Error in collection audio loading: ${error.message}`);
+        });
     };
-    
-    // Subscribe to collection selection events
-    eventBus.on(EVENTS.COLLECTION_SELECTED || 'collection:selected', handleCollectionSelected);
-    
+
+    // Subscribe to layer registration events
+    eventBus.on(EVENTS.LAYER_COLLECTION_REGISTERED || 'layer:collectionRegistered', handleLayerRegistration);
+
     return () => {
-      eventBus.off(EVENTS.COLLECTION_SELECTED || 'collection:selected', handleCollectionSelected);
+      // Unsubscribe when unmounting
+      eventBus.off(EVENTS.LAYER_COLLECTION_REGISTERED || 'layer:collectionRegistered', handleLayerRegistration);
     };
-  }, [bufferService, initialized, loadCollectionAudio]);
+  }, [initialized, bufferService, audioContext, loadCollectionAudio]);
 
   // Create memoized context value
   const contextValue = useMemo(() => ({
@@ -773,7 +817,7 @@ export const BufferProvider = ({
     // Collection integration methods
     loadCollectionTrack,
     loadCollectionLayer,
-    loadCollectionAudio,
+    loadCollectionAudio, // ADDED: new collection method
 
     // Service access for advanced usage
     service: bufferService
@@ -791,7 +835,7 @@ export const BufferProvider = ({
     clearCache,
     loadCollectionTrack,
     loadCollectionLayer,
-    loadCollectionAudio,
+    loadCollectionAudio, // ADDED: new dependency
     bufferService
   ]);
 
@@ -828,4 +872,3 @@ export const useBufferService = () => {
 };
 
 export default BufferContext;
-

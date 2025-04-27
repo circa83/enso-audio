@@ -30,8 +30,6 @@ const AmbientArchive = () => {
     filters: {} // Initial empty filters
   });
 
-  
-
   // a clean-up reference to prevent over-rendering
 useEffect(() => {
   let isMounted = true;
@@ -65,6 +63,7 @@ const handleCollectionSelect = (collectionId) => {
     source: 'ambient-archive',
     action: 'play',
     preloadBuffers: true, // Indicate buffer preloading should happen
+    registerWithLayers: true, // Explicitly request layer registration
     navigate: true,
     queryParams: {
       source: 'archive',
@@ -78,6 +77,7 @@ const handleCollectionSelect = (collectionId) => {
     source: 'ambient-archive',
     action: 'play',
     preloadBuffers: true,
+    registerWithLayers: true,
     timestamp: Date.now() 
   });
   

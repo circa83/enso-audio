@@ -22,6 +22,10 @@ export function useBuffer() {
   const [activeOperations, setActiveOperations] = useState({});
   const [lastOperation, setLastOperation] = useState(null);
   
+  // Track collection loading state
+  const [collectionLoading, setCollectionLoading] = useState({});
+  const [collectionStatus, setCollectionStatus] = useState({});
+  
   // Refs for callback stability
   const bufferRef = useRef(buffer);
   const operationsRef = useRef(activeOperations);
@@ -108,6 +112,180 @@ export function useBuffer() {
       eventBus.off('buffer:error', handleBufferError);
       eventBus.off('buffer:cacheHit', handleOperationComplete);
       eventBus.off('buffer:cachePruned', handleOperationComplete);
+    };
+  }, []);
+  
+  // NEW: Track collection loading status
+  useEffect(() => {
+    // Handler for collection loading start
+    const handleCollectionLoadStart = (data) => {
+      const { collectionId } = data;
+      if (!collectionId) return;
+      
+      console.log(`[useBuffer] Collection loading started: ${collectionId}`);
+      
+      // Track collection loading state
+      setCollectionLoading(prev => ({
+        ...prev,
+        [collectionId]: {
+          isLoading: true,
+          progress: 0,
+          startTime: Date.now()
+        }
+      }));
+      
+      // Update collection status
+      setCollectionStatus(prev => ({
+        ...prev,
+        [collectionId]: {
+          state: 'loading',
+          error: null,
+          progress: 0,
+          timestamp: Date.now()
+        }
+      }));
+    };
+    
+    // Handler for collection loading progress
+    const handleCollectionProgress = (data) => {
+      const { collectionId, progress, loadedTracks, totalTracks } = data;
+      if (!collectionId) return;
+      
+      // Update collection loading state
+      setCollectionLoading(prev => ({
+        ...prev,
+        [collectionId]: {
+          ...(prev[collectionId] || {}),
+          isLoading: true,
+          progress,
+          loadedTracks,
+          totalTracks
+        }
+      }));
+      
+      // Update collection status
+      setCollectionStatus(prev => ({
+        ...prev,
+        [collectionId]: {
+          ...(prev[collectionId] || {}),
+          state: 'loading',
+          error: null,
+          progress,
+          loadedTracks,
+          totalTracks,
+          timestamp: Date.now()
+        }
+      }));
+    };
+    
+    // Handler for collection loading complete
+    const handleCollectionComplete = (data) => {
+      const { collectionId, loadedTracks, totalTracks } = data;
+      if (!collectionId) return;
+      
+      console.log(`[useBuffer] Collection loading complete: ${collectionId}`);
+      
+      // Update collection loading state
+      setCollectionLoading(prev => {
+        const updated = { ...prev };
+        delete updated[collectionId];
+        return updated;
+      });
+      
+      // Update collection status
+      setCollectionStatus(prev => ({
+        ...prev,
+        [collectionId]: {
+          state: 'loaded',
+          error: null,
+          progress: 100,
+          loadedTracks,
+          totalTracks,
+          timestamp: Date.now(),
+          endTime: Date.now(),
+          duration: prev[collectionId]?.startTime 
+            ? Date.now() - prev[collectionId].startTime 
+            : undefined
+        }
+      }));
+    };
+    
+    // Handler for collection loading error
+    const handleCollectionError = (data) => {
+      const { collectionId, error } = data;
+      if (!collectionId) return;
+      
+      console.error(`[useBuffer] Collection loading error: ${collectionId} - ${error}`);
+      
+      // Update collection loading state
+      setCollectionLoading(prev => {
+        const updated = { ...prev };
+        delete updated[collectionId];
+        return updated;
+      });
+      
+      // Update collection status
+      setCollectionStatus(prev => ({
+        ...prev,
+        [collectionId]: {
+          state: 'error',
+          error,
+          timestamp: Date.now(),
+          endTime: Date.now(),
+          duration: prev[collectionId]?.startTime 
+            ? Date.now() - prev[collectionId].startTime 
+            : undefined
+        }
+      }));
+    };
+    
+    // Handler for partial collection loading
+    const handleCollectionPartial = (data) => {
+      const { collectionId, loadedTracks, totalTracks, errorCount } = data;
+      if (!collectionId) return;
+      
+      console.warn(`[useBuffer] Collection loading partial: ${loadedTracks}/${totalTracks} loaded for ${collectionId}`);
+      
+      // Update collection loading state
+      setCollectionLoading(prev => {
+        const updated = { ...prev };
+        delete updated[collectionId];
+        return updated;
+      });
+      
+      // Update collection status
+      setCollectionStatus(prev => ({
+        ...prev,
+        [collectionId]: {
+          state: 'partial',
+          error: `Failed to load ${errorCount} tracks`,
+          progress: Math.round((loadedTracks / totalTracks) * 100),
+          loadedTracks,
+          totalTracks,
+          errorCount,
+          timestamp: Date.now(),
+          endTime: Date.now(),
+          duration: prev[collectionId]?.startTime 
+            ? Date.now() - prev[collectionId].startTime 
+            : undefined
+        }
+      }));
+    };
+    
+    // Subscribe to collection events
+    eventBus.on(EVENTS.BUFFER_COLLECTION_LOAD_START || 'buffer:collectionLoadStart', handleCollectionLoadStart);
+    eventBus.on(EVENTS.BUFFER_COLLECTION_LOAD_PROGRESS || 'buffer:collectionLoadProgress', handleCollectionProgress);
+    eventBus.on(EVENTS.BUFFER_COLLECTION_LOAD_COMPLETE || 'buffer:collectionLoadComplete', handleCollectionComplete);
+    eventBus.on(EVENTS.BUFFER_COLLECTION_LOAD_ERROR || 'buffer:collectionLoadError', handleCollectionError);
+    eventBus.on(EVENTS.BUFFER_COLLECTION_LOAD_PARTIAL || 'buffer:collectionLoadPartial', handleCollectionPartial);
+    
+    // Cleanup subscriptions
+    return () => {
+      eventBus.off(EVENTS.BUFFER_COLLECTION_LOAD_START || 'buffer:collectionLoadStart', handleCollectionLoadStart);
+      eventBus.off(EVENTS.BUFFER_COLLECTION_LOAD_PROGRESS || 'buffer:collectionLoadProgress', handleCollectionProgress);
+      eventBus.off(EVENTS.BUFFER_COLLECTION_LOAD_COMPLETE || 'buffer:collectionLoadComplete', handleCollectionComplete);
+      eventBus.off(EVENTS.BUFFER_COLLECTION_LOAD_ERROR || 'buffer:collectionLoadError', handleCollectionError);
+      eventBus.off(EVENTS.BUFFER_COLLECTION_LOAD_PARTIAL || 'buffer:collectionLoadPartial', handleCollectionPartial);
     };
   }, []);
   
@@ -329,6 +507,28 @@ export function useBuffer() {
     };
   }, []);
   
+  // Get loading status for a collection
+  const getCollectionStatus = useCallback((collectionId) => {
+    if (!collectionId) return { isLoading: false, progress: 0, state: 'unknown' };
+    
+    // Check if collection is currently loading
+    const loading = collectionLoading[collectionId];
+    
+    // Get latest status
+    const status = collectionStatus[collectionId] || {};
+    
+    return {
+      isLoading: !!loading,
+      progress: loading?.progress || status?.progress || 0,
+      state: status?.state || 'unknown',
+      error: status?.error || null,
+      loadedTracks: status?.loadedTracks || 0,
+      totalTracks: status?.totalTracks || 0,
+      timestamp: status?.timestamp || null,
+      duration: status?.duration || null
+    };
+  }, [collectionLoading, collectionStatus]);
+  
   // Enhanced load buffer with EventBus integration
   const loadBufferWithTracking = useCallback((url, options = {}) => {
     console.log(`[useBuffer] Loading buffer: ${url}`);
@@ -360,364 +560,21 @@ export function useBuffer() {
     return buffer.clearCache();
   }, [buffer]);
   
-  // NEW: Load audio for a collection layer with enhanced integration
-  const loadLayerAudio = useCallback(async (layerName, tracks, options = {}) => {
-    if (!buffer.service || !Array.isArray(tracks) || tracks.length === 0) {
-      console.error(`[useBuffer] Cannot load layer audio: invalid tracks or missing service`);
-      return { success: false, message: 'Invalid tracks or missing service' };
+  // Enhanced loadCollectionAudio with better error handling and tracking
+  const loadCollectionAudioWithTracking = useCallback((collection, options = {}) => {
+    if (!collection || !collection.id) {
+      console.error('[useBuffer] Cannot load collection audio: Invalid collection');
+      return Promise.resolve({ 
+        success: false, 
+        error: 'Invalid collection' 
+      });
     }
     
-    console.log(`[useBuffer] Loading audio for layer ${layerName} with ${tracks.length} tracks`);
+    console.log(`[useBuffer] Loading audio for collection: ${collection.name || collection.id}`);
     
-    try {
-      // Emit layer load start event
-      eventBus.emit(EVENTS.BUFFER_LAYER_LOAD_START || 'buffer:layerLoadStart', {
-        layer: layerName,
-        trackCount: tracks.length,
-        timestamp: Date.now()
-      });
-      
-      // Extract paths from tracks
-      const urls = tracks.map(track => track.path).filter(Boolean);
-      
-      if (urls.length === 0) {
-        console.error(`[useBuffer] No valid URLs in tracks for layer ${layerName}`);
-        return { success: false, message: 'No valid URLs in tracks' };
-      }
-      
-      // Preload all buffers for this layer
-      const results = await preloadBuffersWithTracking(urls, {
-        ...options,
-        onProgress: (progress, detailedProgress) => {
-          // Call original progress handler if provided
-          if (options.onProgress) {
-            options.onProgress(progress, detailedProgress);
-          }
-          
-          // Emit layer-specific progress event
-          eventBus.emit(EVENTS.BUFFER_LAYER_LOAD_PROGRESS || 'buffer:layerLoadProgress', {
-            layer: layerName,
-            progress,
-            detailedProgress,
-            timestamp: Date.now()
-          });
-        }
-      });
-      
-      // Map results back to tracks
-      const trackResults = tracks.map(track => {
-        if (!track.path) return { track, success: false, message: 'No path' };
-        
-        const buffer = results.get(track.path);
-        return {
-          track,
-          buffer,
-          success: !!buffer
-        };
-      });
-      
-      // Count successful loads
-      const successCount = trackResults.filter(r => r.success).length;
-      
-      // Emit layer load complete event
-      eventBus.emit(EVENTS.BUFFER_LAYER_LOAD_COMPLETE || 'buffer:layerLoadComplete', {
-        layer: layerName,
-        success: successCount > 0,
-        trackCount: tracks.length,
-        successCount,
-        timestamp: Date.now()
-      });
-      
-      return {
-        success: successCount > 0,
-        trackResults,
-        successCount,
-        totalCount: tracks.length
-      };
-    } catch (error) {
-      console.error(`[useBuffer] Error loading layer audio: ${error.message}`);
-      
-      // Emit error event
-      eventBus.emit(EVENTS.BUFFER_LAYER_LOAD_ERROR || 'buffer:layerLoadError', {
-        layer: layerName,
-        error: error.message,
-        timestamp: Date.now()
-      });
-      
-      return {
-        success: false,
-        error: error.message,
-        trackResults: tracks.map(track => ({ track, success: false, error: error.message }))
-      };
-    }
-  }, [buffer.service, preloadBuffersWithTracking]);
-  
-/**
- * Enhanced method for loading collection audio using CollectionService's formatting
- * Provides better integration between Collection and Buffer systems
- * 
- * @param {Object} collection - The collection object to load audio for
- * @param {Object} options - Loading options
- * @returns {Promise<Object>} Results of the loading operation
- */
-const loadCollectionAudio = useCallback(async (collection, options = {}) => {
-  if (!buffer.service) {
-    console.error('[useBuffer] Cannot load collection audio: Buffer service unavailable');
-    return { success: false, message: 'Buffer service unavailable' };
-  }
-  
-  if (!collection) {
-    console.error('[useBuffer] Cannot load collection audio: Collection is null or undefined');
-    return { success: false, message: 'Collection is null or undefined' };
-  }
-  
-  console.log(`[useBuffer] Loading audio for collection: ${collection.name || collection.id}`);
-  
-  try {
-    // Emit start event
-    eventBus.emit(EVENTS.BUFFER_COLLECTION_LOAD_START || 'buffer:collectionLoadStart', {
-      collectionId: collection.id,
-      name: collection.name,
-      timestamp: Date.now()
-    });
-    
-    // Determine if we have a properly formatted collection with layers
-    let tracksByLayer;
-    
-    // Trust the collection format provided by CollectionService
-    if (collection.layers) {
-      console.log('[useBuffer] Using provided collection layers format');
-      tracksByLayer = collection.layers;
-    } 
-    // If no layers, we need to get a formatted collection from CollectionService
-    else if (collection.tracks && Array.isArray(collection.tracks)) {
-      console.log('[useBuffer] Collection has tracks but no layers - requesting formatting');
-      
-      // Try to get CollectionService
-      const collectionService = 
-        collection.service || 
-        (typeof window !== 'undefined' && window.serviceManager?.getService('collection'));
-      
-      if (collectionService && typeof collectionService.formatCollectionForPlayer === 'function') {
-        console.log('[useBuffer] Using CollectionService to format collection');
-        const formattedCollection = collectionService.formatCollectionForPlayer(collection);
-        tracksByLayer = formattedCollection.layers;
-      } else {
-        console.warn('[useBuffer] No CollectionService available - using minimal formatting');
-        // Minimal formatting without path modification
-        tracksByLayer = {};
-        
-        collection.tracks.forEach(track => {
-          if (!track.audioUrl && !track.path) return;
-          
-          const layerName = track.layerFolder || 'Layer_1';
-          if (!tracksByLayer[layerName]) {
-            tracksByLayer[layerName] = [];
-          }
-          
-          tracksByLayer[layerName].push({
-            id: track.id,
-            path: track.path || track.audioUrl, // Use existing path without modification
-            name: track.title || track.name || track.id,
-            layer: layerName
-          });
-          
-          // Add variations if they exist
-          if (track.variations && Array.isArray(track.variations)) {
-            track.variations.forEach(variation => {
-              if (variation.id && (variation.audioUrl || variation.path)) {
-                tracksByLayer[layerName].push({
-                  id: variation.id,
-                  path: variation.path || variation.audioUrl, // Use existing path
-                  name: variation.title || `${track.title || track.name || 'Track'} (Variation)`,
-                  layer: layerName
-                });
-              }
-            });
-          }
-        });
-      }
-    } else {
-      console.error('[useBuffer] Collection has neither layers nor tracks');
-      return { success: false, message: 'Collection has no audio data' };
-    }
-    
-    // Count total tracks
-    let totalTracks = 0;
-    Object.values(tracksByLayer).forEach(layerTracks => {
-      totalTracks += layerTracks.length;
-    });
-    
-    if (totalTracks === 0) {
-      console.warn('[useBuffer] No tracks to load in collection');
-      return { success: false, message: 'No tracks in collection' };
-    }
-    
-    // Now process each layer
-    const layerResults = {};
-    let loadedTracks = 0;
-    let failedTracks = 0;
-    
-    // Debug log a sample track path from each layer
-    console.log('[useBuffer] Sample track paths:');
-    Object.entries(tracksByLayer).forEach(([layerName, tracks]) => {
-      if (tracks.length > 0) {
-        console.log(`  ${layerName}: ${tracks[0].path}`);
-      }
-    });
-    
-    // Process each layer
-    for (const [layerName, tracks] of Object.entries(tracksByLayer)) {
-      if (!tracks || tracks.length === 0) continue;
-      
-      console.log(`[useBuffer] Loading ${tracks.length} tracks for layer: ${layerName}`);
-      
-      try {
-        // Create progress handler for this layer
-        const layerProgressHandler = options.onLayerProgress ? 
-          (progress) => options.onLayerProgress(layerName, progress) : null;
-        
-        // Load this layer's tracks
-        const result = await loadLayerAudio(layerName, tracks, {
-          ...options,
-          onProgress: layerProgressHandler
-        });
-        
-        layerResults[layerName] = result;
-        loadedTracks += result.successCount || 0;
-        failedTracks += (tracks.length - (result.successCount || 0));
-        
-        // Update overall progress
-        const overallProgress = Math.min(Math.round((loadedTracks / totalTracks) * 100), 100);
-        
-        // Emit collection progress event
-        eventBus.emit(EVENTS.BUFFER_COLLECTION_LOAD_PROGRESS || 'buffer:collectionLoadProgress', {
-          collectionId: collection.id,
-          progress: overallProgress,
-          loadedTracks,
-          totalTracks,
-          timestamp: Date.now()
-        });
-      } catch (error) {
-        console.error(`[useBuffer] Error loading layer ${layerName}: ${error.message}`);
-        layerResults[layerName] = { success: false, error: error.message };
-        failedTracks += tracks.length;
-      }
-    }
-    
-    // Determine overall success
-    const allTracksLoaded = loadedTracks === totalTracks;
-    const someTracksLoaded = loadedTracks > 0;
-    
-    // Emit completion event with appropriate type
-    const eventType = allTracksLoaded
-      ? EVENTS.BUFFER_COLLECTION_LOAD_COMPLETE || 'buffer:collectionLoadComplete'
-      : (someTracksLoaded 
-          ? EVENTS.BUFFER_COLLECTION_LOAD_PARTIAL || 'buffer:collectionLoadPartial'
-          : EVENTS.BUFFER_COLLECTION_LOAD_ERROR || 'buffer:collectionLoadError');
-    
-    eventBus.emit(eventType, {
-      collectionId: collection.id,
-      success: someTracksLoaded,
-      complete: allTracksLoaded,
-      loadedTracks,
-      totalTracks,
-      timestamp: Date.now()
-    });
-    
-    return {
-      success: someTracksLoaded,
-      complete: allTracksLoaded,
-      loadedTracks,
-      failedTracks,
-      totalTracks,
-      layerResults
-    };
-  } catch (error) {
-    console.error(`[useBuffer] Error loading collection audio: ${error.message}`);
-    
-    // Emit error event
-    eventBus.emit(EVENTS.BUFFER_COLLECTION_LOAD_ERROR || 'buffer:collectionLoadError', {
-      collectionId: collection.id,
-      error: error.message,
-      timestamp: Date.now()
-    });
-    
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-}, [buffer.service, loadLayerAudio]);
-
-  // Auto-load buffers when a collection is selected
-  useEffect(() => {
-    const handleCollectionSelected = async (data) => {
-      if (!data.collection) return;
-      
-      console.log(`[useBuffer] Collection selected event received: ${data.collection.name || data.collectionId}`);
-      
-      // Check if we have everything needed to load audio
-      if (!buffer.service || !audioContext) {
-        console.warn('[useBuffer] Buffer service or audio context not available, skipping auto-load');
-        return;
-      }
-      
-      try {
-        // Preload all audio for this collection
-        console.log(`[useBuffer] Auto-loading audio for collection: ${data.collection.id}`);
-        
-        // Emit a pre-loading event
-        eventBus.emit(EVENTS.BUFFER_COLLECTION_LOAD_START || 'buffer:collectionLoadStart', {
-          collectionId: data.collection.id,
-          source: data.source,
-          timestamp: Date.now()
-        });
-        
-        // Use loadCollectionAudio to load all tracks
-        const result = await loadCollectionAudio(data.collection, {
-          onLayerProgress: (layerName, progress) => {
-            console.log(`[useBuffer] Loading ${layerName}: ${Math.round(progress * 100)}%`);
-          }
-        });
-        
-        if (result.success) {
-          console.log(`[useBuffer] Successfully loaded ${result.loadedTracks}/${result.totalTracks} tracks for collection ${data.collection.id}`);
-        } else {
-          console.warn(`[useBuffer] Partial or failed loading of collection audio: ${result.error || 'Unknown error'}`);
-        }
-      } catch (error) {
-        console.error(`[useBuffer] Error auto-loading collection audio: ${error.message}`);
-      }
-    };
-    
-    // Subscribe to collection selection events
-    eventBus.on(EVENTS.COLLECTION_SELECTED || 'collection:selected', handleCollectionSelected);
-    
-    return () => {
-      eventBus.off(EVENTS.COLLECTION_SELECTED || 'collection:selected', handleCollectionSelected);
-    };
-  }, [buffer.service, audioContext, loadCollectionAudio]);
-
-
-  // NEW: Automatic collection audio loading when a new collection is registered with layers
-  useEffect(() => {
-    const handleCollectionRegistered = (data) => {
-      if (!data.collectionId) return;
-      
-      console.log(`[useBuffer] Collection registered event received: ${data.collectionId}`);
-      
-      // No need to take action here - the layer system itself should call loadBuffers
-      // This is just for monitoring the event flow
-    };
-    
-    // Subscribe to layer registration events
-    eventBus.on(EVENTS.LAYER_COLLECTION_REGISTERED || 'layer:collectionRegistered', handleCollectionRegistered);
-    
-    return () => {
-      eventBus.off(EVENTS.LAYER_COLLECTION_REGISTERED || 'layer:collectionRegistered', handleCollectionRegistered);
-    };
-  }, []);
+    // The context method already handles events
+    return buffer.loadCollectionAudio(collection, options);
+  }, [buffer]);
   
   // Group buffer management functionality with enhanced methods
   const management = useMemo(() => ({
@@ -732,20 +589,27 @@ const loadCollectionAudio = useCallback(async (collection, options = {}) => {
     getLoadingStatus
   }), [buffer, loadBufferWithTracking, preloadBuffersWithTracking, clearCacheWithTracking, getLoadingStatus]);
   
-  // Group collection-related functionality
+  // Group collection-related functionality with new methods
   const collection = useMemo(() => ({
     loadTrack: buffer.loadCollectionTrack,
-    loadLayer: loadLayerAudio,
-    loadCollection: loadCollectionAudio
-  }), [buffer, loadLayerAudio, loadCollectionAudio]);
+    loadLayer: buffer.loadCollectionLayer,
+    loadCollection: loadCollectionAudioWithTracking,  // NEW: Expose the enhanced collection loading method
+    getStatus: getCollectionStatus  // NEW: Expose collection status tracking
+  }), [buffer, loadCollectionAudioWithTracking, getCollectionStatus]);
   
-  // Track real-time buffer system status
+  // Track real-time buffer system status with collection status
   const status = useMemo(() => ({
     activeOperations,
     lastOperation,
     operationCount: Object.keys(activeOperations).length,
-    isActive: Object.keys(activeOperations).length > 0
-  }), [activeOperations, lastOperation]);
+    isActive: Object.keys(activeOperations).length > 0,
+    collections: {  // NEW: Track collection loading state
+      loading: collectionLoading,
+      status: collectionStatus,
+      isLoading: Object.keys(collectionLoading).length > 0,
+      activeCount: Object.keys(collectionLoading).length
+    }
+  }), [activeOperations, lastOperation, collectionLoading, collectionStatus]);
   
   // Return all buffer functionality with enhanced organization
   return {
@@ -759,6 +623,7 @@ const loadCollectionAudio = useCallback(async (collection, options = {}) => {
     createAndConnectSource,
     loadAndPlay,
     getLoadingStatus,
+    getCollectionStatus,  // NEW: Expose collection status directly
     
     // Direct access to buffer context properties with enhanced tracking
     isLoading: buffer.isLoading,
@@ -768,6 +633,10 @@ const loadCollectionAudio = useCallback(async (collection, options = {}) => {
     activeOperations,
     lastOperation,
     
+    // Collection loading state
+    collectionLoading,  // NEW: Expose collection loading state
+    collectionStatus,   // NEW: Expose collection status state
+    
     // Direct access to buffer context methods with enhanced tracking
     loadBuffer: loadBufferWithTracking,
     preloadBuffers: preloadBuffersWithTracking,
@@ -775,12 +644,9 @@ const loadCollectionAudio = useCallback(async (collection, options = {}) => {
     hasBuffer: buffer.hasBuffer,
     releaseBuffer: buffer.releaseBuffer,
     clearCache: clearCacheWithTracking,
-    
-    // Enhanced collection integration
     loadCollectionTrack: buffer.loadCollectionTrack,
     loadCollectionLayer: buffer.loadCollectionLayer,
-    loadLayerAudio,
-    loadCollectionAudio,
+    loadCollectionAudio: loadCollectionAudioWithTracking,  // NEW: Expose enhanced collection loading method
     
     // Service access for advanced usage
     service: buffer.service

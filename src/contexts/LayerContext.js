@@ -925,97 +925,126 @@ export const LayerProvider = ({ children }) => {
     return layerStates[layerName]?.solo || false;
   }, [layerStates]);
 
-  // Register collection with layers
-  const registerCollection = useCallback((collection) => {
-    if (!isMountedRef.current || !initialized) return;
+// Register collection with layers - ENHANCED WITH BETTER LOGGING AND ERROR HANDLING
+const registerCollection = useCallback((collection) => {
+  if (!isMountedRef.current || !initialized) {
+    console.error('[LayerContext] Cannot register collection: context not initialized');
+    return false;
+  }
 
-    if (!collection || !collection.layers) {
-      console.error('[LayerContext] Invalid collection', collection);
-      setError('Invalid collection format');
-      return;
-    }
+  if (!collection || !collection.layers) {
+    console.error('[LayerContext] Invalid collection format', collection);
+    setError('Invalid collection format');
+    
+    // Emit error event
+    eventBus.emit(EVENTS.LAYER_ERROR || 'layer:error', {
+      operation: 'registerCollection',
+      error: 'Invalid collection format',
+      timestamp: Date.now()
+    });
+    
+    return false;
+  }
 
-    console.log('[LayerContext] Registering collection tracks to layers');
-    setIsLoading(true);
-    setError(null);
+  console.log('[LayerContext] Registering collection tracks to layers');
+  setIsLoading(true);
+  setError(null);
 
-    try {
-      // Set tracks for each layer
-      Object.entries(collection.layers).forEach(([layerName, tracks]) => {
-        setLayerTracks(layerName, tracks);
-      });
+  try {
+    // Log detailed information about the collection
+    console.log(`[LayerContext] Registering collection "${collection.name}" (${collection.id}) with ${Object.keys(collection.layers).length} layers`);
+    
+    // Log layers and track counts for diagnostics
+    Object.entries(collection.layers).forEach(([layerName, tracks]) => {
+      console.log(`[LayerContext] Layer ${layerName}: ${tracks.length} tracks`);
+    });
 
-      // Initialize audio elements for first track in each layer
-      Object.entries(collection.layers).forEach(([layerName, tracks]) => {
-        if (tracks.length > 0) {
-          const firstTrack = tracks[0];
-          // Initialize audio element but don't play yet
-          audio.getOrCreateAudioElement(layerName, firstTrack.id, {
-            path: firstTrack.path,
-            name: firstTrack.name,
-            loop: true,
-            isActive: true,
-            preload: true
-          });
+    // Set tracks for each layer
+    Object.entries(collection.layers).forEach(([layerName, tracks]) => {
+      setLayerTracks(layerName, tracks);
+    });
 
-          // Set as active track
-          setActiveTracks(prev => ({
-            ...prev,
-            [layerName]: firstTrack.id
-          }));
-        }
-      });
+    // Initialize audio elements for first track in each layer
+    Object.entries(collection.layers).forEach(([layerName, tracks]) => {
+      if (tracks.length > 0) {
+        const firstTrack = tracks[0];
+        // Initialize audio element but don't play yet
+        audio.getOrCreateAudioElement(layerName, firstTrack.id, {
+          path: firstTrack.path,
+          name: firstTrack.name,
+          loop: true,
+          isActive: true,
+          preload: true
+        });
 
-      // Then load all the tracks for buffer preloading
-      if (buffer && buffer.initialized) {
-        loadTracksForCollection(collection)
-          .then(success => {
-            if (success) {
-              console.log('[LayerContext] Successfully loaded tracks for collection');
-              eventBus.emit(EVENTS.LAYER_COLLECTION_REGISTERED || 'layer:collectionRegistered', {
-                collectionId: collection.id,
-                layerCount: Object.keys(collection.layers).length,
-                timestamp: Date.now()
-              });
-            }
-          })
-          .catch(error => {
-            console.error('[LayerContext] Error loading tracks for collection:', error);
-            setError(error.message);
-          })
-          .finally(() => {
-            if (isMountedRef.current) {
-              setIsLoading(false);
-            }
-          });
-      } else {
-        setIsLoading(false);
+        // Set as active track
+        setActiveTracks(prev => ({
+          ...prev,
+          [layerName]: firstTrack.id
+        }));
       }
-    } catch (error) {
-      console.error('[LayerContext] Error registering collection:', error);
-      setError(error.message);
+    });
+
+    // Then load all the tracks for buffer preloading
+    if (buffer && buffer.initialized) {
+      loadTracksForCollection(collection)
+        .then(success => {
+          if (success) {
+            console.log('[LayerContext] Successfully loaded tracks for collection');
+            eventBus.emit(EVENTS.LAYER_COLLECTION_REGISTERED || 'layer:collectionRegistered', {
+              collectionId: collection.id,
+              layerCount: Object.keys(collection.layers).length,
+              timestamp: Date.now()
+            });
+          }
+        })
+        .catch(error => {
+          console.error('[LayerContext] Error loading tracks for collection:', error);
+          setError(error.message);
+        })
+        .finally(() => {
+          if (isMountedRef.current) {
+            setIsLoading(false);
+          }
+        });
+    } else {
       setIsLoading(false);
     }
-  }, [initialized, audio, buffer, setLayerTracks, loadTracksForCollection]);
+    
+    return true;
+  } catch (error) {
+    console.error('[LayerContext] Error registering collection:', error);
+    setError(error.message);
+    setIsLoading(false);
+    
+    // Emit error event
+    eventBus.emit(EVENTS.LAYER_ERROR || 'layer:error', {
+      operation: 'registerCollection',
+      error: error.message,
+      timestamp: Date.now()
+    });
+    
+    return false;
+  }
+}, [initialized, audio, buffer, setLayerTracks, loadTracksForCollection]);
 
-  // Enhance the listener for collection selection events in LayerContext.js
 
-  // Listen for collection selection events
-  useEffect(() => {
-    if (!initialized) return;
+  // Listen for collection selection events - SIMPLIFIED TO FOCUS ON LAYER REGISTRATION
+useEffect(() => {
+  if (!initialized) return;
 
-    const handleCollectionSelected = (data) => {
-      if (!data.collection) return;
+  const handleCollectionSelected = (data) => {
+    if (!data.collection) return;
 
-      console.log(`[LayerContext] Collection selected event received: ${data.collection.name || data.collectionId}`);
+    console.log(`[LayerContext] Collection selected event received: ${data.collection.name || data.collectionId}`);
 
-      // First, register the collection with layers
-      registerCollection(data.collection);
-
-      // Emit specific event for buffer system to react to
+    // Register the collection with layers (this is the core responsibility)
+    const success = registerCollection(data.collection);
+    
+    if (success) {
+      // Emit registration event - this is a signal for other systems that layers are ready
       eventBus.emit(EVENTS.LAYER_COLLECTION_REGISTERED || 'layer:collectionRegistered', {
         collectionId: data.collection.id,
-        collection: data.collection,
         layerCount: Object.keys(data.collection.layers || {}).length,
         trackCounts: Object.entries(data.collection.layers || {}).reduce((counts, [layer, tracks]) => {
           counts[layer] = tracks.length;
@@ -1023,42 +1052,27 @@ export const LayerProvider = ({ children }) => {
         }, {}),
         timestamp: Date.now()
       });
-    };
-
-    // Track buffer loading progress so UI can show status
-    const handleBufferProgress = (data) => {
-      if (!isMountedRef.current) return;
-
-      // Update UI with buffer loading progress if needed
-      if (data.collectionId) {
-        console.log(`[LayerContext] Buffer loading progress for collection ${data.collectionId}: ${data.progress}%`);
-      }
-    };
-
-    // React when all buffers are loaded
-    const handleBuffersLoaded = (data) => {
-      if (!isMountedRef.current) return;
-
-      console.log(`[LayerContext] All buffers loaded for collection ${data.collectionId}`);
-
-      // When all buffers are loaded, we can mark the layer system as ready
-      eventBus.emit(EVENTS.LAYER_READY || 'layer:ready', {
-        collectionId: data.collectionId,
+    } else {
+      console.error(`[LayerContext] Failed to register collection: ${data.collection.id}`);
+      
+      // Emit error event
+      eventBus.emit(EVENTS.LAYER_ERROR || 'layer:error', {
+        operation: 'registerCollection',
+        collectionId: data.collection.id,
+        error: 'Registration failed',
         timestamp: Date.now()
       });
-    };
+    }
+  };
 
-    // Subscribe to events
-    eventBus.on(EVENTS.COLLECTION_SELECTED || 'collection:selected', handleCollectionSelected);
-    eventBus.on(EVENTS.BUFFER_COLLECTION_LOAD_PROGRESS || 'buffer:collectionLoadProgress', handleBufferProgress);
-    eventBus.on(EVENTS.BUFFER_COLLECTION_LOAD_COMPLETE || 'buffer:collectionLoadComplete', handleBuffersLoaded);
+  // Subscribe only to collection selection event
+  eventBus.on(EVENTS.COLLECTION_SELECTED || 'collection:selected', handleCollectionSelected);
 
-    return () => {
-      eventBus.off(EVENTS.COLLECTION_SELECTED || 'collection:selected', handleCollectionSelected);
-      eventBus.off(EVENTS.BUFFER_COLLECTION_LOAD_PROGRESS || 'buffer:collectionLoadProgress', handleBufferProgress);
-      eventBus.off(EVENTS.BUFFER_COLLECTION_LOAD_COMPLETE || 'buffer:collectionLoadComplete', handleBuffersLoaded);
-    };
-  }, [initialized, registerCollection]);
+  return () => {
+    eventBus.off(EVENTS.COLLECTION_SELECTED || 'collection:selected', handleCollectionSelected);
+  };
+}, [initialized, registerCollection]);
+
 
   // Create memoized context value
   const value = useMemo(() => ({

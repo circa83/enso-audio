@@ -12,6 +12,8 @@ import eventBus, { EVENTS } from '../services/EventBus';
  * @param {Object} [options.initialFilters] - Initial filters to apply
  * @param {boolean} [options.listenForEvents=true] - Whether to listen for collection events
  * @param {boolean} [options.autoloadFromUrl=true] - Whether to auto-load collection from URL
+ * @param {boolean} [options.fetchMissingCollections=true] - Whether to fetch collections by ID when only ID is provided
+ * @param {Function} [options.onCollectionLoaded] - Callback when a collection is loaded
  * @returns {Object} Collection data and functions
  */
 export function useCollection(options = {}) {
@@ -19,17 +21,45 @@ export function useCollection(options = {}) {
     loadOnMount = true,
     initialFilters,
     listenForEvents = true,
-    autoloadFromUrl = true
+    autoloadFromUrl = true,
+    fetchMissingCollections = true,
+    onCollectionLoaded
   } = options;
 
   // Get collection functionality from context
-  const collection = useCollectionContext();
+  const {
+    // Direct access to state
+    collections,
+    currentCollection,
+    isLoading,
+    error,
+    filters,
+    pagination,
+    
+    // Access to methods
+    loadCollections,
+    getCollection,
+    updateFilters,
+    clearFilters,
+    goToPage,
+    formatForPlayer,
+    resetCache,
+    
+    // Access to service
+    service
+  } = useCollectionContext();
 
   // Track if we've already loaded a collection from URL
   const hasLoadedFromUrlRef = useRef(false);
 
   // Track if we've run the load effect
   const hasEffectRunRef = useRef(false);
+  
+  // Store event handler references to prevent recreation on each render
+  const eventHandlersRef = useRef({
+    handleCollectionLoaded: null,
+    handleCollectionError: null
+  });
 
   // Auto-detect collection ID from URL if enabled
   useEffect(() => {
@@ -52,17 +82,21 @@ export function useCollection(options = {}) {
         });
 
         // Load the collection
-        collection.collection.get(collectionId)
+        getCollection(collectionId)
           .then(collectionData => {
             console.log(`[useCollection] Successfully loaded collection: ${collectionData.name || collectionId}`);
 
-            // Emit event for successful load
+            // Emit event for successful load with standardized payload
             eventBus.emit(EVENTS.COLLECTION_LOADED || 'collection:loaded', {
               collectionId,
               collection: collectionData,
               source: 'url',
               timestamp: Date.now()
             });
+            
+            if (onCollectionLoaded) {
+              onCollectionLoaded(collectionData);
+            }
           })
           .catch(error => {
             console.error(`[useCollection] Error loading collection: ${error.message}`);
@@ -80,69 +114,95 @@ export function useCollection(options = {}) {
           });
       }
     }
-  }, [autoloadFromUrl, collection]);
+  }, [autoloadFromUrl, getCollection, onCollectionLoaded]);
 
-  // Apply initial filters if provided
+  // Apply initial filters if provided - once only
   useEffect(() => {
     if (initialFilters && Object.keys(initialFilters).length > 0) {
-      collection.list.updateFilters(initialFilters);
+      updateFilters(initialFilters);
     }
-  }, [initialFilters, collection]);
+  }, []); // Empty dependency array to run only once
 
   // Load collections on mount if requested - with additional guard
   useEffect(() => {
-    // Only load if:
-    // 1. loadOnMount is true
-    // 2. Not already loading
-    // 3. No error exists (prevent reload loops on error)
-    // 4. Component is mounted
-    const canLoad =
-      loadOnMount &&
-      !collection.system.isLoading &&
-      !collection.system.error &&
-      hasEffectRunRef.current === false;
-
-    if (canLoad) {
+    // Only load if loadOnMount is true and we haven't loaded already
+    if (loadOnMount && !hasEffectRunRef.current) {
       hasEffectRunRef.current = true;
-      collection.list.loadCollections(1);
+      loadCollections(1);
     }
-  }, [loadOnMount, collection.system.isLoading, collection.system.error, collection]);
+  }, [loadOnMount, loadCollections]);
 
-  // Listen for collection selection events if enabled
+  // Listen for collection events - with stable event handlers
   useEffect(() => {
     if (!listenForEvents) return;
 
-    const handleCollectionLoaded = (data) => {
-      console.log(`[useCollection] Collection loaded event received for: ${data.collectionId}`);
-      // Components using this hook can react to collection loading
-      // without having to implement their own event listeners
-    };
+    // Only create the handlers once to avoid infinite event binding/unbinding
+    if (!eventHandlersRef.current.handleCollectionLoaded) {
+      eventHandlersRef.current.handleCollectionLoaded = (data) => {
+        // Extract collection ID from any payload format
+        const collectionId = data.collectionId || (data.collection && data.collection.id) || data.id;
+        
+        console.log(`[useCollection] Collection loaded event received for: ${collectionId || 'undefined'}`);
+        
+        // Validate we have a collection ID
+        if (!collectionId) {
+          console.warn('[useCollection] Received collection:loaded event with missing or invalid ID', data);
+          return;
+        }
+        
+        // If we have the collection data, use it directly
+        if (data.collection && typeof data.collection === 'object') {
+          if (onCollectionLoaded) {
+            onCollectionLoaded(data.collection);
+          }
+        } 
+        // Otherwise, if we only have the ID but not the data,
+        // and we're supposed to fetch missing collections
+        else if (fetchMissingCollections) {
+          // Only fetch if we're not already loading this collection
+          // and if it's not the current collection
+          if (!isLoading && (!currentCollection || currentCollection.id !== collectionId)) {
+            console.log(`[useCollection] Fetching collection data for ID: ${collectionId}`);
+            getCollection(collectionId).catch(error => {
+              console.error(`[useCollection] Error loading collection: ${error.message}`);
+            });
+          } else {
+            console.log(`[useCollection] Collection ${collectionId} already loading or current`);
+          }
+        }
+      };
+      
+      eventHandlersRef.current.handleCollectionError = (data) => {
+        console.error(`[useCollection] Collection error event received:`, data.error);
+      };
+    }
 
-    const handleCollectionError = (data) => {
-      console.error(`[useCollection] Collection error event received:`, data.error);
-      // Components can react to collection errors
-    };
-
-    // Subscribe to events
-    eventBus.on(EVENTS.COLLECTION_LOADED, handleCollectionLoaded);
-    eventBus.on(EVENTS.COLLECTION_ERROR, handleCollectionError);
+    // Subscribe to events using the stable handler references
+    eventBus.on(EVENTS.COLLECTION_LOADED || 'collection:loaded', 
+      eventHandlersRef.current.handleCollectionLoaded);
+    eventBus.on(EVENTS.COLLECTION_ERROR || 'collection:error', 
+      eventHandlersRef.current.handleCollectionError);
 
     return () => {
-      eventBus.off(EVENTS.COLLECTION_LOADED, handleCollectionLoaded);
-      eventBus.off(EVENTS.COLLECTION_ERROR, handleCollectionError);
+      eventBus.off(EVENTS.COLLECTION_LOADED || 'collection:loaded', 
+        eventHandlersRef.current.handleCollectionLoaded);
+      eventBus.off(EVENTS.COLLECTION_ERROR || 'collection:error', 
+        eventHandlersRef.current.handleCollectionError);
     };
-  }, [listenForEvents]);
+  }, [
+    listenForEvents, 
+    isLoading, 
+    currentCollection, 
+    getCollection, 
+    fetchMissingCollections, 
+    onCollectionLoaded
+  ]);
 
   /**
-   * Select a collection for playback
+   * Select a collection for playback with enhanced buffer integration
    * @param {string} collectionId - ID of collection to select
    * @param {Object} options - Selection options
-
-/**
- * Select a collection for playback with enhanced buffer integration
- * @param {string} collectionId - ID of collection to select
- * @param {Object} options - Selection options
- */
+   */
   const selectCollection = useCallback((collectionId, options = {}) => {
     if (!collectionId) {
       console.error('[useCollection] Cannot select collection: No ID provided');
@@ -151,86 +211,81 @@ export function useCollection(options = {}) {
 
     console.log(`[useCollection] Selecting collection: ${collectionId}`);
 
-   // First get the full collection data
-   collection.getCollection(collectionId)
-   .then(collectionData => {
-     // Format collection for player if needed
-     const formattedCollection = collection.formatForPlayer 
-       ? collection.formatForPlayer(collectionData)
-       : collectionData;
-
-     // Emit selection event with the formatted collection
-     eventBus.emit(EVENTS.COLLECTION_SELECTED, {
-       collectionId,
-       collection: formattedCollection, // Pass the FORMATTED collection
-       source: options.source || 'hook',
-       action: options.action || 'select',
-       preloadBuffers: options.preloadBuffers !== false, // Default to true
-       timestamp: Date.now()
-     });
-    })
-    // If we need to get the full collection data first, do it here
-    if (options.preloadBuffers && collection.getCollection) {
-      // Request the full collection to be loaded so it can be passed to buffer system
-      collection.getCollection(collectionId)
-        .catch(err => {
-          console.error(`[useCollection] Error loading collection for buffer preload: ${err.message}`);
+    // Get the collection data
+    getCollection(collectionId)
+      .then(collectionData => {
+        if (!collectionData) {
+          console.error(`[useCollection] Failed to load collection: ${collectionId}`);
+          return;
+        }
+        
+        // Format collection for player consumption
+        const formattedCollection = formatForPlayer(collectionData);
+        
+        if (!formattedCollection || !formattedCollection.layers) {
+          console.error(`[useCollection] Invalid collection format: ${collectionId}`);
+          return;
+        }
+        
+        console.log(`[useCollection] Collection "${formattedCollection.name}" formatted with ${Object.keys(formattedCollection.layers).length} layers`);
+        
+        // Emit a properly formatted COLLECTION_SELECTED event
+        eventBus.emit(EVENTS.COLLECTION_SELECTED || 'collection:selected', {
+          collectionId,
+          collection: formattedCollection,
+          source: options.source || 'collection-hook',
+          action: options.action || 'select',
+          preloadBuffers: options.preloadBuffers !== false,
+          registerWithLayers: options.registerWithLayers !== false,
+          timestamp: Date.now()
         });
-    }
-
-    // Optionally handle navigation if requested
-    if (options.navigate && typeof window !== 'undefined') {
-      const query = new URLSearchParams({
-        collection: collectionId,
-        ...options.queryParams
-      }).toString();
-
-      window.location.href = `/player?${query}`;
-    }
-  }, [collection]);
-
+      })
+      .catch(error => {
+        console.error(`[useCollection] Error selecting collection: ${error.message}`);
+      });
+  }, [getCollection, formatForPlayer]);
 
   // Return a cleaned and organized API
   return useMemo(() => ({
     // State
-    collections: collection.data.collections,
-    currentCollection: collection.data.currentCollection,
-    isLoading: collection.system.isLoading,
-    error: collection.system.error,
-    filters: collection.data.filters,
-    pagination: collection.data.pagination,
+    collections,
+    currentCollection,
+    isLoading,
+    error,
+    filters,
+    pagination,
 
     // Functions
-    loadCollections: collection.list.loadCollections,
-    getCollection: collection.collection.get,
-    updateFilters: collection.list.updateFilters,
-    clearFilters: collection.list.clearFilters,
-    goToPage: collection.list.goToPage,
-    resetCache: collection.list.resetCache,
+    loadCollections,
+    getCollection,
+    updateFilters,
+    clearFilters,
+    goToPage,
+    resetCache,
 
     // Selection functionality
     selectCollection,
 
     // Helpers
-    formatForPlayer: collection.collection.format,
+    formatForPlayer,
 
     // Service access (for advanced usage)
-    service: collection.system.service
+    service
   }), [
-    collection.data.collections,
-    collection.data.currentCollection,
-    collection.system.isLoading,
-    collection.system.error,
-    collection.data.filters,
-    collection.data.pagination,
-    collection.list.loadCollections,
-    collection.collection.get,
-    collection.list.updateFilters,
-    collection.list.clearFilters,
-    collection.list.goToPage,
-    collection.list.resetCache,
-    collection.collection.format,
-    collection.system.service,
+    collections,
+    currentCollection,
+    isLoading,
+    error,
+    filters,
+    pagination,
+    loadCollections,
+    getCollection,
+    updateFilters,
+    clearFilters,
+    goToPage,
+    resetCache,
+    formatForPlayer,
+    service,
     selectCollection
   ]);
 }

@@ -1,84 +1,77 @@
-Complete Implementation Roadmap
-To fully implement these changes, follow this step-by-step roadmap:
+Collection Loading and Layer Initialization Fixes
+1. Standardize Event Payloads in useCollection.js
+Locate the event handler for 'collection:loaded' in useCollection.js
+Add standardization logic to normalize event payloads regardless of source
+Extract collectionId properly from either data.id or data.collectionId
+Add validation before processing collection data
+Add fallback logic to load collection by ID if only ID is provided
+Log warnings for missing collection IDs in events
 
-Phase 1: Context and Hook Refactoring
-Update CollectionContext.js to fix the infinite loop issue
-Enhance useCollection.js with URL detection and event emission
-Update LayerContext.js to auto-register collections
-Enhance useLayer.js with collection integration functionality
-Improve useBuffer.js to handle collection audio loading
+2. Update Collection Event Handlers in LayerContext.js
+Find the useEffect that subscribes to collection events
+Update or add a handler for 'collection:selected' event
+Update or add a handler for 'collection:loaded' event
+Add validation to check if collection data is valid before registration
+Extract collectionId consistently from either collection.id or data.collectionId
+Log detailed information about collection selection/loading
+Avoid duplicate collection registration
+Properly unsubscribe from events on cleanup
 
-Phase 2: Component Updates
-Add static methods to LayerControl.js for multiple control rendering
-Simplify Player.js by removing overlapping responsibilities
-Update useTimeline.js to better encapsulate timeline functionality
+3. Add Layer Error Handling in BufferContext.js
+Add a new useEffect that subscribes to 'layer:error' events
+Implement a comprehensive error handler for layer errors
+Update the loading errors state with layer-specific error information
+Include collection context in error logging when available
+Re-emit more specific buffer error events for consistency
+Log detailed information about layer errors
+Properly unsubscribe from events on cleanup
 
-Phase 3: Integration and Testing
-Test collection loading via URL parameters
-Verify layer controls work with the updated hooks
-Confirm audio loading and playback work properly
-Check for any remaining render loops or performance issues
-Key Architectural Benefits
-This refactoring achieves several important goals:
+4. Prevent Duplicate Collection Loading in Player.js
+Add a reference to track already loaded collections (collectionLoadedRef)
+Update the useEffect that handles collection changes
+Add a check to prevent re-processing already registered collections
+Maintain a map of collection IDs that have been processed
+Only call registerCollection for new collections
+Log information about skipped duplicate registrations
+Ensure the formatForPlayer logic remains intact
 
-Clear Separation of Concerns:
+5. Enhance Validation in CollectionContext.js
+Update the getCollection method with better validation
+Add a check to avoid loading a collection that's already being loaded
+Validate collection data after loading to ensure it has required fields
+Standardize event emission with consistent payload structure
+Include both collection object and collectionId in events for compatibility
+Add detailed logging for successful collection loading
+Add source tracking in collection loading events
 
-Collection context manages collection data only
-Buffer context manages audio loading only
-Layer context integrates collections with buffers
-Player handles only UI and playback controls
-Reduced Complexity in Player:
+6. Standardize Event Naming in EventBus.js
+Ensure all event constants are properly defined in EVENTS object
+Make sure collection events use consistent naming patterns
+Verify that event names match between emitters and listeners
+Add any missing event constants for layer and collection operations
 
-From 200+ lines to less than 100 lines
-Removes complex state management
-Eliminates manual context integration
-Improved Data Flow:
+7. Add Missing Event Listeners in BufferContext.js
+Add listeners for all collection-related events
+Implement handling for 'layer:collectionRegistered' events
+Add proper error handling for collection loading failures
+Update the loadCollectionAudio method to properly emit standardized events
+Ensure all events include standardized timestamp and relevant identifiers
 
-Event-based communication between contexts
-Automatic loading from URL parameters
-Clear ownership of responsibilities
-Better Performance:
+8. Update useLayer.js Collection Handling
+Fix the collection loaded handler to properly extract collection data
+Add validation before attempting to use collection data
+Log detailed information about collection loading state
+Add error handling for invalid collection data
+Ensure layer tracking is properly updated when collections change
 
-Fewer render cycles
-No duplicate data loading
-Optimized communication between components
-Enhanced Maintainability:
+9. Improve Progress Tracking in BufferContext.js
+Enhance the progress tracking for collection loading
+Add better error handling for partial loading success
+Update collection loading state management for better visibility
+Emit standardized progress events for UI feedback
 
-More modular code structure
-Clearer interface boundaries
-Easier to test and debug
-This refactoring aligns perfectly with your desired architecture where collections maintain data, buffers deal with audio files, layers merge them together, and the Player simply controls playback and houses UI components.
-
-
-Current Issues with Player.js
-After thorough analysis of the Player.js file in the context of your modular architecture, I've identified several issues where the component is taking on responsibilities that should be delegated to other parts of the system:
-
-Collection Loading & Processing
-
-Player directly loads collections via URL parameters
-Handles collection formatting (formatForPlayer)
-Manages collection registration with layer system
-Layer Management Overreach
-
-Directly controls layer track changes
-Manages mute toggle functionality
-Handles detailed layer state (active tracks, volumes, etc.)
-Manually constructs each LayerControl with granular props
-Timeline Management Complexity
-
-Uses complex local refs (preventUpdateCycle, settingsInitialized)
-Handles timer synchronization logic that should be encapsulated
-Manages potential race conditions with timeouts
-State Duplication
-
-Maintains local sessionDuration/transitionDuration which duplicates timeline state
-Tracks previous playback state (wasPlaying.current)
-Duplicates error handling from multiple contexts
-Cross-Context Communication
-
-Acts as an intermediary between contexts that should communicate directly
-Manually passes data between collection, layer, and timeline contexts
-Event Handling Complexity
-
-Complex event handlers for duration changes
-Manually prevents recursive updates with ref flags
+10. Fix Collection Registration in LayerContext.js
+Update the registerCollection method to properly handle different collection formats
+Add validation before processing collection data
+Ensure proper event emission after successful registration
+Include collection metadata in registration events
