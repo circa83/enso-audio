@@ -5,7 +5,7 @@
  * Handles fetching, filtering, and processing collection data
  */
 import eventBus, { EVENTS } from './EventBus';
-import AppConfig from '../config/appConfig';
+import AppConfig from '../config/appConfig';  
 
 class CollectionService {
   /**
@@ -26,7 +26,11 @@ class CollectionService {
       blobBaseUrl: process.env.NEXT_PUBLIC_BLOB_BASE_URL || 'https://uggtzauwx9gzthtf.public.blob.vercel-storage.com',
       // Local storage configuration
       enableLocalStorage: options.enableLocalStorage !== false, // Enable by default
-      localStorageKey: options.localStorageKey || 'enso_collections'
+      localStorageKey: options.localStorageKey || 'enso_collections',
+      collectionSource: AppConfig.collections.source || 'local-folder',
+      // Fallback settings
+      fallbackToBlob: AppConfig.collections.local?.fallbackToBlob || false,
+      fallbackToLocal: AppConfig.collections.blob?.fallbackToLocal || false
     };
 
     // Internal state
@@ -49,7 +53,11 @@ class CollectionService {
         apiBasePath: this.config.apiBasePath,
         cacheDuration: this.config.cacheDuration,
         enableLogging: this.config.enableLogging,
-        enableLocalStorage: this.config.enableLocalStorage
+        enableLocalStorage: this.config.enableLocalStorage,
+        localStorageKey: this.config.localStorageKey,
+        collectionSource: this.config.collectionSource,
+        fallbackToBlob: this.config.fallbackToBlob,
+        fallbackToLocal: this.config.fallbackToLocal
       },
       timestamp: Date.now()
     });
@@ -183,6 +191,15 @@ class CollectionService {
    * @returns {Promise<string[]>} Array of collection folder names
    */
   async _getBlobCollectionFolders() {
+     // IMPORTANT: Skip blob operations entirely if not using blob source
+  if (this.config.collectionSource !== 'blob' && 
+    !this.config.fallbackToBlob &&
+    // Check if this was explicitly requested (for specific API calls)
+    !this._forceBlobFetch) {
+  this.log('Skipping blob fetch - not using blob source', 'info');
+  return [];
+}
+
     try {
       this.log('Fetching blob collections');
       eventBus.emit(EVENTS.COLLECTION_BLOB_FETCH_START || 'collection:blobFetchStart', {
@@ -880,102 +897,247 @@ async loadPublicFolderCollections() {
     }
   }
 
- /**
- * Get all collections with optional filtering
- * @param {Object} [options] - Fetch options
- * @param {boolean} [options.useCache=true] - Use cached data if available
- * @param {string} [options.tag] - Filter by tag
- * @param {string} [options.artist] - Filter by artist name
- * @param {number} [options.limit] - Maximum number of results
- * @param {number} [options.page] - Page number for pagination
- * @param {string} [options.source='all'] - Source filter: 'all', 'blob', 'local' or 'local-folder'
- * @returns {Promise<Object>} Collections data with pagination info
- */
-async getCollections(options = {}) {
-  const {
-    useCache = true,
-    tag,
-    artist,
-    limit = 10,
-    page = 1,
-    source = 'all'
-  } = options;
+  /**
+   * Get all collections with optional filtering
+   * @param {Object} [options] - Fetch options
+   * @param {boolean} [options.useCache=true] - Use cached data if available
+   * @param {string} [options.tag] - Filter by tag
+   * @param {string} [options.artist] - Filter by artist name
+   * @param {number} [options.limit] - Maximum number of results
+   * @param {number} [options.page] - Page number for pagination
+   * @param {string} [options.source] - Source override: 'all', 'blob', 'local' or 'local-folder'
+   * @returns {Promise<Object>} Collections data with pagination info
+   */
+  async getCollections(options = {}) {
+    const {
+      useCache = true,
+      tag,
+      artist,
+      limit = 10,
+      page = 1,
+      source // If source is provided in options, it overrides the config
+    } = options;
 
-  // Emit fetch start event
-  eventBus.emit(EVENTS.COLLECTIONS_LOADED || 'collections:loadStart', {
-    options,
-    useCache,
-    timestamp: Date.now()
-  });
-
-  try {
-    // Initialize collections array
-    let collections = [];
-
-    // Determine which sources to query
-    const sourcesToQuery = source === 'all'
-      ? ['blob', 'local', 'local-folder']
-      : [source];
-
-    // Get collections from each source
-    for (const sourceType of sourcesToQuery) {
-      if (this.sourceHandlers[sourceType]) {
-        const sourceCollections = await this.sourceHandlers[sourceType].getCollections(options);
-        collections = [...collections, ...sourceCollections];
-      }
-    }
-
-    // Apply filtering
-    if (tag || artist) {
-      collections = this._filterCollections(collections, { tag, artist });
-    }
-
-    // Deduplicate collections by ID to prevent React key issues
-    const uniqueCollections = [];
-    const seenIds = new Set();
-    
-    collections.forEach(collection => {
-      if (!seenIds.has(collection.id)) {
-        seenIds.add(collection.id);
-        uniqueCollections.push(collection);
-      } else {
-        this.log(`Found duplicate collection ID: ${collection.id} (${collection.name}) from source ${collection.source}`, 'warn');
-      }
-    });
-    
-    if (collections.length !== uniqueCollections.length) {
-      this.log(`Filtered out ${collections.length - uniqueCollections.length} duplicate collections`, 'warn');
-    }
-
-    // Apply pagination
-    const result = this._paginateCollections(uniqueCollections, page, limit);
-
-    // Update cache if appropriate
-    if (source === 'all' && !tag && !artist) {
-      this._updateCache(result);
-      
-      // Check for duplicates again after caching (diagnostic)
-      this.checkForDuplicateIds();
-    }
-
-    // Emit collections loaded event
-    eventBus.emit(EVENTS.COLLECTIONS_LOADED || 'collections:loaded', {
-      count: result.data.length,
+    // Emit fetch start event
+    eventBus.emit(EVENTS.COLLECTIONS_LOADED || 'collections:loadStart', {
+      options,
       useCache,
-      fromCache: false,
-      filters: { tag, artist, source },
       timestamp: Date.now()
     });
 
-    return result;
-  } catch (error) {
-    this._handleError('getCollections', error, options);
-    return {
-      success: false,
-      error: error.message
-    };
+    try {
+      // Initialize collections array
+      let collections = [];
+
+      // Determine which sources to query based on configuration and options
+      let sourcesToQuery = [];
+      
+      if (source === 'all') {
+        // Only with explicit 'all' do we query every source
+        this.log('Explicit request for all sources', 'info');
+        sourcesToQuery = ['blob', 'local', 'local-folder'];
+        // Allow blob operations for this request only
+        this._forceBlobFetch = true;
+      } else if (source) {
+        // Explicit source in options overrides config
+        this.log(`Using explicit source override: ${source}`, 'info');
+        sourcesToQuery = [source];
+        // Allow blob operations if blob is explicitly requested
+        this._forceBlobFetch = (source === 'blob');
+      } else {
+        // Use configured source
+        const configSource = this.config.collectionSource;
+        this.log(`Using configured collection source: ${configSource}`, 'info');
+        
+        // Make source handling very explicit
+        if (configSource === 'local') {
+          sourcesToQuery = ['local', 'local-folder'];
+          this._forceBlobFetch = false;
+        } else if (configSource === 'blob') {
+          sourcesToQuery = ['blob'];
+          this._forceBlobFetch = true;
+        } else if (configSource === 'local-folder') {
+          sourcesToQuery = ['local-folder'];
+          this._forceBlobFetch = false;
+        } else {
+          // Default to local-folder if unknown source
+          sourcesToQuery = ['local-folder'];
+          this._forceBlobFetch = false;
+        }
+      }
+
+      this.log(`Fetching collections from sources: ${sourcesToQuery.join(', ')}`);
+
+      // Get collections from each source
+      for (const sourceType of sourcesToQuery) {
+        if (this.sourceHandlers[sourceType]) {
+          const sourceCollections = await this.sourceHandlers[sourceType].getCollections(options);
+          collections = [...collections, ...sourceCollections];
+        }
+      }
+
+      // Apply filtering
+      if (tag || artist) {
+        collections = this._filterCollections(collections, { tag, artist });
+      }
+
+      // Deduplicate collections by ID to prevent React key issues
+      const uniqueCollections = [];
+      const seenIds = new Set();
+      
+      collections.forEach(collection => {
+        if (!seenIds.has(collection.id)) {
+          seenIds.add(collection.id);
+          uniqueCollections.push(collection);
+        } else {
+          this.log(`Found duplicate collection ID: ${collection.id} (${collection.name}) from source ${collection.source}`, 'warn');
+        }
+      });
+      
+      if (collections.length !== uniqueCollections.length) {
+        this.log(`Filtered out ${collections.length - uniqueCollections.length} duplicate collections`, 'warn');
+      }
+
+      // Apply pagination
+      const result = this._paginateCollections(uniqueCollections, page, limit);
+
+      // Update cache if appropriate
+      if (!tag && !artist) {
+        this._updateCache(result);
+      }
+
+      // Emit collections loaded event
+      eventBus.emit(EVENTS.COLLECTIONS_LOADED || 'collections:loaded', {
+        count: result.data.length,
+        useCache,
+        fromCache: false,
+        filters: { tag, artist, source },
+        timestamp: Date.now()
+      });
+
+      return result;
+    } catch (error) {
+      this._handleError('getCollections', error, options);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
   }
-}
+
+  /**
+   * Get a specific collection by ID with its tracks
+   * @param {string} id - Collection ID
+   * @param {boolean} [useCache=true] - Use cached data if possible
+   * @param {Object} [options] - Additional options
+   * @param {string} [options.source] - Override source configuration
+   * @returns {Promise<Object>} Collection data with tracks
+   */
+  async getCollection(id, useCache = true, options = {}) {
+    if (!id) {
+      const error = 'Collection ID is required';
+      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+        id,
+        error,
+        timestamp: Date.now()
+      });
+      throw new Error(error);
+    }
+  
+    // Emit collection fetch start event
+    eventBus.emit(EVENTS.COLLECTION_SELECTED || 'collection:fetchStart', {
+      id,
+      useCache,
+      timestamp: Date.now()
+    });
+  
+    // Determine which sources to try based on configuration and options
+    const sourcesToTry = [];
+    
+    if (options && options.source) {
+      // Explicit source in options overrides config
+      sourcesToTry.push(options.source);
+      // Allow blob operations if blob is explicitly requested
+      this._forceBlobFetch = (options.source === 'blob');
+    } else {
+      // Use configured source with appropriate fallbacks
+      const configSource = this.config.collectionSource;
+      
+      // Make source handling very explicit
+      if (configSource === 'local') {
+        sourcesToTry.push('local');
+        sourcesToTry.push('local-folder');
+        // Add fallback to blob if enabled
+        if (this.config.fallbackToBlob) {
+          sourcesToTry.push('blob');
+          this._forceBlobFetch = true;
+        } else {
+          this._forceBlobFetch = false;
+        }
+      } else if (configSource === 'blob') {
+        sourcesToTry.push('blob');
+        this._forceBlobFetch = true;
+        // Add fallback to local if enabled
+        if (this.config.fallbackToLocal) {
+          sourcesToTry.push('local');
+          sourcesToTry.push('local-folder');
+        }
+      } else if (configSource === 'local-folder') {
+        sourcesToTry.push('local-folder');
+        this._forceBlobFetch = false;
+      } else {
+        // For unknown sources, default to local-folder
+        sourcesToTry.push('local-folder');
+        this._forceBlobFetch = false;
+      }
+    }
+    
+    this.log(`Trying to fetch collection ${id} from sources: ${sourcesToTry.join(', ')}`);
+  
+    try {
+      // Try each source in the determined order
+      for (const source of sourcesToTry) {
+        try {
+          if (!this.sourceHandlers[source]) {
+            this.log(`Source handler for ${source} not found, skipping`, 'warn');
+            continue;
+          }
+          
+          const result = await this.sourceHandlers[source].getCollection(id, useCache);
+          if (result && result.success) {
+            this.log(`Successfully loaded collection ${id} from ${source}`);
+            // Reset the force flag after successful fetch
+            this._forceBlobFetch = false;
+            return result;
+          }
+        } catch (error) {
+          // Just log and continue to the next source
+          this.log(`Collection ${id} not found in ${source}: ${error.message}`, 'info');
+        }
+      }
+  
+      // Reset the force flag if all sources failed
+      this._forceBlobFetch = false;
+  
+      // If we get here, collection was not found in any source
+      const error = `Collection with ID '${id}' not found in any configured storage location`;
+      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:notFound', {
+        id,
+        error,
+        timestamp: Date.now()
+      });
+  
+      return {
+        success: false,
+        error
+      };
+    } catch (error) {
+      // Reset the force flag on error
+      this._forceBlobFetch = false;
+      throw error;
+    }
+  }
+
 
 /**
  * Check for duplicate collection IDs in the cache
@@ -1009,57 +1171,6 @@ checkForDuplicateIds() {
   
   return duplicates;
 }
-
-  /**
-   * Get a specific collection by ID with its tracks
-   * @param {string} id - Collection ID
-   * @param {boolean} [useCache=true] - Use cached data if possible
-   * @returns {Promise<Object>} Collection data with tracks
-   */
-  async getCollection(id, useCache = true) {
-    if (!id) {
-      const error = 'Collection ID is required';
-      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-        id,
-        error,
-        timestamp: Date.now()
-      });
-      throw new Error(error);
-    }
-
-    // Emit collection fetch start event
-    eventBus.emit(EVENTS.COLLECTION_SELECTED || 'collection:fetchStart', {
-      id,
-      useCache,
-      timestamp: Date.now()
-    });
-
-    // Try each source in order (local, local-folder, blob)
-    for (const source of ['local', 'local-folder', 'blob']) {
-      try {
-        const result = await this.sourceHandlers[source].getCollection(id, useCache);
-        if (result && result.success) {
-          return result;
-        }
-      } catch (error) {
-        // Just log and continue to the next source
-        this.log(`Collection ${id} not found in ${source}: ${error.message}`, 'info');
-      }
-    }
-
-    // If we get here, collection was not found in any source
-    const error = `Collection with ID '${id}' not found in any storage location`;
-    eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:notFound', {
-      id,
-      error,
-      timestamp: Date.now()
-    });
-
-    return {
-      success: false,
-      error
-    };
-  }
 
 
  /**
