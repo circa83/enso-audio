@@ -1,18 +1,15 @@
-// src/components/Player.js
+// src/components/audio/Player.js
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudio } from '../../hooks/useAudio';
 import { useTimeline } from '../../hooks/useTimeline';
 import { useCollection } from '../../hooks/useCollection';
-import { useVolume } from '../../hooks/useVolume';
-import { useLayer, LAYER_TYPES } from '../../hooks/useLayer'; // Import our new hook
+import { useLayer, LAYER_TYPES } from '../../hooks/useLayer'; 
 import CollapsibleSection from '../common/CollapsibleSection';
 import LayerControl from './LayerControl';
 import SessionTimer from './SessionTimer';
-import SessionSettings from './SessionSettings';
 import PlayerControlPanel from './PlayerControlPanel';
 import styles from '../../styles/pages/Player.module.css';
 import eventBus from '../../services/EventBus';
-import { useRouter } from 'next/router';
 
 /**
  * Main Player component for Ensō Audio
@@ -24,7 +21,7 @@ const Player = () => {
   
   // 1. Core audio functionality
   const { 
-    playback,              // Play/pause controls
+    playback              // Play/pause controls
   } = useAudio();
   
   // 2. Timeline functionality
@@ -34,36 +31,17 @@ const Player = () => {
     progress: timelineProgress         // If needed for visualization
   } = useTimeline();
   
-  // 3. Collection data
+  // 3. Collection data - minimal reference for UI elements only
   const {
     currentCollection,
     isLoading: loadingCollection,
-    error: collectionError,
-    formatForPlayer, 
-    getCollection
+    error: collectionError
   } = useCollection();
   
-  // 4. Volume control
+  // 4. Layer management - only get what we need at the Player level
   const {
-    volumes: layerVolumes,   // Current volumes per layer  
-    setVolume               // Set volume for a layer
-  } = useVolume();
-  
-  // 5. Layer management (new)
-  const {
-    layerList,              // List of all layer names
-    availableTracks,        // Available tracks per layer
-    activeTracks,           // Currently active track per layer
-    getTracksForLayer,      // Get tracks for a specific layer
-    changeTrack,            // Change active track with crossfade
-    isLayerMuted,           // Check if layer is muted
-    toggleMute,             // Toggle mute state for a layer
-    registerCollection      // Register a collection with layers
+    layerList              // List of all layer names to render controls
   } = useLayer();
-
-    // 6. Get collection ID from URL query parameter
-    const router = useRouter();
-    const { collection: collectionId } = router.query;
   
   // Local state (same as before)
   const [sessionDuration, setSessionDuration] = useState(1 * 60 * 1000);
@@ -71,21 +49,11 @@ const Player = () => {
   const [debugPanelVisible, setDebugPanelVisible] = useState(false);
   const timelineComponentRef = useRef(null);
   
-  // Import/Export state (preserved from original)
-  const [isImporting, setIsImporting] = useState(false);
-  const [importText, setImportText] = useState('');
-  const [importError, setImportError] = useState(null);
-  const fileInputRef = useRef(null);
-  
   // Track previous playback state (preserved from original)
   const wasPlaying = useRef(playback.isPlaying);
-  const lastDurationRef = useRef(sessionDuration);
-  const lastTransitionRef = useRef(transitionDuration);
   const preventUpdateCycle = useRef(false);
   const settingsInitialized = useRef(false);
 
-
- 
   // Update wasPlaying ref when playback changes
   useEffect(() => {
     wasPlaying.current = playback.isPlaying;
@@ -113,7 +81,7 @@ const Player = () => {
     }
   }, [sessionDuration, transitionDuration, setTimelineDuration, setTimelineTransitionDuration]);
 
-  // Listen for external timeline settings updates (using EventBus instead of direct listeners)
+  // Listen for external timeline settings updates
   useEffect(() => {
     const handleExternalUpdate = (data) => {
       if (preventUpdateCycle.current) {
@@ -139,7 +107,6 @@ const Player = () => {
       }
     };
     
-    // Use EventBus instead of direct window events
     eventBus.on('timeline-settings-update', handleExternalUpdate);
     eventBus.on('sessionSettings-update', handleExternalUpdate);
     
@@ -149,8 +116,7 @@ const Player = () => {
     };
   }, []);
 
-
-  // Handle duration change - now uses the timeline hook
+  // Handle duration change
   const handleDurationChange = useCallback((newDuration) => {
     if (preventUpdateCycle.current) {
       console.log('Prevented recursive duration update:', newDuration);
@@ -163,7 +129,7 @@ const Player = () => {
     settingsInitialized.current = true;
   }, [setTimelineDuration]);
 
-  // Handle transition duration change - now uses the timeline hook
+  // Handle transition duration change
   const handleTransitionDurationChange = useCallback((newDuration) => {
     if (preventUpdateCycle.current) {
       console.log('Prevented recursive transition update:', newDuration);
@@ -176,68 +142,37 @@ const Player = () => {
     settingsInitialized.current = true;
   }, [setTimelineTransitionDuration]);
 
- 
-
-
-  // Handle track change from layer control
-  const handleTrackChange = useCallback((layer, trackId) => {
-    console.log(`[Player] Changing track for ${layer} to ${trackId}`);
-    
-    // Use our layer management to handle the crossfade
-    changeTrack(layer, trackId, {
-      duration: transitionDuration,
-      onComplete: (success) => {
-        if (success) {
-          console.log(`[Player] Successfully changed ${layer} track to ${trackId}`);
-        } else {
-          console.error(`[Player] Failed to change ${layer} track to ${trackId}`);
-        }
+  // Toggle debug panel visibility
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ctrl+Shift+D to toggle debug panel
+      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        e.preventDefault();
+        setDebugPanelVisible(prev => !prev);
+        console.log('Debug panel toggled');
       }
-    });
-  }, [changeTrack, transitionDuration]);
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
-  // Handle mute toggle from layer control
-  const handleMuteToggle = useCallback((layer) => {
-    console.log(`[Player] Toggling mute for ${layer}`);
-    toggleMute(layer);
-  }, [toggleMute]);
-
-
-  // Render audio layer controls - updated to use our layer management
+  // Simplified render for layer controls
   const renderLayerControls = useCallback(() => {
     return (
       <div className={styles.layerControlsContent}>
-        {layerList.map(layer => {
-          const tracks = getTracksForLayer(layer);
-          const activeTrackId = activeTracks[layer];
-          
-          return (
-            <LayerControl
-              key={layer}
-              label={layer.charAt(0).toUpperCase() + layer.slice(1)}
-              layer={layer}
-              tracks={tracks}
-              activeTrackId={activeTrackId}
-              volume={layerVolumes?.[layer] || 0}
-              isMuted={isLayerMuted(layer)}
-              onVolumeChange={(value) => setVolume(layer, value)}
-              onTrackChange={(trackId) => handleTrackChange(layer, trackId)}
-              onMuteToggle={() => handleMuteToggle(layer)}
-            />
-          );
-        })}
+        {layerList.map(layer => (
+          <LayerControl
+            key={layer}
+            layer={layer}
+          />
+        ))}
       </div>
     );
-  }, [
-    layerList,
-    getTracksForLayer,
-    activeTracks,
-    layerVolumes,
-    isLayerMuted,
-    setVolume,
-    handleTrackChange,
-    handleMuteToggle
-  ]);
+  }, [layerList]);
 
   return (
     <div className={styles.simplePlayer}>
@@ -274,7 +209,7 @@ const Player = () => {
         {renderLayerControls()}
       </CollapsibleSection>
       
-      {/* Session Timer - would likely need timeline progress */}
+      {/* Session Timer */}
       <SessionTimer />
       
       {debugPanelVisible && (
@@ -284,8 +219,6 @@ const Player = () => {
             {JSON.stringify({
               playbackActive: playback.isPlaying,
               layers: Object.keys(LAYER_TYPES).length,
-              activeTracks,
-              volumes: layerVolumes,
               collection: currentCollection ? {
                 id: currentCollection.id,
                 name: currentCollection.name

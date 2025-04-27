@@ -5,7 +5,7 @@
  * Handles fetching, filtering, and processing collection data
  */
 import eventBus, { EVENTS } from './EventBus';
-import AppConfig from '../config/appConfig';  
+import AppConfig from '../config/appConfig';
 
 class CollectionService {
   /**
@@ -38,6 +38,7 @@ class CollectionService {
     this.lastCacheTime = 0;
     this.pendingRequests = new Map();
     this.localCollections = new Map(); // Storage for local collections
+    this.errorLog = []; // Initialize error log array
     this.sourceHandlers = this._initializeSourceHandlers();
 
     this.log('CollectionService initialized');
@@ -191,14 +192,14 @@ class CollectionService {
    * @returns {Promise<string[]>} Array of collection folder names
    */
   async _getBlobCollectionFolders() {
-     // IMPORTANT: Skip blob operations entirely if not using blob source
-  if (this.config.collectionSource !== 'blob' && 
-    !this.config.fallbackToBlob &&
-    // Check if this was explicitly requested (for specific API calls)
-    !this._forceBlobFetch) {
-  this.log('Skipping blob fetch - not using blob source', 'info');
-  return [];
-}
+    // IMPORTANT: Skip blob operations entirely if not using blob source
+    if (this.config.collectionSource !== 'blob' &&
+      !this.config.fallbackToBlob &&
+      // Check if this was explicitly requested (for specific API calls)
+      !this._forceBlobFetch) {
+      this.log('Skipping blob fetch - not using blob source', 'info');
+      return [];
+    }
 
     try {
       this.log('Fetching blob collections');
@@ -370,51 +371,51 @@ class CollectionService {
     return queryString ? `?${queryString}` : '';
   }
 
-/**
- * Format URL paths for collections and tracks
- * @private
- * @param {string} url - Original URL or path (should be relative)
- * @param {string} collectionId - Collection ID for local folder paths
- * @param {string} [source='blob'] - Source type: 'blob', 'local', or 'local-folder'
- * @returns {string} Formatted URL
- */
-_formatUrl(url, collectionId, source = 'blob') {
-  if (!url) return null;
+  /**
+   * Format URL paths for collections and tracks
+   * @private
+   * @param {string} url - Original URL or path (should be relative)
+   * @param {string} collectionId - Collection ID for local folder paths
+   * @param {string} [source='blob'] - Source type: 'blob', 'local', or 'local-folder'
+   * @returns {string} Formatted URL
+   */
+  _formatUrl(url, collectionId, source = 'blob') {
+    if (!url) return null;
 
-  // For logging/debugging
-  const originalUrl = url;
+    // For logging/debugging
+    const originalUrl = url;
 
-  // Already an absolute URL
-  if (url.startsWith('http')) return url;
-  
-  // Remove any leading slash from the URL for consistency
-  const relativePath = url.startsWith('/') ? url.substring(1) : url;
-  
-  // Check if URL already contains collections/[collectionId]
-  const collectionPathRegex = new RegExp(`^(collections|collection)/${collectionId}/`, 'i');
-  if (collectionPathRegex.test(relativePath)) {
-    // URL already has the collections path, normalize it
-    this.log(`URL already contains collections path: ${url}`, 'debug');
-    return `/${relativePath}`;
+    // Already an absolute URL
+    if (url.startsWith('http')) return url;
+
+    // Remove any leading slash from the URL for consistency
+    const relativePath = url.startsWith('/') ? url.substring(1) : url;
+
+    // Check if URL already contains collections/[collectionId]
+    const collectionPathRegex = new RegExp(`^(collections|collection)/${collectionId}/`, 'i');
+    if (collectionPathRegex.test(relativePath)) {
+      // URL already has the collections path, normalize it
+      this.log(`URL already contains collections path: ${url}`, 'debug');
+      return `/${relativePath}`;
+    }
+
+    let result;
+    if (source === 'blob') {
+      // Format for blob storage
+      result = `${this.config.blobBaseUrl}/${relativePath}`;
+      this.log(`Formatted blob URL: ${originalUrl} → ${result}`, 'debug');
+    } else if (source === 'local-folder') {
+      // Format for local folder
+      result = `/collections/${collectionId}/${relativePath}`;
+      this.log(`Formatted local folder URL: ${originalUrl} → ${result}`, 'debug');
+    } else {
+      // Default formatting
+      result = `/${relativePath}`;
+      this.log(`Default URL formatting: ${originalUrl} → ${result}`, 'debug');
+    }
+
+    return result;
   }
-
-  let result;
-  if (source === 'blob') {
-    // Format for blob storage
-    result = `${this.config.blobBaseUrl}/${relativePath}`;
-    this.log(`Formatted blob URL: ${originalUrl} → ${result}`, 'debug');
-  } else if (source === 'local-folder') {
-    // Format for local folder
-    result = `/collections/${collectionId}/${relativePath}`;
-    this.log(`Formatted local folder URL: ${originalUrl} → ${result}`, 'debug');
-  } else {
-    // Default formatting
-    result = `/${relativePath}`;
-    this.log(`Default URL formatting: ${originalUrl} → ${result}`, 'debug');
-  }
-
-  return result;
-}
 
 
   /**
@@ -448,6 +449,21 @@ _formatUrl(url, collectionId, source = 'blob') {
       }
     };
   }
+
+  /**
+ * Get a collection from the cache
+ * @private
+ * @param {string} id - Collection ID
+ * @returns {Object|null} Collection or null if not found
+ */
+_getCollectionFromCache(id) {
+  if (!this.collectionsCache || !this.collectionsCache.data) {
+    return null;
+  }
+  
+  return this.collectionsCache.data.find(c => c.id === id) || null;
+}
+
   /**
    * Update the collections cache
    * @private
@@ -465,24 +481,56 @@ _formatUrl(url, collectionId, source = 'blob') {
     });
   }
 
-  /**
-   * Handle service errors
-   * @private
-   * @param {string} method - Method name where error occurred
-   * @param {Error} error - Error object
-   * @param {Object} [options] - Options that were being processed
-   */
-  _handleError(method, error, options = {}) {
-    this.log(`Error in ${method}: ${error.message}`, 'error');
-
-    // Emit error event
+/**
+ * Standardized error handler for collection service
+ * @private
+ * @param {string} operation - The operation that failed
+ * @param {Error} error - The error object
+ * @param {Object} context - Additional context for the error
+ */
+_handleError(operation, error, context = {}) {
+  const errorMessage = error.message || 'Unknown error';
+  this.log(`Error in ${operation}: ${errorMessage}`, 'error');
+  
+  // Emit appropriate error event
+  if (operation.includes('Collections') || operation === 'getCollections') {
+    // Plural operation
+    eventBus.emit(EVENTS.COLLECTIONS_ERROR || 'collections:error', {
+      operation,
+      error: errorMessage,
+      context,
+      timestamp: Date.now()
+    });
+  } else {
+    // Singular operation
     eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-      method,
-      error: error.message,
-      options,
+      operation,
+      id: context.id,
+      error: errorMessage,
+      context,
       timestamp: Date.now()
     });
   }
+  
+  // Initialize errorLog if it doesn't exist
+  if (!this.errorLog) {
+    this.errorLog = [];
+  }
+  
+  // Add to error log
+  this.errorLog.push({
+    operation,
+    error: errorMessage,
+    context,
+    timestamp: Date.now()
+  });
+  
+  // Keep error log from growing too large
+  if (this.errorLog.length > 50) {
+    this.errorLog.shift();
+  }
+}
+
 
   /**
    * Filter collections by tags, artist, or other criteria
@@ -662,152 +710,152 @@ _formatUrl(url, collectionId, source = 'blob') {
  * Load collections from public/collections directory
  * @returns {Promise<Array>} Array of collection objects
  */
-async loadPublicFolderCollections() {
-  try {
-    this.log('Loading collections from public/collections directory');
-    
-    // Emit loading event
-    eventBus.emit(EVENTS.COLLECTION_LOCAL_LOADING || 'collection:localLoading', {
-      source: 'public-folder',
-      timestamp: Date.now()
-    });
-
-    // First check if the index file exists to avoid 404 errors
+  async loadPublicFolderCollections() {
     try {
-      const checkResponse = await fetch('/collections/collections.json', { method: 'HEAD' });
-      if (!checkResponse.ok) {
-        // File doesn't exist - log it but don't treat as error
-        this.log('Collections collections.json not found, skipping local folder collections', 'info');
+      this.log('Loading collections from public/collections directory');
+
+      // Emit loading event
+      eventBus.emit(EVENTS.COLLECTION_LOCAL_LOADING || 'collection:localLoading', {
+        source: 'public-folder',
+        timestamp: Date.now()
+      });
+
+      // First check if the index file exists to avoid 404 errors
+      try {
+        const checkResponse = await fetch('/collections/collections.json', { method: 'HEAD' });
+        if (!checkResponse.ok) {
+          // File doesn't exist - log it but don't treat as error
+          this.log('Collections collections.json not found, skipping local folder collections', 'info');
+          return [];
+        }
+      } catch (e) {
+        // Fetch error for HEAD request means file doesn't exist
+        this.log('Unable to check collections collections.json, skipping local folder collections', 'info');
         return [];
       }
-    } catch (e) {
-      // Fetch error for HEAD request means file doesn't exist
-      this.log('Unable to check collections collections.json, skipping local folder collections', 'info');
-      return [];
-    }
-    
-    // Fetch the index file that contains metadata about all collections
-    const response = await fetch('/collections/collections.json');
-    
-    if (!response.ok) {
-      throw new Error(`Failed to load collections index: ${response.status}`);
-    }
-    
-    // Parse the JSON response
-    const collectionsData = await response.json();
-    
-    // Determine the structure of the data and extract collection info array
-    let collectionInfoArray;
-    
-    if (Array.isArray(collectionsData)) {
-      // Case 1: Data is already an array of collections
-      this.log('Collections JSON is an array format');
-      collectionInfoArray = collectionsData;
-    } else if (collectionsData.collections && Array.isArray(collectionsData.collections)) {
-      // Case 2: Data has a 'collections' property that is an array
-      this.log('Collections JSON has collections property');
-      collectionInfoArray = collectionsData.collections;
-    } else if (typeof collectionsData === 'object') {
-      // Case 3: Data is an object with collection IDs as keys
-      this.log('Collections JSON appears to be an object with collection IDs as keys');
-      collectionInfoArray = Object.entries(collectionsData).map(([id, data]) => ({
-        id,
-        ...data
-      }));
-    } else {
-      // No valid collections data found
-      this.log('No valid collections data found in collections.json', 'warn');
-      return [];
-    }
-    
-    if (!collectionInfoArray || collectionInfoArray.length === 0) {
-      this.log('No collections found in collections.json', 'info');
-      return [];
-    }
-    
-    // Process each collection in the array
-    const collections = await Promise.all(
-      collectionInfoArray.map(async (collectionInfo) => {
-        try {
-          // Skip if no ID is provided
-          if (!collectionInfo.id) {
-            this.log('Collection info missing ID, skipping', 'warn');
+
+      // Fetch the index file that contains metadata about all collections
+      const response = await fetch('/collections/collections.json');
+
+      if (!response.ok) {
+        throw new Error(`Failed to load collections index: ${response.status}`);
+      }
+
+      // Parse the JSON response
+      const collectionsData = await response.json();
+
+      // Determine the structure of the data and extract collection info array
+      let collectionInfoArray;
+
+      if (Array.isArray(collectionsData)) {
+        // Case 1: Data is already an array of collections
+        this.log('Collections JSON is an array format');
+        collectionInfoArray = collectionsData;
+      } else if (collectionsData.collections && Array.isArray(collectionsData.collections)) {
+        // Case 2: Data has a 'collections' property that is an array
+        this.log('Collections JSON has collections property');
+        collectionInfoArray = collectionsData.collections;
+      } else if (typeof collectionsData === 'object') {
+        // Case 3: Data is an object with collection IDs as keys
+        this.log('Collections JSON appears to be an object with collection IDs as keys');
+        collectionInfoArray = Object.entries(collectionsData).map(([id, data]) => ({
+          id,
+          ...data
+        }));
+      } else {
+        // No valid collections data found
+        this.log('No valid collections data found in collections.json', 'warn');
+        return [];
+      }
+
+      if (!collectionInfoArray || collectionInfoArray.length === 0) {
+        this.log('No collections found in collections.json', 'info');
+        return [];
+      }
+
+      // Process each collection in the array
+      const collections = await Promise.all(
+        collectionInfoArray.map(async (collectionInfo) => {
+          try {
+            // Skip if no ID is provided
+            if (!collectionInfo.id) {
+              this.log('Collection info missing ID, skipping', 'warn');
+              return null;
+            }
+
+            // Load the full collection data
+            const collectionResponse = await fetch(`/collections/${collectionInfo.id}/metadata.json`);
+
+            if (!collectionResponse.ok) {
+              this.log(`Error loading collection ${collectionInfo.id}`, 'warn');
+              return null;
+            }
+
+            const collection = await collectionResponse.json();
+
+            // Ensure collection has ID from the index
+            collection.id = collectionInfo.id;
+
+            // Add source information
+            collection.source = 'local-folder';
+
+            // Format URLs to be absolute if they are relative
+            if (collection.coverImage && !collection.coverImage.startsWith('http')) {
+              collection.coverImage = `/collections/${collectionInfo.id}/${collection.coverImage}`;
+            }
+
+            // Process tracks to ensure their URLs are correct
+            if (collection.tracks && Array.isArray(collection.tracks)) {
+              collection.tracks.forEach(track => {
+                if (track.audioUrl && !track.audioUrl.startsWith('http')) {
+                  track.audioUrl = `/collections/${collectionInfo.id}/${track.audioUrl}`;
+                }
+
+                // Process variations if they exist
+                if (track.variations && Array.isArray(track.variations)) {
+                  track.variations.forEach(variation => {
+                    if (variation.audioUrl && !variation.audioUrl.startsWith('http')) {
+                      variation.audioUrl = `/collections/${collectionInfo.id}/${variation.audioUrl}`;
+                    }
+                  });
+                }
+              });
+            }
+
+            return collection;
+          } catch (error) {
+            this.log(`Error processing collection ${collectionInfo.id}: ${error.message}`, 'error');
             return null;
           }
-          
-          // Load the full collection data
-          const collectionResponse = await fetch(`/collections/${collectionInfo.id}/metadata.json`);
-          
-          if (!collectionResponse.ok) {
-            this.log(`Error loading collection ${collectionInfo.id}`, 'warn');
-            return null;
-          }
-          
-          const collection = await collectionResponse.json();
-          
-          // Ensure collection has ID from the index
-          collection.id = collectionInfo.id;
-          
-          // Add source information
-          collection.source = 'local-folder';
-          
-          // Format URLs to be absolute if they are relative
-          if (collection.coverImage && !collection.coverImage.startsWith('http')) {
-            collection.coverImage = `/collections/${collectionInfo.id}/${collection.coverImage}`;
-          }
-          
-          // Process tracks to ensure their URLs are correct
-          if (collection.tracks && Array.isArray(collection.tracks)) {
-            collection.tracks.forEach(track => {
-              if (track.audioUrl && !track.audioUrl.startsWith('http')) {
-                track.audioUrl = `/collections/${collectionInfo.id}/${track.audioUrl}`;
-              }
-              
-              // Process variations if they exist
-              if (track.variations && Array.isArray(track.variations)) {
-                track.variations.forEach(variation => {
-                  if (variation.audioUrl && !variation.audioUrl.startsWith('http')) {
-                    variation.audioUrl = `/collections/${collectionInfo.id}/${variation.audioUrl}`;
-                  }
-                });
-              }
-            });
-          }
-          
-          return collection;
-        } catch (error) {
-          this.log(`Error processing collection ${collectionInfo.id}: ${error.message}`, 'error');
-          return null;
-        }
-      })
-    );
-    
-    // Filter out any null results (failed loads)
-    const validCollections = collections.filter(collection => collection !== null);
-    
-    this.log(`Successfully loaded ${validCollections.length} collections from public folder`);
-    
-    // Emit success event
-    eventBus.emit(EVENTS.COLLECTION_LOCAL_LOADED || 'collection:localLoaded', {
-      count: validCollections.length,
-      source: 'public-folder',
-      timestamp: Date.now()
-    });
-    
-    return validCollections;
-  } catch (error) {
-    this.log(`Error loading public folder collections: ${error.message}`, 'error');
-    
-    // Emit error event
-    eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-      source: 'public-folder',
-      error: error.message,
-      timestamp: Date.now()
-    });
-    
-    return [];
+        })
+      );
+
+      // Filter out any null results (failed loads)
+      const validCollections = collections.filter(collection => collection !== null);
+
+      this.log(`Successfully loaded ${validCollections.length} collections from public folder`);
+
+      // Emit success event
+      eventBus.emit(EVENTS.COLLECTION_LOCAL_LOADED || 'collection:localLoaded', {
+        count: validCollections.length,
+        source: 'public-folder',
+        timestamp: Date.now()
+      });
+
+      return validCollections;
+    } catch (error) {
+      this.log(`Error loading public folder collections: ${error.message}`, 'error');
+
+      // Emit error event
+      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+        source: 'public-folder',
+        error: error.message,
+        timestamp: Date.now()
+      });
+
+      return [];
+    }
   }
-}
 
 
   /**
@@ -898,279 +946,362 @@ async loadPublicFolderCollections() {
   }
 
   /**
-   * Get all collections with optional filtering
-   * @param {Object} [options] - Fetch options
-   * @param {boolean} [options.useCache=true] - Use cached data if available
-   * @param {string} [options.tag] - Filter by tag
-   * @param {string} [options.artist] - Filter by artist name
-   * @param {number} [options.limit] - Maximum number of results
-   * @param {number} [options.page] - Page number for pagination
-   * @param {string} [options.source] - Source override: 'all', 'blob', 'local' or 'local-folder'
-   * @returns {Promise<Object>} Collections data with pagination info
-   */
-  async getCollections(options = {}) {
-    const {
-      useCache = true,
-      tag,
-      artist,
-      limit = 10,
-      page = 1,
-      source // If source is provided in options, it overrides the config
-    } = options;
+ * Get all collections with optional filtering
+ * @param {Object} [options] - Fetch options
+ * @param {boolean} [options.useCache=true] - Use cached data if available
+ * @param {string} [options.tag] - Filter by tag
+ * @param {string} [options.artist] - Filter by artist name
+ * @param {number} [options.limit] - Maximum number of results
+ * @param {number} [options.page] - Page number for pagination
+ * @param {string} [options.source] - Source override: 'all', 'blob', 'local' or 'local-folder'
+ * @returns {Promise<Object>} Collections data with pagination info
+ */
+async getCollections(options = {}) {
+  const {
+    useCache = true,
+    tag,
+    artist,
+    limit = 10,
+    page = 1,
+    source // If source is provided in options, it overrides the config
+  } = options;
 
-    // Emit fetch start event
-    eventBus.emit(EVENTS.COLLECTIONS_LOADED || 'collections:loadStart', {
-      options,
-      useCache,
-      timestamp: Date.now()
-    });
+  // Emit fetch start event - using consistent 'collections:loadStart' event
+  eventBus.emit(EVENTS.COLLECTIONS_LOAD_START || 'collections:loadStart', {
+    options,
+    useCache,
+    timestamp: Date.now()
+  });
 
-    try {
-      // Initialize collections array
-      let collections = [];
+  try {
+    // Initialize collections array
+    let collections = [];
 
-      // Determine which sources to query based on configuration and options
-      let sourcesToQuery = [];
-      
-      if (source === 'all') {
-        // Only with explicit 'all' do we query every source
-        this.log('Explicit request for all sources', 'info');
-        sourcesToQuery = ['blob', 'local', 'local-folder'];
-        // Allow blob operations for this request only
-        this._forceBlobFetch = true;
-      } else if (source) {
-        // Explicit source in options overrides config
-        this.log(`Using explicit source override: ${source}`, 'info');
-        sourcesToQuery = [source];
-        // Allow blob operations if blob is explicitly requested
-        this._forceBlobFetch = (source === 'blob');
-      } else {
-        // Use configured source
-        const configSource = this.config.collectionSource;
-        this.log(`Using configured collection source: ${configSource}`, 'info');
-        
-        // Make source handling very explicit
-        if (configSource === 'local') {
-          sourcesToQuery = ['local', 'local-folder'];
-          this._forceBlobFetch = false;
-        } else if (configSource === 'blob') {
-          sourcesToQuery = ['blob'];
-          this._forceBlobFetch = true;
-        } else if (configSource === 'local-folder') {
-          sourcesToQuery = ['local-folder'];
-          this._forceBlobFetch = false;
-        } else {
-          // Default to local-folder if unknown source
-          sourcesToQuery = ['local-folder'];
-          this._forceBlobFetch = false;
-        }
-      }
-
-      this.log(`Fetching collections from sources: ${sourcesToQuery.join(', ')}`);
-
-      // Get collections from each source
-      for (const sourceType of sourcesToQuery) {
-        if (this.sourceHandlers[sourceType]) {
-          const sourceCollections = await this.sourceHandlers[sourceType].getCollections(options);
-          collections = [...collections, ...sourceCollections];
-        }
-      }
-
-      // Apply filtering
-      if (tag || artist) {
-        collections = this._filterCollections(collections, { tag, artist });
-      }
-
-      // Deduplicate collections by ID to prevent React key issues
-      const uniqueCollections = [];
-      const seenIds = new Set();
-      
-      collections.forEach(collection => {
-        if (!seenIds.has(collection.id)) {
-          seenIds.add(collection.id);
-          uniqueCollections.push(collection);
-        } else {
-          this.log(`Found duplicate collection ID: ${collection.id} (${collection.name}) from source ${collection.source}`, 'warn');
-        }
-      });
-      
-      if (collections.length !== uniqueCollections.length) {
-        this.log(`Filtered out ${collections.length - uniqueCollections.length} duplicate collections`, 'warn');
-      }
-
-      // Apply pagination
-      const result = this._paginateCollections(uniqueCollections, page, limit);
-
-      // Update cache if appropriate
-      if (!tag && !artist) {
-        this._updateCache(result);
-      }
-
-      // Emit collections loaded event
-      eventBus.emit(EVENTS.COLLECTIONS_LOADED || 'collections:loaded', {
-        count: result.data.length,
-        useCache,
-        fromCache: false,
-        filters: { tag, artist, source },
-        timestamp: Date.now()
-      });
-
-      return result;
-    } catch (error) {
-      this._handleError('getCollections', error, options);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  }
-
-  /**
-   * Get a specific collection by ID with its tracks
-   * @param {string} id - Collection ID
-   * @param {boolean} [useCache=true] - Use cached data if possible
-   * @param {Object} [options] - Additional options
-   * @param {string} [options.source] - Override source configuration
-   * @returns {Promise<Object>} Collection data with tracks
-   */
-  async getCollection(id, useCache = true, options = {}) {
-    if (!id) {
-      const error = 'Collection ID is required';
-      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-        id,
-        error,
-        timestamp: Date.now()
-      });
-      throw new Error(error);
-    }
-  
-    // Emit collection fetch start event
-    eventBus.emit(EVENTS.COLLECTION_SELECTED || 'collection:fetchStart', {
-      id,
-      useCache,
-      timestamp: Date.now()
-    });
-  
-    // Determine which sources to try based on configuration and options
-    const sourcesToTry = [];
+    // Determine which sources to query based on configuration and options
+    let sourcesToQuery = [];
     
-    if (options && options.source) {
+    if (source === 'all') {
+      // Only with explicit 'all' do we query every source
+      this.log('Explicit request for all sources', 'info');
+      sourcesToQuery = ['blob', 'local', 'local-folder'];
+      // Allow blob operations for this request only
+      this._forceBlobFetch = true;
+    } else if (source) {
       // Explicit source in options overrides config
-      sourcesToTry.push(options.source);
+      this.log(`Using explicit source override: ${source}`, 'info');
+      sourcesToQuery = [source];
       // Allow blob operations if blob is explicitly requested
-      this._forceBlobFetch = (options.source === 'blob');
+      this._forceBlobFetch = (source === 'blob');
     } else {
-      // Use configured source with appropriate fallbacks
+      // Use configured source
       const configSource = this.config.collectionSource;
+      this.log(`Using configured collection source: ${configSource}`, 'info');
       
       // Make source handling very explicit
       if (configSource === 'local') {
-        sourcesToTry.push('local');
-        sourcesToTry.push('local-folder');
-        // Add fallback to blob if enabled
-        if (this.config.fallbackToBlob) {
-          sourcesToTry.push('blob');
-          this._forceBlobFetch = true;
-        } else {
-          this._forceBlobFetch = false;
-        }
+        sourcesToQuery = ['local', 'local-folder'];
+        this._forceBlobFetch = false;
       } else if (configSource === 'blob') {
-        sourcesToTry.push('blob');
+        sourcesToQuery = ['blob'];
         this._forceBlobFetch = true;
-        // Add fallback to local if enabled
-        if (this.config.fallbackToLocal) {
-          sourcesToTry.push('local');
-          sourcesToTry.push('local-folder');
-        }
       } else if (configSource === 'local-folder') {
-        sourcesToTry.push('local-folder');
+        sourcesToQuery = ['local-folder'];
         this._forceBlobFetch = false;
       } else {
-        // For unknown sources, default to local-folder
-        sourcesToTry.push('local-folder');
+        // Default to local-folder if unknown source
+        sourcesToQuery = ['local-folder'];
         this._forceBlobFetch = false;
       }
     }
-    
-    this.log(`Trying to fetch collection ${id} from sources: ${sourcesToTry.join(', ')}`);
-  
-    try {
-      // Try each source in the determined order
-      for (const source of sourcesToTry) {
-        try {
-          if (!this.sourceHandlers[source]) {
-            this.log(`Source handler for ${source} not found, skipping`, 'warn');
-            continue;
-          }
-          
-          const result = await this.sourceHandlers[source].getCollection(id, useCache);
-          if (result && result.success) {
-            this.log(`Successfully loaded collection ${id} from ${source}`);
-            // Reset the force flag after successful fetch
-            this._forceBlobFetch = false;
-            return result;
-          }
-        } catch (error) {
-          // Just log and continue to the next source
-          this.log(`Collection ${id} not found in ${source}: ${error.message}`, 'info');
-        }
+
+    this.log(`Fetching collections from sources: ${sourcesToQuery.join(', ')}`);
+
+    // Get collections from each source
+    for (const sourceType of sourcesToQuery) {
+      if (this.sourceHandlers[sourceType]) {
+        const sourceCollections = await this.sourceHandlers[sourceType].getCollections(options);
+        collections = [...collections, ...sourceCollections];
       }
-  
-      // Reset the force flag if all sources failed
-      this._forceBlobFetch = false;
-  
-      // If we get here, collection was not found in any source
-      const error = `Collection with ID '${id}' not found in any configured storage location`;
-      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:notFound', {
-        id,
-        error,
-        timestamp: Date.now()
-      });
-  
-      return {
-        success: false,
-        error
-      };
-    } catch (error) {
-      // Reset the force flag on error
-      this._forceBlobFetch = false;
-      throw error;
     }
+
+    // Apply filtering
+    if (tag || artist) {
+      collections = this._filterCollections(collections, { tag, artist });
+    }
+
+    // Deduplicate collections by ID to prevent React key issues
+    const uniqueCollections = [];
+    const seenIds = new Set();
+    
+    collections.forEach(collection => {
+      if (!seenIds.has(collection.id)) {
+        seenIds.add(collection.id);
+        uniqueCollections.push(collection);
+      } else {
+        this.log(`Found duplicate collection ID: ${collection.id} (${collection.name}) from source ${collection.source}`, 'warn');
+      }
+    });
+    
+    if (collections.length !== uniqueCollections.length) {
+      this.log(`Filtered out ${collections.length - uniqueCollections.length} duplicate collections`, 'warn');
+    }
+
+    // Apply pagination
+    const result = this._paginateCollections(uniqueCollections, page, limit);
+
+    // Update cache if appropriate
+    if (!tag && !artist) {
+      this._updateCache(result);
+    }
+
+    // Emit collections loaded event - using 'collections:loaded' (plural) consistently
+    eventBus.emit(EVENTS.COLLECTIONS_LOADED || 'collections:loaded', {
+      count: result.data.length,
+      total: result.pagination.total,
+      page: result.pagination.page,
+      useCache,
+      fromCache: false,
+      filters: { tag, artist, source },
+      timestamp: Date.now()
+    });
+
+    return result;
+  } catch (error) {
+    this._handleError('getCollections', error, options);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+
+ /**
+ * Get a specific collection by ID with its tracks
+ * @param {string} id - Collection ID
+ * @param {boolean} [useCache=true] - Use cached data if possible
+ * @param {Object} [options] - Additional options
+ * @param {string} [options.source] - Override source configuration
+ * @returns {Promise<Object>} Collection data with tracks
+ */
+async getCollection(id, useCache = true, options = {}) {
+  if (!id) {
+    const error = 'Collection ID is required';
+    eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+      id,
+      error,
+      timestamp: Date.now()
+    });
+    throw new Error(error);
   }
 
-
-/**
- * Check for duplicate collection IDs in the cache
- * @returns {Array} Array of duplicate collections with their counts
- */
-checkForDuplicateIds() {
-  // This assumes you have the raw collection data accessible
-  const allCollections = this.collectionsCache?.data || [];
-  const idCounts = {};
-  const duplicates = [];
-  
-  allCollections.forEach(collection => {
-    idCounts[collection.id] = (idCounts[collection.id] || 0) + 1;
-    
-    if (idCounts[collection.id] > 1) {
-      duplicates.push({
-        id: collection.id,
-        name: collection.name,
-        source: collection.source,
-        count: idCounts[collection.id]
-      });
-    }
+  // Emit collection fetch start event - using 'collection:fetchStart' consistently
+  eventBus.emit(EVENTS.COLLECTION_FETCH_START || 'collection:fetchStart', {
+    id,
+    useCache,
+    timestamp: Date.now()
   });
   
-  if (duplicates.length > 0) {
-    this.log('[CollectionService] Found duplicate collection IDs:', 'warn');
-    duplicates.forEach(dup => {
-      this.log(`  - ID: ${dup.id}, Name: ${dup.name}, Count: ${dup.count}`, 'warn');
+  try {
+    // Check if collection exists in cache
+    if (useCache && this.collectionsCache && 
+        Date.now() - this.lastCacheTime < this.config.cacheDuration) {
+      const cachedCollection = this.collectionsCache.data.find(c => c.id === id);
+      if (cachedCollection) {
+        this.log(`Using cached data for collection: ${id}`);
+        
+        // Emit cache hit event
+        eventBus.emit(EVENTS.COLLECTION_CACHE_HIT || 'collection:cacheHit', {
+          id,
+          name: cachedCollection.name,
+          timestamp: Date.now()
+        });
+        
+        return { success: true, data: cachedCollection };
+      }
+    }
+
+    // Check for pending request
+    const cacheKey = `collection:${id}`;
+    if (this.pendingRequests.has(cacheKey)) {
+      this.log(`Using pending request for: ${id}`);
+      return this.pendingRequests.get(cacheKey);
+    }
+
+    // First verify this collection exists in blob storage if using blob source
+    if (this.config.collectionSource === 'blob' || options.source === 'blob') {
+      const blobFolders = await this._getBlobCollectionFolders();
+      if (!blobFolders.includes(id)) {
+        this.log(`Collection ${id} not found in Blob Storage`, 'warn');
+        
+        // Emit not found event
+        eventBus.emit(EVENTS.COLLECTION_NOT_FOUND || 'collection:notFound', {
+          id,
+          source: 'blob',
+          error: `Collection with ID '${id}' not found in storage`,
+          timestamp: Date.now()
+        });
+        
+        // If fallback is enabled, continue to other sources
+        if (!this.config.fallbackToLocal) {
+          return {
+            success: false,
+            error: `Collection with ID '${id}' not found in storage`
+          };
+        }
+      }
+    }
+
+    const endpoint = `${this.config.apiBasePath}/collections/${id}?bypassVerify=true`;
+    this.log(`Fetching collection from: ${endpoint}`);
+    
+    // Emit API fetch start
+    eventBus.emit(EVENTS.COLLECTION_API_FETCH_START || 'collection:apiFetchStart', {
+      id,
+      endpoint,
+      timestamp: Date.now()
     });
+
+    // Create request promise
+    const requestPromise = (async () => {
+      try {
+        const response = await fetch(endpoint);
+
+        if (!response.ok) {
+          const error = response.status === 404 
+            ? `Collection with ID '${id}' not found`
+            : `Failed to fetch collection: ${response.status} ${response.statusText}`;
+            
+          // Emit error event
+          eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+            id,
+            status: response.status,
+            error,
+            timestamp: Date.now()
+          });
+          
+          if (response.status === 404) {
+            return { success: false, error: `Collection with ID '${id}' not found` };
+          }
+
+          const errorText = await response.text();
+          throw new Error(`Failed to fetch collection: ${response.status} ${response.statusText}. ${errorText}`);
+        }
+
+        const data = await response.json();
+
+        if (!data.success || !data.data) {
+          const error = 'Invalid response format from collection API';
+          eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+            id,
+            error,
+            timestamp: Date.now()
+          });
+          throw new Error(error);
+        }
+
+        // Verify collection has valid files in blob storage
+        this.log(`Verifying blob files for collection: ${id}`);
+        const filesExist = await this._verifyBlobFiles(data.data);
+
+        if (!filesExist) {
+          this.log(`Some audio files for collection ${id} are not accessible`, 'warn');
+          data.warning = "Some audio files may not be accessible";
+          
+          // Emit warning event
+          eventBus.emit(EVENTS.COLLECTION_FILE_WARNING || 'collection:fileWarning', {
+            id,
+            warning: "Some audio files may not be accessible",
+            timestamp: Date.now()
+          });
+        }
+
+        // Emit loaded event - using 'collection:loaded' (singular) consistently
+        eventBus.emit(EVENTS.COLLECTION_LOADED || 'collection:loaded', {
+          id,
+          collection: data.data,
+          name: data.data.name,
+          trackCount: data.data.tracks?.length || 0,
+          timestamp: Date.now()
+        });
+        
+        return data;
+      } catch (error) {
+        this.log(`Error fetching collection: ${error.message}`, 'error');
+        
+        // Emit error event if not already emitted
+        if (!error.message.includes('Failed to fetch collection:') && 
+            !error.message.includes('Invalid response format')) {
+          eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+            id,
+            error: error.message,
+            timestamp: Date.now()
+          });
+        }
+        
+        throw error;
+      } finally {
+        // Remove from pending requests
+        this.pendingRequests.delete(cacheKey);
+      }
+    })();
+
+    // Store promise in pending requests
+    this.pendingRequests.set(cacheKey, requestPromise);
+
+    return requestPromise;
+  } catch (error) {
+    if (!this.errorLog) {
+      this.errorLog = [];
+    }
+    
+    this.log(`Error in getCollection: ${error.message}`, 'error');
+    eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+      id,
+      error: error.message,
+      timestamp: Date.now()
+    });
+    
+    return {
+      success: false,
+      error: error.message
+    };
   }
-  
-  return duplicates;
 }
+
+
+  /**
+   * Check for duplicate collection IDs in the cache
+   * @returns {Array} Array of duplicate collections with their counts
+   */
+  checkForDuplicateIds() {
+    // This assumes you have the raw collection data accessible
+    const allCollections = this.collectionsCache?.data || [];
+    const idCounts = {};
+    const duplicates = [];
+
+    allCollections.forEach(collection => {
+      idCounts[collection.id] = (idCounts[collection.id] || 0) + 1;
+
+      if (idCounts[collection.id] > 1) {
+        duplicates.push({
+          id: collection.id,
+          name: collection.name,
+          source: collection.source,
+          count: idCounts[collection.id]
+        });
+      }
+    });
+
+    if (duplicates.length > 0) {
+      this.log('[CollectionService] Found duplicate collection IDs:', 'warn');
+      duplicates.forEach(dup => {
+        this.log(`  - ID: ${dup.id}, Name: ${dup.name}, Count: ${dup.count}`, 'warn');
+      });
+    }
+
+    return duplicates;
+  }
 
 
  /**
@@ -1220,7 +1351,7 @@ formatCollectionForPlayer(collection) {
       this.log(`Collection ${collection.id} has no tracks`, 'error');
       
       // Emit format error event
-      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:formatError', {
+      eventBus.emit(EVENTS.COLLECTION_FORMAT_ERROR || 'collection:formatError', {
         id: collection.id,
         error,
         timestamp: Date.now()
@@ -1230,7 +1361,6 @@ formatCollectionForPlayer(collection) {
     }
 
     let formattedTrackCount = 0;
-    const collectionPathPrefix = `/collections/${collection.id}/`;
 
     // Process tracks
     collection.tracks.forEach(track => {
@@ -1240,15 +1370,13 @@ formatCollectionForPlayer(collection) {
         return;
       }
 
-      // Normalize the audioUrl property
-      const audioUrl = track.audioUrl || track.path;
-      if (!audioUrl) {
-        this.log(`Track ${track.id} missing audioUrl/path`, 'warn');
+      if (!track.audioUrl) {
+        this.log(`Track ${track.id} missing audioUrl`, 'warn');
         return;
       }
 
-      // Get the layer folder from the track or determine it from the path
-      const layerFolder = track.layerFolder || this._getLayerFromFolder(audioUrl);
+      // Get the layer folder from the track
+      const layerFolder = track.layerFolder;
       if (!layerFolder) {
         this.log(`Track ${track.id} missing layerFolder`, 'warn');
         return;
@@ -1261,37 +1389,16 @@ formatCollectionForPlayer(collection) {
         return;
       }
 
-      // Format the full path from relative path - with duplication check
-      let fullAudioUrl;
-      if (audioUrl.startsWith('http')) {
-        // Already a full URL
-        fullAudioUrl = audioUrl;
-      } else {
-        // Check if the path already contains the collection prefix
-        const alreadyHasPrefix = audioUrl.startsWith(collectionPathPrefix) || 
-                                audioUrl.startsWith('/' + collectionPathPrefix) || 
-                                audioUrl.includes(collectionPathPrefix);
-                                
-        if (alreadyHasPrefix) {
-          // Path already has prefix, ensure it's properly formatted
-          if (audioUrl.startsWith('/')) {
-            fullAudioUrl = audioUrl;
-          } else {
-            fullAudioUrl = '/' + audioUrl;
-          }
-          this.log(`Audio URL already has collection prefix: ${fullAudioUrl}`, 'debug');
-        } else {
-          // Normal case - add the collection prefix
-          fullAudioUrl = collectionPathPrefix + (audioUrl.startsWith('/') ? audioUrl.substring(1) : audioUrl);
-          this.log(`Added collection prefix to audio URL: ${fullAudioUrl}`, 'debug');
-        }
-      }
+      // Format track for player with full Blob Storage URL if needed
+      const audioUrl = track.audioUrl.startsWith('http')
+        ? track.audioUrl
+        : `${this.config.blobBaseUrl}${track.audioUrl.startsWith('/') ? '' : '/'}${track.audioUrl}`;
 
-      // Format track for player with consistent path
+      // Use the original track ID without modification
       const formattedTrack = {
-        id: track.id, // Keep the original ID
+        id: track.id, // Don't modify the ID!
         name: track.title || track.name || `Track ${track.id}`,
-        path: fullAudioUrl, // Use the properly formatted full URL
+        path: audioUrl,
         layer: playerLayer // Use the player layer name
       };
 
@@ -1313,37 +1420,16 @@ formatCollectionForPlayer(collection) {
             return;
           }
 
-          // Format variation URL with full path - using same duplication check
-          let variationUrl;
-          if (variation.audioUrl.startsWith('http')) {
-            // Already a full URL
-            variationUrl = variation.audioUrl;
-          } else {
-            // Check if the path already contains the collection prefix
-            const alreadyHasPrefix = variation.audioUrl.startsWith(collectionPathPrefix) || 
-                                    variation.audioUrl.startsWith('/' + collectionPathPrefix) || 
-                                    variation.audioUrl.includes(collectionPathPrefix);
-                                    
-            if (alreadyHasPrefix) {
-              // Path already has prefix, ensure it's properly formatted
-              if (variation.audioUrl.startsWith('/')) {
-                variationUrl = variation.audioUrl;
-              } else {
-                variationUrl = '/' + variation.audioUrl;
-              }
-              this.log(`Variation URL already has collection prefix: ${variationUrl}`, 'debug');
-            } else {
-              // Normal case - add the collection prefix
-              variationUrl = collectionPathPrefix + (variation.audioUrl.startsWith('/') ? variation.audioUrl.substring(1) : variation.audioUrl);
-              this.log(`Added collection prefix to variation URL: ${variationUrl}`, 'debug');
-            }
-          }
+          // Format variation URL
+          const variationUrl = variation.audioUrl.startsWith('http')
+            ? variation.audioUrl
+            : `${this.config.blobBaseUrl}${variation.audioUrl.startsWith('/') ? '' : '/'}${variation.audioUrl}`;
 
           // Create variation track
           const variationTrack = {
             id: variation.id,
             name: variation.title || `${track.title || track.name || 'Track'} (Variation)`,
-            path: variationUrl, // Use the properly formatted full URL
+            path: variationUrl,
             layer: playerLayer // Use the same player layer name
           };
 
@@ -1359,36 +1445,14 @@ formatCollectionForPlayer(collection) {
       const error = 'No valid audio tracks found in this collection';
       this.log('No valid tracks found in collection', 'error');
       
-      // Emit format error event
-      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:formatError', {
+      // Emit format error event 
+      eventBus.emit(EVENTS.COLLECTION_FORMAT_ERROR || 'collection:formatError', {
         id: collection.id,
         error,
         timestamp: Date.now()
       });
+      
       throw new Error(error);
-    }
-
-    // Format cover image with consistent path - also with duplication check
-    let coverImageUrl = collection.coverImage;
-    if (coverImageUrl && !coverImageUrl.startsWith('http')) {
-      const collectionPathPrefix = `/collections/${collection.id}/`;
-      const alreadyHasPrefix = coverImageUrl.startsWith(collectionPathPrefix) || 
-                               coverImageUrl.startsWith('/' + collectionPathPrefix) || 
-                               coverImageUrl.includes(collectionPathPrefix);
-                               
-      if (alreadyHasPrefix) {
-        // Cover image already has prefix, ensure it's properly formatted
-        if (coverImageUrl.startsWith('/')) {
-          coverImageUrl = coverImageUrl;
-        } else {
-          coverImageUrl = '/' + coverImageUrl;
-        }
-        this.log(`Cover image already has collection prefix: ${coverImageUrl}`, 'debug');
-      } else {
-        // Normal case - add the collection prefix
-        coverImageUrl = collectionPathPrefix + (coverImageUrl.startsWith('/') ? coverImageUrl.substring(1) : coverImageUrl);
-        this.log(`Added collection prefix to cover image: ${coverImageUrl}`, 'debug');
-      }
     }
 
     // Format the collection for the player
@@ -1396,10 +1460,11 @@ formatCollectionForPlayer(collection) {
       id: collection.id,
       name: collection.name,
       description: collection.description,
-      coverImage: coverImageUrl,
-      metadata: collection.metadata || {},
+      coverImage: collection.coverImage && !collection.coverImage.startsWith('http')
+        ? `${this.config.blobBaseUrl}${collection.coverImage.startsWith('/') ? '' : '/'}${collection.coverImage}`
+        : collection.coverImage,
+      metadata: collection.metadata,
       layers: playerLayers,
-      source: collection.source || 'local-folder',
       // Keep the original tracks array for reference
       originalTracks: collection.tracks
     };
@@ -1410,6 +1475,7 @@ formatCollectionForPlayer(collection) {
     // Emit success event
     eventBus.emit(EVENTS.COLLECTION_FORMATTED || 'collection:formatted', {
       id: collection.id,
+      collection: formattedCollection,
       name: collection.name,
       trackCount: formattedTrackCount,
       layerCount: Object.keys(playerLayers).filter(layer => playerLayers[layer].length > 0).length,
@@ -1434,7 +1500,40 @@ formatCollectionForPlayer(collection) {
     throw new Error(`Failed to format collection: ${error.message}`);
   }
 }
-
+/**
+ * Validate collection data structure
+ * @private
+ * @param {Object} collection - Collection object to validate
+ * @returns {boolean} True if valid, false otherwise
+ */
+_validateCollection(collection) {
+  if (!collection) {
+    return false;
+  }
+  
+  // Required fields
+  if (!collection.id || !collection.name) {
+    this.log(`Invalid collection missing id or name: ${JSON.stringify(collection).substring(0, 100)}...`, 'warn');
+    return false;
+  }
+  
+  // Tracks validation
+  if (!collection.tracks || !Array.isArray(collection.tracks)) {
+    this.log(`Collection ${collection.id} has no tracks array`, 'warn');
+    return false;
+  }
+  
+  // Require at least one valid track with audioUrl
+  const hasValidTrack = collection.tracks.some(track => 
+    track && track.id && track.audioUrl);
+  
+  if (!hasValidTrack) {
+    this.log(`Collection ${collection.id} has no valid tracks with audioUrl`, 'warn');
+    return false;
+  }
+  
+  return true;
+}
 
 
   /**

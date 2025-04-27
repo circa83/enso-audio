@@ -387,6 +387,7 @@ BUFFER_COLLECTION_LAYER_ERROR: 'buffer:collectionLayerError',
   COLLECTION_VERIFY_SUCCESS: 'collection:verifySuccess',
   COLLECTION_VERIFY_ERROR: 'collection:verifyError',
   
+  
   // Collection API operations
   COLLECTION_API_FETCH_START: 'collection:apiFetchStart',
   
