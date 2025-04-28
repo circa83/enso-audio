@@ -1,5 +1,5 @@
 // src/components/providers/ProvidersWrapper.jsx
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { AudioProvider, useAudioContext } from '../../contexts/AudioContext';
 import { AuthProvider } from '../../contexts/AuthContext';
 import { VolumeProvider, useVolumeContext } from '../../contexts/VolumeContext';
@@ -98,14 +98,13 @@ function CollectionProviderAdapter({ children }) {
     <CollectionProvider
       enableLogging={true}
     >
-       <CollectionEventHandler /> 
+     
       {children}
       
     </CollectionProvider>
   );
 }
 
-// Add this adapter component for LayerProvider
 function LayerProviderAdapter({ children }) {
   // Get all required dependencies
   const { audioContext, initialized: audioInitialized } = useAudioContext();
@@ -113,21 +112,40 @@ function LayerProviderAdapter({ children }) {
   const crossfadeContext = useCrossfadeContext();
   const bufferContext = useBufferContext();
   const collectionContext = useCollectionContext();
+  
+  // Track initialization state with useState
+  const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Calculate dependency status - only used for prop passing, not conditional rendering
+  const dependenciesReady = !!(
+    audioInitialized && audioContext && volumeContext && 
+    crossfadeContext && bufferContext && collectionContext
+  );
+  
+  // Effect to set initialization once dependencies are available
+  useEffect(() => {
+    if (dependenciesReady && !isInitialized) {
+      console.log('[ProvidersWrapper] All dependencies available, initializing LayerProvider');
+      setIsInitialized(true);
+    }
+  }, [dependenciesReady, isInitialized]);
 
-  // Only render when all dependencies are available
-  if (!audioInitialized || !audioContext || !volumeContext || 
-      !crossfadeContext || !bufferContext || !collectionContext) {
-    console.log('[ProvidersWrapper] Waiting for dependencies before initializing LayerProvider');
-    return null;
-  }
-
-  // Pass all required dependencies explicitly to ensure proper initialization
+  // CRITICAL CHANGE: Always render the LayerProvider, passing readiness as props
+  // Never return null or a different component, which would cause unmounting
   return (
-    <LayerProvider>
-      {children}
+    <LayerProvider 
+      dependenciesReady={dependenciesReady}
+      isAdapterInitialized={isInitialized}
+    >
+      {isInitialized ? children : (
+        <div className="layer-provider-placeholder">
+          Waiting for audio system initialization...
+        </div>
+      )}
     </LayerProvider>
   );
 }
+
 
 // Adapter for TimelineProvider
 function TimelineProviderAdapter({ children }) {

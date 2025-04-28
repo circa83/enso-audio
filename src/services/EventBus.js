@@ -299,6 +299,11 @@ class EventBus {
    */
   setDebug(enabled) {
     this.debugMode = !!enabled;
+    if (this.debugMode) {
+      console.log('[EventBus] Debug mode enabled');
+    } else {
+      console.log('[EventBus] Debug mode disabled');
+    }
   }
 }
 

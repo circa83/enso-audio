@@ -23,7 +23,11 @@ const LayerContext = createContext(null);
  * Provider component for layer management
  * Handles track selection, layer control, and audio crossfading
  */
-export const LayerProvider = ({ children }) => {
+export const LayerProvider = ({ 
+  children,
+  dependenciesReady = false,
+  isAdapterInitialized = false 
+ }) => {
   // Get required services
   const audio = useAudioContext();
   const volume = useVolumeContext();
@@ -53,6 +57,7 @@ export const LayerProvider = ({ children }) => {
   const [layerStates, setLayerStates] = useState({
     [LAYER_TYPES.LAYER1]: { muted: false, solo: false },
     [LAYER_TYPES.LAYER2]: { muted: false, solo: false },
+  
     [LAYER_TYPES.LAYER3]: { muted: false, solo: false },
     [LAYER_TYPES.LAYER4]: { muted: false, solo: false }
   });
@@ -70,18 +75,51 @@ export const LayerProvider = ({ children }) => {
   const isMountedRef = useRef(true);
   const isInitialRender = useRef(true);
   const availableTracksRef = useRef(availableTracks);
+const pendingRegistrationsRef = useRef([]);
+
+
 
   // Initialize component and setup refs
   useEffect(() => {
-    console.log('[LayerContext] Initializing layer context');
+    console.log('[LayerContext] Component mounted, setting isMountedRef to true');
+    isMountedRef.current = true;
 
-    // Check if dependencies are initialized
-    if (!audio || !volume || !crossfade || !buffer) {
-      console.log('[LayerContext] Waiting for dependencies...');
-      return;
-    }
-
+  // Use the dependenciesReady prop instead of checking each dependency
+  if (!dependenciesReady) {
+    console.log('[LayerContext] Waiting for dependencies (via prop)...');
+    return;
+  }
+    console.log('[LayerContext] All dependencies initialized, setting context as initialized');
+    
     setInitialized(true);
+    
+     
+   // Process any pending registrations
+   if (pendingRegistrationsRef.current.length > 0) {
+    console.log(`[LayerContext] Processing ${pendingRegistrationsRef.current.length} pending collection registrations`);
+    
+    // Use setTimeout to ensure state update has completed
+    setTimeout(() => {
+      // Create a copy of the queue to avoid mutation issues during processing
+      const pendingRegistrations = [...pendingRegistrationsRef.current];
+      
+      // Clear the queue before processing to avoid duplicates
+      pendingRegistrationsRef.current = [];
+      
+      // Process each pending registration
+      pendingRegistrations.forEach(collection => {
+        console.log(`[LayerContext] Processing queued collection: ${collection.name || collection.id}`);
+        
+        // Call registerCollection directly with initialized set to true
+        try {
+          const success = registerCollection(collection);
+          console.log(`[LayerContext] Queued collection processed ${success ? 'successfully' : 'with errors'}`);
+        } catch (err) {
+          console.error(`[LayerContext] Error processing queued collection:`, err);
+        }
+      });
+    }, 0);
+  }
 
     // Publish initialization event
     eventBus.emit(EVENTS.LAYER_INITIALIZED || 'layer:initialized', {
@@ -927,10 +965,25 @@ export const LayerProvider = ({ children }) => {
 
 // Register collection with layers - ENHANCED WITH BETTER LOGGING AND ERROR HANDLING
 const registerCollection = useCallback((collection) => {
-  if (!isMountedRef.current || !initialized) {
-    console.error('[LayerContext] Cannot register collection: context not initialized');
-    return false;
-  }
+    // This check helps with queued collections being processed after initialization
+    if (!isMountedRef.current) {
+      console.error('[LayerContext] Cannot register collection: component unmounted');
+      return false;
+    }
+    
+    // When processing from the queue, we're already initialized, so skip this check
+    if (!initialized && !pendingRegistrationsRef.current.includes(collection)) {
+      console.error('[LayerContext] Cannot register collection: context not initialized');
+      
+      // Queue the collection for later registration
+      if (collection && collection.layers) {
+        console.log(`[LayerContext] Queuing collection for registration: ${collection.name || collection.id}`);
+        pendingRegistrationsRef.current.push(collection);
+        return true; // Return true to indicate successful queuing
+      }
+      
+      return false;
+    }
 
   if (!collection || !collection.layers) {
     console.error('[LayerContext] Invalid collection format', collection);
@@ -959,31 +1012,7 @@ const registerCollection = useCallback((collection) => {
       console.log(`[LayerContext] Layer ${layerName}: ${tracks.length} tracks`);
     });
 
-    // Set tracks for each layer
-    Object.entries(collection.layers).forEach(([layerName, tracks]) => {
-      setLayerTracks(layerName, tracks);
-    });
-
-    // Initialize audio elements for first track in each layer
-    Object.entries(collection.layers).forEach(([layerName, tracks]) => {
-      if (tracks.length > 0) {
-        const firstTrack = tracks[0];
-        // Initialize audio element but don't play yet
-        audio.getOrCreateAudioElement(layerName, firstTrack.id, {
-          path: firstTrack.path,
-          name: firstTrack.name,
-          loop: true,
-          isActive: true,
-          preload: true
-        });
-
-        // Set as active track
-        setActiveTracks(prev => ({
-          ...prev,
-          [layerName]: firstTrack.id
-        }));
-      }
-    });
+  
 
     // Then load all the tracks for buffer preloading
     if (buffer && buffer.initialized) {
@@ -1030,36 +1059,115 @@ const registerCollection = useCallback((collection) => {
 
 
   // Listen for collection selection events - SIMPLIFIED TO FOCUS ON LAYER REGISTRATION
-useEffect(() => {
-  if (!initialized) return;
-
-  const handleCollectionSelected = (data) => {
-    if (!data.collection) return;
-
-    console.log(`[LayerContext] Collection selected event received: ${data.collection.name || data.collectionId}`);
-
-    // Register the collection with layers (this is the core responsibility)
-    const success = registerCollection(data.collection);
+  useEffect(() => {
+    if (!initialized) return;
     
-    if (success) {
-      // Emit registration event - this is a signal for other systems that layers are ready
-      eventBus.emit(EVENTS.LAYER_COLLECTION_REGISTERED || 'layer:collectionRegistered', {
-        collectionId: data.collection.id,
-        layerCount: Object.keys(data.collection.layers || {}).length,
-        trackCounts: Object.entries(data.collection.layers || {}).reduce((counts, [layer, tracks]) => {
-          counts[layer] = tracks.length;
-          return counts;
-        }, {}),
-        timestamp: Date.now()
+    const handleCollectionSelected = (data) => {
+      console.log(`[LayerContext] Debug collection event:`, {
+        isMounted: isMountedRef.current, 
+        hasData: !!data,
+        hasCollection: data && !!data.collection,
+        collectionId: data?.collection?.id || 'undefined',
+        initialized: initialized
       });
-    } else {
-      console.error(`[LayerContext] Failed to register collection: ${data.collection.id}`);
+      
+      // If component unmounted but data valid, queue for later instead of dropping
+      if (!isMountedRef.current && data && data.collection) {
+        console.log(`[LayerContext] Component unmounted, queueing collection: ${data.collection.id}`);
+        
+        // Don't add duplicates
+        if (!pendingRegistrationsRef.current.some(c => c.id === data.collection.id)) {
+          pendingRegistrationsRef.current.push(data.collection);
+          
+          // Emit event about the queuing
+          eventBus.emit(EVENTS.LAYER_COLLECTION_QUEUED || 'layer:collectionQueued', {
+            collectionId: data.collection.id,
+            reason: 'component_unmounted',
+            timestamp: Date.now()
+          });
+        }
+        return;
+      }
+      
+      // Early exit if invalid data
+      if (!data || !data.collection) {
+        console.log('[LayerContext] ISSUE IDENTIFIED: Invalid data structure', data);
+        return;
+      }
+
+// Rest of the handler remains the same...
+const collection = data.collection;
+console.log(`[LayerContext] Collection selected event received: ${collection.name || collection.id}`);
+    // Validate collection structure
+    if (!collection.id || !collection.layers) {
+      console.error('[LayerContext] Invalid collection format received:', 
+        collection.id ? `ID: ${collection.id}` : 'Missing ID');
       
       // Emit error event
       eventBus.emit(EVENTS.LAYER_ERROR || 'layer:error', {
+        operation: 'handleCollectionSelected',
+        error: 'Invalid collection format',
+        details: collection.id ? `Collection ID: ${collection.id}` : 'Missing collection ID',
+        timestamp: Date.now()
+      });
+      return;
+    }
+  
+    // If not initialized, queue this registration for later
+    if (!initialized) {
+      console.log(`[LayerContext] Context not initialized, queuing collection for later: ${collection.id}`);
+      
+      // Safely add to queue if not already queued
+      if (!pendingRegistrationsRef.current.some(c => c.id === collection.id)) {
+        pendingRegistrationsRef.current.push(collection);
+        
+        // Emit event to notify other systems that processing is pending
+        eventBus.emit(EVENTS.LAYER_REGISTRATION_PENDING || 'layer:registrationPending', {
+          collectionId: collection.id,
+          collectionName: collection.name,
+          timestamp: Date.now()
+        });
+      } else {
+        console.log(`[LayerContext] Collection ${collection.id} already queued, skipping duplicate`);
+      }
+      return;
+    }
+  
+    // Register the collection with layers (this is the core responsibility)
+    try {
+      const success = registerCollection(collection);
+      
+      if (success) {
+        // Emit registration event with FULL collection object for downstream consumers
+        eventBus.emit(EVENTS.LAYER_COLLECTION_REGISTERED || 'layer:collectionRegistered', {
+          collectionId: collection.id,
+          collection: collection, // Include the full collection object for other contexts
+          layerCount: Object.keys(collection.layers || {}).length,
+          trackCounts: Object.entries(collection.layers || {}).reduce((counts, [layer, tracks]) => {
+            counts[layer] = tracks.length;
+            return counts;
+          }, {}),
+          timestamp: Date.now()
+        });
+      } else {
+        console.error(`[LayerContext] Failed to register collection: ${collection.id}`);
+        
+        // Emit error event
+        eventBus.emit(EVENTS.LAYER_ERROR || 'layer:error', {
+          operation: 'registerCollection',
+          collectionId: collection.id,
+          error: 'Registration failed',
+          timestamp: Date.now()
+        });
+      }
+    } catch (error) {
+      console.error(`[LayerContext] Error during collection registration: ${error.message}`, error);
+      
+      // Emit detailed error event
+      eventBus.emit(EVENTS.LAYER_ERROR || 'layer:error', {
         operation: 'registerCollection',
-        collectionId: data.collection.id,
-        error: 'Registration failed',
+        collectionId: collection.id,
+        error: error.message,
         timestamp: Date.now()
       });
     }

@@ -1,16 +1,14 @@
 // src/pages/ambient-archive.js
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
-import Link from 'next/link';
-import { useRouter } from 'next/router';
 import withAuth from '../components/auth/ProtectedRoute';
 import ArchiveLayout from '../components/layout/ArchiveLayout';
 import { useCollection } from '../hooks/useCollection';
+import { useLayer } from '../contexts/LayerContext';
 import styles from '../styles/pages/AmbientArchive.module.css';
-import eventBus, { EVENTS } from '../services/EventBus';
 
 const AmbientArchive = () => {
-  const router = useRouter();
+
   
   // State for details modal
   const [selectedCollection, setSelectedCollection] = useState(null);
@@ -21,14 +19,13 @@ const AmbientArchive = () => {
     collections,
     isLoading,
     error,
-    filters,
-    updateFilters,
     loadCollections,
     selectCollection
   } = useCollection({
     loadOnMount: true,
     filters: {} // Initial empty filters
   });
+
 
   // a clean-up reference to prevent over-rendering
 useEffect(() => {
@@ -40,19 +37,15 @@ useEffect(() => {
       count: collections?.length || 0,
       isLoading, 
       error,
-      filters 
+ 
     });
   }
   
   return () => {
     isMounted = false; // Clean up
   };
-}, [collections, isLoading, error, filters]);
+}, [collections, isLoading, error]);
 
-  // Handle filter changes
-  const handleFilterChange = (newFilters) => {
-    updateFilters(newFilters);
-  };
 
 // Handle collection selection with enhanced buffer loading
 const handleCollectionSelect = (collectionId) => {
@@ -71,33 +64,7 @@ const handleCollectionSelect = (collectionId) => {
     }
   });
   
-  // Enhanced event emission with standardized payload structure
-  eventBus.emit(EVENTS.COLLECTION_SELECTED, { 
-    collectionId, 
-    source: 'ambient-archive',
-    action: 'play',
-    preloadBuffers: true,
-    registerWithLayers: true,
-    timestamp: Date.now() 
-  });
-  
-  // Then use Next.js router for navigation with consistent structured data
-  router.push({
-    pathname: '/player',
-    query: { 
-      collection: collectionId,
-      source: 'archive',
-      action: 'play'
-    }
-  });
 };
-
-
-  // Error recovery function
-  const handleRetryLoad = () => {
-    console.log('[AmbientArchive] Retrying collection load');
-    loadCollections(1);
-  };
 
   // Handle showing collection details
   const handleShowDetails = async (collection, e) => {
@@ -221,7 +188,6 @@ const handleCollectionSelect = (collectionId) => {
           <div 
             key={collection.id} 
             className={styles.collectionCard}
-            onClick={() => handleCollectionSelect(collection.id)}
           >
             <div className={styles.collectionImageContainer}>
               {collection.coverImage && (

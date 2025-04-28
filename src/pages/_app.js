@@ -7,6 +7,7 @@ import Head from 'next/head';
 import AppLoadingScreen from '../components/loading/AppLoadingScreen';
 import '../styles/globals.css';
 import { ProvidersWrapper } from '../components/providers/ProvidersWrapper';
+import eventBus from '../services/EventBus';
 
 
 // Error handler component for auth failures
@@ -26,7 +27,7 @@ const AuthErrorBoundary = ({ children }) => {
         }, 1000);
       }
     };
-
+    eventBus.setDebug(false);
     // Set up event listener for auth errors
     window.addEventListener('auth-error', handleAuthError);
     
