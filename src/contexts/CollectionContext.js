@@ -10,7 +10,7 @@ const CollectionContext = createContext(null);
 
 /**
  * Provider component for collection management
- * Handles fetching, filtering, and selecting audio collections
+ * Handles fetching, and selecting audio collections
  */
 export const CollectionProvider = ({
   children,
@@ -31,7 +31,7 @@ export const CollectionProvider = ({
   const [currentCollection, setCurrentCollection] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [filters, setFilters] = useState({});
+  // const [filters, setFilters] = useState({});
   const [initialized, setInitialized] = useState(false);
   const [pagination, setPagination] = useState({
     total: 0,
@@ -49,7 +49,7 @@ export const CollectionProvider = ({
 
   // Track mounted state to prevent state updates after unmount
   const isMountedRef = useRef(true);
-  const filtersRef = useRef({});
+  const hasInitiallyLoadedRef = useRef(false);
   const retriesRef = useRef(0);
   const maxRetries = 3;
 
@@ -107,7 +107,7 @@ export const CollectionProvider = ({
   // Consolidated loadCollections that handles collections from the configured source
   const loadCollections = useCallback(async (
     page = 1, 
-    currentFilters = filtersRef.current, 
+    // currentFilters = filtersRef.current, 
     source = undefined, // Use undefined to respect the AppConfig source
     options = {}
   ) => {
@@ -126,10 +126,10 @@ export const CollectionProvider = ({
       setIsLoading(true);
       setError(null);
 
-      console.log(`[CollectionContext] Loading collections page ${page} with filters:`, currentFilters);
+     // console.log(`[CollectionContext] Loading collections page ${page} with filters:`, currentFilters);
 
       const result = await collectionService.getCollections({
-        ...currentFilters,
+        //...currentFilters,
         page,
         limit: pagination.limit,
         useCache: true,
@@ -210,7 +210,7 @@ export const CollectionProvider = ({
           const delay = Math.pow(2, retriesRef.current) * 500;
           setTimeout(() => {
             if (isMountedRef.current) {
-              loadCollections(page, currentFilters, source, options);
+              loadCollections(page, source, options);
             }
           }, delay);
 
@@ -231,50 +231,50 @@ export const CollectionProvider = ({
         setIsLoading(false);
       }
     }
-  }, [collectionService, pagination.limit, isLoading]);
+  }, [collectionService, pagination.limit]);
 
-  // Update filters and reload collections
-  const updateFilters = useCallback((newFilters) => {
-    console.log(`[CollectionContext] Updating filters:`, newFilters);
-    setFilters(prev => {
-      const updated = { ...prev, ...newFilters };
-      filtersRef.current = updated; // Update the ref
-      return updated;
-    });
-  }, []);
+  // // Update filters and reload collections
+  // const updateFilters = useCallback((newFilters) => {
+  //   console.log(`[CollectionContext] Updating filters:`, newFilters);
+  //   setFilters(prev => {
+  //     const updated = { ...prev, ...newFilters };
+  //     filtersRef.current = updated; // Update the ref
+  //     return updated;
+  //   });
+  // }, []);
 
-  // Navigate to a specific page
-  const goToPage = useCallback((pageNumber) => {
-    if (pageNumber < 1 || pageNumber > pagination.pages) {
-      console.warn(`[CollectionContext] Invalid page number: ${pageNumber}`);
-      return;
-    }
+  // // Navigate to a specific page
+  // const goToPage = useCallback((pageNumber) => {
+  //   if (pageNumber < 1 || pageNumber > pagination.pages) {
+  //     console.warn(`[CollectionContext] Invalid page number: ${pageNumber}`);
+  //     return;
+  //   }
 
-    console.log(`[CollectionContext] Navigating to page ${pageNumber}`);
-    loadCollections(pageNumber, filtersRef.current);
-  }, [pagination.pages, loadCollections]);
+  //   console.log(`[CollectionContext] Navigating to page ${pageNumber}`);
+  //   loadCollections(pageNumber, filtersRef.current);
+  // }, [pagination.pages, loadCollections]);
 
-  // Clear all filters and reload
-  const clearFilters = useCallback(() => {
-    console.log(`[CollectionContext] Clearing all filters`);
-    setFilters({});
-    filtersRef.current = {};
+  // // Clear all filters and reload
+  // const clearFilters = useCallback(() => {
+  //   console.log(`[CollectionContext] Clearing all filters`);
+  //   setFilters({});
+  //   filtersRef.current = {};
 
-    // Reload from page 1 with empty filters - don't specify source to use config
-    loadCollections(1, {}, undefined);
-  }, [loadCollections]);
+  //   // Reload from page 1 with empty filters - don't specify source to use config
+  //   loadCollections(1, {}, undefined);
+  // }, [loadCollections]);
 
-  // Effect to handle filter changes
-  useEffect(() => {
-    if (!isMountedRef.current || !collectionService || !initialized) return;
+  // // Effect to handle filter changes
+  // useEffect(() => {
+  //   if (!isMountedRef.current || !collectionService || !initialized) return;
 
-    console.log(`[CollectionContext] Filters changed, reloading collections from page 1`);
+  //   console.log(`[CollectionContext] Filters changed, reloading collections from page 1`);
 
-    // Use the ref to get current filters
-    const currentFilters = filtersRef.current;
+  //   // Use the ref to get current filters
+  //   const currentFilters = filtersRef.current;
 
-    loadCollections(1, currentFilters, undefined);
-  }, [filters, loadCollections, collectionService, initialized]);
+  //   loadCollections(1, currentFilters, undefined);
+  // }, [filters, loadCollections, collectionService, initialized]);
 
   // Fetch a specific collection by ID
   const getCollection = useCallback(async (id) => {
@@ -392,27 +392,28 @@ export const CollectionProvider = ({
     }
   }, [collectionService]);
 
-  // Reset collection cache
-  const resetCache = useCallback(() => {
-    if (!collectionService) {
-      console.error('[CollectionContext] Service unavailable, cannot reset cache');
-      return;
-    }
+  // // Reset collection cache
+  // const resetCache = useCallback(() => {
+  //   if (!collectionService) {
+  //     console.error('[CollectionContext] Service unavailable, cannot reset cache');
+  //     return;
+  //   }
 
-    console.log('[CollectionContext] Resetting collection cache');
-    collectionService.resetCache();
+  //   console.log('[CollectionContext] Resetting collection cache');
+  //   collectionService.resetCache();
 
-    // Reload collections - don't specify source to use config
-    loadCollections(1, filtersRef.current, undefined);
-  }, [collectionService, loadCollections]);
+  //   // Reload collections - don't specify source to use config
+  //   loadCollections(1, filtersRef.current, undefined);
+  // }, [collectionService, loadCollections]);
 
     // Load initial data when service is initialized
     useEffect(() => {
-      if (collectionService && initialized && !isLoading) {
+      if (collectionService && initialized && !isLoading && !hasInitiallyLoadedRef.current) {
         console.log('[CollectionContext] Service initialized, loading initial data');
-        
+         // Set the ref so we don't load again
+    hasInitiallyLoadedRef.current = true;
         // Load collections first time - don't specify source to use config
-        loadCollections(1, filtersRef.current, undefined);
+        loadCollections(1, undefined);
       }
     }, [collectionService, initialized, isLoading, loadCollections]);
   
@@ -432,16 +433,16 @@ export const CollectionProvider = ({
         currentCollection,
         pagination,
         sourceDistribution,
-        filters
+        // filters
       },
       
       // Collection list operations
       list: {
         loadCollections,
-        updateFilters,
-        clearFilters,
-        goToPage,
-        resetCache
+        // updateFilters,
+        // clearFilters,
+        // goToPage,
+        // resetCache
       },
       
       // Single collection operations
@@ -455,17 +456,17 @@ export const CollectionProvider = ({
       currentCollection,
       isLoading,
       error,
-      filters,
+      // filters,
       pagination,
       
       // Methods
       loadCollections,
       getCollection,
-      updateFilters,
-      clearFilters,
-      goToPage,
+      // updateFilters,
+      // clearFilters,
+      // goToPage,
       formatForPlayer,
-      resetCache,
+      // resetCache,
       
       // Service access for advanced usage
       service: collectionService
@@ -476,16 +477,16 @@ export const CollectionProvider = ({
       currentCollection,
       isLoading,
       error,
-      filters,
+      // filters,
       pagination,
       sourceDistribution,
       loadCollections,
       getCollection,
-      updateFilters,
-      clearFilters,
-      goToPage,
+      // updateFilters,
+      // clearFilters,
+      // goToPage,
       formatForPlayer,
-      resetCache,
+      // resetCache,
       collectionService
     ]);
     

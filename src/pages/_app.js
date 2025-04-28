@@ -8,6 +8,7 @@ import AppLoadingScreen from '../components/loading/AppLoadingScreen';
 import '../styles/globals.css';
 import { ProvidersWrapper } from '../components/providers/ProvidersWrapper';
 
+
 // Error handler component for auth failures
 const AuthErrorBoundary = ({ children }) => {
   const [hasError, setHasError] = useState(false);
@@ -164,7 +165,7 @@ function MyApp({ Component, pageProps }) {
         <title>Ensō Audio</title>
         <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@100;200;300&family=Space+Mono&family=Noto+Sans+JP:wght@300&display=swap" rel="stylesheet" />
       </Head>
-      
+       
       <SessionProvider session={pageProps.session} refetchInterval={0}>
         <AuthErrorBoundary>
           <ProvidersWrapper>

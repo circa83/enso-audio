@@ -8,6 +8,7 @@ import { LayerProvider, useLayerContext } from '../../contexts/LayerContext';
 import { CrossfadeProvider, useCrossfadeContext } from '../../contexts/CrossfadeContext';
 import { TimelineProvider, useTimelineContext } from '../../contexts/TimelineContext';
 import { BufferProvider, useBufferContext } from '../../contexts/BufferContext';
+import CollectionEventHandler from '../handlers/CollectionEventHandler';
 
 // This intermediate component connects AudioProvider to VolumeProvider
 function VolumeProviderWithAudio({ children }) {
@@ -97,7 +98,9 @@ function CollectionProviderAdapter({ children }) {
     <CollectionProvider
       enableLogging={true}
     >
+       <CollectionEventHandler /> 
       {children}
+      
     </CollectionProvider>
   );
 }
@@ -162,6 +165,8 @@ function TimelineProviderAdapter({ children }) {
 export function ProvidersWrapper({ children }) {
   return (
     <AuthProvider>
+      {/* Add CollectionEventHandler to listen for collection events */}
+     
       <AudioProvider>
         {/* First, connect audio to volume */}
         <VolumeProviderWithAudio>
@@ -182,7 +187,9 @@ export function ProvidersWrapper({ children }) {
             </CrossfadeProviderAdapter>
           </BufferProviderWithAudio>
         </VolumeProviderWithAudio>
-      </AudioProvider>
+     
+   </AudioProvider>
+   
     </AuthProvider>
   );
 }

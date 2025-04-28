@@ -186,171 +186,171 @@ class CollectionService {
       !options.tag && !options.artist;
   }
 
-  /**
-   * Get collection folders from Blob Storage
-   * @private
-   * @returns {Promise<string[]>} Array of collection folder names
-   */
-  async _getBlobCollectionFolders() {
-    // IMPORTANT: Skip blob operations entirely if not using blob source
-    if (this.config.collectionSource !== 'blob' &&
-      !this.config.fallbackToBlob &&
-      // Check if this was explicitly requested (for specific API calls)
-      !this._forceBlobFetch) {
-      this.log('Skipping blob fetch - not using blob source', 'info');
-      return [];
-    }
+  // /**
+  //  * Get collection folders from Blob Storage
+  //  * @private
+  //  * @returns {Promise<string[]>} Array of collection folder names
+  //  */
+  // async _getBlobCollectionFolders() {
+  //   // IMPORTANT: Skip blob operations entirely if not using blob source
+  //   if (this.config.collectionSource !== 'blob' &&
+  //     !this.config.fallbackToBlob &&
+  //     // Check if this was explicitly requested (for specific API calls)
+  //     !this._forceBlobFetch) {
+  //     this.log('Skipping blob fetch - not using blob source', 'info');
+  //     return [];
+  //   }
 
-    try {
-      this.log('Fetching blob collections');
-      eventBus.emit(EVENTS.COLLECTION_BLOB_FETCH_START || 'collection:blobFetchStart', {
-        timestamp: Date.now()
-      });
+  //   try {
+  //     this.log('Fetching blob collections');
+  //     eventBus.emit(EVENTS.COLLECTION_BLOB_FETCH_START || 'collection:blobFetchStart', {
+  //       timestamp: Date.now()
+  //     });
 
-      const response = await fetch('/api/blob/list?prefix=collections/');
+  //     const response = await fetch('/api/blob/list?prefix=collections/');
 
-      if (!response.ok) {
-        const error = `HTTP error ${response.status}`;
-        eventBus.emit(EVENTS.COLLECTION_BLOB_FETCH_ERROR || 'collection:blobFetchError', {
-          error,
-          status: response.status,
-          timestamp: Date.now()
-        });
-        throw new Error(error);
-      }
+  //     if (!response.ok) {
+  //       const error = `HTTP error ${response.status}`;
+  //       eventBus.emit(EVENTS.COLLECTION_BLOB_FETCH_ERROR || 'collection:blobFetchError', {
+  //         error,
+  //         status: response.status,
+  //         timestamp: Date.now()
+  //       });
+  //       throw new Error(error);
+  //     }
 
-      const blobs = await response.json();
+  //     const blobs = await response.json();
 
-      // Extract unique collection folder names from blob paths
-      const folders = new Set();
-      // Map to store files by collection folder
-      const folderContents = new Map();
+  //     // Extract unique collection folder names from blob paths
+  //     const folders = new Set();
+  //     // Map to store files by collection folder
+  //     const folderContents = new Map();
 
-      blobs.forEach(blob => {
-        const path = blob.pathname.replace('collections/', '');
-        const parts = path.split('/');
-        const folder = parts[0];
+  //     blobs.forEach(blob => {
+  //       const path = blob.pathname.replace('collections/', '');
+  //       const parts = path.split('/');
+  //       const folder = parts[0];
 
-        if (folder) {
-          folders.add(folder);
+  //       if (folder) {
+  //         folders.add(folder);
 
-          // Group files by collection folder
-          if (!folderContents.has(folder)) {
-            folderContents.set(folder, []);
-          }
+  //         // Group files by collection folder
+  //         if (!folderContents.has(folder)) {
+  //           folderContents.set(folder, []);
+  //         }
 
-          folderContents.get(folder).push({
-            path: blob.pathname,
-            filename: parts.length > 1 ? parts[parts.length - 1] : null,
-            size: blob.size,
-            contentType: blob.contentType,
-            updatedAt: blob.uploadedAt || blob.updatedAt
-          });
-        }
-      });
+  //         folderContents.get(folder).push({
+  //           path: blob.pathname,
+  //           filename: parts.length > 1 ? parts[parts.length - 1] : null,
+  //           size: blob.size,
+  //           contentType: blob.contentType,
+  //           updatedAt: blob.uploadedAt || blob.updatedAt
+  //         });
+  //       }
+  //     });
 
-      // Log detailed information about collection contents
-      this.log(`Found ${folders.size} collections`);
+  //     // Log detailed information about collection contents
+  //     this.log(`Found ${folders.size} collections`);
 
-      // Log the structure of each collection folder
-      folderContents.forEach((files, folder) => {
-        this.log(`Collection '${folder}' contains ${files.length} files:`);
+  //     // Log the structure of each collection folder
+  //     folderContents.forEach((files, folder) => {
+  //       this.log(`Collection '${folder}' contains ${files.length} files:`);
 
-        // Group files by type/subfolder for cleaner logging
-        const filesByType = {};
-        files.forEach(file => {
-          const subPath = file.path.replace(`collections/${folder}/`, '');
-          const type = subPath.includes('/') ? subPath.split('/')[0] : 'root';
+  //       // Group files by type/subfolder for cleaner logging
+  //       const filesByType = {};
+  //       files.forEach(file => {
+  //         const subPath = file.path.replace(`collections/${folder}/`, '');
+  //         const type = subPath.includes('/') ? subPath.split('/')[0] : 'root';
 
-          if (!filesByType[type]) {
-            filesByType[type] = [];
-          }
-          filesByType[type].push(file);
-        });
+  //         if (!filesByType[type]) {
+  //           filesByType[type] = [];
+  //         }
+  //         filesByType[type].push(file);
+  //       });
 
-        // Log content structure with reduced detail when logging is enabled
-        if (this.config.enableLogging) {
-          Object.entries(filesByType).forEach(([type, typeFiles]) => {
-            this.log(`  - ${type}: ${typeFiles.length} files`);
-            // Log up to 3 examples of each type
-            typeFiles.slice(0, 3).forEach(file => {
-              this.log(`    • ${file.path} (${file.contentType}, ${(file.size / 1024).toFixed(2)} KB)`);
-            });
-            if (typeFiles.length > 3) {
-              this.log(`    • ... and ${typeFiles.length - 3} more`);
-            }
-          });
-        }
-      });
+  //       // Log content structure with reduced detail when logging is enabled
+  //       if (this.config.enableLogging) {
+  //         Object.entries(filesByType).forEach(([type, typeFiles]) => {
+  //           this.log(`  - ${type}: ${typeFiles.length} files`);
+  //           // Log up to 3 examples of each type
+  //           typeFiles.slice(0, 3).forEach(file => {
+  //             this.log(`    • ${file.path} (${file.contentType}, ${(file.size / 1024).toFixed(2)} KB)`);
+  //           });
+  //           if (typeFiles.length > 3) {
+  //             this.log(`    • ... and ${typeFiles.length - 3} more`);
+  //           }
+  //         });
+  //       }
+  //     });
 
-      // Emit success event
-      eventBus.emit(EVENTS.COLLECTION_BLOB_FETCH_SUCCESS || 'collection:blobFetchSuccess', {
-        folderCount: folders.size,
-        folders: Array.from(folders),
-        timestamp: Date.now()
-      });
+  //     // Emit success event
+  //     eventBus.emit(EVENTS.COLLECTION_BLOB_FETCH_SUCCESS || 'collection:blobFetchSuccess', {
+  //       folderCount: folders.size,
+  //       folders: Array.from(folders),
+  //       timestamp: Date.now()
+  //     });
 
-      return Array.from(folders);
-    } catch (error) {
-      this.log(`Error fetching blob collections: ${error.message}`, 'error');
-      // Error event already emitted in the initial error case
-      return [];
-    }
-  }
+  //     return Array.from(folders);
+  //   } catch (error) {
+  //     this.log(`Error fetching blob collections: ${error.message}`, 'error');
+  //     // Error event already emitted in the initial error case
+  //     return [];
+  //   }
+  // }
 
-  /**
-   * Verify if a collection's audio files exist in Vercel Blob Storage
-   * @private
-   * @param {Object} collection - Collection data
-   * @returns {Promise<boolean>} True if all audio files exist
-   */
-  async _verifyBlobFiles(collection) {
-    if (!collection || !collection.tracks) return false;
+  // /**
+  //  * Verify if a collection's audio files exist in Vercel Blob Storage
+  //  * @private
+  //  * @param {Object} collection - Collection data
+  //  * @returns {Promise<boolean>} True if all audio files exist
+  //  */
+  // async _verifyBlobFiles(collection) {
+  //   if (!collection || !collection.tracks) return false;
 
-    try {
-      eventBus.emit(EVENTS.COLLECTION_VERIFY_START || 'collection:verifyStart', {
-        collectionId: collection.id,
-        trackCount: collection.tracks.length,
-        timestamp: Date.now()
-      });
+  //   try {
+  //     eventBus.emit(EVENTS.COLLECTION_VERIFY_START || 'collection:verifyStart', {
+  //       collectionId: collection.id,
+  //       trackCount: collection.tracks.length,
+  //       timestamp: Date.now()
+  //     });
 
-      // Check each track's audio URL
-      for (const track of collection.tracks) {
-        if (!track.audioUrl) return false;
+  //     // Check each track's audio URL
+  //     for (const track of collection.tracks) {
+  //       if (!track.audioUrl) return false;
 
-        // Verify the URL is accessible
-        const response = await fetch(track.audioUrl, { method: 'HEAD' });
-        if (!response.ok) return false;
+  //       // Verify the URL is accessible
+  //       const response = await fetch(track.audioUrl, { method: 'HEAD' });
+  //       if (!response.ok) return false;
 
-        // Check variations if they exist
-        if (track.variations) {
-          for (const variation of track.variations) {
-            if (!variation.audioUrl) return false;
+  //       // Check variations if they exist
+  //       if (track.variations) {
+  //         for (const variation of track.variations) {
+  //           if (!variation.audioUrl) return false;
 
-            const varResponse = await fetch(variation.audioUrl, { method: 'HEAD' });
-            if (!varResponse.ok) return false;
-          }
-        }
-      }
+  //           const varResponse = await fetch(variation.audioUrl, { method: 'HEAD' });
+  //           if (!varResponse.ok) return false;
+  //         }
+  //       }
+  //     }
 
-      eventBus.emit(EVENTS.COLLECTION_VERIFY_SUCCESS || 'collection:verifySuccess', {
-        collectionId: collection.id,
-        timestamp: Date.now()
-      });
+  //     eventBus.emit(EVENTS.COLLECTION_VERIFY_SUCCESS || 'collection:verifySuccess', {
+  //       collectionId: collection.id,
+  //       timestamp: Date.now()
+  //     });
 
-      return true;
-    } catch (error) {
-      this.log(`Error verifying files: ${error.message}`, 'error');
+  //     return true;
+  //   } catch (error) {
+  //     this.log(`Error verifying files: ${error.message}`, 'error');
 
-      eventBus.emit(EVENTS.COLLECTION_VERIFY_ERROR || 'collection:verifyError', {
-        collectionId: collection.id,
-        error: error.message,
-        timestamp: Date.now()
-      });
+  //     eventBus.emit(EVENTS.COLLECTION_VERIFY_ERROR || 'collection:verifyError', {
+  //       collectionId: collection.id,
+  //       error: error.message,
+  //       timestamp: Date.now()
+  //     });
 
-      return false;
-    }
-  }
+  //     return false;
+  //   }
+  // }
 
   /**
    * Helper for building query strings
@@ -450,19 +450,19 @@ class CollectionService {
     };
   }
 
-  /**
- * Get a collection from the cache
- * @private
- * @param {string} id - Collection ID
- * @returns {Object|null} Collection or null if not found
- */
-_getCollectionFromCache(id) {
-  if (!this.collectionsCache || !this.collectionsCache.data) {
-    return null;
-  }
+//   /**
+//  * Get a collection from the cache
+//  * @private
+//  * @param {string} id - Collection ID
+//  * @returns {Object|null} Collection or null if not found
+//  */
+// _getCollectionFromCache(id) {
+//   if (!this.collectionsCache || !this.collectionsCache.data) {
+//     return null;
+//   }
   
-  return this.collectionsCache.data.find(c => c.id === id) || null;
-}
+//   return this.collectionsCache.data.find(c => c.id === id) || null;
+// }
 
   /**
    * Update the collections cache
@@ -532,179 +532,179 @@ _handleError(operation, error, context = {}) {
 }
 
 
-  /**
-   * Filter collections by tags, artist, or other criteria
-   * @private
-   * @param {Array} collections - Collections to filter
-   * @param {Object} filters - Filter criteria
-   * @param {string} [filters.tag] - Tag to filter by
-   * @param {string} [filters.artist] - Artist to filter by
-   * @returns {Array} Filtered collections
-   */
-  _filterCollections(collections, filters = {}) {
-    if (!collections || !Array.isArray(collections)) return [];
+  // /**
+  //  *  collections by tags, artist, or other criteria
+  //  * @private
+  //  * @param {Array} collections - Collections to filter
+  //  * @param {Object} filters - Filter criteria
+  //  * @param {string} [filters.tag] - Tag to filter by
+  //  * @param {string} [filters.artist] - Artist to filter by
+  //  * @returns {Array} Filtered collections
+  //  */
+  // _filterCollections(collections, filters = {}) {
+  //   if (!collections || !Array.isArray(collections)) return [];
 
-    const { tag, artist } = filters;
+  //   const { tag, artist } = filters;
 
-    // If no filters are set, return all collections
-    if (!tag && !artist) return collections;
+  //   // If no filters are set, return all collections
+  //   if (!tag && !artist) return collections;
 
-    return collections.filter(collection => {
-      // Tag filter
-      if (tag && collection.tags) {
-        // Handle different tag formats (array or comma-separated string)
-        const tags = Array.isArray(collection.tags)
-          ? collection.tags
-          : collection.tags.split(',').map(t => t.trim());
+  //   return collections.filter(collection => {
+  //     // Tag filter
+  //     if (tag && collection.tags) {
+  //       // Handle different tag formats (array or comma-separated string)
+  //       const tags = Array.isArray(collection.tags)
+  //         ? collection.tags
+  //         : collection.tags.split(',').map(t => t.trim());
 
-        // Case-insensitive check
-        const tagMatches = tags.some(t =>
-          t.toLowerCase() === tag.toLowerCase()
-        );
+  //       // Case-insensitive check
+  //       const tagMatches = tags.some(t =>
+  //         t.toLowerCase() === tag.toLowerCase()
+  //       );
 
-        if (!tagMatches) return false;
-      }
+  //       if (!tagMatches) return false;
+  //     }
 
-      // Artist filter - case insensitive
-      if (artist && collection.artist) {
-        if (collection.artist.toLowerCase().indexOf(artist.toLowerCase()) === -1) {
-          return false;
-        }
-      }
+  //     // Artist filter - case insensitive
+  //     if (artist && collection.artist) {
+  //       if (collection.artist.toLowerCase().indexOf(artist.toLowerCase()) === -1) {
+  //         return false;
+  //       }
+  //     }
 
-      return true;
-    });
-  }
+  //     return true;
+  //   });
+  // }
 
-  /**
-   * Internal helper to fetch collections from API
-   * @private
-   * @param {Object} options - Fetch options
-   * @returns {Promise<Object>} Collections data
-   */
-  async _fetchCollectionsFromAPI(options = {}) {
-    try {
-      const endpoint = `${this.config.apiBasePath}/collections${this._buildQueryString(options)}`;
-      this.log(`Fetching from API: ${endpoint}`);
+  // /**
+  //  * Internal helper to fetch collections from API
+  //  * @private
+  //  * @param {Object} options - Fetch options
+  //  * @returns {Promise<Object>} Collections data
+  //  */
+  // async _fetchCollectionsFromAPI(options = {}) {
+  //   try {
+  //     const endpoint = `${this.config.apiBasePath}/collections${this._buildQueryString(options)}`;
+  //     this.log(`Fetching from API: ${endpoint}`);
 
-      // Emit API fetch start event
-      eventBus.emit(EVENTS.COLLECTION_API_FETCH_START || 'collection:apiFetchStart', {
-        endpoint,
-        options,
-        timestamp: Date.now()
-      });
+  //     // Emit API fetch start event
+  //     eventBus.emit(EVENTS.COLLECTION_API_FETCH_START || 'collection:apiFetchStart', {
+  //       endpoint,
+  //       options,
+  //       timestamp: Date.now()
+  //     });
 
-      const response = await fetch(endpoint);
+  //     const response = await fetch(endpoint);
 
-      if (!response.ok) {
-        const errorMsg = `API error: ${response.status}`;
-        // Emit API error event
-        eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-          status: response.status,
-          endpoint,
-          options,
-          error: errorMsg,
-          timestamp: Date.now()
-        });
+  //     if (!response.ok) {
+  //       const errorMsg = `API error: ${response.status}`;
+  //       // Emit API error event
+  //       eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+  //         status: response.status,
+  //         endpoint,
+  //         options,
+  //         error: errorMsg,
+  //         timestamp: Date.now()
+  //       });
 
-        throw new Error(errorMsg);
-      }
+  //       throw new Error(errorMsg);
+  //     }
 
-      const apiData = await response.json();
-      return apiData;
-    } catch (error) {
-      this.log(`Error fetching from API: ${error.message}`, 'error');
-      throw error;
-    }
-  }
+  //     const apiData = await response.json();
+  //     return apiData;
+  //   } catch (error) {
+  //     this.log(`Error fetching from API: ${error.message}`, 'error');
+  //     throw error;
+  //   }
+  // }
 
-  /**
-   * Internal helper to fetch collection from API
-   * @private
-   * @param {string} id - Collection ID
-   * @returns {Promise<Object>} Collection data response
-   */
-  async _fetchCollectionFromAPI(id) {
-    try {
-      const endpoint = `${this.config.apiBasePath}/collections/${id}?bypassVerify=true`;
-      this.log(`Fetching collection from API: ${endpoint}`);
+  // /**
+  //  * Internal helper to fetch collection from API
+  //  * @private
+  //  * @param {string} id - Collection ID
+  //  * @returns {Promise<Object>} Collection data response
+  //  */
+  // async _fetchCollectionFromAPI(id) {
+  //   try {
+  //     const endpoint = `${this.config.apiBasePath}/collections/${id}?bypassVerify=true`;
+  //     this.log(`Fetching collection from API: ${endpoint}`);
 
-      // Emit API fetch start
-      eventBus.emit(EVENTS.COLLECTION_API_FETCH_START || 'collection:apiFetchStart', {
-        id,
-        endpoint,
-        timestamp: Date.now()
-      });
+  //     // Emit API fetch start
+  //     eventBus.emit(EVENTS.COLLECTION_API_FETCH_START || 'collection:apiFetchStart', {
+  //       id,
+  //       endpoint,
+  //       timestamp: Date.now()
+  //     });
 
-      const response = await fetch(endpoint);
+  //     const response = await fetch(endpoint);
 
-      if (!response.ok) {
-        const error = response.status === 404
-          ? `Collection with ID '${id}' not found in API`
-          : `Failed to fetch collection: ${response.status} ${response.statusText}`;
+  //     if (!response.ok) {
+  //       const error = response.status === 404
+  //         ? `Collection with ID '${id}' not found in API`
+  //         : `Failed to fetch collection: ${response.status} ${response.statusText}`;
 
-        // Emit error event
-        eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-          id,
-          status: response.status,
-          error,
-          timestamp: Date.now()
-        });
+  //       // Emit error event
+  //       eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+  //         id,
+  //         status: response.status,
+  //         error,
+  //         timestamp: Date.now()
+  //       });
 
-        if (response.status === 404) {
-          return { success: false, error: `Collection with ID '${id}' not found in API` };
-        }
+  //       if (response.status === 404) {
+  //         return { success: false, error: `Collection with ID '${id}' not found in API` };
+  //       }
 
-        const errorText = await response.text();
-        throw new Error(`Failed to fetch collection: ${response.status} ${response.statusText}. ${errorText}`);
-      }
+  //       const errorText = await response.text();
+  //       throw new Error(`Failed to fetch collection: ${response.status} ${response.statusText}. ${errorText}`);
+  //     }
 
-      const data = await response.json();
+  //     const data = await response.json();
 
-      if (!data.success || !data.data) {
-        const error = 'Invalid response format from collection API';
-        eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-          id,
-          error,
-          timestamp: Date.now()
-        });
-        throw new Error(error);
-      }
+  //     if (!data.success || !data.data) {
+  //       const error = 'Invalid response format from collection API';
+  //       eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+  //         id,
+  //         error,
+  //         timestamp: Date.now()
+  //       });
+  //       throw new Error(error);
+  //     }
 
-      // Add source information
-      data.data.source = 'blob';
+  //     // Add source information
+  //     data.data.source = 'blob';
 
-      // Verify collection has valid files in blob storage
-      this.log(`Verifying blob files for collection: ${id}`);
-      const filesExist = await this._verifyBlobFiles(data.data);
+  //     // Verify collection has valid files in blob storage
+  //     this.log(`Verifying blob files for collection: ${id}`);
+  //     const filesExist = await this._verifyBlobFiles(data.data);
 
-      if (!filesExist) {
-        this.log(`Some audio files for collection ${id} are not accessible`, 'warn');
-        data.warning = "Some audio files may not be accessible";
+  //     if (!filesExist) {
+  //       this.log(`Some audio files for collection ${id} are not accessible`, 'warn');
+  //       data.warning = "Some audio files may not be accessible";
 
-        // Emit warning event
-        eventBus.emit(EVENTS.COLLECTION_FILE_WARNING || 'collection:fileWarning', {
-          id,
-          warning: "Some audio files may not be accessible",
-          timestamp: Date.now()
-        });
-      }
+  //       // Emit warning event
+  //       eventBus.emit(EVENTS.COLLECTION_FILE_WARNING || 'collection:fileWarning', {
+  //         id,
+  //         warning: "Some audio files may not be accessible",
+  //         timestamp: Date.now()
+  //       });
+  //     }
 
-      // Emit success event
-      eventBus.emit(EVENTS.COLLECTION_SELECTED || 'collection:loaded', {
-        id,
-        name: data.data.name,
-        source: 'blob',
-        trackCount: data.data.tracks?.length || 0,
-        timestamp: Date.now()
-      });
+  //     // Emit success event
+  //     eventBus.emit(EVENTS.COLLECTION_SELECTED || 'collection:loaded', {
+  //       id,
+  //       name: data.data.name,
+  //       source: 'blob',
+  //       trackCount: data.data.tracks?.length || 0,
+  //       timestamp: Date.now()
+  //     });
 
-      return data;
-    } catch (error) {
-      this.log(`Error in _fetchCollectionFromAPI: ${error.message}`, 'error');
-      throw error;
-    }
-  }
+  //     return data;
+  //   } catch (error) {
+  //     this.log(`Error in _fetchCollectionFromAPI: ${error.message}`, 'error');
+  //     throw error;
+  //   }
+  // }
 
   /**
  * Load collections from public/collections directory
@@ -1024,10 +1024,10 @@ async getCollections(options = {}) {
       }
     }
 
-    // Apply filtering
-    if (tag || artist) {
-      collections = this._filterCollections(collections, { tag, artist });
-    }
+    // // Apply filtering
+    // if (tag || artist) {
+    //   collections = this._filterCollections(collections, { tag, artist });
+    // }
 
     // Deduplicate collections by ID to prevent React key issues
     const uniqueCollections = [];
@@ -1061,7 +1061,7 @@ async getCollections(options = {}) {
       page: result.pagination.page,
       useCache,
       fromCache: false,
-      filters: { tag, artist, source },
+      // filters: { tag, artist, source },
       timestamp: Date.now()
     });
 
@@ -1500,40 +1500,40 @@ formatCollectionForPlayer(collection) {
     throw new Error(`Failed to format collection: ${error.message}`);
   }
 }
-/**
- * Validate collection data structure
- * @private
- * @param {Object} collection - Collection object to validate
- * @returns {boolean} True if valid, false otherwise
- */
-_validateCollection(collection) {
-  if (!collection) {
-    return false;
-  }
+// /**
+//  * Validate collection data structure
+//  * @private
+//  * @param {Object} collection - Collection object to validate
+//  * @returns {boolean} True if valid, false otherwise
+//  */
+// _validateCollection(collection) {
+//   if (!collection) {
+//     return false;
+//   }
   
-  // Required fields
-  if (!collection.id || !collection.name) {
-    this.log(`Invalid collection missing id or name: ${JSON.stringify(collection).substring(0, 100)}...`, 'warn');
-    return false;
-  }
+//   // Required fields
+//   if (!collection.id || !collection.name) {
+//     this.log(`Invalid collection missing id or name: ${JSON.stringify(collection).substring(0, 100)}...`, 'warn');
+//     return false;
+//   }
   
-  // Tracks validation
-  if (!collection.tracks || !Array.isArray(collection.tracks)) {
-    this.log(`Collection ${collection.id} has no tracks array`, 'warn');
-    return false;
-  }
+//   // Tracks validation
+//   if (!collection.tracks || !Array.isArray(collection.tracks)) {
+//     this.log(`Collection ${collection.id} has no tracks array`, 'warn');
+//     return false;
+//   }
   
-  // Require at least one valid track with audioUrl
-  const hasValidTrack = collection.tracks.some(track => 
-    track && track.id && track.audioUrl);
+//   // Require at least one valid track with audioUrl
+//   const hasValidTrack = collection.tracks.some(track => 
+//     track && track.id && track.audioUrl);
   
-  if (!hasValidTrack) {
-    this.log(`Collection ${collection.id} has no valid tracks with audioUrl`, 'warn');
-    return false;
-  }
+//   if (!hasValidTrack) {
+//     this.log(`Collection ${collection.id} has no valid tracks with audioUrl`, 'warn');
+//     return false;
+//   }
   
-  return true;
-}
+//   return true;
+// }
 
 
   /**
@@ -1641,179 +1641,179 @@ _validateCollection(collection) {
     return 'Layer_1';
   }
 
-  /**
-   * Load collections from browser localStorage
-   * @private
-   */
-  _loadLocalCollections() {
-    try {
-      if (typeof window === 'undefined' || !this.config.enableLocalStorage) return;
+  // /**
+  //  * Load collections from browser localStorage
+  //  * @private
+  //  */
+  // _loadLocalCollections() {
+  //   try {
+  //     if (typeof window === 'undefined' || !this.config.enableLocalStorage) return;
 
-      const storedCollections = localStorage.getItem(this.config.localStorageKey);
-      if (!storedCollections) return;
+  //     const storedCollections = localStorage.getItem(this.config.localStorageKey);
+  //     if (!storedCollections) return;
 
-      const collectionsData = JSON.parse(storedCollections);
+  //     const collectionsData = JSON.parse(storedCollections);
 
-      // Convert array to Map for easy access
-      collectionsData.forEach(collection => {
-        this.localCollections.set(collection.id, {
-          ...collection,
-          source: 'local'
-        });
-      });
+  //     // Convert array to Map for easy access
+  //     collectionsData.forEach(collection => {
+  //       this.localCollections.set(collection.id, {
+  //         ...collection,
+  //         source: 'local'
+  //       });
+  //     });
 
-      this.log(`Loaded ${this.localCollections.size} collections from localStorage`);
+  //     this.log(`Loaded ${this.localCollections.size} collections from localStorage`);
 
-      // Emit loaded event
-      eventBus.emit(EVENTS.COLLECTION_LOCAL_LOADED || 'collection:localLoaded', {
-        count: this.localCollections.size,
-        source: 'localStorage',
-        timestamp: Date.now()
-      });
-    } catch (error) {
-      this.log(`Error loading local collections: ${error.message}`, 'error');
-    }
-  }
+  //     // Emit loaded event
+  //     eventBus.emit(EVENTS.COLLECTION_LOCAL_LOADED || 'collection:localLoaded', {
+  //       count: this.localCollections.size,
+  //       source: 'localStorage',
+  //       timestamp: Date.now()
+  //     });
+  //   } catch (error) {
+  //     this.log(`Error loading local collections: ${error.message}`, 'error');
+  //   }
+  // }
 
-  /**
-   * Save collections to browser localStorage
-   * @private
-   */
-  _saveLocalCollections() {
-    try {
-      if (typeof window === 'undefined' || !this.config.enableLocalStorage) return;
+  // /**
+  //  * Save collections to browser localStorage
+  //  * @private
+  //  */
+  // _saveLocalCollections() {
+  //   try {
+  //     if (typeof window === 'undefined' || !this.config.enableLocalStorage) return;
 
-      const collectionsArray = Array.from(this.localCollections.values());
-      localStorage.setItem(this.config.localStorageKey, JSON.stringify(collectionsArray));
+  //     const collectionsArray = Array.from(this.localCollections.values());
+  //     localStorage.setItem(this.config.localStorageKey, JSON.stringify(collectionsArray));
 
-      this.log(`Saved ${collectionsArray.length} collections to localStorage`);
+  //     this.log(`Saved ${collectionsArray.length} collections to localStorage`);
 
-      // Emit saved event
-      eventBus.emit(EVENTS.COLLECTION_LOCAL_SAVED || 'collection:localSaved', {
-        count: collectionsArray.length,
-        timestamp: Date.now()
-      });
-    } catch (error) {
-      this.log(`Error saving local collections: ${error.message}`, 'error');
+  //     // Emit saved event
+  //     eventBus.emit(EVENTS.COLLECTION_LOCAL_SAVED || 'collection:localSaved', {
+  //       count: collectionsArray.length,
+  //       timestamp: Date.now()
+  //     });
+  //   } catch (error) {
+  //     this.log(`Error saving local collections: ${error.message}`, 'error');
 
-      // Emit error event
-      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-        method: '_saveLocalCollections',
-        error: error.message,
-        timestamp: Date.now()
-      });
-    }
-  }
+  //     // Emit error event
+  //     eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+  //       method: '_saveLocalCollections',
+  //       error: error.message,
+  //       timestamp: Date.now()
+  //     });
+  //   }
+  // }
 
-  /**
-   * Get all collections from localStorage
-   * @returns {Array} Array of collection objects
-   */
-  getLocalCollections() {
-    return Array.from(this.localCollections.values());
-  }
+  // /**
+  //  * Get all collections from localStorage
+  //  * @returns {Array} Array of collection objects
+  //  */
+  // getLocalCollections() {
+  //   return Array.from(this.localCollections.values());
+  // }
 
-  /**
-   * Get a collection from localStorage
-   * @param {string} id - Collection ID
-   * @returns {Object|null} Collection object or null if not found
-   */
-  getLocalCollection(id) {
-    return this.localCollections.get(id) || null;
-  }
+  // /**
+  //  * Get a collection from localStorage
+  //  * @param {string} id - Collection ID
+  //  * @returns {Object|null} Collection object or null if not found
+  //  */
+  // getLocalCollection(id) {
+  //   return this.localCollections.get(id) || null;
+  // }
 
-  /**
-   * Save a collection to localStorage
-   * @param {Object} collection - Collection to save
-   * @returns {boolean} Success state
-   */
-  saveLocalCollection(collection) {
-    try {
-      if (!collection || !collection.id) {
-        throw new Error('Invalid collection object');
-      }
+  // /**
+  //  * Save a collection to localStorage
+  //  * @param {Object} collection - Collection to save
+  //  * @returns {boolean} Success state
+  //  */
+  // saveLocalCollection(collection) {
+  //   try {
+  //     if (!collection || !collection.id) {
+  //       throw new Error('Invalid collection object');
+  //     }
 
-      // Set source to 'local'
-      const localCollection = {
-        ...collection,
-        source: 'local',
-        savedAt: Date.now()
-      };
+  //     // Set source to 'local'
+  //     const localCollection = {
+  //       ...collection,
+  //       source: 'local',
+  //       savedAt: Date.now()
+  //     };
 
-      // Add to local collections map
-      this.localCollections.set(collection.id, localCollection);
+  //     // Add to local collections map
+  //     this.localCollections.set(collection.id, localCollection);
 
-      // Save to localStorage
-      this._saveLocalCollections();
+  //     // Save to localStorage
+  //     this._saveLocalCollections();
 
-      this.log(`Saved collection ${collection.id} to localStorage`);
+  //     this.log(`Saved collection ${collection.id} to localStorage`);
 
-      // Emit saved event
-      eventBus.emit(EVENTS.COLLECTION_LOCAL_SAVED || 'collection:localSaved', {
-        id: collection.id,
-        timestamp: Date.now()
-      });
+  //     // Emit saved event
+  //     eventBus.emit(EVENTS.COLLECTION_LOCAL_SAVED || 'collection:localSaved', {
+  //       id: collection.id,
+  //       timestamp: Date.now()
+  //     });
 
-      return true;
-    } catch (error) {
-      this.log(`Error saving local collection: ${error.message}`, 'error');
+  //     return true;
+  //   } catch (error) {
+  //     this.log(`Error saving local collection: ${error.message}`, 'error');
 
-      // Emit error event
-      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-        method: 'saveLocalCollection',
-        error: error.message,
-        timestamp: Date.now()
-      });
+  //     // Emit error event
+  //     eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+  //       method: 'saveLocalCollection',
+  //       error: error.message,
+  //       timestamp: Date.now()
+  //     });
 
-      return false;
-    }
-  }
+  //     return false;
+  //   }
+  // }
 
-  /**
-   * Remove a collection from localStorage
-   * @param {string} id - Collection ID to remove
-   * @returns {boolean} Success state
-   */
-  removeLocalCollection(id) {
-    try {
-      if (!id) {
-        throw new Error('Collection ID is required');
-      }
+  // /**
+  //  * Remove a collection from localStorage
+  //  * @param {string} id - Collection ID to remove
+  //  * @returns {boolean} Success state
+  //  */
+  // removeLocalCollection(id) {
+  //   try {
+  //     if (!id) {
+  //       throw new Error('Collection ID is required');
+  //     }
 
-      const exists = this.localCollections.has(id);
-      if (!exists) {
-        this.log(`Collection ${id} not found in localStorage`);
-        return false;
-      }
+  //     const exists = this.localCollections.has(id);
+  //     if (!exists) {
+  //       this.log(`Collection ${id} not found in localStorage`);
+  //       return false;
+  //     }
 
-      // Remove from local collections map
-      this.localCollections.delete(id);
+  //     // Remove from local collections map
+  //     this.localCollections.delete(id);
 
-      // Save updates to localStorage
-      this._saveLocalCollections();
+  //     // Save updates to localStorage
+  //     this._saveLocalCollections();
 
-      this.log(`Removed collection ${id} from localStorage`);
+  //     this.log(`Removed collection ${id} from localStorage`);
 
-      // Emit removed event
-      eventBus.emit(EVENTS.COLLECTION_LOCAL_REMOVED || 'collection:localRemoved', {
-        id,
-        timestamp: Date.now()
-      });
+  //     // Emit removed event
+  //     eventBus.emit(EVENTS.COLLECTION_LOCAL_REMOVED || 'collection:localRemoved', {
+  //       id,
+  //       timestamp: Date.now()
+  //     });
 
-      return true;
-    } catch (error) {
-      this.log(`Error removing local collection: ${error.message}`, 'error');
+  //     return true;
+  //   } catch (error) {
+  //     this.log(`Error removing local collection: ${error.message}`, 'error');
 
-      // Emit error event
-      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-        method: 'removeLocalCollection',
-        error: error.message,
-        timestamp: Date.now()
-      });
+  //     // Emit error event
+  //     eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+  //       method: 'removeLocalCollection',
+  //       error: error.message,
+  //       timestamp: Date.now()
+  //     });
 
-      return false;
-    }
-  }
+  //     return false;
+  //   }
+  // }
 
   /**
    * Reset the collection cache
@@ -1829,386 +1829,386 @@ _validateCollection(collection) {
     });
   }
 
-  /**
-   * Create a new user-generated collection
-   * @param {Object} data - Collection data
-   * @param {string} data.name - Collection name
-   * @param {string} [data.description] - Collection description
-   * @param {string} [data.coverImage] - Cover image URL
-   * @param {Array} [data.tracks] - Collection tracks
-   * @returns {Object} Created collection
-   */
-  createCollection(data) {
-    try {
-      if (!data || !data.name) {
-        throw new Error('Collection name is required');
-      }
+  // /**
+  //  * Create a new user-generated collection
+  //  * @param {Object} data - Collection data
+  //  * @param {string} data.name - Collection name
+  //  * @param {string} [data.description] - Collection description
+  //  * @param {string} [data.coverImage] - Cover image URL
+  //  * @param {Array} [data.tracks] - Collection tracks
+  //  * @returns {Object} Created collection
+  //  */
+  // createCollection(data) {
+  //   try {
+  //     if (!data || !data.name) {
+  //       throw new Error('Collection name is required');
+  //     }
 
-      // Generate unique ID
-      const id = `local_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+  //     // Generate unique ID
+  //     const id = `local_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
-      // Create collection object
-      const collection = {
-        id,
-        name: data.name,
-        description: data.description || '',
-        coverImage: data.coverImage || null,
-        tracks: data.tracks || [],
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        source: 'local'
-      };
+  //     // Create collection object
+  //     const collection = {
+  //       id,
+  //       name: data.name,
+  //       description: data.description || '',
+  //       coverImage: data.coverImage || null,
+  //       tracks: data.tracks || [],
+  //       createdAt: Date.now(),
+  //       updatedAt: Date.now(),
+  //       source: 'local'
+  //     };
 
-      // Save to localStorage
-      this.saveLocalCollection(collection);
+  //     // Save to localStorage
+  //     this.saveLocalCollection(collection);
 
-      this.log(`Created new collection: ${collection.name} (${id})`);
+  //     this.log(`Created new collection: ${collection.name} (${id})`);
 
-      // Emit created event
-      eventBus.emit(EVENTS.COLLECTION_CREATED || 'collection:created', {
-        id,
-        name: collection.name,
-        timestamp: Date.now()
-      });
+  //     // Emit created event
+  //     eventBus.emit(EVENTS.COLLECTION_CREATED || 'collection:created', {
+  //       id,
+  //       name: collection.name,
+  //       timestamp: Date.now()
+  //     });
 
-      return { success: true, data: collection };
-    } catch (error) {
-      this.log(`Error creating collection: ${error.message}`, 'error');
+  //     return { success: true, data: collection };
+  //   } catch (error) {
+  //     this.log(`Error creating collection: ${error.message}`, 'error');
 
-      // Emit error event
-      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-        method: 'createCollection',
-        error: error.message,
-        timestamp: Date.now()
-      });
+  //     // Emit error event
+  //     eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+  //       method: 'createCollection',
+  //       error: error.message,
+  //       timestamp: Date.now()
+  //     });
 
-      return { success: false, error: error.message };
-    }
-  }
+  //     return { success: false, error: error.message };
+  //   }
+  // }
 
-  /**
-   * Update an existing collection
-   * @param {string} id - Collection ID
-   * @param {Object} updates - Collection updates
-   * @returns {Object} Updated collection
-   */
-  updateCollection(id, updates) {
-    try {
-      if (!id) {
-        throw new Error('Collection ID is required');
-      }
+  // /**
+  //  * Update an existing collection
+  //  * @param {string} id - Collection ID
+  //  * @param {Object} updates - Collection updates
+  //  * @returns {Object} Updated collection
+  //  */
+  // updateCollection(id, updates) {
+  //   try {
+  //     if (!id) {
+  //       throw new Error('Collection ID is required');
+  //     }
 
-      // Check if collection exists
-      const collection = this.getLocalCollection(id);
-      if (!collection) {
-        throw new Error(`Collection with ID ${id} not found`);
-      }
+  //     // Check if collection exists
+  //     const collection = this.getLocalCollection(id);
+  //     if (!collection) {
+  //       throw new Error(`Collection with ID ${id} not found`);
+  //     }
 
-      // Apply updates
-      const updatedCollection = {
-        ...collection,
-        ...updates,
-        updatedAt: Date.now()
-      };
+  //     // Apply updates
+  //     const updatedCollection = {
+  //       ...collection,
+  //       ...updates,
+  //       updatedAt: Date.now()
+  //     };
 
-      // Preserve source and ID
-      updatedCollection.id = id;
-      updatedCollection.source = 'local';
+  //     // Preserve source and ID
+  //     updatedCollection.id = id;
+  //     updatedCollection.source = 'local';
 
-      // Save to localStorage
-      this.saveLocalCollection(updatedCollection);
+  //     // Save to localStorage
+  //     this.saveLocalCollection(updatedCollection);
 
-      this.log(`Updated collection: ${updatedCollection.name} (${id})`);
+  //     this.log(`Updated collection: ${updatedCollection.name} (${id})`);
 
-      // Emit updated event
-      eventBus.emit(EVENTS.COLLECTION_UPDATED || 'collection:updated', {
-        id,
-        name: updatedCollection.name,
-        timestamp: Date.now()
-      });
+  //     // Emit updated event
+  //     eventBus.emit(EVENTS.COLLECTION_UPDATED || 'collection:updated', {
+  //       id,
+  //       name: updatedCollection.name,
+  //       timestamp: Date.now()
+  //     });
 
-      return { success: true, data: updatedCollection };
-    } catch (error) {
-      this.log(`Error updating collection: ${error.message}`, 'error');
+  //     return { success: true, data: updatedCollection };
+  //   } catch (error) {
+  //     this.log(`Error updating collection: ${error.message}`, 'error');
 
-      // Emit error event
-      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-        method: 'updateCollection',
-        id,
-        error: error.message,
-        timestamp: Date.now()
-      });
+  //     // Emit error event
+  //     eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+  //       method: 'updateCollection',
+  //       id,
+  //       error: error.message,
+  //       timestamp: Date.now()
+  //     });
 
-      return { success: false, error: error.message };
-    }
-  }
+  //     return { success: false, error: error.message };
+  //   }
+  // }
 
-  /**
-   * Add a track to a collection
-   * @param {string} collectionId - Collection ID
-   * @param {Object} track - Track to add
-   * @returns {Object} Result with success status
-   */
-  addTrackToCollection(collectionId, track) {
-    try {
-      if (!collectionId) {
-        throw new Error('Collection ID is required');
-      }
+  // /**
+  //  * Add a track to a collection
+  //  * @param {string} collectionId - Collection ID
+  //  * @param {Object} track - Track to add
+  //  * @returns {Object} Result with success status
+  //  */
+  // addTrackToCollection(collectionId, track) {
+  //   try {
+  //     if (!collectionId) {
+  //       throw new Error('Collection ID is required');
+  //     }
 
-      if (!track || !track.id || !track.audioUrl) {
-        throw new Error('Track is missing required fields (id, audioUrl)');
-      }
+  //     if (!track || !track.id || !track.audioUrl) {
+  //       throw new Error('Track is missing required fields (id, audioUrl)');
+  //     }
 
-      // Get collection
-      const collection = this.getLocalCollection(collectionId);
-      if (!collection) {
-        throw new Error(`Collection with ID ${collectionId} not found`);
-      }
+  //     // Get collection
+  //     const collection = this.getLocalCollection(collectionId);
+  //     if (!collection) {
+  //       throw new Error(`Collection with ID ${collectionId} not found`);
+  //     }
 
-      // Ensure tracks array exists
-      if (!collection.tracks) {
-        collection.tracks = [];
-      }
+  //     // Ensure tracks array exists
+  //     if (!collection.tracks) {
+  //       collection.tracks = [];
+  //     }
 
-      // Check if track already exists
-      const trackExists = collection.tracks.some(t => t.id === track.id);
-      if (trackExists) {
-        throw new Error(`Track with ID ${track.id} already exists in this collection`);
-      }
+  //     // Check if track already exists
+  //     const trackExists = collection.tracks.some(t => t.id === track.id);
+  //     if (trackExists) {
+  //       throw new Error(`Track with ID ${track.id} already exists in this collection`);
+  //     }
 
-      // Add track
-      collection.tracks.push({
-        ...track,
-        addedAt: Date.now()
-      });
+  //     // Add track
+  //     collection.tracks.push({
+  //       ...track,
+  //       addedAt: Date.now()
+  //     });
 
-      // Update collection
-      collection.updatedAt = Date.now();
+  //     // Update collection
+  //     collection.updatedAt = Date.now();
 
-      // Save to localStorage
-      this.saveLocalCollection(collection);
+  //     // Save to localStorage
+  //     this.saveLocalCollection(collection);
 
-      this.log(`Added track ${track.id} to collection ${collectionId}`);
+  //     this.log(`Added track ${track.id} to collection ${collectionId}`);
 
-      // Emit track added event
-      eventBus.emit(EVENTS.COLLECTION_TRACK_ADDED || 'collection:trackAdded', {
-        collectionId,
-        trackId: track.id,
-        timestamp: Date.now()
-      });
+  //     // Emit track added event
+  //     eventBus.emit(EVENTS.COLLECTION_TRACK_ADDED || 'collection:trackAdded', {
+  //       collectionId,
+  //       trackId: track.id,
+  //       timestamp: Date.now()
+  //     });
 
-      return { success: true };
-    } catch (error) {
-      this.log(`Error adding track to collection: ${error.message}`, 'error');
+  //     return { success: true };
+  //   } catch (error) {
+  //     this.log(`Error adding track to collection: ${error.message}`, 'error');
 
-      // Emit error event
-      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-        method: 'addTrackToCollection',
-        collectionId,
-        error: error.message,
-        timestamp: Date.now()
-      });
+  //     // Emit error event
+  //     eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+  //       method: 'addTrackToCollection',
+  //       collectionId,
+  //       error: error.message,
+  //       timestamp: Date.now()
+  //     });
 
-      return { success: false, error: error.message };
-    }
-  }
+  //     return { success: false, error: error.message };
+  //   }
+  // }
 
-  /**
-   * Remove a track from a collection
-   * @param {string} collectionId - Collection ID
-   * @param {string} trackId - Track ID to remove
-   * @returns {Object} Result with success status
-   */
-  removeTrackFromCollection(collectionId, trackId) {
-    try {
-      if (!collectionId) {
-        throw new Error('Collection ID is required');
-      }
+  // /**
+  //  * Remove a track from a collection
+  //  * @param {string} collectionId - Collection ID
+  //  * @param {string} trackId - Track ID to remove
+  //  * @returns {Object} Result with success status
+  //  */
+  // removeTrackFromCollection(collectionId, trackId) {
+  //   try {
+  //     if (!collectionId) {
+  //       throw new Error('Collection ID is required');
+  //     }
 
-      if (!trackId) {
-        throw new Error('Track ID is required');
-      }
+  //     if (!trackId) {
+  //       throw new Error('Track ID is required');
+  //     }
 
-      // Get collection
-      const collection = this.getLocalCollection(collectionId);
-      if (!collection) {
-        throw new Error(`Collection with ID ${collectionId} not found`);
-      }
+  //     // Get collection
+  //     const collection = this.getLocalCollection(collectionId);
+  //     if (!collection) {
+  //       throw new Error(`Collection with ID ${collectionId} not found`);
+  //     }
 
-      // Ensure tracks array exists
-      if (!collection.tracks || !Array.isArray(collection.tracks)) {
-        return { success: false, error: 'Collection has no tracks' };
-      }
+  //     // Ensure tracks array exists
+  //     if (!collection.tracks || !Array.isArray(collection.tracks)) {
+  //       return { success: false, error: 'Collection has no tracks' };
+  //     }
 
-      // Find track index
-      const trackIndex = collection.tracks.findIndex(t => t.id === trackId);
-      if (trackIndex === -1) {
-        return { success: false, error: `Track with ID ${trackId} not found in collection` };
-      }
+  //     // Find track index
+  //     const trackIndex = collection.tracks.findIndex(t => t.id === trackId);
+  //     if (trackIndex === -1) {
+  //       return { success: false, error: `Track with ID ${trackId} not found in collection` };
+  //     }
 
-      // Remove track
-      collection.tracks.splice(trackIndex, 1);
+  //     // Remove track
+  //     collection.tracks.splice(trackIndex, 1);
 
-      // Update collection
-      collection.updatedAt = Date.now();
+  //     // Update collection
+  //     collection.updatedAt = Date.now();
 
-      // Save to localStorage
-      this.saveLocalCollection(collection);
+  //     // Save to localStorage
+  //     this.saveLocalCollection(collection);
 
-      this.log(`Removed track ${trackId} from collection ${collectionId}`);
+  //     this.log(`Removed track ${trackId} from collection ${collectionId}`);
 
-      // Emit track removed event
-      eventBus.emit(EVENTS.COLLECTION_TRACK_REMOVED || 'collection:trackRemoved', {
-        collectionId,
-        trackId,
-        timestamp: Date.now()
-      });
+  //     // Emit track removed event
+  //     eventBus.emit(EVENTS.COLLECTION_TRACK_REMOVED || 'collection:trackRemoved', {
+  //       collectionId,
+  //       trackId,
+  //       timestamp: Date.now()
+  //     });
 
-      return { success: true };
-    } catch (error) {
-      this.log(`Error removing track from collection: ${error.message}`, 'error');
+  //     return { success: true };
+  //   } catch (error) {
+  //     this.log(`Error removing track from collection: ${error.message}`, 'error');
 
-      // Emit error event
-      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-        method: 'removeTrackFromCollection',
-        collectionId,
-        trackId,
-        error: error.message,
-        timestamp: Date.now()
-      });
+  //     // Emit error event
+  //     eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+  //       method: 'removeTrackFromCollection',
+  //       collectionId,
+  //       trackId,
+  //       error: error.message,
+  //       timestamp: Date.now()
+  //     });
 
-      return { success: false, error: error.message };
-    }
-  }
+  //     return { success: false, error: error.message };
+  //   }
+  // }
 
-  /**
-   * Export a collection to JSON
-   * @param {string} id - Collection ID
-   * @returns {Object} Result with success status and JSON data
-   */
-  exportCollection(id) {
-    try {
-      if (!id) {
-        throw new Error('Collection ID is required');
-      }
+  // /**
+  //  * Export a collection to JSON
+  //  * @param {string} id - Collection ID
+  //  * @returns {Object} Result with success status and JSON data
+  //  */
+  // exportCollection(id) {
+  //   try {
+  //     if (!id) {
+  //       throw new Error('Collection ID is required');
+  //     }
 
-      // Try to get collection from any source
-      return this.getCollection(id, true)
-        .then(result => {
-          if (!result.success) {
-            throw new Error(`Collection with ID ${id} not found`);
-          }
+  //     // Try to get collection from any source
+  //     return this.getCollection(id, true)
+  //       .then(result => {
+  //         if (!result.success) {
+  //           throw new Error(`Collection with ID ${id} not found`);
+  //         }
 
-          const collection = result.data;
+  //         const collection = result.data;
 
-          // Create export with required fields
-          const exportData = {
-            id: collection.id,
-            name: collection.name,
-            description: collection.description,
-            coverImage: collection.coverImage,
-            tracks: collection.tracks || [],
-            metadata: collection.metadata || {},
-            exportedAt: Date.now(),
-            source: collection.source
-          };
+  //         // Create export with required fields
+  //         const exportData = {
+  //           id: collection.id,
+  //           name: collection.name,
+  //           description: collection.description,
+  //           coverImage: collection.coverImage,
+  //           tracks: collection.tracks || [],
+  //           metadata: collection.metadata || {},
+  //           exportedAt: Date.now(),
+  //           source: collection.source
+  //         };
 
-          this.log(`Exported collection ${id}`);
+  //         this.log(`Exported collection ${id}`);
 
-          // Emit export event
-          eventBus.emit(EVENTS.COLLECTION_EXPORTED || 'collection:exported', {
-            id,
-            name: collection.name,
-            timestamp: Date.now()
-          });
+  //         // Emit export event
+  //         eventBus.emit(EVENTS.COLLECTION_EXPORTED || 'collection:exported', {
+  //           id,
+  //           name: collection.name,
+  //           timestamp: Date.now()
+  //         });
 
-          return {
-            success: true,
-            data: exportData,
-            json: JSON.stringify(exportData, null, 2)
-          };
-        });
-    } catch (error) {
-      this.log(`Error exporting collection: ${error.message}`, 'error');
+  //         return {
+  //           success: true,
+  //           data: exportData,
+  //           json: JSON.stringify(exportData, null, 2)
+  //         };
+  //       });
+  //   } catch (error) {
+  //     this.log(`Error exporting collection: ${error.message}`, 'error');
 
-      // Emit error event
-      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-        method: 'exportCollection',
-        id,
-        error: error.message,
-        timestamp: Date.now()
-      });
+  //     // Emit error event
+  //     eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+  //       method: 'exportCollection',
+  //       id,
+  //       error: error.message,
+  //       timestamp: Date.now()
+  //     });
 
-      return { success: false, error: error.message };
-    }
-  }
+  //     return { success: false, error: error.message };
+  //   }
+  // }
 
-  /**
-   * Import a collection from JSON
-   * @param {string|Object} data - JSON string or object to import
-   * @returns {Object} Result with success status and imported collection
-   */
-  importCollection(data) {
-    try {
-      // Parse JSON if string
-      let collectionData;
-      if (typeof data === 'string') {
-        try {
-          collectionData = JSON.parse(data);
-        } catch (e) {
-          throw new Error('Invalid JSON format');
-        }
-      } else if (typeof data === 'object' && data !== null) {
-        collectionData = data;
-      } else {
-        throw new Error('Invalid import data format');
-      }
+  // /**
+  //  * Import a collection from JSON
+  //  * @param {string|Object} data - JSON string or object to import
+  //  * @returns {Object} Result with success status and imported collection
+  //  */
+  // importCollection(data) {
+  //   try {
+  //     // Parse JSON if string
+  //     let collectionData;
+  //     if (typeof data === 'string') {
+  //       try {
+  //         collectionData = JSON.parse(data);
+  //       } catch (e) {
+  //         throw new Error('Invalid JSON format');
+  //       }
+  //     } else if (typeof data === 'object' && data !== null) {
+  //       collectionData = data;
+  //     } else {
+  //       throw new Error('Invalid import data format');
+  //     }
 
-      // Validate required fields
-      if (!collectionData.name) {
-        throw new Error('Collection name is required');
-      }
+  //     // Validate required fields
+  //     if (!collectionData.name) {
+  //       throw new Error('Collection name is required');
+  //     }
 
-      // Generate new local ID to avoid conflicts
-      const originalId = collectionData.id;
-      const newId = `local_import_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+  //     // Generate new local ID to avoid conflicts
+  //     const originalId = collectionData.id;
+  //     const newId = `local_import_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
-      // Create new collection object
-      const collection = {
-        ...collectionData,
-        id: newId,
-        importedFrom: originalId,
-        importedAt: Date.now(),
-        source: 'local'
-      };
+  //     // Create new collection object
+  //     const collection = {
+  //       ...collectionData,
+  //       id: newId,
+  //       importedFrom: originalId,
+  //       importedAt: Date.now(),
+  //       source: 'local'
+  //     };
 
-      // Save to localStorage
-      this.saveLocalCollection(collection);
+  //     // Save to localStorage
+  //     this.saveLocalCollection(collection);
 
-      this.log(`Imported collection: ${collection.name} (${newId})`);
+  //     this.log(`Imported collection: ${collection.name} (${newId})`);
 
-      // Emit import event
-      eventBus.emit(EVENTS.COLLECTION_IMPORTED || 'collection:imported', {
-        id: newId,
-        originalId,
-        name: collection.name,
-        timestamp: Date.now()
-      });
+  //     // Emit import event
+  //     eventBus.emit(EVENTS.COLLECTION_IMPORTED || 'collection:imported', {
+  //       id: newId,
+  //       originalId,
+  //       name: collection.name,
+  //       timestamp: Date.now()
+  //     });
 
-      return { success: true, data: collection };
-    } catch (error) {
-      this.log(`Error importing collection: ${error.message}`, 'error');
+  //     return { success: true, data: collection };
+  //   } catch (error) {
+  //     this.log(`Error importing collection: ${error.message}`, 'error');
 
-      // Emit error event
-      eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
-        method: 'importCollection',
-        error: error.message,
-        timestamp: Date.now()
-      });
+  //     // Emit error event
+  //     eventBus.emit(EVENTS.COLLECTION_ERROR || 'collection:error', {
+  //       method: 'importCollection',
+  //       error: error.message,
+  //       timestamp: Date.now()
+  //     });
 
-      return { success: false, error: error.message };
-    }
-  }
+  //     return { success: false, error: error.message };
+  //   }
+  // }
 
   /**
    * Logging helper that respects configuration

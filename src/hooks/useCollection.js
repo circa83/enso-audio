@@ -33,14 +33,14 @@ export function useCollection(options = {}) {
     currentCollection,
     isLoading,
     error,
-    filters,
+    // filters,
     pagination,
     
     // Access to methods
     loadCollections,
     getCollection,
-    updateFilters,
-    clearFilters,
+    // updateFilters,
+    // clearFilters,
     goToPage,
     formatForPlayer,
     resetCache,
@@ -116,12 +116,12 @@ export function useCollection(options = {}) {
     }
   }, [autoloadFromUrl, getCollection, onCollectionLoaded]);
 
-  // Apply initial filters if provided - once only
-  useEffect(() => {
-    if (initialFilters && Object.keys(initialFilters).length > 0) {
-      updateFilters(initialFilters);
-    }
-  }, []); // Empty dependency array to run only once
+  // // Apply initial filters if provided - once only
+  // useEffect(() => {
+  //   if (initialFilters && Object.keys(initialFilters).length > 0) {
+  //     updateFilters(initialFilters);
+  //   }
+  // }, []); // Empty dependency array to run only once
 
   // Load collections on mount if requested - with additional guard
   useEffect(() => {
@@ -132,71 +132,71 @@ export function useCollection(options = {}) {
     }
   }, [loadOnMount, loadCollections]);
 
-  // Listen for collection events - with stable event handlers
-  useEffect(() => {
-    if (!listenForEvents) return;
+  // // Listen for collection events - with stable event handlers
+  // useEffect(() => {
+  //   if (!listenForEvents) return;
 
-    // Only create the handlers once to avoid infinite event binding/unbinding
-    if (!eventHandlersRef.current.handleCollectionLoaded) {
-      eventHandlersRef.current.handleCollectionLoaded = (data) => {
-        // Extract collection ID from any payload format
-        const collectionId = data.collectionId || (data.collection && data.collection.id) || data.id;
+  //   // Only create the handlers once to avoid infinite event binding/unbinding
+  //   if (!eventHandlersRef.current.handleCollectionLoaded) {
+  //     eventHandlersRef.current.handleCollectionLoaded = (data) => {
+  //       // Extract collection ID from any payload format
+  //       const collectionId = data.collectionId || (data.collection && data.collection.id) || data.id;
         
-        console.log(`[useCollection] Collection loaded event received for: ${collectionId || 'undefined'}`);
+  //       console.log(`[useCollection] Collection loaded event received for: ${collectionId || 'undefined'}`);
         
-        // Validate we have a collection ID
-        if (!collectionId) {
-          console.warn('[useCollection] Received collection:loaded event with missing or invalid ID', data);
-          return;
-        }
+  //       // Validate we have a collection ID
+  //       if (!collectionId) {
+  //         console.warn('[useCollection] Received collection:loaded event with missing or invalid ID', data);
+  //         return;
+  //       }
         
-        // If we have the collection data, use it directly
-        if (data.collection && typeof data.collection === 'object') {
-          if (onCollectionLoaded) {
-            onCollectionLoaded(data.collection);
-          }
-        } 
-        // Otherwise, if we only have the ID but not the data,
-        // and we're supposed to fetch missing collections
-        else if (fetchMissingCollections) {
-          // Only fetch if we're not already loading this collection
-          // and if it's not the current collection
-          if (!isLoading && (!currentCollection || currentCollection.id !== collectionId)) {
-            console.log(`[useCollection] Fetching collection data for ID: ${collectionId}`);
-            getCollection(collectionId).catch(error => {
-              console.error(`[useCollection] Error loading collection: ${error.message}`);
-            });
-          } else {
-            console.log(`[useCollection] Collection ${collectionId} already loading or current`);
-          }
-        }
-      };
+  //       // If we have the collection data, use it directly
+  //       if (data.collection && typeof data.collection === 'object') {
+  //         if (onCollectionLoaded) {
+  //           onCollectionLoaded(data.collection);
+  //         }
+  //       } 
+  //       // Otherwise, if we only have the ID but not the data,
+  //       // and we're supposed to fetch missing collections
+  //       else if (fetchMissingCollections) {
+  //         // Only fetch if we're not already loading this collection
+  //         // and if it's not the current collection
+  //         if (!isLoading && (!currentCollection || currentCollection.id !== collectionId)) {
+  //           console.log(`[useCollection] Fetching collection data for ID: ${collectionId}`);
+  //           getCollection(collectionId).catch(error => {
+  //             console.error(`[useCollection] Error loading collection: ${error.message}`);
+  //           });
+  //         } else {
+  //           console.log(`[useCollection] Collection ${collectionId} already loading or current`);
+  //         }
+  //       }
+  //     };
       
-      eventHandlersRef.current.handleCollectionError = (data) => {
-        console.error(`[useCollection] Collection error event received:`, data.error);
-      };
-    }
+  //     eventHandlersRef.current.handleCollectionError = (data) => {
+  //       console.error(`[useCollection] Collection error event received:`, data.error);
+  //     };
+  //   }
 
-    // Subscribe to events using the stable handler references
-    eventBus.on(EVENTS.COLLECTION_LOADED || 'collection:loaded', 
-      eventHandlersRef.current.handleCollectionLoaded);
-    eventBus.on(EVENTS.COLLECTION_ERROR || 'collection:error', 
-      eventHandlersRef.current.handleCollectionError);
+  //   // Subscribe to events using the stable handler references
+  //   eventBus.on(EVENTS.COLLECTION_LOADED || 'collection:loaded', 
+  //     eventHandlersRef.current.handleCollectionLoaded);
+  //   eventBus.on(EVENTS.COLLECTION_ERROR || 'collection:error', 
+  //     eventHandlersRef.current.handleCollectionError);
 
-    return () => {
-      eventBus.off(EVENTS.COLLECTION_LOADED || 'collection:loaded', 
-        eventHandlersRef.current.handleCollectionLoaded);
-      eventBus.off(EVENTS.COLLECTION_ERROR || 'collection:error', 
-        eventHandlersRef.current.handleCollectionError);
-    };
-  }, [
-    listenForEvents, 
-    isLoading, 
-    currentCollection, 
-    getCollection, 
-    fetchMissingCollections, 
-    onCollectionLoaded
-  ]);
+  //   return () => {
+  //     eventBus.off(EVENTS.COLLECTION_LOADED || 'collection:loaded', 
+  //       eventHandlersRef.current.handleCollectionLoaded);
+  //     eventBus.off(EVENTS.COLLECTION_ERROR || 'collection:error', 
+  //       eventHandlersRef.current.handleCollectionError);
+  //   };
+  // }, [
+  //   listenForEvents, 
+  //   isLoading, 
+  //   currentCollection, 
+  //   getCollection, 
+  //   fetchMissingCollections, 
+  //   onCollectionLoaded
+  // ]);
 
   /**
    * Select a collection for playback with enhanced buffer integration
@@ -252,14 +252,14 @@ export function useCollection(options = {}) {
     currentCollection,
     isLoading,
     error,
-    filters,
+    // filters,
     pagination,
 
     // Functions
     loadCollections,
     getCollection,
-    updateFilters,
-    clearFilters,
+    // updateFilters,
+    // clearFilters,
     goToPage,
     resetCache,
 
@@ -276,12 +276,12 @@ export function useCollection(options = {}) {
     currentCollection,
     isLoading,
     error,
-    filters,
+    // filters,
     pagination,
     loadCollections,
     getCollection,
-    updateFilters,
-    clearFilters,
+    // updateFilters,
+    // clearFilters,
     goToPage,
     resetCache,
     formatForPlayer,
