@@ -105,19 +105,7 @@ export function useCollections(options = {}) {
     }
   }, [collectionService, pageSize]); 
   
-  /**
-   * Update filters and reload collections
-   * Resets to page 1 when filters change
-   */
-  const updateFilters = useCallback((newFilters) => {
-    console.log(`[useCollections] Updating filters:`, newFilters);
-    setFilters(prev => {
-      const updated = { ...prev, ...newFilters };
-      filtersRef.current = updated; // Update the ref
-      return updated;
-    });
-  }, []);
-  
+ 
   /**
    * Navigate to a specific page
    */
@@ -131,22 +119,7 @@ export function useCollections(options = {}) {
     loadCollections(pageNumber, filtersRef.current);
   }, [pagination.pages, loadCollections]);
   
-  /**
-   * Clear all filters and reload
-   */
-  const clearFilters = useCallback(() => {
-    console.log(`[useCollections] Clearing all filters`);
-    setFilters({});
-    filtersRef.current = {};
-  }, []);
-  
-  // Effect to handle filter changes
-  useEffect(() => {
-    if (!isMountedRef.current) return;
-    console.log(`[useCollections] Filters changed, reloading collections from page 1`);
-    loadCollections(1, filtersRef.current);
-  }, [filters, loadCollections]);
-  
+ 
   // Effect to handle initial load
   useEffect(() => {
     console.log('[useCollections] Component mounted');
@@ -199,12 +172,11 @@ export function useCollections(options = {}) {
     collections,
     isLoading,
     error,
-    filters,
+    
     pagination,
     
     // Functions
-    updateFilters,
-    clearFilters,
+   
     loadCollections,
     getCollection,
     goToPage,

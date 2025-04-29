@@ -132,9 +132,7 @@ export const AudioProvider = ({ children }) => {
   const [timelineIsPlaying, setTimelineIsPlaying] = useState(false);
  
  
-  // Preset management
-  const [presets, setPresets] = useState({});
-  const stateProviders = useRef({});
+
 
    // Collection state
    const [currentCollection, setCurrentCollection] = useState(null);
@@ -251,16 +249,8 @@ export const AudioProvider = ({ children }) => {
             onProgress: (progress, elapsedTime) => {
               if (isMounted) setProgress(progress);
             }
-          },
-          presetManager: {
-            getStateProviders: () => ({ ...stateProviders.current }),
-            onPresetChange: (updatedPresets) => {
-              if (isMounted) setPresets(updatedPresets);
-            },
-            onPresetLoad: (presetName, presetData) => {
-              if (isMounted) handleLoadPreset(presetData);
-            }
           }
+          
         });
         
         // Store services in ref
@@ -1193,217 +1183,254 @@ console.log(`[StreamingAudioContext: handleCrossfadeTo] Available tracks in audi
     }
   }, [audioLibrary, activeAudio, transitionDuration]);
 
-  // Collection loading function
-  const handleLoadCollection = useCallback(async (collectionId, options = {}) => {
-    if (!collectionId) {
-      console.error('[StreamingAudioContext: handleLoadCollection] No collection ID provided');
-      return false;
+ // Collection loading function
+const handleLoadCollection = useCallback(async (collectionId, options = {}) => {
+  if (!collectionId) {
+    console.error('[StreamingAudioContext: handleLoadCollection] No collection ID provided');
+    return false;
+  }
+  
+  try {
+    setLoadingCollection(true);
+    setCollectionError(null);
+    setCollectionLoadProgress(0);
+    
+    console.log(`[StreamingAudioContext: handleLoadCollection] Loading collection: ${collectionId}, autoPlay:`, 
+      options.autoPlay === true ? 'true' : 'false');
+    
+    // Pause if currently playing
+    if (isPlayingRef.current) {
+      await handlePauseSession();
     }
     
+    // Load collection data using CollectionService
+    const result = await collectionService.getCollection(collectionId);
+    console.log('[StreamingAudioContext: handleLoadCollection] Collection result:', result);
+    
+    if (!result.success || !result.data) {
+      throw new Error(result.error || 'Failed to load collection');
+    }
+    
+    const collection = result.data;
+    setCollectionLoadProgress(20);
+    
+    // Validate collection has tracks
+    if (!collection.tracks || !Array.isArray(collection.tracks) || collection.tracks.length === 0) {
+      console.error(`[StreamingAudioContext: handleLoadCollection] Collection "${collectionId}" has no tracks`);
+      throw new Error(`Collection "${collection.name || collectionId}" has no audio tracks`);
+    }
+    
+    console.log(`[StreamingAudioContext: handleLoadCollection] Loaded collection: ${collection.name} with ${collection.tracks.length} tracks`);
+    
+    // Format collection for player using CollectionService
     try {
-      setLoadingCollection(true);
-      setCollectionError(null);
-      setCollectionLoadProgress(0);
-      
-      console.log(`[StreamingAudioContext: handleLoadCollection] Loading collection: ${collectionId}, autoPlay:`, 
-        options.autoPlay === true ? 'true' : 'false');
-      
-      // Pause if currently playing
-      if (isPlayingRef.current) {
-        await handlePauseSession();
-      }
-      
-      // Load collection data using CollectionService
-      const result = await collectionService.getCollection(collectionId);
-      console.log('[StreamingAudioContext: handleLoadCollection] Collection result:', result);
-      
-      if (!result.success || !result.data) {
-        throw new Error(result.error || 'Failed to load collection');
-      }
-      
-      const collection = result.data;
-      setCollectionLoadProgress(20);
-      
-      // Validate collection has tracks
-      if (!collection.tracks || !Array.isArray(collection.tracks) || collection.tracks.length === 0) {
-        console.error(`[StreamingAudioContext: handleLoadCollection] Collection "${collectionId}" has no tracks`);
-        throw new Error(`Collection "${collection.name || collectionId}" has no audio tracks`);
-      }
-      
-      console.log(`[StreamingAudioContext: handleLoadCollection] Loaded collection: ${collection.name} with ${collection.tracks.length} tracks`);
-      
-      // Format collection for player using CollectionService
-      try {
-        const formattedCollection = collectionService.formatCollectionForPlayer(collection);
-        console.log(`[StreamingAudioContext: handleLoadCollection] Formatted collection:`, {
-          id: formattedCollection.id,
-          name: formattedCollection.name,
-          coverImage: formattedCollection.coverImage,
-          layers: Object.keys(formattedCollection.layers || {})
-        });
-        
-        setCollectionLoadProgress(40);
-        
-        // Verify layers were properly formatted
-        const hasAnyTracks = Object.values(formattedCollection.layers || {}).some(
-          tracks => Array.isArray(tracks) && tracks.length > 0
-        );
-        
-        if (!hasAnyTracks) {
-          console.error('[StreamingAudioContext: handleLoadCollection] No tracks found in formatted collection');
-          throw new Error('No compatible audio tracks found in this collection');
-        }
-        
-        console.log('[StreamingAudioContext: handleLoadCollection] Formatted collection layers:', 
-          Object.entries(formattedCollection.layers).map(([layer, tracks]) => 
-            `${layer}: ${tracks.length} tracks`
-          ).join(', ')
-        );
+      const formattedCollection = collectionService.formatCollectionForPlayer(collection);
+      console.log(`[StreamingAudioContext: handleLoadCollection] Formatted collection:`, {
+        id: formattedCollection.id,
+        name: formattedCollection.name,
+        coverImage: formattedCollection.coverImage,
+        layers: Object.keys(formattedCollection.layers || {})
+      });
 
-        // Update audio library with collection tracks
-        setAudioLibrary(prevLibrary => {
-          const newLibrary = {...prevLibrary};
+      // Make sure all audio URLs are properly formed for local playback
+      Object.entries(formattedCollection.layers).forEach(([layerName, tracks]) => {
+        tracks.forEach(track => {
+          // Ensure path starts with a forward slash for proper path resolution
+          if (track.path && !track.path.startsWith('/')) {
+            track.path = '/' + track.path;
+          }
+          console.log(`[StreamingAudioContext: handleLoadCollection] Track path for ${layerName}: ${track.path}`);
+        });
+      });
+      
+      setCollectionLoadProgress(40);
+      
+      // Verify layers were properly formatted
+      const hasAnyTracks = Object.values(formattedCollection.layers || {}).some(
+        tracks => Array.isArray(tracks) && tracks.length > 0
+      );
+      
+      if (!hasAnyTracks) {
+        console.error('[StreamingAudioContext: handleLoadCollection] No tracks found in formatted collection');
+        throw new Error('No compatible audio tracks found in this collection');
+      }
+      
+      console.log('[StreamingAudioContext: handleLoadCollection] Formatted collection layers:', 
+        Object.entries(formattedCollection.layers).map(([layer, tracks]) => 
+          `${layer}: ${tracks.length} tracks`
+        ).join(', ')
+      );
+
+      // Update audio library with collection tracks
+      setAudioLibrary(prevLibrary => {
+        const newLibrary = {...prevLibrary};
+        
+        // Replace each layer's tracks with the ones from the collection
+        Object.entries(formattedCollection.layers).forEach(([layerName, tracks]) => {
+          console.log(`[StreamingAudioContext: handleLoadCollection] Setting ${tracks.length} tracks for ${layerName}`);
           
-          // Replace each layer's tracks with the ones from the collection
-          Object.entries(formattedCollection.layers).forEach(([layerName, tracks]) => {
-            console.log(`[StreamingAudioContext: handleLoadCollection] Setting ${tracks.length} tracks for ${layerName}`);
-            
-            // Log the actual track IDs and names for debugging
-            tracks.forEach(track => {
-              console.log(`[StreamingAudioContext: handleLoadCollection] Track: ${track.id} (${track.name})`);
-            });
-            
-            // Update this layer in the library
-            newLibrary[layerName] = [...tracks];
+          // Log the actual track IDs and names for debugging
+          tracks.forEach(track => {
+            console.log(`[StreamingAudioContext: handleLoadCollection] Track: ${track.id} (${track.name})`);
           });
           
-          // Also update the reference for immediate access
-          audioLibraryRef.current = {...newLibrary};
-          
-          console.log('[StreamingAudioContext: handleLoadCollection] Updated audioLibrary with collection tracks');
-          return newLibrary;
+          // Update this layer in the library
+          newLibrary[layerName] = [...tracks];
         });
         
-        // Resolve audio URLs using AudioFileService
-        let resolvedCollection = formattedCollection;
-        if (options.autoResolveUrls !== false) {
+        // Also update the reference for immediate access
+        audioLibraryRef.current = {...newLibrary};
+        
+        console.log('[StreamingAudioContext: handleLoadCollection] Updated audioLibrary with collection tracks');
+        return newLibrary;
+      });
+      
+      setCollectionLoadProgress(60);
+      
+      // Register new audio elements with AudioCore
+      console.log('[StreamingAudioContext: handleLoadCollection] Registering new collection audio with AudioCore');
+
+      // First, get the audio context and master gain node
+      const audioCtx = serviceRef.current.audioCore.getContext();
+      const masterGain = serviceRef.current.audioCore.getMasterGain();
+
+      // Create a new audio elements structure to register with AudioCore
+      const newAudioElements = {};
+
+      // Process each layer and its tracks
+      Object.entries(formattedCollection.layers).forEach(([layerName, tracks]) => {
+        // Initialize empty object for this layer
+        newAudioElements[layerName] = {};
+        
+        // Process each track in the layer
+        tracks.forEach(track => {
           try {
-            console.log('[StreamingAudioContext: handleLoadCollection] Resolving collection URLs');
+            console.log(`[StreamingAudioContext: handleLoadCollection] Creating audio element for ${layerName}/${track.id}`);
             
-            // Validate the formatted collection before passing to audioFileService
-            if (!formattedCollection) {
-              console.error('[StreamingAudioContext: handleLoadCollection] Formatted collection is null or undefined');
-              throw new Error('Formatted collection is null or undefined');
+            // Create new audio element
+            const audioElement = new Audio();
+            audioElement.preload = "auto";
+            audioElement.loop = true;
+            audioElement.crossOrigin = "anonymous";
+            audioElement.src = track.path;
+            
+            // Create media element source
+            const source = audioCtx.createMediaElementSource(audioElement);
+            
+            // Connect to volume controller
+            if (serviceRef.current.volumeController) {
+              serviceRef.current.volumeController.connectToLayer(layerName, source, masterGain);
             }
             
-            if (!formattedCollection.layers && (!formattedCollection.tracks || !Array.isArray(formattedCollection.tracks))) {
-              console.error('[StreamingAudioContext: handleLoadCollection] Invalid formatted collection structure - missing both layers and tracks');
-              console.log('Formatted collection structure:', formattedCollection);
-              throw new Error('Invalid formatted collection structure');
-            }
+            // Store audio element data
+            newAudioElements[layerName][track.id] = {
+              element: audioElement,
+              source: source,
+              track: track,
+              isActive: false // Will be set to true when activated
+            };
             
-            // Log the structure we're passing to the AudioFileService
-            console.log('[StreamingAudioContext: handleLoadCollection] Formatted collection structure:', 
-              formattedCollection.layers 
-                ? `Has layers: ${Object.keys(formattedCollection.layers).join(', ')}` 
-                : `Has tracks array: ${formattedCollection.tracks.length} items`
-            );
-            
-            resolvedCollection = await audioFileService.resolveCollectionUrls(formattedCollection);
-            setCollectionLoadProgress(60);
-          } catch (urlError) {
-            console.error('[StreamingAudioContext: handleLoadCollection] Error resolving URLs:', urlError.message);
-            // Just use the formatted collection without URL resolution as fallback
-            resolvedCollection = formattedCollection;
-            setCollectionLoadProgress(60);
+          } catch (error) {
+            console.error(`[StreamingAudioContext: handleLoadCollection] Error creating audio element for ${track.id}: ${error.message}`);
           }
-        }
-        
-        // Track successful layer loads
-        const loadedLayers = {};
-        
-        // For each layer, load the first track
-        for (const [layerFolder, tracks] of Object.entries(resolvedCollection.layers)) {
-          if (!tracks || tracks.length === 0) {
-            console.log(`[StreamingAudioContext: handleLoadCollection] No tracks for layer: ${layerFolder}`);
-            continue;
-          }
-          
-          try {
-            // Get first track for this layer
-            const track = tracks[0];
-            
-            // Get desired volume for this layer
-            const layerVolume = options.initialVolumes?.[layerFolder] !== undefined 
-              ? options.initialVolumes[layerFolder]
-              : layerFolder === 'Layer_1' ? 0.6 : 0; // Default: layer 1 on, others off
-            
-            console.log(`[StreamingAudioContext: handleLoadCollection] Loading ${layerFolder}: ${track.id} at volume ${layerVolume}`);
-            
-            // Set volume for layer
-            handleSetVolume(layerFolder, layerVolume, { immediate: true });
-            
-            // Use crossfade engine to load the track with very short duration
-            await handleCrossfadeTo(layerFolder, track.id, 100);
-            
-            // Track successful load
-            loadedLayers[layerFolder] = track.id;
-          } catch (layerError) {
-            console.error(`[StreamingAudioContext: handleLoadCollection] Error loading ${layerFolder}: ${layerError.message}`);
-          }
-        }
-        
-        setCollectionLoadProgress(90);
-        
-        // If no layers were loaded successfully, throw an error
-        if (Object.keys(loadedLayers).length === 0) {
-          throw new Error('Failed to load any audio tracks from this collection');
-        }
-        
-        // FIXED: Only auto-start playback if specifically requested
-        // This check now logs the decision and is more explicit
-        const shouldAutoPlay = options.autoPlay === true;
-        console.log(`[StreamingAudioContext: handleLoadCollection] Auto-play is ${shouldAutoPlay ? 'ENABLED' : 'DISABLED'}`);
-        
-        if (shouldAutoPlay) {
-          console.log('[StreamingAudioContext: handleLoadCollection] Auto-starting playback as requested');
-          handleStartSession();
-        } else {
-          console.log('[StreamingAudioContext: handleLoadCollection] Playback not auto-started, waiting for user action');
-        }
-        
-        setCollectionLoadProgress(100);
-        
-        // Set the current collection with the formatted data
-        console.log('[StreamingAudioContext: handleLoadCollection] Setting currentCollection:', {
-          id: resolvedCollection.id,
-          name: resolvedCollection.name,
-          coverImage: resolvedCollection.coverImage
         });
-        setCurrentCollection(resolvedCollection);
-        
-        console.log(`[StreamingAudioContext: handleLoadCollection] Successfully loaded collection: ${collection.name}`);
-        console.log(`[StreamingAudioContext: handleLoadCollection] Cover image URL: ${resolvedCollection.coverImage}`);
-        return true;
-      } catch (formatError) {
-        console.error(`[StreamingAudioContext: handleLoadCollection] Error formatting collection: ${formatError.message}`);
-        throw new Error(`Error preparing collection audio: ${formatError.message}`);
+      });
+
+      // Register the new audio elements with AudioCore
+      if (serviceRef.current.audioCore.registerElements) {
+        const registered = serviceRef.current.audioCore.registerElements(newAudioElements);
+        console.log('[StreamingAudioContext: handleLoadCollection] AudioCore registration result:', registered);
+      } else {
+        console.error('[StreamingAudioContext: handleLoadCollection] AudioCore.registerElements is not defined');
       }
-    } catch (err) {
-      console.error(`[StreamingAudioContext: handleLoadCollection] Error: ${err.message}`);
-      setCollectionError(err.message);
-      return false;
-    } finally {
-      setLoadingCollection(false);
+      
+      setCollectionLoadProgress(80);
+      
+      // Track successful layer loads
+      const loadedLayers = {};
+      
+      // For each layer, load the first track
+      for (const [layerFolder, tracks] of Object.entries(formattedCollection.layers)) {
+        if (!tracks || tracks.length === 0) {
+          console.log(`[StreamingAudioContext: handleLoadCollection] No tracks for layer: ${layerFolder}`);
+          continue;
+        }
+        
+        try {
+          // Get first track for this layer
+          const track = tracks[0];
+          
+          // Get desired volume for this layer
+          const layerVolume = options.initialVolumes?.[layerFolder] !== undefined 
+            ? options.initialVolumes[layerFolder]
+            : layerFolder === 'Layer_1' ? 0.6 : 0; // Default: layer 1 on, others off
+          
+          console.log(`[StreamingAudioContext: handleLoadCollection] Loading ${layerFolder}: ${track.id} at volume ${layerVolume}`);
+          
+          // Set volume for layer
+          handleSetVolume(layerFolder, layerVolume, { immediate: true });
+          
+          // Use crossfade engine to load the track with very short duration
+          await handleCrossfadeTo(layerFolder, track.id, 100);
+          
+          // Track successful load
+          loadedLayers[layerFolder] = track.id;
+        } catch (layerError) {
+          console.error(`[StreamingAudioContext: handleLoadCollection] Error loading ${layerFolder}: ${layerError.message}`);
+        }
+      }
+      
+      setCollectionLoadProgress(90);
+      
+      // If no layers were loaded successfully, throw an error
+      if (Object.keys(loadedLayers).length === 0) {
+        throw new Error('Failed to load any audio tracks from this collection');
+      }
+      
+      // FIXED: Only auto-start playback if specifically requested
+      // This check now logs the decision and is more explicit
+      const shouldAutoPlay = options.autoPlay === true;
+      console.log(`[StreamingAudioContext: handleLoadCollection] Auto-play is ${shouldAutoPlay ? 'ENABLED' : 'DISABLED'}`);
+      
+      if (shouldAutoPlay) {
+        console.log('[StreamingAudioContext: handleLoadCollection] Auto-starting playback as requested');
+        handleStartSession();
+      } else {
+        console.log('[StreamingAudioContext: handleLoadCollection] Playback not auto-started, waiting for user action');
+      }
+      
+      setCollectionLoadProgress(100);
+      
+      // Set the current collection with the formatted data
+      console.log('[StreamingAudioContext: handleLoadCollection] Setting currentCollection:', {
+        id: formattedCollection.id,
+        name: formattedCollection.name,
+        coverImage: formattedCollection.coverImage
+      });
+      setCurrentCollection(formattedCollection);
+      
+      console.log(`[StreamingAudioContext: handleLoadCollection] Successfully loaded collection: ${collection.name}`);
+      console.log(`[StreamingAudioContext: handleLoadCollection] Cover image URL: ${formattedCollection.coverImage}`);
+      return true;
+    } catch (formatError) {
+      console.error(`[StreamingAudioContext: handleLoadCollection] Error formatting collection: ${formatError.message}`);
+      throw new Error(`Error preparing collection audio: ${formatError.message}`);
     }
-  }, [
-    handleSetVolume, 
-    handleCrossfadeTo, 
-    handleStartSession, 
-    handlePauseSession, 
-    collectionService, 
-    audioFileService
-  ]);
+  } catch (err) {
+    console.error(`[StreamingAudioContext: handleLoadCollection] Error: ${err.message}`);
+    setCollectionError(err.message);
+    return false;
+  } finally {
+    setLoadingCollection(false);
+  }
+}, [
+  handleSetVolume, 
+  handleCrossfadeTo, 
+  handleStartSession, 
+  handlePauseSession, 
+  collectionService, 
+  audioFileService
+]);
 
   const handleSwitchTrack = useCallback((layerFolder, trackId, options = {}) => {
     const { transitionDuration = 2000 } = options;
@@ -1641,77 +1668,7 @@ console.log(`[StreamingAudioContext: handleCrossfadeTo] Available tracks in audi
       return false;
     }, []);
     
-    // Preset Management Functions
-    const handleRegisterPresetStateProvider = useCallback((key, providerFn) => {
-      if (!key) return;
-      
-      if (providerFn === null) {
-        // Unregister provider
-        const updatedProviders = { ...stateProviders.current };
-        delete updatedProviders[key];
-        stateProviders.current = updatedProviders;
-      } else {
-        // Register provider
-        stateProviders.current = {
-          ...stateProviders.current,
-          [key]: providerFn
-        };
-      }
-    }, []);
-    
-    const handleSavePreset = useCallback((name) => {
-      if (!name || name.trim() === '' || !serviceRef.current.presetManager) return false;
-      
-      const preset = serviceRef.current.presetManager.savePreset(name);
-      return !!preset;
-    }, []);
-    
-    const handleLoadPreset = useCallback((nameOrData) => {
-      if (!serviceRef.current.presetManager) return false;
-      
-      // If it's a string, assume it's a preset name
-      if (typeof nameOrData === 'string') {
-        return serviceRef.current.presetManager.loadPreset(nameOrData);
-      }
-      
-      // If it's an object, process the preset data directly
-      const presetData = nameOrData;
-      
-      // Apply component states
-      if (presetData.components) {
-        Object.entries(presetData.components).forEach(([componentKey, state]) => {
-          // Dispatch custom events for each component to handle its own state
-          if (typeof window !== 'undefined') {
-            const event = new CustomEvent(`${componentKey}-update`, { detail: state });
-            window.dispatchEvent(event);
-          }
-        });
-      }
-      
-      return true;
-    }, []);
-    
-    const handleDeletePreset = useCallback((name) => {
-      if (!serviceRef.current.presetManager) return false;
-      return serviceRef.current.presetManager.deletePreset(name);
-    }, []);
-    
-    const handleGetPresets = useCallback(() => {
-      if (!serviceRef.current.presetManager) return [];
-      return serviceRef.current.presetManager.getPresetArray('date', true);
-    }, []);
-    
-    const handleExportPreset = useCallback((name) => {
-      if (!serviceRef.current.presetManager) return null;
-      return serviceRef.current.presetManager.exportPreset(name);
-    }, []);
-    
-    const handleImportPreset = useCallback((jsonString) => {
-      if (!serviceRef.current.presetManager) {
-        return { success: false, error: 'PresetManager not available' };
-      }
-      return serviceRef.current.presetManager.importPreset(jsonString);
-    }, []);
+
 
     // Create a memoized context value to prevent unnecessary re-renders
   const contextValue = useMemo(() => {
@@ -1727,7 +1684,7 @@ console.log(`[StreamingAudioContext: handleCrossfadeTo] Available tracks in audi
       hasSwitchableAudio,
       crossfadeProgress,
       activeCrossfades,
-      preloadProgress,
+     
       
       // Master volume
       masterVolume,
@@ -1764,14 +1721,7 @@ console.log(`[StreamingAudioContext: handleCrossfadeTo] Available tracks in audi
       
 
       
-      // Preset functions
-      registerPresetStateProvider: handleRegisterPresetStateProvider,
-      savePreset: handleSavePreset,
-      loadPreset: handleLoadPreset,
-      deletePreset: handleDeletePreset,
-      getPresets: handleGetPresets,
-      exportPreset: handleExportPreset,
-      importPreset: handleImportPreset,
+
       
       // Constants
       LAYERS,
@@ -1830,14 +1780,6 @@ console.log(`[StreamingAudioContext: handleCrossfadeTo] Available tracks in audi
     handleSetSessionDuration,
     handleSetTransitionDuration,
     
-    // Preset functions
-    handleRegisterPresetStateProvider,
-    handleSavePreset,
-    handleLoadPreset,
-    handleDeletePreset,
-    handleGetPresets,
-    handleExportPreset,
-    handleImportPreset,
     
     // Collection state
     collections,
