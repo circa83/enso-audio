@@ -195,30 +195,30 @@ export function useAudio() {
       console.log('[useAudio] Resetting timeline event index');
       return resetTimelineEventIndex();
     },
-    reset: () => {
-      console.log('[useAudio] Resetting timeline event index');
-      return resetTimelineEventIndex();
-    },
-    registerEvent: (event) => {
-      console.log(`[useAudio] Registering timeline event: ${event.id}`);
-      return registerTimelineEvent(event);
-    },
-    clearEvents: () => {
-      console.log('[useAudio] Clearing all timeline events');
-      return clearTimelineEvents();
-    },
-    updatePhases: (phases) => {
-      console.log(`[useAudio] Updating timeline phases (${phases.length} phases)`);
-      return updateTimelinePhases(phases);
-    },
-    seekToTime: (timeMs) => {
-      console.log(`[useAudio] Seeking to time: ${timeMs}ms`);
-      return seekToTime(timeMs);
-    },
-    seekToPercent: (percent) => {
-      console.log(`[useAudio] Seeking to percent: ${percent}%`);
-      return seekToPercent(percent);
-    },
+    // reset: () => {
+    //   console.log('[useAudio] Resetting timeline event index');
+    //   return resetTimelineEventIndex();
+    // },
+    // registerEvent: (event) => {
+    //   console.log(`[useAudio] Registering timeline event: ${event.id}`);
+    //   return registerTimelineEvent(event);
+    // },
+    // clearEvents: () => {
+    //   console.log('[useAudio] Clearing all timeline events');
+    //   return clearTimelineEvents();
+    // },
+    // updatePhases: (phases) => {
+    //   console.log(`[useAudio] Updating timeline phases (${phases.length} phases)`);
+    //   return updateTimelinePhases(phases);
+    // },
+    // seekToTime: (timeMs) => {
+    //   console.log(`[useAudio] Seeking to time: ${timeMs}ms`);
+    //   return seekToTime(timeMs);
+    // },
+    // seekToPercent: (percent) => {
+    //   console.log(`[useAudio] Seeking to percent: ${percent}%`);
+    //   return seekToPercent(percent);
+    // },
     setDuration: (duration) => {
       console.log(`[useAudio] Setting session duration: ${duration}ms`);
       return setSessionDuration(duration);

@@ -12,7 +12,7 @@ import BufferManager from './BufferManager';
 import CrossfadeEngine from './CrossfadeEngine';
 import VolumeController from './VolumeController';
 import TimelineEngine from './TimelineEngine';
-import PresetManager from './PresetManager';
+
 
 /**
  * Creates and initializes all required audio services
@@ -49,9 +49,7 @@ export const createAudioServices = async (options = {}) => {
     ...(options.timelineEngine || {})
   });
   
-  const presetManager = new PresetManager({
-    ...(options.presetManager || {})
-  });
+  
   
   // Return all service instances
   return {
@@ -60,7 +58,7 @@ export const createAudioServices = async (options = {}) => {
     volumeController,
     crossfadeEngine,
     timelineEngine,
-    presetManager
+  
   };
 };
 
@@ -71,7 +69,7 @@ export {
   CrossfadeEngine,
   VolumeController,
   TimelineEngine,
-  PresetManager
+
 };
 
 // Default export (for convenience)
@@ -81,6 +79,5 @@ export default {
   BufferManager,
   CrossfadeEngine,
   VolumeController,
-  TimelineEngine,
-  PresetManager
+
 };

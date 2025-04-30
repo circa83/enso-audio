@@ -95,6 +95,8 @@ const setTransitionState = useCallback((isTransitioning, force = false) => {
 }, [transitioning]);
 
   //=======INITIALIZE========
+  //=========================
+
   // Initialize and register with timeline service
   useEffect(() => {
     //console.log("SessionTimeline mounting check");
@@ -106,11 +108,32 @@ const setTransitionState = useCallback((isTransitioning, force = false) => {
       // Initialize transition state
       setTransitionState(false);
       
-      // Register initial phases with timeline service
-      if (timeline.updatePhases) {
-        console.log("[INITIALIZE] Registering initial phases with timeline service");
-        timeline.updatePhases(phases);
-      }
+       // Register initial phases with timeline service
+    // Use loaded phases from the timeline if available (from collection config)
+    if (timeline.phases && timeline.phases.length > 0) {
+      console.log("[INITIALIZE] Using phases from timeline service (collection config):", timeline.phases.length);
+      
+      // Log each phase and its state
+      timeline.phases.forEach(phase => {
+        console.log(`[INITIALIZE] - Phase "${phase.name}" (${phase.id}) at position ${phase.position}:`);
+        
+        if (phase.state) {
+          if (phase.state.volumes) {
+            console.log(`[INITIALIZE] -- Volumes: ${JSON.stringify(phase.state.volumes)}`);
+          }
+          
+          if (phase.state.activeAudio) {
+            console.log(`[INITIALIZE] -- Tracks: ${JSON.stringify(phase.state.activeAudio)}`);
+          }
+        } else {
+          console.log(`[INITIALIZE] -- No state defined`);
+        }
+      });
+      setPhases(timeline.phases);
+    } else if (timeline.updatePhases) {
+      console.log("[INITIALIZE] Registering initial phases with timeline service");
+      timeline.updatePhases(phases);
+    }
       
       // Register session duration
       if (timeline.setDuration) {
@@ -152,14 +175,14 @@ const setTransitionState = useCallback((isTransitioning, force = false) => {
 
 
   //Check if volume object is available
-  useEffect(() => {
-    console.log("[SESSIONTIMELINE] Volume object in SessionTimeline:", {
-      hasLayers: volume && !!volume.layers,
-      methods: volume ? Object.keys(volume) : 'No volume object',
-      fadeVolume: typeof volume.fadeVolume === 'function' ? 'Available' : 'Not available'
-    });
-    console.log("[SESSIONTIMELINE] Volume object volumes:", volume && volume.layers);
-  }, [volume]);
+  // useEffect(() => {
+  //   console.log("[SESSIONTIMELINE] Volume object in SessionTimeline:", {
+  //     hasLayers: volume && !!volume.layers,
+  //     methods: volume ? Object.keys(volume) : 'No volume object',
+  //     fadeVolume: typeof volume.fadeVolume === 'function' ? 'Available' : 'Not available'
+  //   });
+  //   console.log("[SESSIONTIMELINE] Volume object volumes:", volume && volume.layers);
+  // }, [volume]);
 
 
   // Update phases when they change
@@ -290,6 +313,15 @@ const applyPreOnsetPhase = useCallback(() => {
   if (preOnsetPhase && preOnsetPhase.state) {
     console.log("[SessionTimeline: applyPreOnsetPhase] Found pre-onset phase with saved state");
     
+   // Log state details
+   if (preOnsetPhase.state.volumes) {
+    console.log(`[SessionTimeline: applyPreOnsetPhase] Volumes: ${JSON.stringify(preOnsetPhase.state.volumes)}`);
+  }
+  
+  if (preOnsetPhase.state.activeAudio) {
+    console.log(`[SessionTimeline: applyPreOnsetPhase] Tracks: ${JSON.stringify(preOnsetPhase.state.activeAudio)}`);
+  }
+
     // Immediately set volumes without transitions
     if (preOnsetPhase.state.volumes) {
       Object.entries(preOnsetPhase.state.volumes).forEach(([layer, vol]) => {

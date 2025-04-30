@@ -18,7 +18,7 @@ export function useCollections(options = {}) {
     filters: initialFilters = {},
     pageSize = 20
   } = options;
-  
+
   const [collections, setCollections] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -29,17 +29,17 @@ export function useCollections(options = {}) {
     limit: pageSize,
     pages: 0
   });
-  
+
   // Use refs to track state without causing re-renders
   const filtersRef = useRef(initialFilters);
   const isMountedRef = useRef(false);
   const retriesRef = useRef(0);
   const maxRetries = 3;
-  
+
   const collectionService = useMemo(() => new CollectionService({
     enableLogging: true
   }), []);
-  
+
   /**
    * Load collections with current filters and pagination
    * Includes retry logic for better reliability
@@ -49,20 +49,19 @@ export function useCollections(options = {}) {
       console.log('[useCollections] Component not mounted, skipping load');
       return;
     }
-    
+
     try {
       setIsLoading(true);
       setError(null);
-      
-      console.log(`[useCollections] Loading collections page ${page} with filters:`, currentFilters);
-      
+
+      console.log(`[useCollections] Loading collections`);
+
       const result = await collectionService.getCollections({
-        ...currentFilters,
         page,
         limit: pageSize,
         useCache: true
       });
-      
+
       if (result.success) {
         console.log(`[useCollections] Successfully loaded ${result.data.length} collections (${result.pagination?.total || 0} total)`);
         setCollections(result.data);
@@ -72,7 +71,7 @@ export function useCollections(options = {}) {
           limit: pageSize,
           pages: 1
         });
-        
+
         // Reset retry counter on success
         retriesRef.current = 0;
       } else {
@@ -80,12 +79,12 @@ export function useCollections(options = {}) {
       }
     } catch (err) {
       console.error(`[useCollections] Error loading collections:`, err);
-      
+
       // Implement retry logic
       if (retriesRef.current < maxRetries) {
         retriesRef.current++;
         console.log(`[useCollections] Retrying (${retriesRef.current}/${maxRetries})...`);
-        
+
         // Wait a moment before retrying (exponential backoff)
         const delay = Math.pow(2, retriesRef.current) * 500;
         setTimeout(() => {
@@ -93,19 +92,19 @@ export function useCollections(options = {}) {
             loadCollections(page, currentFilters);
           }
         }, delay);
-        
+
         return;
       }
-      
+
       setError(err.message);
     } finally {
       if (isMountedRef.current) {
         setIsLoading(false);
       }
     }
-  }, [collectionService, pageSize]); 
-  
- 
+  }, [collectionService, pageSize]);
+
+
   /**
    * Navigate to a specific page
    */
@@ -114,28 +113,28 @@ export function useCollections(options = {}) {
       console.warn(`[useCollections] Invalid page number: ${pageNumber}`);
       return;
     }
-    
+
     console.log(`[useCollections] Navigating to page ${pageNumber}`);
     loadCollections(pageNumber, filtersRef.current);
   }, [pagination.pages, loadCollections]);
-  
- 
+
+
   // Effect to handle initial load
   useEffect(() => {
     console.log('[useCollections] Component mounted');
     isMountedRef.current = true;
-    
+
     if (loadOnMount) {
       console.log(`[useCollections] Initial load on mount`);
       loadCollections(1, filtersRef.current);
     }
-    
+
     return () => {
       console.log('[useCollections] Component unmounting');
       isMountedRef.current = false;
     };
   }, [loadOnMount, loadCollections]);
-  
+
   /**
    * Load a specific collection by ID
    * Includes detailed error handling
@@ -145,17 +144,17 @@ export function useCollections(options = {}) {
       console.error('[useCollections] Collection ID is required');
       throw new Error('Collection ID is required');
     }
-    
+
     try {
       console.log(`[useCollections] Loading collection: ${id}`);
       setIsLoading(true);
-      
+
       const result = await collectionService.getCollection(id);
-      
+
       if (!result.success) {
         throw new Error(result.error || `Collection ${id} not found`);
       }
-      
+
       console.log(`[useCollections] Successfully loaded collection: ${result.data.name}`);
       return result.data;
     } catch (err) {
@@ -166,21 +165,21 @@ export function useCollections(options = {}) {
       setIsLoading(false);
     }
   }, [collectionService]);
-  
+
   return {
     // Data
     collections,
     isLoading,
     error,
-    
+
     pagination,
-    
+
     // Functions
-   
+
     loadCollections,
     getCollection,
     goToPage,
-    
+
     // Service access (for advanced usage)
     collectionService
   };

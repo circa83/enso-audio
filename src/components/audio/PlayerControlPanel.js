@@ -20,38 +20,44 @@ const PlayerControlPanel = React.forwardRef(({
   onTransitionDurationChange, 
   coverImageUrl
 }, ref) => {
-  // Enhanced logging with more details
-  console.log('[PlayerControlPanel] Rendering with props:', { 
-    hasCoverImageUrl: !!coverImageUrl,
-    coverImageUrl, 
-    coverImageUrlType: typeof coverImageUrl
-  });
+  
+  
+  // // Enhanced logging with more details
+  // console.log('[PlayerControlPanel] Rendering with props:', { 
+  //   hasCoverImageUrl: !!coverImageUrl,
+  //   coverImageUrl, 
+  //   coverImageUrlType: typeof coverImageUrl
+  // });
   
   // Use our new hook with grouped API
-  const { playback, currentCollection } = useAudio();
+  const { 
+    playback, 
+    currentCollection 
+  } = useAudio();
 
-  // Add debug logging for currentCollection - moved to top level
-  useEffect(() => {
-    console.log('[PlayerControlPanel] Current collection in context:', 
-      currentCollection ? {
-        id: currentCollection.id,
-        name: currentCollection.name,
-        hasCover: !!currentCollection.coverImage,
-        coverImage: currentCollection.coverImage,
-        coverImageType: typeof currentCollection.coverImage
-      } : 'None'
-    );
-  }, [currentCollection]);
+
+  // // Add debug logging for currentCollection - moved to top level
+  // useEffect(() => {
+  //   console.log('[PlayerControlPanel] Current collection in context:', 
+  //     currentCollection ? {
+  //       id: currentCollection.id,
+  //       name: currentCollection.name,
+  //       hasCover: !!currentCollection.coverImage,
+  //       coverImage: currentCollection.coverImage,
+  //       coverImageType: typeof currentCollection.coverImage
+  //     } : 'None'
+  //   );
+  // }, [currentCollection]);
   
-  // Log when coverImageUrl changes - moved to top level
-  useEffect(() => {
-    console.log('[PlayerControlPanel] Cover image URL changed:', {
-      coverImageUrl,
-      isString: typeof coverImageUrl === 'string',
-      isEmpty: !coverImageUrl,
-      shouldShow: Boolean(coverImageUrl)
-    });
-  }, [coverImageUrl]);
+  // // Log when coverImageUrl changes - moved to top level
+  // useEffect(() => {
+  //   console.log('[PlayerControlPanel] Cover image URL changed:', {
+  //     coverImageUrl,
+  //     isString: typeof coverImageUrl === 'string',
+  //     isEmpty: !coverImageUrl,
+  //     shouldShow: Boolean(coverImageUrl)
+  //   });
+  // }, [coverImageUrl]);
   
   // Handle play/pause with useCallback for optimization
   const togglePlayPause = useCallback(() => {
@@ -59,7 +65,7 @@ const PlayerControlPanel = React.forwardRef(({
     if (playback.isPlaying) {
       console.log("[PlayerControlPanel] Attempting to pause playback");
       playback.pause();
-    } else {
+    }  else{
       console.log("[PlayerControlPanel] Attempting to start playback");
       playback.start();
     }
