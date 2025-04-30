@@ -257,62 +257,7 @@ _ensureValidConfig: function(config) {
     return true;
   },
   
-  // // Helper function to perform a deep merge with defaults
-  // _mergeWithDefaults: function(collectionConfig) {
-  //   // Start with defaults
-  //   const result = { ...this.defaults };
-    
-  //   // For each property in the collection config
-  //   Object.entries(collectionConfig).forEach(([key, value]) => {
-  //     // If it's an object (but not an array), merge recursively
-  //     if (value && typeof value === 'object' && !Array.isArray(value) && 
-  //         result[key] && typeof result[key] === 'object' && !Array.isArray(result[key])) {
-  //       result[key] = { ...result[key], ...value };
-  //     } 
-  //     // For arrays and primitive values, replace entirely
-  //     else {
-  //       result[key] = value;
-  //     }
-  //   });
-    
-  //   // Special handling for phaseMarkers if they exist in both
-  //   if (collectionConfig.phaseMarkers && result.phaseMarkers) {
-  //     // Map collection phase markers by ID for easy lookup
-  //     const phaseMarkersById = {};
-  //     collectionConfig.phaseMarkers.forEach(marker => {
-  //       phaseMarkersById[marker.id] = marker;
-  //     });
-      
-  //     // Merge with defaults while preserving order
-  //     result.phaseMarkers = result.phaseMarkers.map(defaultMarker => {
-  //       // If this marker exists in collection config, merge with default
-  //       if (phaseMarkersById[defaultMarker.id]) {
-  //         return {
-  //           ...defaultMarker,
-  //           ...phaseMarkersById[defaultMarker.id],
-  //           // Deep merge the state object
-  //           state: {
-  //             ...defaultMarker.state,
-  //             ...phaseMarkersById[defaultMarker.id].state,
-  //             // Deep merge volumes
-  //             volumes: {
-  //               ...defaultMarker.state?.volumes,
-  //               ...phaseMarkersById[defaultMarker.id].state?.volumes
-  //             },
-  //             // Deep merge activeAudio
-  //             activeAudio: {
-  //               ...defaultMarker.state?.activeAudio,
-  //               ...phaseMarkersById[defaultMarker.id].state?.activeAudio
-  //             }
-  //           }
-  //         };
-  //       }
-  //       return defaultMarker;
-  //     });
-  //   }
-    
-  //   return result;
-  // },
+ 
   
   // Get a list of all available collection IDs
   getAvailableCollections: function() {
@@ -344,12 +289,12 @@ _ensureValidConfig: function(config) {
 
   featureVisibility: {
     //Player
-    exportConfig: true,
+    exportConfig: false,
     audioLayers: true,
     //ambient archive
     filterControls: false, 
     //timeline
-    captureState: true,
+    captureState: false,
     
   },
   
