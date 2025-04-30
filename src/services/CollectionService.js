@@ -644,38 +644,7 @@ class CollectionService {
     }
   }
 
-  /**
-   * Validate that a track ID exists in the collection's layers
-   * @private
-   * @param {Object} layers - Collection layers object
-   * @param {string} layerName - Layer name
-   * @param {string} trackId - Track ID to validate
-   * @returns {boolean} True if track exists
-   */
-  validateTrackExists(formattedCollection, layerName, trackId) {
-    // If no layers or specific layer doesn't exist, return false
-    if (!formattedCollection.layers || !formattedCollection.layers[layerName]) {
-      console.log(`[CollectionService] Track validation failed: Layer "${layerName}" not found`, 'warn');
-      return false;
-    }
-  
-    // Check if the track ID exists in the specified layer
-    const layerTracks = formattedCollection.layers[layerName];
-    if (!Array.isArray(layerTracks) || layerTracks.length === 0) {
-      console.log(`[CollectionService] Track validation failed: No tracks in layer "${layerName}"`, 'warn');
-      return false;
-    }
-  
-    // Look for a track with matching ID
-    const trackExists = layerTracks.some(track => track.id === trackId);
-  
-    if (!trackExists) {
-      console.log(`[CollectionService] Track validation failed: Track "${trackId}" not found in layer "${layerName}"`, 'warn');
-    }
-  
-    return trackExists;
-  }
-
+ 
 
   // /**
   //  * Helper method to determine layer from folder structure

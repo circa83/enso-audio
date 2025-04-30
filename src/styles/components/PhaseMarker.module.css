@@ -104,13 +104,14 @@
   left: 50%;
   transform: translateX(-50%);
   white-space: nowrap;
-  font-size: 0.75rem;
+  font-size: 0.64rem;
   color: #bbb;
   font-family: 'Archivo', sans-serif;
   letter-spacing: 0.5px;
   transition: opacity 0.2s ease;
   pointer-events: none;
-  background-color: rgba(20, 20, 20, 0.8);
+  background-color:  #181818;
+  ;
   padding: 2px 6px;
   border-radius: 3px;
   text-align: center;
@@ -212,7 +213,7 @@
   }
   
   .markerLabel {
-    font-size: 0.7rem;
+    font-size: 0.64rem;
     top: -25px;
   }
   
