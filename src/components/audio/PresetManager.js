@@ -259,7 +259,7 @@ const exportCurrentStateAsConfig = () => {
   
   // Just call exportPresetAsConfig with current collection name
   exportPresetAsConfig({
-    name: currentCollection.name
+    name: formatCollectionId(currentCollection.name) // Use consistent capitalization
   });
 };
 

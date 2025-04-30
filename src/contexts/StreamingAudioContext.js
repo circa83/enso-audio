@@ -133,6 +133,9 @@ export const AudioProvider = ({ children }) => {
   const [transitionDuration, setTransitionDuration] = useState(4000); // 4 seconds
   const [timelineIsPlaying, setTimelineIsPlaying] = useState(false);
 
+  // Phase loading
+  const [phasesLoaded, setPhasesLoaded] = useState(false);
+
 
 
 
@@ -1366,68 +1369,85 @@ export const AudioProvider = ({ children }) => {
     }
   }, []);
 
-const handleUpdateTimelinePhases = useCallback((phases) => {
-  if (!phases || !Array.isArray(phases)) {
-    console.log("[StreamingAudioContext: TIMELINE] No phases to update");
-    return;
-  }
+  const handleUpdateTimelinePhases = useCallback((phases) => {
+    if (!phases || !Array.isArray(phases)) {
+      console.log("[StreamingAudioContext: TIMELINE] No phases to update");
+      return;
+    }
 
-// ADD THIS GUARD to prevent unnecessary updates:
-if (JSON.stringify(timelinePhases) === JSON.stringify(phases)) {
-  console.log("[StreamingAudioContext: TIMELINE] Phases unchanged, skipping update");
-  return;
+    // // ADD THIS GUARD to prevent unnecessary updates:
+    // if (JSON.stringify(timelinePhases) === JSON.stringify(phases)) {
+    //   console.log("[StreamingAudioContext: TIMELINE] Phases unchanged, skipping update");
+    //   return;
+    // }
+
+
+    console.log(`[StreamingAudioContext: TIMELINE] Updating ${phases.length} timeline phases:`);
+
+    // Ensure phases are properly formed with states
+    const validPhases = phases.map(phase => {
+      console.log(`[StreamingAudioContext: TIMELINE] - Phase "${phase.name}" (${phase.id}) at position ${phase.position}:`);
+
+      // Create a properly structured phase
+      const validPhase = {
+        id: phase.id,
+        name: phase.name,
+        position: phase.position,
+        color: phase.color,
+        locked: phase.locked || false,
+      };
+
+      // Ensure state is properly structured if it exists
+      if (phase.state) {
+        console.log(`[StreamingAudioContext: TIMELINE] -- Phase has state`);
+        validPhase.state = {
+          volumes: phase.state.volumes ? { ...phase.state.volumes } : {},
+          activeAudio: phase.state.activeAudio ? { ...phase.state.activeAudio } : {}
+        };
+
+        if (phase.state.volumes) {
+          console.log(`[StreamingAudioContext: TIMELINE] -- Volumes: ${JSON.stringify(phase.state.volumes)}`);
+        }
+
+        if (phase.state.activeAudio) {
+          console.log(`[StreamingAudioContext: TIMELINE] -- Tracks: ${JSON.stringify(phase.state.activeAudio)}`);
+        }
+      } else {
+        console.log(`[StreamingAudioContext: TIMELINE] -- No state defined, creating empty state`);
+        // Always provide a state object, even if empty
+        validPhase.state = {
+          volumes: {},
+          activeAudio: {}
+        };
+      }
+
+      return validPhase;
+    });
+
+    setTimelinePhases(validPhases);
+
+// Then update the TimelineEngine - IMPORTANT: this makes phases available to components
+if (serviceRef.current.timelineEngine) {
+  const success = serviceRef.current.timelineEngine.setPhases(validPhases);
+  console.log(`[StreamingAudioContext] TimelineEngine phases update ${success ? 'succeeded' : 'failed'}`);
+  
+  // Verify the phases were actually set in the engine
+  const enginePhases = serviceRef.current.timelineEngine.getPhases?.();
+  if (enginePhases) {
+    console.log(`[StreamingAudioContext] TimelineEngine now has ${enginePhases.length} phases`);
+    
+    // Check if each phase has proper state
+    const hasStates = enginePhases.some(p => p.state && 
+                                          (Object.keys(p.state.volumes || {}).length > 0 || 
+                                           Object.keys(p.state.activeAudio || {}).length > 0));
+    
+    console.log(`[StreamingAudioContext] TimelineEngine phases have states: ${hasStates ? 'YES' : 'NO'}`);
+  }
 }
 
-
-  console.log(`[StreamingAudioContext: TIMELINE] Updating ${phases.length} timeline phases:`);
-  
-  // Ensure phases are properly formed with states
-  const validPhases = phases.map(phase => {
-    console.log(`[StreamingAudioContext: TIMELINE] - Phase "${phase.name}" (${phase.id}) at position ${phase.position}:`);
-    
-    // Create a properly structured phase
-    const validPhase = {
-      id: phase.id,
-      name: phase.name,
-      position: phase.position,
-      color: phase.color,
-      locked: phase.locked || false
-    };
-    
-    // Ensure state is properly structured if it exists
-    if (phase.state) {
-      console.log(`[StreamingAudioContext: TIMELINE] -- Phase has state`);
-      validPhase.state = {
-        volumes: phase.state.volumes ? {...phase.state.volumes} : {},
-        activeAudio: phase.state.activeAudio ? {...phase.state.activeAudio} : {}
-      };
-      
-      if (phase.state.volumes) {
-        console.log(`[StreamingAudioContext: TIMELINE] -- Volumes: ${JSON.stringify(phase.state.volumes)}`);
-      }
-      
-      if (phase.state.activeAudio) {
-        console.log(`[StreamingAudioContext: TIMELINE] -- Tracks: ${JSON.stringify(phase.state.activeAudio)}`);
-      }
-    } else {
-      console.log(`[StreamingAudioContext: TIMELINE] -- No state defined, creating empty state`);
-      // Always provide a state object, even if empty
-      validPhase.state = {
-        volumes: {},
-        activeAudio: {}
-      };
-    }
-    
-    return validPhase;
-  });
-
-  setTimelinePhases(validPhases);
-
-  if (serviceRef.current.timelineEngine) {
-    serviceRef.current.timelineEngine.setPhases(validPhases);
-    console.log(`[StreamingAudioContext: TIMELINE] Phases updated in timeline engine`);
-  }
-}, []);
+// Mark phases as loaded, allowing components to initialize
+setPhasesLoaded(true);
+  }, [timelinePhases]);
 
   const handleRegisterTimelineEvent = useCallback((event) => {
     if (!event) return false;
@@ -1501,6 +1521,9 @@ if (JSON.stringify(timelinePhases) === JSON.stringify(phases)) {
 
   // Collection loading function
   const handleLoadCollection = useCallback(async (collectionId, options = {}) => {
+    
+    setPhasesLoaded(false);
+
     if (!collectionId) {
       console.error('[StreamingAudioContext: handleLoadCollection] No collection ID provided');
       return false;
@@ -1551,7 +1574,7 @@ if (JSON.stringify(timelinePhases) === JSON.stringify(phases)) {
         const formattedCollection = collectionService.formatCollectionForPlayer(collection, { applyConfig: true });
 
 
-        
+
         // NEW LOGGING: Log formatted collection config details
         console.log('[StreamingAudioContext: CONFIG] Collection config details for', collectionId);
         console.log(`[StreamingAudioContext: CONFIG] - Session Duration: ${formattedCollection.sessionDuration || 'Not set'}`);
@@ -2025,7 +2048,7 @@ if (JSON.stringify(timelinePhases) === JSON.stringify(phases)) {
       }));
 
       // Log progress for debugging
-     // console.log(`[StreamingAudioContext] Fade progress for ${layerId}: ${Math.round(progress * 100)}% - Volume: ${Math.round(currentValue * 100)}%`);
+      // console.log(`[StreamingAudioContext] Fade progress for ${layerId}: ${Math.round(progress * 100)}% - Volume: ${Math.round(currentValue * 100)}%`);
     };
 
     // Call the service method with progress callback

@@ -1,11 +1,12 @@
 // src/pages/ambient-archive.js
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
-import Link from 'next/link';
 import { useRouter } from 'next/router';
 import withAuth from '../components/auth/ProtectedRoute';
 import ArchiveLayout from '../components/layout/ArchiveLayout';
 import { useCollections } from '../hooks/useCollections';
+import useAudio from '../hooks/useAudio';
+import FeatureToggle from '../Config/FeatureToggle';
 import styles from '../styles/pages/AmbientArchive.module.css';
 
 const AmbientArchive = () => {
@@ -28,6 +29,12 @@ const AmbientArchive = () => {
     filters: {} // Initial empty filters
   });
 
+  //use the useAudio hook
+  const { 
+    loadCollection} 
+  = useAudio();
+
+
   // Add some diagnostic console logs
   useEffect(() => {
     console.log('[AmbientArchive] Current collections state:', { 
@@ -47,18 +54,19 @@ const AmbientArchive = () => {
   // Handle collection selection with logging
   const handleCollectionSelect = (collectionId) => {
     console.log(`[AmbientArchive] Selected collection: ${collectionId}`);
-    // Use Next.js router for client-side navigation
-    router.push({
-      pathname: '/player',
-      query: { collection: collectionId }
+
+    // Pre-load the collection before navigation
+    loadCollection(collectionId, { autoPlay: false }).then(success => {
+      console.log(`[AmbientArchive] Collection pre-loaded: ${success ? 'success' : 'failed'}`);
+      // Navigate to player after loading
+      router.push({
+        pathname: '/player',
+        query: { collection: collectionId }
+      });
     });
   };
 
-  // Error recovery function
-  const handleRetryLoad = () => {
-    console.log('[AmbientArchive] Retrying collection load');
-    loadCollections(1);
-  };
+
 
   // Handle showing collection details
   const handleShowDetails = async (collection, e) => {
@@ -151,16 +159,17 @@ const AmbientArchive = () => {
         <title>Ambient Archive | Ensō Audio</title>
       </Head>
       
-      <div className={styles.archiveHeader}>
+      {/* <div className={styles.archiveHeader}>
         <h1 className={styles.archiveTitle}>The Ambient Archive</h1>
         <p className={styles.archiveDescription}>
           Browse and select audio collections for your therapeutic sessions
         </p>
-      </div>
+      </div> */}
 
       {/* Filter controls */}
-      <div className={styles.filterControls}>
-        <input
+      <FeatureToggle featureId="filterControls" fallback={null}>
+        <div className={styles.filterControls}>
+          <input
           type="text"
           placeholder="Search collections..."
           className={styles.searchInput}
@@ -176,6 +185,7 @@ const AmbientArchive = () => {
           <option value="relaxation">Relaxation</option>
         </select>
       </div>
+      </FeatureToggle>
       
       <div className={styles.collectionsGrid}>
         {collections.map(collection => (
@@ -212,7 +222,7 @@ const AmbientArchive = () => {
               
               <div className={styles.collectionControls}>
                 <button className={styles.playButton}>
-                  Play Collection
+                  Play Session
                 </button>
                 <button 
                   className={styles.detailsButton}

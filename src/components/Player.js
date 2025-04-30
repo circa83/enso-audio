@@ -1,13 +1,13 @@
 // src/components/Player.js
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAudio } from '../hooks/useAudio';
-import CollapsibleSection from './common/CollapsibleSection';
 import LayerControl from './audio/LayerControl';
+import CollapsibleSection from './common/CollapsibleSection';
 import SessionTimer from './audio/SessionTimer';
 import SessionSettings from './audio/SessionSettings';
 import PlayerControlPanel from './audio/PlayerControlPanel';
-import PresetManager from './audio/PresetManager';
-import DebugOverlay from './debug/DebugOverlay';
+import FeatureToggle from '../Config/FeatureToggle';
+import ExportConfig from './audio/ExportConfig';
 import styles from '../styles/pages/Player.module.css';
 
 /**
@@ -265,20 +265,25 @@ const Player = () => {
       />
 
       {/* Collapsible Section for Audio Layers */}
+      <FeatureToggle featureId="audioLayers" fallback={null}>
       <CollapsibleSection
         title="Audio Layers"
         initialExpanded={false}
       >
         {renderLayerControls()}
       </CollapsibleSection>
+      </FeatureToggle>
 
-      <CollapsibleSection
+      {/* <CollapsibleSection
             title="Presets"
             initialExpanded={false}
           >
             <PresetManager />
-          </CollapsibleSection>
+          </CollapsibleSection> */}
 
+       <FeatureToggle featureId="exportConfig" fallback={null}>
+        <ExportConfig />
+      </FeatureToggle> 
 
       {/* Session Timer */}
       <SessionTimer />

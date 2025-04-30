@@ -37,12 +37,12 @@ const LayerControl = ({ label, layer }) => {
     // Only log on initial mount
     if (!isMounted.current) {
       isMounted.current = true;
-      console.log(`[LayerControl] Mounted for ${layerKey}, initial volume: ${currentVolume}`);
+ //     console.log(`[LayerControl] Mounted for ${layerKey}, initial volume: ${currentVolume}`);
     }
 
     // Cleanup on unmount
     return () => {
-      console.log(`[LayerControl] Unmounted for ${layerKey}`);
+  //    console.log(`[LayerControl] Unmounted for ${layerKey}`);
       isMounted.current = false;
     };
   }, [layerKey, currentVolume]);

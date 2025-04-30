@@ -5,13 +5,20 @@
  * and provides utilities for accessing them.
  */
 
+
+
 // Import collection configurations
 import StillnessConfig from './collections/Stillness_config';
+import ElevateConfig from './collections/Elevate_config';
 // Add more imports as you create them
 // import ForestConfig from './collections/Forest_config';
 // import MeditationConfig from './collections/Meditation_config';
 
 const appConfig = {
+
+  //========Collection Configs===========
+  //=====================================
+
   // Global toggle to enable/disable collection-specific configurations
   useCollectionConfigs: true,
   
@@ -100,6 +107,10 @@ const appConfig = {
       config: StillnessConfig,
       enabled: true  // Whether this collection's config should be used
     },
+    "Elevate": {
+      config: ElevateConfig,
+      enabled: true
+    },
     // "forest": {
     //   config: ForestConfig,
     //   enabled: true
@@ -115,30 +126,45 @@ const appConfig = {
   getCollectionConfig: function(collectionId) {
     console.log(`[appConfig] getCollectionConfig called with ID: "${collectionId}" (${typeof collectionId})`);
   
-  // Check if this exact ID exists in collections
-  const collectionExists = this.collections.hasOwnProperty(collectionId);
-  console.log(`[appConfig] Collection "${collectionId}" exists in registry: ${collectionExists ? 'YES' : 'NO'}`);
+    // Convert collectionId to a standardized format for comparison (e.g., lowercase)
+    const normalizedId = typeof collectionId === 'string' ? collectionId.trim() : collectionId;
+    
+    // Find the matching collection entry (case-insensitive)
+    let matchedCollection = null;
+    const availableCollections = Object.keys(this.collections);
+    
+    for (const configId of availableCollections) {
+      if (configId.toLowerCase() === normalizedId.toLowerCase()) {
+        matchedCollection = configId;
+        break;
+      }
+    }
+    
+    // Log the match result
+    console.log(`[appConfig] Collection "${collectionId}" normalized to "${normalizedId}"`);
+    console.log(`[appConfig] Matched to config ID: ${matchedCollection || 'NONE'}`);
   
-  // Check if global config use is enabled
-  console.log(`[appConfig] Global useCollectionConfigs setting: ${this.useCollectionConfigs ? 'ENABLED' : 'DISABLED'}`);
+    // Check if global config use is enabled
+    console.log(`[appConfig] Global useCollectionConfigs setting: ${this.useCollectionConfigs ? 'ENABLED' : 'DISABLED'}`);
+    
+    // If collection exists, check if it's enabled
+    const collectionExists = !!matchedCollection;
+    console.log(`[appConfig] Collection exists in registry: ${collectionExists ? 'YES' : 'NO'}`);
+    
+    if (collectionExists) {
+      console.log(`[appConfig] Collection "${matchedCollection}" enabled status: ${this.collections[matchedCollection].enabled ? 'ENABLED' : 'DISABLED'}`);
+    }
   
-  // If collection exists, check if it's enabled
-  if (collectionExists) {
-    console.log(`[appConfig] Collection "${collectionId}" enabled status: ${this.collections[collectionId].enabled ? 'ENABLED' : 'DISABLED'}`);
-  }
-  
-
-
     // Check if we should use collection configs and if this collection has one
     const useConfig = this.useCollectionConfigs && 
-                      this.collections[collectionId] && 
-                      this.collections[collectionId].enabled;
+                      matchedCollection && 
+                      this.collections[matchedCollection].enabled;
     
     if (useConfig) {
-      console.log(`Using custom configuration for collection: ${collectionId}`);
+      console.log(`Using custom configuration for collection: ${matchedCollection}`);
       
       // Get the collection config
-      const collectionConfig = this.collections[collectionId].config;
+      const collectionConfig = this.collections[matchedCollection].config;
       
       // Validate that the config has all needed properties
       const validatedConfig = this._ensureValidConfig(collectionConfig);
@@ -149,12 +175,12 @@ const appConfig = {
       return validatedConfig;
     }
     
-     // Otherwise return default config
-  console.warn(`[appConfig] Using default configuration for collection: ${collectionId}`);
-  console.log(`[appConfig] Default config has ${this.defaults.phaseMarkers?.length || 0} phase markers`);
+    // Otherwise return default config
+    console.warn(`[appConfig] Using default configuration for collection: ${collectionId}`);
+    console.log(`[appConfig] Default config has ${this.defaults.phaseMarkers?.length || 0} phase markers`);
     return this.defaults;
   },
-  
+
 // Add a new helper to ensure config has all required properties
 _ensureValidConfig: function(config) {
   // Create a deep clone to avoid modifying the original
@@ -308,9 +334,28 @@ _ensureValidConfig: function(config) {
     });
     
     return status;
+  },
+
+
+//===========
+// Feature Visibility
+//===========
+
+
+  featureVisibility: {
+    //Player
+    exportConfig: true,
+    audioLayers: true,
+    //ambient archive
+    filterControls: false, 
+    //timeline
+    captureState: true,
+    
+  },
+  
+  isFeatureVisible: function(featureId) {
+    return this.featureVisibility[featureId] === true;
   }
-
-
   
 };
 

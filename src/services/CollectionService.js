@@ -376,12 +376,12 @@ class CollectionService {
       console.log(`[CollectionService: formatCollectionForPlayer] Collection ID type: ${typeof collection.id}`);
       console.log(`[CollectionService: formatCollectionForPlayer] Raw collection ID value: "${collection.id}"`);
       
-      // More specific check of collection ID:
-      if (collection.id === 'Stillness') {
-        console.log('[CollectionService: formatCollectionForPlayer] MATCH: Collection ID exactly matches "stillness"');
-      } else {
-        console.log('[CollectionService: formatCollectionForPlayer] NO MATCH: Collection ID does not exactly match "stillness"');
-      }
+      // // More specific check of collection ID:
+      // if (collection.id === 'Stillness') {
+      //   console.log('[CollectionService: formatCollectionForPlayer] MATCH: Collection ID exactly matches "stillness"');
+      // } else {
+      //   console.log('[CollectionService: formatCollectionForPlayer] NO MATCH: Collection ID does not exactly match "stillness"');
+      // }
       let collectionConfig = null;
       if (applyConfig) {
         const appConfig = require('../Config/appConfig').default;
@@ -560,8 +560,12 @@ class CollectionService {
         return formattedCollection;
       }
 
+      // Normalize the collection ID for better matching
+      const collectionId = formattedCollection.id.trim();
+      console.log(`[CollectionService: applyCollectionConfig] Applying config for normalized ID: "${collectionId}"`);
+
       // Get the collection-specific configuration (this checks if enabled)
-      const collectionConfig = appConfig.getCollectionConfig(formattedCollection.id);
+      const collectionConfig = appConfig.getCollectionConfig(collectionId);
 
       if (!collectionConfig) {
         console.warn(`[CollectionService: applyCollectionConfig] No configuration found for collection: ${formattedCollection.id}`);
@@ -626,7 +630,7 @@ class CollectionService {
           if (marker.state && marker.state.activeAudio) {
             Object.entries(marker.state.activeAudio).forEach(([layer, trackId]) => {
               const valid = this.validateTrackExists(formattedCollection, layer, trackId);
-              console.log(`[CollectionService: applyCollectionConfig] - Track ${trackId} for layer ${layer}: ${valid ? 'VALID' : 'INVALID'}`);
+             // console.log(`[CollectionService: applyCollectionConfig] - Track ${trackId} for layer ${layer}: ${valid ? 'VALID' : 'INVALID'}`);
             });
           }
         });
