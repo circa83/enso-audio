@@ -71,14 +71,7 @@ export function useAudio() {
     setSessionDuration,
     setTransitionDuration,
     
-    // Preset functions
-    registerPresetStateProvider,
-    savePreset,
-    loadPreset,
-    deletePreset,
-    getPresets,
-    exportPreset,
-    importPreset,
+
     
     // Collection state
     currentCollection,
@@ -214,10 +207,10 @@ export function useAudio() {
       console.log('[useAudio] Clearing all timeline events');
       return clearTimelineEvents();
     },
-    updatePhases: (phases) => {
-      console.log(`[useAudio] Updating timeline phases (${phases.length} phases)`);
-      return updateTimelinePhases(phases);
-    },
+    // updatePhases: (phases) => {
+    //   console.log(`[useAudio] Updating timeline phases (${phases.length} phases)`);
+    //   return updateTimelinePhases(phases);
+    // },
     seekToTime: (timeMs) => {
       console.log(`[useAudio] Seeking to time: ${timeMs}ms`);
       return seekToTime(timeMs);
@@ -256,49 +249,6 @@ export function useAudio() {
     setTransitionDuration
   ]);
   
-  // Preset management
-  const presets = useMemo(() => ({
-    registerStateProvider: (key, providerFn) => {
-      console.log(`[useAudio] ${providerFn ? 'Registering' : 'Unregistering'} preset state provider: ${key}`);
-      return registerPresetStateProvider(key, providerFn);
-    },
-    save: (name) => {
-      console.log(`[useAudio] Saving preset: ${name}`);
-      return savePreset(name);
-    },
-    load: (nameOrData) => {
-      if (typeof nameOrData === 'string') {
-        console.log(`[useAudio] Loading preset: ${nameOrData}`);
-      } else {
-        console.log('[useAudio] Loading preset from data object');
-      }
-      return loadPreset(nameOrData);
-    },
-    delete: (name) => {
-      console.log(`[useAudio] Deleting preset: ${name}`);
-      return deletePreset(name);
-    },
-    getAll: () => {
-      // Don't log for get operations
-      return getPresets();
-    },
-    export: (name) => {
-      console.log(`[useAudio] Exporting preset: ${name}`);
-      return exportPreset(name);
-    },
-    import: (jsonString) => {
-      console.log('[useAudio] Importing preset from JSON data');
-      return importPreset(jsonString);
-    }
-  }), [
-    registerPresetStateProvider,
-    savePreset,
-    loadPreset,
-    deletePreset,
-    getPresets,
-    exportPreset,
-    importPreset
-  ]);
   
   // Loading state
   const loading = useMemo(() => ({
@@ -317,7 +267,6 @@ export function useAudio() {
     layers,
     transitions,
     timeline,
-    presets,
     loading,
     
     // Individual values and functions (for backward compatibility)
@@ -362,13 +311,6 @@ export function useAudio() {
     seekToPercent,
     setSessionDuration,
     setTransitionDuration,
-    registerPresetStateProvider,
-    savePreset,
-    loadPreset,
-    deletePreset,
-    getPresets,
-    exportPreset,
-    importPreset,
     getActiveSourceNode,
     getActiveAudioElement,
     getOrCreateSourceNode,

@@ -1,0 +1,145 @@
+/* Base button styles - apply to all buttons */
+.createButton,
+.saveButton, 
+.cancelButton,
+.applyButton, 
+.deleteButton, 
+.exportButton,
+.exportCurrentButton {
+  background-color: transparent;
+  border: 1px solid #555;
+  color: #aaaaaa;
+  font-family: 'Archivo', sans-serif;
+  font-weight: 200;
+  font-size: 0.7rem;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 0;
+  box-shadow: none;
+  margin-bottom: 10px;
+}
+
+/* Hover state for all buttons */
+.createButton:hover,
+.saveButton:hover,
+.cancelButton:hover,
+.applyButton:hover,
+.deleteButton:hover,
+.exportButton:hover,
+.exportCurrentButton:hover {
+  background-color: transparent;
+  border-color: #ffffff;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+/* Active/selected state */
+.createButton.active,
+.saveButton.active,
+.cancelButton.active,
+.applyButton.active,
+.deleteButton.active,
+.exportButton.active,
+.exportCurrentButton.active {
+  border-color: #ffaa00;
+  color: #ffaa00;
+  background-color: transparent;
+}
+
+/* Focus state */
+.createButton:focus,
+.saveButton:focus,
+.cancelButton:focus,
+.applyButton:focus,
+.deleteButton:focus,
+.exportButton:focus,
+.exportCurrentButton:focus {
+  outline: 2px solid #ffaa00;
+  outline-offset: 2px;
+}
+
+/* Disabled state */
+.createButton:disabled,
+.saveButton:disabled,
+.cancelButton:disabled,
+.applyButton:disabled,
+.deleteButton:disabled,
+.exportButton:disabled,
+.exportCurrentButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Keep form layout as is */
+.createForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 300px;
+}
+
+.presetNameInput {
+  padding: 8px 12px;
+  border: 1px solid #444;
+  background-color: rgba(34, 34, 34, 0.6);
+  color: white;
+  font-size: 0.8rem;
+  font-family: 'Space Mono', monospace;
+}
+
+.presetNameInput:focus {
+  outline: 2px solid #ffaa00;
+  border-color: transparent;
+}
+
+.createFormButtons {
+  display: flex;
+  gap: 10px;
+}
+
+/* Keep preset item styling with minimal adjustments */
+.presetItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: rgba(34, 34, 34, 0.6);
+  padding: 12px 16px;
+  transition: background-color 0.2s ease;
+  border-left: 1px solid #444;
+}
+
+.presetItem:hover {
+  background-color: rgba(40, 40, 40, 0.7);
+  border-left-color: #ffffff;
+}
+
+/* For delete action, use a subtle red accent on hover only */
+.deleteButton:hover {
+  border-color: #aa5555;
+  color: #aa5555;
+}
+
+/* Export section with minimal styling */
+.exportSection {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #333;
+  display: flex;
+  justify-content: center;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .presetActions {
+    width: 100%;
+    margin-top: 10px;
+  }
+  
+  .applyButton, 
+  .deleteButton, 
+  .exportButton {
+    padding: 6px 10px;
+  }
+}

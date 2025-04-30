@@ -1,5 +1,6 @@
 // src/components/audio/PhaseMarker.js
 import React, { useState, useRef, useEffect } from 'react';
+import FeatureToggle from '../../Config/FeatureToggle';
 import styles from '../../styles/components/PhaseMarker.module.css';
 
 const PhaseMarker = ({ 
@@ -364,6 +365,7 @@ const PhaseMarker = ({
       <div className={styles.markerLabel}>{name}</div>
       
       {/* Capture state button - only shown when in edit mode and selected */}
+      <FeatureToggle featureId="captureState" fallback={null}>
       {editMode && isSelected && (
         <button 
           className={styles.captureButton}
@@ -377,6 +379,7 @@ const PhaseMarker = ({
       {hasStateCaptured && (
         <div className={styles.stateIndicator}>✓</div>
       )}
+      </FeatureToggle>
     </div>
   );
 };

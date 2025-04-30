@@ -19,11 +19,11 @@ const SessionTimer = () => {
   }, []);
 
   useEffect(() => {
-    console.log("SessionTimer effect running, playback state:", playback.isPlaying);
+   // console.log("SessionTimer effect running, playback state:", playback.isPlaying);
     let intervalId = null;
   
     if (playback.isPlaying) {
-      console.log("Setting up timer interval");
+    // console.log("Setting up timer interval");
       // Update every second when playing
       intervalId = setInterval(() => {
         const time = playback.getTime();

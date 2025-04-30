@@ -11,7 +11,7 @@ export { default as BufferManager } from './audio/BufferManager';
 export { default as VolumeController } from './audio/VolumeController';
 export { default as CrossfadeEngine } from './audio/CrossfadeEngine';
 export { default as TimelineEngine } from './audio/TimelineEngine';
-export { default as PresetManager } from './audio/PresetManager';
+
 
 // Collection services
 export { default as CollectionService } from './CollectionService';

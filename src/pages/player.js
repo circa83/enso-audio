@@ -8,35 +8,36 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAudio } from '../contexts/StreamingAudioContext';
 import styles from '../styles/pages/Player.module.css';
 
+
 const PlayerPage = () => {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [collectionInfo, setCollectionInfo] = useState(null);
   const loadingRef = useRef(false); // Add this ref at the component level
-  
+
   // Get loadCollection function and states from audio context
-  const { 
-    loadCollection, 
-    currentCollection, 
-    loadingCollection, 
-    collectionError 
+  const {
+    loadCollection,
+    currentCollection,
+    loadingCollection,
+    collectionError
   } = useAudio();
-  
+
   // Effect to load collection from URL parameter - update this part
   useEffect(() => {
     // Check if router and query are available
     if (!router || !router.isReady) return;
-    
+
     const { collection: collectionId } = router.query;
-    
+
     // Only load if we have a collection ID and haven't already started loading it
     if (collectionId && !loadingRef.current) {
       console.log(`[PlayerPage] Loading collection from URL: ${collectionId}`);
-      
+
       // Set flag to true to prevent additional load attempts
       loadingRef.current = true;
-      
+
       // Load the collection with autoPlay set to false
       loadCollection(collectionId, {
         autoPlay: false,
@@ -52,10 +53,10 @@ const PlayerPage = () => {
         loadingRef.current = false;
       });
     }
-    
+
     // No cleanup function needed as we're managing the ref at component level
   }, [router?.isReady, router?.query.collection, loadCollection]);
-  
+
   // Reset loading flag when collection changes
   useEffect(() => {
     if (currentCollection) {
@@ -63,7 +64,7 @@ const PlayerPage = () => {
       loadingRef.current = true;
     }
   }, [currentCollection]);
-  
+
   // Update collection info when currentCollection changes
   useEffect(() => {
     if (currentCollection) {
@@ -73,22 +74,22 @@ const PlayerPage = () => {
       });
     }
   }, [currentCollection]);
-  
+
   // Rest of component unchanged
   const handleLogout = async () => {
     await logout();
   };
-  
+
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
-  
+
   return (
     <div className={styles.playerContainer}>
       <Head>
         <title>{collectionInfo ? `${collectionInfo.name} | Ensō Audio` : 'Audio Session | Ensō Audio'}</title>
       </Head>
-      
+
       <div className={styles.playerTopBar}>
         <button className={styles.hamburgerMenu} onClick={toggleMenu}>
           <span></span>
@@ -98,12 +99,12 @@ const PlayerPage = () => {
         <div className={styles.topBarTitle}>
           Ensō Audio
         </div>
-        
+
         <Link href="/ambient-archive" className={styles.backButton}>
           Archive →
         </Link>
       </div>
-      
+
       {/* Loading indicator */}
       {loadingCollection && (
         <div className={styles.loadingOverlay}>
@@ -111,13 +112,13 @@ const PlayerPage = () => {
           <p>Loading collection...</p>
         </div>
       )}
-      
+
       {/* Error message */}
       {collectionError && (
         <div className={styles.errorMessage}>
           <h3>Failed to load collection</h3>
           <p>{collectionError}</p>
-          <button 
+          <button
             className={styles.retryButton}
             onClick={() => router.push('/ambient-archive')}
           >
@@ -125,12 +126,12 @@ const PlayerPage = () => {
           </button>
         </div>
       )}
-      
+
       <Player />
-      
+
       {/* Menu Overlay */}
       <div className={`${styles.menuOverlay} ${isMenuOpen ? styles.menuOpen : ''}`} onClick={toggleMenu}></div>
-      
+
       {/* Simplified Menu Dropdown */}
       <div className={`${styles.menuDropdown} ${isMenuOpen ? styles.menuOpen : ''}`}>
         <nav className={styles.dropdownNav}>
@@ -140,7 +141,7 @@ const PlayerPage = () => {
           <Link href="#" className={styles.dropdownLink}>
             Account
           </Link>
-         
+
           <button className={styles.dropdownButton} onClick={handleLogout}>
             {user ? 'Logout' : 'Login'}
           </button>

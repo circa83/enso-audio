@@ -5,6 +5,9 @@
  * Handles fetching, filtering, and processing collection data
  */
 
+import appConfig from "../Config/appConfig";
+
+
 class CollectionService {
   /**
    * Create a new CollectionService instance
@@ -21,132 +24,132 @@ class CollectionService {
       enableLogging: options.enableLogging || false,
       blobBaseUrl: process.env.NEXT_PUBLIC_BLOB_BASE_URL || 'https://uggtzauwx9gzthtf.public.blob.vercel-storage.com'
     };
-    
+
     // Internal state
     this.collectionsCache = null;
     this.lastCacheTime = 0;
     this.pendingRequests = new Map();
   }
-  
-  /**
-   * Get collection folders from Blob Storage
-   * @private
-   * @returns {Promise<string[]>} Array of collection folder names
-   */
-  async _getBlobCollectionFolders() {
-    try {
-      console.log('[CollectionService: _getBlobCollectionFolders] Fetching blob collections');
-      const response = await fetch('/api/blob/list?prefix=collections/');
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
-      }
-      
-      const blobs = await response.json();
-      
-      // Extract unique collection folder names from blob paths
-      const folders = new Set();
-      // Map to store files by collection folder
-      const folderContents = new Map();
-      
-      blobs.forEach(blob => {
-        const path = blob.pathname.replace('collections/', '');
-        const parts = path.split('/');
-        const folder = parts[0];
-        
-        if (folder) {
-          folders.add(folder);
-          
-          // Group files by collection folder
-          if (!folderContents.has(folder)) {
-            folderContents.set(folder, []);
-          }
-          
-          folderContents.get(folder).push({
-            path: blob.pathname,
-            filename: parts.length > 1 ? parts[parts.length - 1] : null,
-            size: blob.size,
-            contentType: blob.contentType,
-            updatedAt: blob.uploadedAt || blob.updatedAt
-          });
-        }
-      });
-      
-      // Log detailed information about collection contents
-      console.log(`[CollectionService: _getBlobCollectionFolders] Found ${folders.size} collections`);
-      
-      // Log the structure of each collection folder
-      folderContents.forEach((files, folder) => {
-        console.log(`[CollectionService: _getBlobCollectionFolders] Collection '${folder}' contains ${files.length} files:`);
-        
-        // Group files by type/subfolder for cleaner logging
-        const filesByType = {};
-        files.forEach(file => {
-          const subPath = file.path.replace(`collections/${folder}/`, '');
-          const type = subPath.includes('/') ? subPath.split('/')[0] : 'root';
-          
-          if (!filesByType[type]) {
-            filesByType[type] = [];
-          }
-          filesByType[type].push(file);
-        });
-        
-        // Log content structure
-        Object.entries(filesByType).forEach(([type, typeFiles]) => {
-          console.log(`  - ${type}: ${typeFiles.length} files`);
-          // Log up to 3 examples of each type
-          typeFiles.slice(0, 3).forEach(file => {
-            console.log(`    • ${file.path} (${file.contentType}, ${(file.size / 1024).toFixed(2)} KB)`);
-          });
-          if (typeFiles.length > 3) {
-            console.log(`    • ... and ${typeFiles.length - 3} more`);
-          }
-        });
-      });
-      
-      return Array.from(folders);
-    } catch (error) {
-      console.error(`[CollectionService: _getBlobCollectionFolders] Error: ${error.message}`);
-      return [];
-    }
-  }
-  
-  /**
-   * Verify if a collection's audio files exist in Vercel Blob Storage
-   * @private
-   * @param {Object} collection - Collection data
-   * @returns {Promise<boolean>} True if all audio files exist
-   */
-  async _verifyBlobFiles(collection) {
-    if (!collection || !collection.tracks) return false;
-    
-    try {
-      // Check each track's audio URL
-      for (const track of collection.tracks) {
-        if (!track.audioUrl) return false;
-        
-        // Verify the URL is accessible
-        const response = await fetch(track.audioUrl, { method: 'HEAD' });
-        if (!response.ok) return false;
-        
-        // Check variations if they exist
-        if (track.variations) {
-          for (const variation of track.variations) {
-            if (!variation.audioUrl) return false;
-            
-            const varResponse = await fetch(variation.audioUrl, { method: 'HEAD' });
-            if (!varResponse.ok) return false;
-          }
-        }
-      }
-      
-      return true;
-    } catch (error) {
-      this.log(`[_verifyBlobFiles] Error verifying files: ${error.message}`, 'error');
-      return false;
-    }
-  }
-  
+
+  // /**
+  //  * Get collection folders from Blob Storage
+  //  * @private
+  //  * @returns {Promise<string[]>} Array of collection folder names
+  //  */
+  // async _getBlobCollectionFolders() {
+  //   try {
+  //     console.log('[CollectionService: _getBlobCollectionFolders] Fetching blob collections');
+  //     const response = await fetch('/api/blob/list?prefix=collections/');
+
+  //     if (!response.ok) {
+  //       throw new Error(`HTTP error ${response.status}`);
+  //     }
+
+  //     const blobs = await response.json();
+
+  //     // Extract unique collection folder names from blob paths
+  //     const folders = new Set();
+  //     // Map to store files by collection folder
+  //     const folderContents = new Map();
+
+  //     blobs.forEach(blob => {
+  //       const path = blob.pathname.replace('collections/', '');
+  //       const parts = path.split('/');
+  //       const folder = parts[0];
+
+  //       if (folder) {
+  //         folders.add(folder);
+
+  //         // Group files by collection folder
+  //         if (!folderContents.has(folder)) {
+  //           folderContents.set(folder, []);
+  //         }
+
+  //         folderContents.get(folder).push({
+  //           path: blob.pathname,
+  //           filename: parts.length > 1 ? parts[parts.length - 1] : null,
+  //           size: blob.size,
+  //           contentType: blob.contentType,
+  //           updatedAt: blob.uploadedAt || blob.updatedAt
+  //         });
+  //       }
+  //     });
+
+  //     // Log detailed information about collection contents
+  //     console.log(`[CollectionService: _getBlobCollectionFolders] Found ${folders.size} collections`);
+
+  //     // Log the structure of each collection folder
+  //     folderContents.forEach((files, folder) => {
+  //       console.log(`[CollectionService: _getBlobCollectionFolders] Collection '${folder}' contains ${files.length} files:`);
+
+  //       // Group files by type/subfolder for cleaner logging
+  //       const filesByType = {};
+  //       files.forEach(file => {
+  //         const subPath = file.path.replace(`collections/${folder}/`, '');
+  //         const type = subPath.includes('/') ? subPath.split('/')[0] : 'root';
+
+  //         if (!filesByType[type]) {
+  //           filesByType[type] = [];
+  //         }
+  //         filesByType[type].push(file);
+  //       });
+
+  //       // Log content structure
+  //       Object.entries(filesByType).forEach(([type, typeFiles]) => {
+  //         console.log(`  - ${type}: ${typeFiles.length} files`);
+  //         // Log up to 3 examples of each type
+  //         typeFiles.slice(0, 3).forEach(file => {
+  //           console.log(`    • ${file.path} (${file.contentType}, ${(file.size / 1024).toFixed(2)} KB)`);
+  //         });
+  //         if (typeFiles.length > 3) {
+  //           console.log(`    • ... and ${typeFiles.length - 3} more`);
+  //         }
+  //       });
+  //     });
+
+  //     return Array.from(folders);
+  //   } catch (error) {
+  //     console.error(`[CollectionService: _getBlobCollectionFolders] Error: ${error.message}`);
+  //     return [];
+  //   }
+  // }
+
+  // /**
+  //  * Verify if a collection's audio files exist in Vercel Blob Storage
+  //  * @private
+  //  * @param {Object} collection - Collection data
+  //  * @returns {Promise<boolean>} True if all audio files exist
+  //  */
+  // async _verifyBlobFiles(collection) {
+  //   if (!collection || !collection.tracks) return false;
+
+  //   try {
+  //     // Check each track's audio URL
+  //     for (const track of collection.tracks) {
+  //       if (!track.audioUrl) return false;
+
+  //       // Verify the URL is accessible
+  //       const response = await fetch(track.audioUrl, { method: 'HEAD' });
+  //       if (!response.ok) return false;
+
+  //       // Check variations if they exist
+  //       if (track.variations) {
+  //         for (const variation of track.variations) {
+  //           if (!variation.audioUrl) return false;
+
+  //           const varResponse = await fetch(variation.audioUrl, { method: 'HEAD' });
+  //           if (!varResponse.ok) return false;
+  //         }
+  //       }
+  //     }
+
+  //     return true;
+  //   } catch (error) {
+  //     this.log(`[_verifyBlobFiles] Error verifying files: ${error.message}`, 'error');
+  //     return false;
+  //   }
+  // }
+
   /**
    * Helper for building query strings
    * @private
@@ -155,27 +158,27 @@ class CollectionService {
    */
   _buildQueryString(params = {}) {
     const query = new URLSearchParams();
-    
+
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
         query.append(key, value);
       }
     });
-    
+
     const queryString = query.toString();
     return queryString ? `?${queryString}` : '';
   }
-  
+
   /**
-   * Get all collections with optional filtering
-   * @param {Object} [options] - Fetch options
-   * @param {boolean} [options.useCache=true] - Use cached data if available
-   * @param {string} [options.tag] - Filter by tag
-   * @param {string} [options.artist] - Filter by artist name
-   * @param {number} [options.limit] - Maximum number of results
-   * @param {number} [options.page] - Page number for pagination
-   * @returns {Promise<Object>} Collections data with pagination info
-   */
+  * Get all collections with optional filtering
+  * @param {Object} [options] - Fetch options
+  * @param {boolean} [options.useCache=true] - Use cached data if available
+  * @param {string} [options.tag] - Filter by tag
+  * @param {string} [options.artist] - Filter by artist name
+  * @param {number} [options.limit] - Maximum number of results
+  * @param {number} [options.page] - Page number for pagination
+  * @returns {Promise<Object>} Collections data with pagination info
+  */
   async getCollections(options = {}) {
     const {
       useCache = true,
@@ -184,99 +187,93 @@ class CollectionService {
       limit = 10,
       page = 1
     } = options;
-    
+
     try {
-      // First, get the list of collections from Vercel Blob Storage
-      const blobFolders = await this._getBlobCollectionFolders();
-      console.log(`[CollectionService: getCollections] Found ${blobFolders.length} collections in Blob Storage`);
-      
-      if (blobFolders.length === 0) {
-        console.log('[CollectionService: getCollections] No collections found in Blob Storage');
-        return {
-          success: true,
-          data: [],
-          pagination: {
-            total: 0,
-            page: 1,
-            limit: parseInt(limit),
-            pages: 0
-          }
-        };
-      }
-      
       // Generate cache key based on filter options
       const cacheKey = JSON.stringify({ tag, artist, limit, page });
-      
+
       // Check cache if enabled
-      if (useCache && 
-          this.collectionsCache && 
-          Date.now() - this.lastCacheTime < this.config.cacheDuration &&
-          !tag && !artist) {
+      if (useCache &&
+        this.collectionsCache &&
+        Date.now() - this.lastCacheTime < this.config.cacheDuration &&
+        !tag && !artist) {
         console.log(`[CollectionService: getCollections] Using cached collections data (${this.collectionsCache.data.length} items)`);
-        
-        // Still filter the cached data by blob folders
-        const filteredData = this.collectionsCache.data.filter(collection => 
-          blobFolders.includes(collection.id)
-        );
-        
-        const filteredResult = {
-          ...this.collectionsCache,
-          data: filteredData,
-          pagination: {
-            ...this.collectionsCache.pagination,
-            total: filteredData.length,
-            pages: Math.ceil(filteredData.length / parseInt(limit))
-          }
-        };
-        
-        return filteredResult;
+        return this.collectionsCache;
       }
-      
+
       // Check for pending request with same parameters
       if (this.pendingRequests.has(cacheKey)) {
         console.log(`[CollectionService: getCollections] Using pending request for key: ${cacheKey}`);
         return this.pendingRequests.get(cacheKey);
       }
-      
-      // Then, fetch the corresponding collections from MongoDB
-      const endpoint = `${this.config.apiBasePath}/collections${this._buildQueryString(options)}`;
-      console.log(`[CollectionService: getCollections] Fetching from API: ${endpoint}`);
-      
-      const response = await fetch(endpoint);
-      
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-      
-      const apiData = await response.json();
-      
-      // Filter collections to only include those that exist in blob storage
-      const filteredCollections = apiData.data.filter(collection => 
-        blobFolders.includes(collection.id)
-      );
-      
-      console.log(`[CollectionService: getCollections] Filtered to ${filteredCollections.length} valid collections`);
-      
-      // Create result with updated pagination
-      const result = {
-        success: true,
-        data: filteredCollections,
-        pagination: {
-          total: filteredCollections.length,
-          page: parseInt(page),
-          limit: parseInt(limit),
-          pages: Math.ceil(filteredCollections.length / parseInt(limit))
+
+      // Create request promise
+      const requestPromise = (async () => {
+        try {
+          // Fetch collections from local file
+          console.log('[CollectionService: getCollections] Fetching collections from local file');
+          const response = await fetch('/collections/collections.json');
+
+          if (!response.ok) {
+            throw new Error(`Failed to load collections: ${response.status}`);
+          }
+
+          let collections = await response.json();
+
+          // Apply filters if provided
+          if (tag) {
+            collections = collections.filter(collection =>
+              collection.metadata?.tags?.includes(tag)
+            );
+            console.log(`[CollectionService: getCollections] Filtered by tag "${tag}": ${collections.length} results`);
+          }
+
+          if (artist) {
+            collections = collections.filter(collection =>
+              collection.metadata?.artist?.toLowerCase().includes(artist.toLowerCase())
+            );
+            console.log(`[CollectionService: getCollections] Filtered by artist "${artist}": ${collections.length} results`);
+          }
+
+          // Calculate pagination
+          const startIndex = (page - 1) * limit;
+          const endIndex = startIndex + parseInt(limit);
+          const paginatedData = collections.slice(startIndex, endIndex);
+
+          const result = {
+            success: true,
+            data: paginatedData,
+            pagination: {
+              total: collections.length,
+              page: parseInt(page),
+              limit: parseInt(limit),
+              pages: Math.ceil(collections.length / parseInt(limit))
+            }
+          };
+
+          // Update cache if this was a full request (no filters)
+          if (!tag && !artist) {
+            this.collectionsCache = result;
+            this.lastCacheTime = Date.now();
+            console.log(`[CollectionService: getCollections] Updated cache with ${collections.length} collections`);
+          }
+
+          return result;
+        } catch (error) {
+          console.error(`[CollectionService: getCollections] Error: ${error.message}`);
+          return {
+            success: false,
+            error: error.message
+          };
+        } finally {
+          this.pendingRequests.delete(cacheKey);
         }
-      };
-      
-      // Update cache if this was a full request (no filters)
-      if (!tag && !artist) {
-        this.collectionsCache = result;
-        this.lastCacheTime = Date.now();
-        console.log(`[CollectionService: getCollections] Updated cache with ${filteredCollections.length} collections`);
-      }
-      
-      return result;
+      })();
+
+      // Store promise in pending requests
+      this.pendingRequests.set(cacheKey, requestPromise);
+
+      return requestPromise;
     } catch (error) {
       console.error(`[CollectionService: getCollections] Error: ${error.message}`);
       return {
@@ -285,263 +282,423 @@ class CollectionService {
       };
     }
   }
-  
+
+
   /**
-   * Get a specific collection by ID with its tracks
-   * @param {string} id - Collection ID
-   * @param {boolean} [useCache=true] - Use cached data if possible
-   * @returns {Promise<Object>} Collection data with tracks
-   */
+  * Get a specific collection by ID with its tracks
+  * @param {string} id - Collection ID
+  * @param {boolean} [useCache=true] - Use cached data if possible
+  * @returns {Promise<Object>} Collection data with tracks
+  */
   async getCollection(id, useCache = true) {
     if (!id) {
       throw new Error('Collection ID is required');
     }
-    
+
     // Check if collection exists in cache
-    if (useCache && 
-        this.collectionsCache && 
-        Date.now() - this.lastCacheTime < this.config.cacheDuration) {
+    if (useCache &&
+      this.collectionsCache &&
+      Date.now() - this.lastCacheTime < this.config.cacheDuration) {
       const cachedCollection = this.collectionsCache.data.find(c => c.id === id);
       if (cachedCollection) {
         this.log(`[getCollection] Using cached data for collection: ${id}`);
         return { success: true, data: cachedCollection };
       }
     }
-    
+
     // Check for pending request
     const cacheKey = `collection:${id}`;
     if (this.pendingRequests.has(cacheKey)) {
       this.log(`[getCollection] Using pending request for: ${id}`);
       return this.pendingRequests.get(cacheKey);
     }
-    
-    // First verify this collection exists in blob storage
-    const blobFolders = await this._getBlobCollectionFolders();
-    if (!blobFolders.includes(id)) {
-      console.log(`[CollectionService: getCollection] Collection ${id} not found in Blob Storage`);
-      return { 
-        success: false, 
-        error: `Collection with ID '${id}' not found in storage` 
-      };
-    }
-    
-    const endpoint = `${this.config.apiBasePath}/collections/${id}?bypassVerify=true`;
-    console.log(`[CollectionService: getCollection] Fetching collection from: ${endpoint}`);
-    
+
     // Create request promise
     const requestPromise = (async () => {
       try {
-        const response = await fetch(endpoint);
-        
+        // Fetch the collection metadata from the local file
+        console.log(`[CollectionService: getCollection] Fetching collection ${id} from local metadata file`);
+        const response = await fetch(`/collections/${id}/metadata.json`);
+
         if (!response.ok) {
           if (response.status === 404) {
-            return { success: false, error: `Collection with ID '${id}' not found` };
+            return {
+              success: false,
+              error: `Collection with ID '${id}' not found`
+            };
           }
-          
-          const errorText = await response.text();
-          throw new Error(`Failed to fetch collection: ${response.status} ${response.statusText}. ${errorText}`);
-        }
-        
-        const data = await response.json();
-        
-        if (!data.success || !data.data) {
-          throw new Error('Invalid response format from collection API');
+
+          throw new Error(`Failed to fetch collection: ${response.status}`);
         }
 
-        // Verify collection has valid files in blob storage
-        console.log(`[CollectionService: getCollection] Verifying blob files for collection: ${id}`);
-        const filesExist = await this._verifyBlobFiles(data.data);
-        
-        if (!filesExist) {
-          console.log(`[CollectionService: getCollection] Some audio files for collection ${id} are not accessible`);
-          data.warning = "Some audio files may not be accessible";
-        }
-        
-        return data;
+        const collectionData = await response.json();
+
+        // Return the collection data
+        return {
+          success: true,
+          data: collectionData
+        };
       } catch (error) {
         console.log(`[CollectionService: getCollection] Error: ${error.message}`, 'error');
-        throw error;
+        return {
+          success: false,
+          error: error.message
+        };
       } finally {
         // Remove from pending requests
         this.pendingRequests.delete(cacheKey);
       }
     })();
-    
+
     // Store promise in pending requests
     this.pendingRequests.set(cacheKey, requestPromise);
-    
+
     return requestPromise;
   }
-  
- 
+
+
   /**
- * Format collection data for consumption by the audio player
- * @param {Object} collection - Collection data
- * @returns {Object} Formatted collection data ready for player consumption
- */
-formatCollectionForPlayer(collection) {
-  if (!collection) {
-    throw new Error('Collection data is required');
-  }
-  
-  try {
-    console.log(`[CollectionService: formatCollectionForPlayer] Formatting collection: ${collection.id}`);
-    
-    // Define player layers
-    const playerLayers = {
-      'Layer 1': [], // Drone
-      'Layer 2': [], // Melody
-      'Layer 3': [], // Rhythm
-      'Layer 4': []  // Nature
-    };
-    
-    // Map of folder names to player layer names
-    const folderToLayerMap = {
-      'Layer_1': 'Layer 1',
-      'Layer_2': 'Layer 2',
-      'Layer_3': 'Layer 3',
-      'Layer_4': 'Layer 4'
-    };
-    
-    // Ensure collection has tracks array
-    if (!collection.tracks || !Array.isArray(collection.tracks) || collection.tracks.length === 0) {
-      console.error(`[CollectionService: formatCollectionForPlayer] Collection ${collection.id} has no tracks`);
-      throw new Error(`Collection "${collection.name || collection.id}" has no audio tracks`);
+  * Format collection data for consumption by the audio player
+  * @param {Object} collection - Collection data
+  * @param {Object} [options] - Formatting options
+  * @param {boolean} [options.applyConfig=true] - Whether to apply collection-specific configuration
+  * @returns {Object} Formatted collection data ready for player consumption
+  */
+  formatCollectionForPlayer(collection, options = {}) {
+    const { applyConfig = true } = options;
+
+    if (!collection) {
+      throw new Error('Collection data is required');
     }
-    
-    let formattedTrackCount = 0;
-    
-    // Process tracks
-    collection.tracks.forEach(track => {
-      // Handle missing properties with clear logging
-      if (!track.id) {
-        console.warn('[CollectionService: formatCollectionForPlayer] Track missing id:', track);
-        return;
+
+    try {
+      console.log(`[CollectionService: formatCollectionForPlayer] Formatting collection: ${collection.id}`);
+      console.log(`[CollectionService: formatCollectionForPlayer] Collection ID type: ${typeof collection.id}`);
+      console.log(`[CollectionService: formatCollectionForPlayer] Raw collection ID value: "${collection.id}"`);
+      
+      // // More specific check of collection ID:
+      // if (collection.id === 'Stillness') {
+      //   console.log('[CollectionService: formatCollectionForPlayer] MATCH: Collection ID exactly matches "stillness"');
+      // } else {
+      //   console.log('[CollectionService: formatCollectionForPlayer] NO MATCH: Collection ID does not exactly match "stillness"');
+      // }
+      let collectionConfig = null;
+      if (applyConfig) {
+        const appConfig = require('../Config/appConfig').default;
+              // Log available collection IDs in appConfig
+      console.log('[CollectionService: formatCollectionForPlayer] Available collection configs in appConfig:');
+      const availableCollections = appConfig.getAvailableCollections();
+      console.log(`[CollectionService: formatCollectionForPlayer] - Available IDs: ${JSON.stringify(availableCollections)}`);
+      
+        collectionConfig = appConfig.getCollectionConfig(collection.id);
+        console.log(`[CollectionService: formatCollectionForPlayer] Config fetched for "${collection.id}":`);
+        console.log(`- Config found: ${collectionConfig ? 'YES' : 'NO'}`);
+        console.log(`- Is default config: ${collectionConfig === appConfig.defaults ? 'YES' : 'NO'}`);
+        console.log(`- Has phases: ${collectionConfig.phaseMarkers?.length || 0}`);
+        this.log(`Applying collection config for "${collection.id}":`, 'info');
+        this.log(`- Session Duration: ${collectionConfig.sessionDuration}ms`, 'info');
+        this.log(`- Transition Duration: ${collectionConfig.transitionDuration}ms`, 'info');
+        this.log(`- Phase Markers: ${collectionConfig.phaseMarkers?.length || 0}`, 'info');
+
+        // Log each phase's state summary
+        if (collectionConfig.phaseMarkers?.length) {
+          collectionConfig.phaseMarkers.forEach(phase => {
+            const hasVolumes = phase.state?.volumes ? Object.keys(phase.state.volumes).length : 0;
+            const hasAudio = phase.state?.activeAudio ? Object.keys(phase.state.activeAudio).length : 0;
+            this.log(`  - Phase "${phase.name}": ${hasVolumes} volumes, ${hasAudio} tracks defined`, 'info');
+          });
+        }
+
+        // Log default volumes
+        if (collectionConfig.defaultVolumes) {
+          this.log(`- Default Volumes: ${JSON.stringify(collectionConfig.defaultVolumes)}`, 'info');
+        }
       }
-      
-      if (!track.audioUrl) {
-        console.warn(`[CollectionService: formatCollectionForPlayer] Track ${track.id} missing audioUrl`);
-        return;
-      }
-      
-      // Get the layer folder from the track
-      const layerFolder = track.layerFolder;
-      if (!layerFolder) {
-        console.warn(`[CollectionService: formatCollectionForPlayer] Track ${track.id} missing layerFolder`);
-        return;
-      }
-      
-      // Map the folder name to player layer name
-      const playerLayer = folderToLayerMap[layerFolder];
-      if (!playerLayer) {
-        console.warn(`[CollectionService: formatCollectionForPlayer] Invalid layer folder: ${layerFolder}`);
-        return;
-      }
-      
-      // Format track for player with full Blob Storage URL if needed
-      const audioUrl = track.audioUrl.startsWith('http') 
-        ? track.audioUrl 
-        : `${this.config.blobBaseUrl}${track.audioUrl.startsWith('/') ? '' : '/'}${track.audioUrl}`;
-      
-      // Use the original track ID without modification
-      const formattedTrack = {
-        id: track.id, // Don't modify the ID!
-        name: track.title || track.name || `Track ${track.id}`,
-        path: audioUrl,
-        layer: playerLayer // Use the player layer name
+
+      // Define player layers
+      const playerLayers = {
+        'Layer 1': [], // Drone
+        'Layer 2': [], // Melody
+        'Layer 3': [], // Rhythm
+        'Layer 4': []  // Nature
       };
-      
-      // Add to appropriate layer
-      playerLayers[playerLayer].push(formattedTrack);
-      formattedTrackCount++;
-      
-      // Process variations if they exist
-      if (track.variations && Array.isArray(track.variations)) {
-        track.variations.forEach(variation => {
-          // Skip invalid variations
-          if (!variation.id) {
-            console.warn(`[CollectionService: formatCollectionForPlayer] Variation missing id in track ${track.id}`);
-            return;
+
+      // Map of folder names to player layer names
+      const folderToLayerMap = {
+        'Layer_1': 'Layer 1',
+        'Layer_2': 'Layer 2',
+        'Layer_3': 'Layer 3',
+        'Layer_4': 'Layer 4'
+      };
+
+      // Ensure collection has tracks array
+      if (!collection.tracks || !Array.isArray(collection.tracks) || collection.tracks.length === 0) {
+        console.error(`[CollectionService: formatCollectionForPlayer] Collection ${collection.id} has no tracks`);
+        throw new Error(`Collection "${collection.name || collection.id}" has no audio tracks`);
+      }
+
+      let formattedTrackCount = 0;
+
+      // Process tracks - existing implementation unchanged
+      collection.tracks.forEach(track => {
+        // Handle missing properties with clear logging
+        if (!track.id) {
+          console.warn('[CollectionService: formatCollectionForPlayer] Track missing id:', track);
+          return;
+        }
+
+        if (!track.audioUrl) {
+          console.warn(`[CollectionService: formatCollectionForPlayer] Track ${track.id} missing audioUrl`);
+          return;
+        }
+
+        // Get the layer folder from the track
+        const layerFolder = track.layerFolder;
+        if (!layerFolder) {
+          console.warn(`[CollectionService: formatCollectionForPlayer] Track ${track.id} missing layerFolder`);
+          return;
+        }
+
+        // Map the folder name to player layer name
+        const playerLayer = folderToLayerMap[layerFolder];
+        if (!playerLayer) {
+          console.warn(`[CollectionService: formatCollectionForPlayer] Invalid layer folder: ${layerFolder}`);
+          return;
+        }
+
+        // Use the audioUrl directly as it's already a relative path to the public folder
+        const audioUrl = track.audioUrl;
+
+        // Use the original track ID without modification
+        const formattedTrack = {
+          id: track.id,
+          name: track.title || track.name || `Track ${track.id}`,
+          path: audioUrl,
+          layer: playerLayer
+        };
+
+        // Add to appropriate layer
+        playerLayers[playerLayer].push(formattedTrack);
+        formattedTrackCount++;
+
+        // Process variations if they exist
+        if (track.variations && Array.isArray(track.variations)) {
+          track.variations.forEach(variation => {
+            // Skip invalid variations
+            if (!variation.id) {
+              console.warn(`[CollectionService: formatCollectionForPlayer] Variation missing id in track ${track.id}`);
+              return;
+            }
+
+            if (!variation.audioUrl) {
+              console.warn(`[CollectionService: formatCollectionForPlayer] Variation ${variation.id} missing audioUrl`);
+              return;
+            }
+
+            // Use the variation audioUrl directly - it's already a relative path
+            const variationUrl = variation.audioUrl;
+
+            // Create variation track
+            const variationTrack = {
+              id: variation.id,
+              name: variation.title || `${track.title || track.name || 'Track'} (Variation)`,
+              path: variationUrl,
+              layer: playerLayer
+            };
+
+            // Add variation to the appropriate layer
+            playerLayers[playerLayer].push(variationTrack);
+            formattedTrackCount++;
+          });
+        }
+      });
+
+      // Ensure we have at least one track formatted
+      if (formattedTrackCount === 0) {
+        console.error('[CollectionService: formatCollectionForPlayer] No valid tracks found in collection');
+        throw new Error('No valid audio tracks found in this collection');
+      }
+
+      // Format the collection for the player
+      // Use the coverImage directly - it's already a relative path
+      const formattedCollection = {
+        id: collection.id,
+        name: collection.name,
+        description: collection.description,
+        coverImage: collection.coverImage,
+        metadata: collection.metadata,
+        layers: playerLayers,
+        // Keep the original tracks array for reference
+        originalTracks: collection.tracks
+      };
+
+      // NEW: Apply collection-specific configuration if requested
+      if (applyConfig) {
+        this.applyCollectionConfig(formattedCollection);
+      }
+
+      console.log(`[CollectionService: formatCollectionForPlayer] Formatted ${formattedTrackCount} tracks across ${Object.keys(playerLayers).length} layers`);
+      console.log(`[CollectionService: formatCollectionForPlayer] Cover image URL: ${formattedCollection.coverImage}`);
+
+      // Return the formatted collection
+      return formattedCollection;
+    } catch (error) {
+      console.error(`[CollectionService: formatCollectionForPlayer] Error: ${error.message}`);
+      throw new Error(`Failed to format collection: ${error.message}`);
+    }
+  }
+
+  /**
+    * Apply collection-specific configuration from appConfig
+    * @param {Object} formattedCollection - Formatted collection object
+    * @returns {Object} Collection with applied configuration
+    */
+  applyCollectionConfig(formattedCollection) {
+    try {
+      if (!formattedCollection || !formattedCollection.id) {
+        console.warn('[CollectionService: applyCollectionConfig] Cannot apply config: Invalid collection');
+        return formattedCollection;
+      }
+
+      // Normalize the collection ID for better matching
+      const collectionId = formattedCollection.id.trim();
+      console.log(`[CollectionService: applyCollectionConfig] Applying config for normalized ID: "${collectionId}"`);
+
+      // Get the collection-specific configuration (this checks if enabled)
+      const collectionConfig = appConfig.getCollectionConfig(collectionId);
+
+      if (!collectionConfig) {
+        console.warn(`[CollectionService: applyCollectionConfig] No configuration found for collection: ${formattedCollection.id}`);
+        return formattedCollection;
+      }
+
+      console.log(`[CollectionService: applyCollectionConfig] Applying configuration to collection: ${formattedCollection.id}`);
+
+      // Apply session and transition duration
+      formattedCollection.sessionDuration = collectionConfig.sessionDuration;
+      formattedCollection.transitionDuration = collectionConfig.transitionDuration;
+
+      // Apply default volumes
+      formattedCollection.defaultVolumes = { ...collectionConfig.volumes };
+
+      // Apply phase markers if available
+      if (collectionConfig.phaseMarkers && Array.isArray(collectionConfig.phaseMarkers)) {
+        console.log(`[CollectionService: applyCollectionConfig] Found ${collectionConfig.phaseMarkers.length} phase markers in config`);
+        
+        // Log state information before cloning
+        collectionConfig.phaseMarkers.forEach(phase => {
+          console.log(`[CollectionService: applyCollectionConfig] Phase "${phase.name}" before cloning:`);
+          console.log(`- Has state: ${phase.state ? 'YES' : 'NO'}`);
+          if (phase.state) {
+            console.log(`- Volumes: ${JSON.stringify(phase.state.volumes || {})}`);
+            console.log(`- ActiveAudio: ${JSON.stringify(phase.state.activeAudio || {})}`);
           }
-          
-          if (!variation.audioUrl) {
-            console.warn(`[CollectionService: formatCollectionForPlayer] Variation ${variation.id} missing audioUrl`);
-            return;
-          }
-          
-          // Format variation URL
-          const variationUrl = variation.audioUrl.startsWith('http') 
-            ? variation.audioUrl 
-            : `${this.config.blobBaseUrl}${variation.audioUrl.startsWith('/') ? '' : '/'}${variation.audioUrl}`;
-          
-          // Create variation track
-          const variationTrack = {
-            id: variation.id,
-            name: variation.title || `${track.title || track.name || 'Track'} (Variation)`,
-            path: variationUrl,
-            layer: playerLayer // Use the same player layer name
+        });
+        
+        // Use structured cloning instead of JSON parse/stringify to better preserve objects
+        formattedCollection.phaseMarkers = collectionConfig.phaseMarkers.map(marker => {
+          // Create a new marker object with all properties
+          const newMarker = {
+            id: marker.id,
+            name: marker.name,
+            position: marker.position,
+            color: marker.color,
+            locked: marker.locked || false
           };
           
-          // Add variation to the appropriate layer
-          playerLayers[playerLayer].push(variationTrack);
-          formattedTrackCount++;
+          // Explicitly copy the state object if it exists
+          if (marker.state) {
+            newMarker.state = {
+              volumes: marker.state.volumes ? {...marker.state.volumes} : {},
+              activeAudio: marker.state.activeAudio ? {...marker.state.activeAudio} : {}
+            };
+          }
+          
+          return newMarker;
+        });
+        
+        // Validate and log after cloning
+        formattedCollection.phaseMarkers.forEach(marker => {
+          console.log(`[CollectionService: applyCollectionConfig] Phase "${marker.name}" after cloning:`);
+          console.log(`- Has state: ${marker.state ? 'YES' : 'NO'}`);
+          if (marker.state) {
+            console.log(`- Volumes: ${JSON.stringify(marker.state.volumes || {})}`);
+            console.log(`- ActiveAudio: ${JSON.stringify(marker.state.activeAudio || {})}`);
+          }
+          
+          // Validate tracks if activeAudio is present
+          if (marker.state && marker.state.activeAudio) {
+            Object.entries(marker.state.activeAudio).forEach(([layer, trackId]) => {
+              const valid = this.validateTrackExists(formattedCollection, layer, trackId);
+             // console.log(`[CollectionService: applyCollectionConfig] - Track ${trackId} for layer ${layer}: ${valid ? 'VALID' : 'INVALID'}`);
+            });
+          }
         });
       }
-    });
-    
-    // Ensure we have at least one track formatted
-    if (formattedTrackCount === 0) {
-      console.error('[CollectionService: formatCollectionForPlayer] No valid tracks found in collection');
-      throw new Error('No valid audio tracks found in this collection');
+
+      return formattedCollection;
+    } catch (error) {
+      console.error(`[CollectionService: applyCollectionConfig] Error applying config: ${error.message}`);
+      // Return the original collection without config applied
+      return formattedCollection;
     }
-    
-    // Format the collection for the player
-    const formattedCollection = {
-      id: collection.id,
-      name: collection.name,
-      description: collection.description,
-      coverImage: collection.coverImage && !collection.coverImage.startsWith('http')
-        ? `${this.config.blobBaseUrl}${collection.coverImage.startsWith('/') ? '' : '/'}${collection.coverImage}`
-        : collection.coverImage,
-      metadata: collection.metadata,
-      layers: playerLayers,
-      // Keep the original tracks array for reference
-      originalTracks: collection.tracks
-    };
-    
-    console.log(`[CollectionService: formatCollectionForPlayer] Formatted ${formattedTrackCount} tracks across ${Object.keys(playerLayers).length} layers`);
-    console.log(`[CollectionService: formatCollectionForPlayer] Cover image URL: ${formattedCollection.coverImage}`);
-    
-    // Return the formatted collection
-    return formattedCollection;
-  } catch (error) {
-    console.error(`[CollectionService: formatCollectionForPlayer] Error: ${error.message}`);
-    throw new Error(`Failed to format collection: ${error.message}`);
   }
-}
-  
+
   /**
-   * Helper method to determine layer from folder structure
+   * Validate that a track ID exists in the collection's layers
    * @private
-   * @param {string} audioUrl - Audio file URL or path
-   * @returns {string} Layer folder (Layer_1, Layer_2, etc.)
+   * @param {Object} layers - Collection layers object
+   * @param {string} layerName - Layer name
+   * @param {string} trackId - Track ID to validate
+   * @returns {boolean} True if track exists
    */
-  _getLayerFromFolder(audioUrl) {
-    if (!audioUrl) return 'Layer_1'; // Default to Layer_1 if no URL
-    
-    // Convert to lowercase for case-insensitive matching
-    const url = audioUrl.toLowerCase();
-    
-    // Check for layer folders in the path
-    if (url.includes('/layer_1/') || url.includes('/drone/')) return 'Layer_1';
-    if (url.includes('/layer_2/') || url.includes('/melody/')) return 'Layer_2';
-    if (url.includes('/layer_3/') || url.includes('/rhythm/')) return 'Layer_3';
-    if (url.includes('/layer_4/') || url.includes('/nature/')) return 'Layer_4';
-    
-    // Default to Layer_1 if no match found
-    return 'Layer_1';
-  }
+  validateTrackExists(formattedCollection, layerName, trackId) {
+    // If no layers or specific layer doesn't exist, return false
+    if (!formattedCollection.layers || !formattedCollection.layers[layerName]) {
+      console.log(`[CollectionService] Track validation failed: Layer "${layerName}" not found`, 'warn');
+      return false;
+    }
   
+    // Check if the track ID exists in the specified layer
+    const layerTracks = formattedCollection.layers[layerName];
+    if (!Array.isArray(layerTracks) || layerTracks.length === 0) {
+      console.log(`[CollectionService] Track validation failed: No tracks in layer "${layerName}"`, 'warn');
+      return false;
+    }
+  
+    // Look for a track with matching ID
+    const trackExists = layerTracks.some(track => track.id === trackId);
+  
+    if (!trackExists) {
+      console.log(`[CollectionService] Track validation failed: Track "${trackId}" not found in layer "${layerName}"`, 'warn');
+    }
+  
+    return trackExists;
+  }
+
+
+  // /**
+  //  * Helper method to determine layer from folder structure
+  //  * @private
+  //  * @param {string} audioUrl - Audio file URL or path
+  //  * @returns {string} Layer folder (Layer_1, Layer_2, etc.)
+  //  */
+  // _getLayerFromFolder(audioUrl) {
+  //   if (!audioUrl) return 'Layer_1'; // Default to Layer_1 if no URL
+
+  //   // Convert to lowercase for case-insensitive matching
+  //   const url = audioUrl.toLowerCase();
+
+  //   // Check for layer folders in the path
+  //   if (url.includes('/layer_1/') || url.includes('/drone/')) return 'Layer_1';
+  //   if (url.includes('/layer_2/') || url.includes('/melody/')) return 'Layer_2';
+  //   if (url.includes('/layer_3/') || url.includes('/rhythm/')) return 'Layer_3';
+  //   if (url.includes('/layer_4/') || url.includes('/nature/')) return 'Layer_4';
+
+  //   // Default to Layer_1 if no match found
+  //   return 'Layer_1';
+  // }
+
   /**
    * Reset the collection cache
    */
@@ -550,7 +707,7 @@ formatCollectionForPlayer(collection) {
     this.lastCacheTime = 0;
     console.log('[CollectionService: resetCache] Collection cache cleared');
   }
-  
+
   /**
    * Logging helper that respects configuration
    * @private
@@ -559,9 +716,9 @@ formatCollectionForPlayer(collection) {
    */
   log(message, level = 'info') {
     if (!this.config.enableLogging) return;
-    
+
     const prefix = '[CollectionService]';
-    
+
     switch (level) {
       case 'error':
         console.error(`${prefix} ${message}`);

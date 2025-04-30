@@ -15,31 +15,34 @@ import styles from '../../styles/components/LayerControl.module.css';
  */
 const LayerControl = ({ label, layer }) => {
   // Use our new hook with grouped API
-  const { volume, layers } = useAudio();
-  
+  const { 
+    volume, 
+    layers } 
+    = useAudio();
+
   // Track mounting state with useRef (doesn't cause re-renders)
   const isMounted = useRef(false);
-  
+
   // Get normalized layer key (should already be in correct format)
   const layerKey = layer;
-  
+
   // Current volume for this layer
   const currentVolume = volume.layers[layerKey] || 0;
-  
+
   // Format volume as percentage for display and accessibility
   const volumePercentage = Math.round(currentVolume * 100);
-  
+
   // Track component lifecycle without triggering re-renders
   useEffect(() => {
     // Only log on initial mount
     if (!isMounted.current) {
       isMounted.current = true;
-      console.log(`[LayerControl] Mounted for ${layerKey}, initial volume: ${currentVolume}`);
+ //     console.log(`[LayerControl] Mounted for ${layerKey}, initial volume: ${currentVolume}`);
     }
-    
+
     // Cleanup on unmount
     return () => {
-      console.log(`[LayerControl] Unmounted for ${layerKey}`);
+  //    console.log(`[LayerControl] Unmounted for ${layerKey}`);
       isMounted.current = false;
     };
   }, [layerKey, currentVolume]);
@@ -50,7 +53,7 @@ const LayerControl = ({ label, layer }) => {
     // Set volume with immediate=false to allow smooth transitions
     volume.setLayer(layerKey, newVolume, { immediate: false });
   }, [volume, layerKey]);
-  
+
   return (
     <div className={styles.layerSlider}>
       <div className={styles.labelContainer}>
@@ -58,13 +61,13 @@ const LayerControl = ({ label, layer }) => {
         {/* Only show dropdown if switchable audio is available */}
         {layers.hasSwitchable && <LayerDropdown layer={layerKey} />}
       </div>
-      
-      <input 
+
+      <input
         className={styles.slider}
-        type="range" 
-        min="0" 
-        max="1" 
-        step="0.01" 
+        type="range"
+        min="0"
+        max="1"
+        step="0.01"
         value={currentVolume}
         onChange={handleVolumeChange}
         aria-label={`${label} Volume`}
@@ -72,7 +75,7 @@ const LayerControl = ({ label, layer }) => {
         aria-valuemax="100"
         aria-valuenow={volumePercentage}
       />
-      
+
       <span className={styles.value}>{volumePercentage}%</span>
     </div>
   );
