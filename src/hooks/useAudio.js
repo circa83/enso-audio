@@ -5,12 +5,13 @@ import AudioContext from '../contexts/StreamingAudioContext';
 /**
  * Custom hook to simplify access to the Audio context functionality
  * Provides a clean, organized API grouped by functionality areas
+ * Works with the manager-based architecture in StreamingAudioContext
  * 
  * @returns {Object} Object containing all audio functions and state
  */
 export function useAudio() {
   const context = useContext(AudioContext);
-  
+
   if (!context) {
     throw new Error('useAudio must be used within an AudioProvider');
   }
@@ -26,42 +27,43 @@ export function useAudio() {
     activeAudio,
     audioLibrary,
     hasSwitchableAudio,
-    
-    // Core audio functions
-    setMasterVolumeLevel,
-    setVolume,
+
+    // Core audio functions (from PlaybackManager)
     startSession,
     pauseSession,
     getSessionTime,
-    
+    preloadAudio,
+
+    // Volume and Layer functions (from LayerManager)
+    setMasterVolumeLevel,
+    setVolume,
+    crossfadeTo,
+    fadeLayerVolume,
+    switchTrack,
+
+    // Audio element functions
+    getActiveAudioElement,
+    getActiveSourceNode,
+    getOrCreateAudioElement,
+    getOrCreateSourceNode,
+
     // Audio transition state
     crossfadeProgress,
     activeCrossfades,
-    fadeLayerVolume,
     preloadProgress,
-    
-    // Audio transition functions
-    crossfadeTo,
-    preloadAudio,
-    getActiveSourceNode,
-    getActiveAudioElement,
-    getOrCreateSourceNode,
-    getOrCreateAudioElement,
-    
-    // Timeline state 
+
+    // Timeline state and functions (from TimelineManager)
     timelineEvents,
     timelinePhases,
     activePhase,
     progress,
     sessionDuration,
     transitionDuration,
-    timelineIsPlaying, 
+    timelineIsPlaying,
     startTimeline,
     pauseTimeline,
     resumeTimeline,
     stopTimeline,
-  
-    // Timeline functions
     resetTimelineEventIndex,
     registerTimelineEvent,
     clearTimelineEvents,
@@ -70,26 +72,21 @@ export function useAudio() {
     seekToPercent,
     setSessionDuration,
     setTransitionDuration,
-    
 
-    
-    // Collection state
+    // Collection state and functions (from CollectionLoader)
     currentCollection,
     loadingCollection,
     collectionError,
     collectionLoadProgress,
-    
-    // Collection functions
     loadCollection,
-    switchTrack,
-    
+
     // Constants
     LAYERS
   } = context;
 
   // Group related functionality for a more organized API
-  
-  // Playback controls
+
+  // Playback controls (maps to PlaybackManager)
   const playback = useMemo(() => ({
     isPlaying,
     start: () => {
@@ -105,8 +102,8 @@ export function useAudio() {
       return getSessionTime();
     }
   }), [isPlaying, startSession, pauseSession, getSessionTime]);
-  
-  // Volume controls
+
+  // Volume controls (maps to LayerManager)
   const volume = useMemo(() => ({
     master: masterVolume,
     layers: volumes,
@@ -115,14 +112,14 @@ export function useAudio() {
     },
     setLayer: (layer, level, options) => {
       return setVolume(layer, level, options);
-    }, 
+    },
     fadeVolume: (layer, targetVolume, duration) => {
       console.log(`[useAudio] Fading ${layer} volume to ${targetVolume} over ${duration}ms`);
       return fadeLayerVolume(layer, targetVolume, duration);
     }
   }), [masterVolume, volumes, setMasterVolumeLevel, setVolume, fadeLayerVolume]);
-  
-  // Layer management
+
+  // Layer management (maps to LayerManager)
   const layers = useMemo(() => ({
     active: activeAudio,
     available: audioLibrary,
@@ -130,27 +127,24 @@ export function useAudio() {
     TYPES: LAYERS
   }), [activeAudio, audioLibrary, hasSwitchableAudio, LAYERS]);
 
+  // Helper functions for audio elements - match the original implementation
   const getActiveAudio = useCallback((layer) => {
     return getActiveAudioElement(layer);
-  }
-  , [getActiveAudioElement]); 
+  }, [getActiveAudioElement]);
 
   const getActiveSource = useCallback((layer) => {
     return getActiveSourceNode(layer);
-  }
-  , [getActiveSourceNode]);
+  }, [getActiveSourceNode]);
 
   const getOrCreateAudio = useCallback((layer) => {
     return getOrCreateAudioElement(layer);
-  }
-  , [getOrCreateAudioElement]);
+  }, [getOrCreateAudioElement]);
 
   const getOrCreateSource = useCallback((layer) => {
     return getOrCreateSourceNode(layer);
-  }
-  , [getOrCreateSourceNode]);
-  
-  // Transitions
+  }, [getOrCreateSourceNode]);
+
+  // Transitions (crossfade functionality from LayerManager)
   const transitions = useMemo(() => ({
     active: activeCrossfades,
     progress: crossfadeProgress,
@@ -164,8 +158,8 @@ export function useAudio() {
       return preloadAudio(layer, trackId);
     }
   }), [activeCrossfades, crossfadeProgress, preloadProgress, crossfadeTo, preloadAudio]);
-  
-  // Timeline controls with enhanced debugging
+
+  // Timeline controls (maps to TimelineManager)
   const timeline = useMemo(() => ({
     events: timelineEvents,
     phases: timelinePhases,
@@ -174,20 +168,20 @@ export function useAudio() {
     duration: sessionDuration,
     transitionDuration,
     isPlaying: timelineIsPlaying,
-    
-    startTimeline: () => { 
+
+    startTimeline: () => {
       console.log('[useAudio] Starting timeline progression');
       return startTimeline();
     },
-    pauseTimeline: () => { 
+    pauseTimeline: () => {
       console.log('[useAudio] Pausing timeline progression (preserving position)');
-     return pauseTimeline();
+      return pauseTimeline();
     },
     resumeTimeline: () => {
       console.log('[useAudio] Resuming timeline progression from current position');
       return resumeTimeline();
     },
-    stopTimeline: () => { 
+    stopTimeline: () => {
       console.log('[useAudio] Stopping timeline progression');
       return stopTimeline();
     },
@@ -207,6 +201,7 @@ export function useAudio() {
       console.log('[useAudio] Clearing all timeline events');
       return clearTimelineEvents();
     },
+    // Commented out to match original code
     // updatePhases: (phases) => {
     //   console.log(`[useAudio] Updating timeline phases (${phases.length} phases)`);
     //   return updateTimelinePhases(phases);
@@ -228,17 +223,17 @@ export function useAudio() {
       return setTransitionDuration(duration);
     }
   }), [
+    timelineEvents,
+    timelinePhases,
+    activePhase,
+    progress,
+    sessionDuration,
+    transitionDuration,
+    timelineIsPlaying,
     startTimeline,
     pauseTimeline,
     resumeTimeline,
     stopTimeline,
-    timelineIsPlaying,
-    timelineEvents, 
-    timelinePhases, 
-    activePhase, 
-    progress, 
-    sessionDuration, 
-    transitionDuration,
     resetTimelineEventIndex,
     registerTimelineEvent,
     clearTimelineEvents,
@@ -248,8 +243,30 @@ export function useAudio() {
     setSessionDuration,
     setTransitionDuration
   ]);
-  
-  
+
+  // Collection functionality (maps to CollectionLoader) - NEW GROUP
+  const collections = useMemo(() => ({
+    current: currentCollection,
+    isLoading: loadingCollection,
+    error: collectionError,
+    loadProgress: collectionLoadProgress,
+    load: (id, options) => {
+      console.log(`[useAudio] Loading collection: ${id}`);
+      return loadCollection(id, options);
+    },
+    switchTrack: (layer, trackId, options) => {
+      console.log(`[useAudio] Switching track for ${layer} to ${trackId}`);
+      return switchTrack(layer, trackId, options);
+    }
+  }), [
+    currentCollection,
+    loadingCollection,
+    collectionError,
+    collectionLoadProgress,
+    loadCollection,
+    switchTrack
+  ]);
+
   // Loading state
   const loading = useMemo(() => ({
     isLoading,
@@ -257,9 +274,6 @@ export function useAudio() {
   }), [isLoading, loadingProgress]);
 
   // Return both grouped functionality and individual functions/values
-  // to support both usage patterns:
-  // const { playback, volume } = useAudio(); // Grouped
-  // const { isPlaying, startSession } = useAudio(); // Individual
   return {
     // Grouped functionality
     playback,
@@ -268,7 +282,8 @@ export function useAudio() {
     transitions,
     timeline,
     loading,
-    
+    collections,
+
     // Individual values and functions (for backward compatibility)
     isPlaying,
     isLoading,
@@ -288,14 +303,14 @@ export function useAudio() {
     sessionDuration,
     transitionDuration,
     LAYERS,
-    
+
     // Collection state
     currentCollection,
     loadingCollection,
     collectionError,
     collectionLoadProgress,
-    
-    // Functions
+
+    // Functions - use original names
     setMasterVolumeLevel,
     setVolume,
     startSession,
@@ -311,10 +326,10 @@ export function useAudio() {
     seekToPercent,
     setSessionDuration,
     setTransitionDuration,
-    getActiveSourceNode,
     getActiveAudioElement,
-    getOrCreateSourceNode,
+    getActiveSourceNode,
     getOrCreateAudioElement,
+    getOrCreateSourceNode,
     loadCollection,
     switchTrack
   };
