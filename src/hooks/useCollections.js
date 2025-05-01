@@ -22,7 +22,6 @@ export function useCollections(options = {}) {
   const [collections, setCollections] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [filters, setFilters] = useState(initialFilters);
   const [pagination, setPagination] = useState({
     total: 0,
     page: 1,
