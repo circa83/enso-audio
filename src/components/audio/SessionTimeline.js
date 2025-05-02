@@ -1,6 +1,7 @@
 // src/components/audio/SessionTimeline.js
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudio } from '../../hooks/useAudio';
+import useLogger from '../../hooks/useLogger';
 import PhaseMarker from './PhaseMarker';
 import SessionSettings from './SessionSettings'
 import timelinestyles from '../../styles/components/SessionTimeline.module.css';
@@ -18,6 +19,9 @@ const SessionTimeline = React.forwardRef(({
   transitionDuration,
   onTransitionDurationChange, 
 }, ref) => {
+  
+  // Initialize logger for this component
+  const logger = useLogger('SessionTimeline');
   
   // Use our hook with grouped functionality
   const { 
@@ -56,33 +60,18 @@ const SessionTimeline = React.forwardRef(({
   const queuedPhaseRef = useRef(null);
   const progressTimerRef = useRef(null);
   const phasesApplied = useRef(false);
-
-//   //simple test
-//   useEffect(() => {
-//     console.log('SessionTimeline component mounted');
-//   }, []);
-
-// //Provide Volume Data from useAudio
-//   useEffect(() => {
-//     console.log('Volume in SessionTimeline component:', {
-//       volumeObject: volume,
-//       hasVolumeLayers: volume && !!volume.layers,
-//       volumeLayerCount: volume && volume.layers ? Object.keys(volume.layers).length : 0
-//     });
-//   }, [volume]);
-
- 
+  
  // Set Transition State
 const setTransitionState = useCallback((isTransitioning, force = false) => {
   // Skip unnecessary state updates
   if (!force && isTransitioning === transitioning && 
       isTransitioning === transitionInProgress.current && 
       !isTransitioning === transitionCompletedRef.current) {
-    console.log(`[SessionTimeline] Transition state already ${isTransitioning ? 'active' : 'inactive'}, skipping update`);
+    logger.debug(`[SessionTimeline] Transition state already ${isTransitioning ? 'active' : 'inactive'}, skipping update`);
     return;
   }
   
-  console.log(`[SessionTimeline] Setting transition state: ${isTransitioning ? 'START' : 'END'}`);
+  logger.info(`[SessionTimeline] Setting transition state: ${isTransitioning ? 'START' : 'END'}`);
   
   // Update refs first
   transitionInProgress.current = isTransitioning;
@@ -95,6 +84,235 @@ const setTransitionState = useCallback((isTransitioning, force = false) => {
   }
 }, [transitioning]);
 
+  // Finish transition and clean up
+  const finishTransition = useCallback(() => {
+    logger.info("[SessionTimeline: transition] Finishing transition");
+    
+    // Clear transition timeout
+    if (transitionTimeoutRef.current) {
+      clearTimeout(transitionTimeoutRef.current);
+      transitionTimeoutRef.current = null;
+    }
+    
+    // Update transition state
+    setTransitionState(false);
+  }, [setTransitionState]);
+
+  // Start a transition from current to target phase
+  const startFullTransition = useCallback((currentPhaseData, targetPhaseData) => {
+    logger.info(`[SessionTimeline: transition] Starting full transition from ${currentPhaseData.id} to ${targetPhaseData.id}`);
+    
+    // Capture current state
+    currentVolumeState.current = { ...volume.layers };
+    currentAudioState.current = { ...layers.active };
+    
+    // Set transition state to active
+    setTransitionState(true);
+    
+    // Track changes needed
+    let volumeChanges = false;
+    let trackChanges = false;
+    
+    // Handle volume transitions
+    if (targetPhaseData.state?.volumes) {
+      const targetVolumes = targetPhaseData.state.volumes;
+      
+      Object.entries(targetVolumes).forEach(([layer, targetVolume]) => {
+        const currentVolume = currentVolumeState.current[layer] || 0;
+        
+        if (currentVolume !== targetVolume) {
+          volumeChanges = true;
+          logger.debug(`[SessionTimeline: transition] Volume change for ${layer}: ${currentVolume} -> ${targetVolume}`);
+          
+          // Start the actual volume transition
+          if (volume.fade) {
+            volume.fade(layer, targetVolume, timeline.transitionDuration || 4000);
+          }
+        }
+      });
+    }
+    
+    // Handle track transitions
+    if (targetPhaseData.state?.activeAudio) {
+      const targetTracks = targetPhaseData.state.activeAudio;
+      
+      Object.entries(targetTracks).forEach(([layer, targetTrackId]) => {
+        const currentTrackId = currentAudioState.current[layer];
+        
+        if (currentTrackId !== targetTrackId) {
+          trackChanges = true;
+          logger.debug(`[SessionTimeline: transition] Track change for ${layer}: ${currentTrackId || 'none'} -> ${targetTrackId}`);
+          
+          // Start the actual track transition
+          if (transitions.crossfade) {
+            transitions.crossfade(layer, targetTrackId, timeline.transitionDuration || 4000);
+          }
+        }
+      });
+    }
+    
+    // Set timeout to complete the transition
+    if (transitionTimeoutRef.current) {
+      clearTimeout(transitionTimeoutRef.current);
+    }
+    
+    // Wait for transition to complete
+    transitionTimeoutRef.current = setTimeout(() => {
+      // Trigger transition completion
+      finishTransition();
+      
+      // Update the active phase
+      lastActivePhaseId.current = targetPhaseData.id;
+      setActivePhase(targetPhaseData.id);
+      
+      // Process any queued phase transitions
+      const queuedPhase = queuedPhaseRef.current;
+      if (queuedPhase) {
+        queuedPhaseRef.current = null;
+        logger.info(`[SessionTimeline: transition] Processing queued phase: ${queuedPhase}`);
+        setTimeout(() => {
+          handlePhaseTransition(queuedPhase);
+        }, 50);
+      }
+    }, (timeline.transitionDuration || 4000) + 100); // Add a small buffer
+    
+    // Log if no changes were made
+    if (!volumeChanges && !trackChanges) {
+      logger.info("[SessionTimeline: transition] No state changes needed for this transition");
+      
+      // Still need to finish the transition
+      setTimeout(() => {
+        finishTransition();
+      }, 100);
+    }
+  }, [volume, layers, transitions, timeline, setTransitionState, finishTransition]);
+
+  // Handle phase transition
+  const handlePhaseTransition = useCallback((newPhaseId) => {
+    // If a transition is already in progress, queue this phase
+    if (transitionInProgress.current) {
+      logger.info(`[SessionTimeline: transition] Transition already in progress, queueing phase: ${newPhaseId}`);
+      queuedPhaseRef.current = newPhaseId;
+      return;
+    }
+    
+    logger.info(`[SessionTimeline: transition] Starting transition to phase: ${newPhaseId}`);
+    
+    // Find the phase by ID
+    const newPhase = phases.find(p => p.id === newPhaseId);
+    
+    if (!newPhase) {
+      logger.error(`[SessionTimeline: transition] Phase not found: ${newPhaseId}`);
+      return;
+    }
+    
+    // Find the current phase (for transitions)
+    const currentPhaseId = lastActivePhaseId.current;
+    const currentPhase = phases.find(p => p.id === currentPhaseId);
+    
+    // Only proceed if the phase has state
+    if (!newPhase.state) {
+      logger.warn(`[SessionTimeline: transition] Phase ${newPhaseId} has no state data, skipping transition`);
+      
+      // Still update the active phase display
+      lastActivePhaseId.current = newPhaseId;
+      setActivePhase(newPhaseId);
+      return;
+    }
+    
+    // Start the transition
+    if (currentPhase && currentPhase.state) {
+      // If we have a current phase with state, do a full transition
+      startFullTransition(currentPhase, newPhase);
+    } else {
+      // If we don't have a current phase, just set the new state directly
+      logger.info(`[SessionTimeline: transition] No valid current phase, applying new phase directly`);
+      
+      // Start transition
+      setTransitionState(true);
+      
+      // Update active phase display immediately
+      lastActivePhaseId.current = newPhaseId;
+      setActivePhase(newPhaseId);
+      
+      // Apply volume changes immediately
+      if (newPhase.state.volumes) {
+        Object.entries(newPhase.state.volumes).forEach(([layer, targetVolume]) => {
+          logger.debug(`[SessionTimeline: transition] Setting ${layer} volume to ${targetVolume} directly`);
+          volume.setLayer(layer, targetVolume, { immediate: true });
+        });
+      }
+      
+      // Apply track changes immediately
+      if (newPhase.state.activeAudio) {
+        Object.entries(newPhase.state.activeAudio).forEach(([layer, trackId]) => {
+          // Skip if track is already active
+          if (trackId === layers.active[layer]) {
+            logger.debug(`[SessionTimeline: transition] Layer ${layer} already playing track ${trackId}`);
+            return;
+          }
+          
+          logger.debug(`[SessionTimeline: transition] Switching ${layer} to track ${trackId} directly`);
+          transitions.crossfade(layer, trackId, 50); // Minimal fade time
+        });
+      }
+      
+      // Finish the transition
+      setTimeout(() => {
+        finishTransition();
+      }, 100);
+    }
+  }, [phases, volume, layers, transitions, startFullTransition, finishTransition, setTransitionState]);
+
+// Apply Pre-Onset Phase 
+const applyPreOnsetPhase = useCallback(() => {
+  logger.info("[SessionTimeline: applyPreOnsetPhase] Applying pre-onset phase state immediately");
+  
+  // Find the pre-onset phase
+  const preOnsetPhase = phases.find(p => p.id === 'pre-onset');
+  
+  if (preOnsetPhase && preOnsetPhase.state) {
+    logger.info("[SessionTimeline: applyPreOnsetPhase] Found pre-onset phase with saved state");
+    
+   // Log state details
+   if (preOnsetPhase.state.volumes) {
+    logger.debug(`[SessionTimeline: applyPreOnsetPhase] Volumes: ${JSON.stringify(preOnsetPhase.state.volumes)}`);
+  }
+  
+  if (preOnsetPhase.state.activeAudio) {
+    logger.debug(`[SessionTimeline: applyPreOnsetPhase] Tracks: ${JSON.stringify(preOnsetPhase.state.activeAudio)}`);
+  }
+  
+    // Immediately set volumes without transitions
+    if (preOnsetPhase.state.volumes) {
+      Object.entries(preOnsetPhase.state.volumes).forEach(([layer, vol]) => {
+        logger.debug(`[SessionTimeline: applyPreOnsetPhase] Setting ${layer} volume to ${vol}`);
+        volume.setLayer(layer, vol, { immediate: true });
+      });
+    }
+    
+    // Immediately switch to pre-onset tracks without crossfade
+    if (preOnsetPhase.state.activeAudio) {
+      Object.entries(preOnsetPhase.state.activeAudio).forEach(([layer, trackId]) => {
+        if (trackId !== layers.active[layer]) {
+          logger.debug(`[SessionTimeline: applyPreOnsetPhase] Switching ${layer} to track ${trackId}`);
+          // Use a minimal 50ms transition to prevent audio pops but still be immediate
+          transitions.crossfade(layer, trackId, 50);
+        }
+      });
+    }
+    
+    // Mark that we've applied the starting phase
+    startingPhaseApplied.current = true;
+    lastActivePhaseId.current = 'pre-onset';
+    
+    // Set active phase as well
+    setActivePhase('pre-onset');
+  } else {
+    logger.warn("[SessionTimeline: applyPreOnsetPhase] Could not find pre-onset phase with valid state");
+  }
+}, [phases, volume, transitions, layers]);
+
   //=======INITIALIZE========
   //=========================
 
@@ -104,7 +322,7 @@ const setTransitionState = useCallback((isTransitioning, force = false) => {
     
     // Only run the setup operations once on first mount
     if (initialMount.current) {
-      console.log("[INITIALIZE] SessionTimeline - initial setup");
+      logger.info("[INITIALIZE] SessionTimeline - initial setup");
       
       // Initialize transition state
       setTransitionState(false);
@@ -113,1067 +331,804 @@ const setTransitionState = useCallback((isTransitioning, force = false) => {
 
     // Use loaded phases from the timeline if available (from collection config)
     if (timeline.phases && timeline.phases.length > 0) {
-      console.log("[INITIALIZE] Using phases from timeline service (collection config):", timeline.phases.length);
+      logger.info("[INITIALIZE] Using phases from timeline service (collection config):", timeline.phases.length);
       
-      // Log each phase and its state
-      timeline.phases.forEach(phase => {
-        console.log(`[INITIALIZE] - Phase "${phase.name}" (${phase.id}) at position ${phase.position}:`);
-        
-        if (phase.state) {
-          if (phase.state.volumes) {
-            console.log(`[INITIALIZE] -- Volumes: ${JSON.stringify(phase.state.volumes)}`);
+           // Log each phase and its state
+           timeline.phases.forEach(phase => {
+            logger.debug(`[INITIALIZE] - Phase "${phase.name}" (${phase.id}) at position ${phase.position}:`);
+            
+            if (phase.state) {
+              if (phase.state.volumes) {
+                logger.debug(`[INITIALIZE] -- Volumes: ${JSON.stringify(phase.state.volumes)}`);
+              }
+              
+              if (phase.state.activeAudio) {
+                logger.debug(`[INITIALIZE] -- Tracks: ${JSON.stringify(phase.state.activeAudio)}`);
+              }
+            } else {
+              logger.debug(`[INITIALIZE] -- No state defined`);
+            }
+          });
+    
+    
+          setPhases(timeline.phases);
+            //prevent the other effect from running during initialization
+            componentHasRendered.current = true;
+        } else if (timeline.updatePhases) {
+          logger.info("[INITIALIZE] Registering initial phases with timeline service");
+            
+          // Set a flag to prevent the update effect from running on initialization
+          componentHasRendered.current = true;
+          
+          timeline.updatePhases(phases);
+        }
+          
+          // Register session duration
+          if (timeline.setDuration) {
+            logger.info("[INITIALIZE] Setting initial session duration");
+            timeline.setDuration(timeline.duration);
           }
           
-          if (phase.state.activeAudio) {
-            console.log(`[INITIALIZE] -- Tracks: ${JSON.stringify(phase.state.activeAudio)}`);
+          // Register transition duration
+          if (timeline.setTransitionDuration) {
+            logger.info("[INITIALIZE] Setting initial transition duration");
+            timeline.setTransitionDuration(timeline.transitionDuration);
+          }
+    
+          applyPreOnsetPhase();
+    
+          // Only reset timeline if playback is not active
+          if (!playback.isPlaying && timeline.reset) {
+            logger.info("[INITIALIZE] Timeline reset on mount (playback not active)");
+            timeline.reset();
+          }
+          
+          // Mark initial setup as complete
+          initialMount.current = false; 
+        }
+        
+        componentHasRendered.current = true;
+        
+        // Clean up
+        return () => {
+          if (volumeTransitionTimer.current) {
+            clearInterval(volumeTransitionTimer.current);
+          }
+          
+          if (transitionTimeoutRef.current) {
+            clearTimeout(transitionTimeoutRef.current);
+          }
+        };
+      }, [phases, timeline, playback.isPlaying, setTransitionState, applyPreOnsetPhase]);
+    
+    
+      //Check if volume object is available
+      // useEffect(() => {
+      //   console.log("[SESSIONTIMELINE] Volume object in SessionTimeline:", {
+      //     hasLayers: volume && !!volume.layers,
+      //     methods: volume ? Object.keys(volume) : 'No volume object',
+      //     fadeVolume: typeof volume.fadeVolume === 'function' ? 'Available' : 'Not available'
+      //   });
+      //   console.log("[SESSIONTIMELINE] Volume object volumes:", volume && volume.layers);
+      // }, [volume]);
+    
+    
+      // Update phases when they change
+      useEffect(() => {
+        // Only update if component has fully rendered and it's not the initial mount
+        if (!initialMount.current && componentHasRendered.current && timeline.updatePhases) {
+          logger.info("[SessionTimeline] Phases changed locally, updating timeline");
+          timeline.updatePhases(phases);
+        }
+      }, [phases, timeline]);
+    
+    
+      // Listen for timeline setting changes
+      useEffect(() => {
+        // Handle duration change events
+        const handleDurationChange = (event) => {
+          logger.info('Timeline received duration change event:', event.detail.duration);
+          
+          // Force an update of the timeline
+          if (timeline.setDuration) {
+            timeline.setDuration(event.detail.duration);
+          }
+          
+          // Update local state if needed
+          if (onDurationChange) {
+            onDurationChange(event.detail.duration);
+          }
+        };
+        
+        // Handle transition duration change events
+        const handleTransitionChange = (event) => {
+          logger.info('Timeline received transition change event:', event.detail.duration);
+          
+          if (timeline.setTransitionDuration) {
+            timeline.setTransitionDuration(event.detail.duration);
+          }
+        };
+        
+        // Add event listeners
+        window.addEventListener('timeline-duration-changed', handleDurationChange);
+        window.addEventListener('timeline-transition-changed', handleTransitionChange);
+    
+        return () => {
+          // Clean up event listeners
+          window.removeEventListener('timeline-duration-changed', handleDurationChange);
+          window.removeEventListener('timeline-transition-changed', handleTransitionChange);
+        };
+      }, [timeline, onDurationChange]);
+    
+    
+      // Register the state provider for presets
+      useEffect(() => {
+        // This function will be called when saving a preset
+        const getTimelineState = () => {
+          return {
+            phases: phases.map(phase => ({
+              id: phase.id,
+              name: phase.name,
+              position: phase.position,
+              color: phase.color,
+              state: phase.state,
+              locked: phase.locked
+            })),
+            sessionDuration: timeline.duration,
+            transitionDuration: timeline.transitionDuration
+          };
+        };
+    
+        // Register the function with the preset system
+        if (timeline.registerPresetStateProvider) {
+          timeline.registerPresetStateProvider('timeline', getTimelineState);
+          
+          // Clean up when component unmounts
+          return () => timeline.registerPresetStateProvider('timeline', null);
+        }
+      }, [phases, timeline]);
+    
+    
+      // Handle when timeline phases are updated from a preset
+      useEffect(() => {
+        // Custom event listener for timeline phase updates
+        const handleTimelineUpdate = (eventData) => {
+          if (eventData.detail && eventData.detail.phases) {
+            logger.info('Updating timeline phases from preset:', eventData.detail.phases);
+            
+            // Update phases
+            setPhases(eventData.detail.phases);
+            
+            // Update session duration if provided
+            if (eventData.detail.sessionDuration && onDurationChange) {
+              onDurationChange(eventData.detail.sessionDuration);
+            }
+          }
+        };
+    
+        // Add event listener
+        window.addEventListener('timeline-update', handleTimelineUpdate);
+        
+        // Clean up
+        return () => {
+          window.removeEventListener('timeline-update', handleTimelineUpdate);
+        };
+      }, [onDurationChange]);
+      
+      
+      useEffect(() => {
+        // Check if timeline.phases is available AND has proper state data
+        if (timeline.phases && 
+            timeline.phases.length > 0 && 
+            !phasesApplied.current) {
+          
+          logger.info("[TIMELINE] Applying collection-specific phases:", timeline.phases.length);
+          
+          // Verify phases have proper state data
+          const hasValidStates = timeline.phases.some(phase => 
+            phase.state && (Object.keys(phase.state.volumes || {}).length > 0 || 
+                           Object.keys(phase.state.activeAudio || {}).length > 0)
+          );
+          
+          if (hasValidStates) {
+            logger.info("[TIMELINE] Phases have valid state data, applying now");
+            
+            // Log details of each phase for debugging
+            timeline.phases.forEach(phase => {
+              logger.debug(`- Phase "${phase.name}" (${phase.id}):`);
+              if (phase.state) {
+                if (phase.state.volumes) {
+                  logger.debug(`  Volumes: ${JSON.stringify(phase.state.volumes)}`);
+                }
+                if (phase.state.activeAudio) {
+                  logger.debug(`  Tracks: ${JSON.stringify(phase.state.activeAudio)}`);
+                }
+              }
+            });
+            
+            // Apply the phases directly from the timeline
+            setPhases(timeline.phases);
+            phasesApplied.current = true;
+            
+            // Apply the pre-onset phase immediately
+            const preOnsetPhase = timeline.phases.find(p => p.id === 'pre-onset');
+            if (preOnsetPhase && preOnsetPhase.state) {
+              logger.info("[TIMELINE] Reapplying pre-onset phase from collection config");
+              
+              // Set as active phase
+              lastActivePhaseId.current = 'pre-onset';
+              setActivePhase('pre-onset');
+            }
+          } else {
+            logger.warn("[TIMELINE] Phases from timeline don't have valid state data");
+          }
+        }
+      }, [timeline.phases]);
+      
+    
+      // Effect to track edit mode changes and ensure deselection
+      useEffect(() => {
+        if (previousEditMode.current !== editMode) {
+          // If exiting edit mode, deselect all markers
+          if (!editMode && previousEditMode.current) {
+            deselectAllMarkers();
+          }
+          
+          // Update the previous value
+          previousEditMode.current = editMode;
+        }
+      }, [editMode]);
+     
+      // Update timeline progress
+      useEffect(() => {
+        // If we're getting progress and time updates from the timeline service
+        const handleTimelineProgress = (progressPercent, currentTimeMs) => {
+          setProgress(progressPercent);
+          setCurrentTime(currentTimeMs);
+          
+          // Find the correct active phase based on progress
+          const currentProgress = progressPercent; // 0-100
+          let newActivePhase = null;
+          
+          // No phase checks during transitions to avoid conflicts
+          if (transitionInProgress.current) {
+            logger.debug(`[SessionTimeline: progress] Skipping phase check during transition (${progressPercent.toFixed(1)}%)`);
+            return;
+          }
+          
+          // Find which phase we're in
+          for (let i = phases.length - 1; i >= 0; i--) {
+            if (currentProgress >= phases[i].position) {
+              newActivePhase = phases[i].id;
+              break;
+            }
+          }
+          
+          // If phase has changed, handle the transition
+          if (newActivePhase && newActivePhase !== lastActivePhaseId.current) {
+            handlePhaseTransition(newActivePhase);
+          }
+        };
+        
+        if (timeline.registerProgressCallback) {
+          timeline.registerProgressCallback(handleTimelineProgress);
+          logger.debug("[SessionTimeline: progress] Registered progress callback with timeline service");
+          
+          // Clean up
+          return () => {
+            timeline.registerProgressCallback(null);
+          };
+        }
+      }, [phases, timeline, handlePhaseTransition]);
+    
+    
+      // Listen for play state changes from the main player
+      useEffect(() => {
+        const updateTimelinePlayState = () => {
+          const isPlaying = playback.isPlaying;
+          
+          if (isPlaying !== timelineIsPlaying) {
+            logger.debug(`[SessionTimeline: playback] Playback state changed to: ${isPlaying ? 'playing' : 'paused'}`);
+            setTimelineIsPlaying(isPlaying);
+          }
+        };
+        
+        // Initial update
+        updateTimelinePlayState();
+        
+        // Clean up
+        return () => {
+          if (progressTimerRef.current) {
+            clearInterval(progressTimerRef.current);
+            progressTimerRef.current = null;
+          }
+        };
+      }, [playback.isPlaying, timelineIsPlaying]);
+    
+    
+      //========PHASE HANDLING========
+      //==============================
+      
+      // Toggle playback of the timeline
+      const toggleTimelinePlayback = useCallback(() => {
+        if (playback.togglePlayback) {
+          if (timelineIsPlaying) {
+            logger.info("[SessionTimeline] Toggling playback: pausing");
+            playback.togglePlayback();
+            setLocalTimelineIsPlaying(false);
+          } else {
+            logger.info("[SessionTimeline] Toggling playback: playing");
+            playback.togglePlayback();
+            setLocalTimelineIsPlaying(true);
+          }
+        }
+      }, [timelineIsPlaying, playback]);
+    
+    
+      // Restart timeline
+      const handleRestartTimeline = useCallback(() => {
+        logger.info("[SessionTimeline] Restarting timeline");
+        
+        // Mark that we need to reapply pre-onset
+        startingPhaseApplied.current = false;
+        
+        // Stop playback if playing and reset timeline
+        if (timelineIsPlaying) {
+          wasPlayingBeforeStop.current = true;
+          
+          if (playback.pause) {
+            playback.pause();
           }
         } else {
-          console.log(`[INITIALIZE] -- No state defined`);
+          wasPlayingBeforeStop.current = false;
         }
-      });
-
-
-      setPhases(timeline.phases);
-        //prevent the other effect from running during initialization
-        componentHasRendered.current = true;
-    } else if (timeline.updatePhases) {
-      console.log("[INITIALIZE] Registering initial phases with timeline service");
         
-      // Set a flag to prevent the update effect from running on initialization
-      componentHasRendered.current = true;
-      
-      timeline.updatePhases(phases);
-    }
-      
-      // Register session duration
-      if (timeline.setDuration) {
-        console.log("[INITIALIZE] Setting initial session duration");
-        timeline.setDuration(timeline.duration);
-      }
-      
-      // Register transition duration
-      if (timeline.setTransitionDuration) {
-        console.log("[INITIALIZE] Setting initial transition duration");
-        timeline.setTransitionDuration(timeline.transitionDuration);
-      }
-
-      applyPreOnsetPhase();
-
-      // Only reset timeline if playback is not active
-      if (!playback.isPlaying && timeline.reset) {
-        console.log("[INITIALIZE] Timeline reset on mount (playback not active)");
-        timeline.reset();
-      }
-      
-      // Mark initial setup as complete
-      initialMount.current = false; 
-    }
-    
-    componentHasRendered.current = true;
-    
-    // Clean up
-    return () => {
-      if (volumeTransitionTimer.current) {
-        clearInterval(volumeTransitionTimer.current);
-      }
-      
-      if (transitionTimeoutRef.current) {
-        clearTimeout(transitionTimeoutRef.current);
-      }
-    };
-  }, [phases, timeline, playback.isPlaying, setTransitionState]);
-
-
-  //Check if volume object is available
-  // useEffect(() => {
-  //   console.log("[SESSIONTIMELINE] Volume object in SessionTimeline:", {
-  //     hasLayers: volume && !!volume.layers,
-  //     methods: volume ? Object.keys(volume) : 'No volume object',
-  //     fadeVolume: typeof volume.fadeVolume === 'function' ? 'Available' : 'Not available'
-  //   });
-  //   console.log("[SESSIONTIMELINE] Volume object volumes:", volume && volume.layers);
-  // }, [volume]);
-
-
-  // Update phases when they change
-  useEffect(() => {
-    // Only update if component has fully rendered and it's not the initial mount
-    if (!initialMount.current && componentHasRendered.current && timeline.updatePhases) {
-      console.log("[SessionTimeline] Phases changed locally, updating timeline");
-      timeline.updatePhases(phases);
-    }
-  }, [phases, timeline]);
-
-
-  // Listen for timeline setting changes
-  useEffect(() => {
-    // Handle duration change events
-    const handleDurationChange = (event) => {
-      console.log('Timeline received duration change event:', event.detail.duration);
-      
-      // Force an update of the timeline
-      if (timeline.setDuration) {
-        timeline.setDuration(event.detail.duration);
-      }
-      
-      // Update local state if needed
-      if (onDurationChange) {
-        onDurationChange(event.detail.duration);
-      }
-    };
-    
-    // Handle transition duration change events
-    const handleTransitionChange = (event) => {
-      console.log('Timeline received transition change event:', event.detail.duration);
-      
-      if (timeline.setTransitionDuration) {
-        timeline.setTransitionDuration(event.detail.duration);
-      }
-    };
-    
-    // Add event listeners
-    window.addEventListener('timeline-duration-changed', handleDurationChange);
-    window.addEventListener('timeline-transition-changed', handleTransitionChange);
-
-    return () => {
-      // Clean up event listeners
-      window.removeEventListener('timeline-duration-changed', handleDurationChange);
-      window.removeEventListener('timeline-transition-changed', handleTransitionChange);
-    };
-  }, [timeline, onDurationChange]);
-
-
-  // Register the state provider for presets
-  useEffect(() => {
-    // This function will be called when saving a preset
-    const getTimelineState = () => {
-      return {
-        phases: phases.map(phase => ({
-          id: phase.id,
-          name: phase.name,
-          position: phase.position,
-          color: phase.color,
-          state: phase.state,
-          locked: phase.locked
-        })),
-        sessionDuration: timeline.duration,
-        transitionDuration: timeline.transitionDuration
-      };
-    };
-
-    // Register the function with the preset system
-    if (timeline.registerPresetStateProvider) {
-      timeline.registerPresetStateProvider('timeline', getTimelineState);
-      
-      // Clean up when component unmounts
-      return () => timeline.registerPresetStateProvider('timeline', null);
-    }
-  }, [phases, timeline]);
-
-
-  // Handle when timeline phases are updated from a preset
-  useEffect(() => {
-    // Custom event listener for timeline phase updates
-    const handleTimelineUpdate = (eventData) => {
-      if (eventData.detail && eventData.detail.phases) {
-        console.log('Updating timeline phases from preset:', eventData.detail.phases);
-        
-        // Update phases
-        setPhases(eventData.detail.phases);
-        
-        // Update session duration if provided
-        if (eventData.detail.sessionDuration && onDurationChange) {
-          onDurationChange(eventData.detail.sessionDuration);
+        // Reset timeline
+        if (timeline.reset) {
+          timeline.reset();
         }
-      }
-    };
-
-    // Add event listener
-    window.addEventListener('timeline-update', handleTimelineUpdate);
-    
-    // Clean up
-    return () => {
-      window.removeEventListener('timeline-update', handleTimelineUpdate);
-    };
-  }, [onDurationChange]);
-  
-  // Check if timeline.phases is available AND has proper state data
-  useEffect(() => {
-    if (timeline.phases && 
-        timeline.phases.length > 0 && 
-        !phasesApplied.current) {
-      
-      console.log("[TIMELINE] Applying collection-specific phases:", timeline.phases.length);
-      
-      // Verify phases have proper state data
-      const hasValidStates = timeline.phases.some(phase => 
-        phase.state && (Object.keys(phase.state.volumes || {}).length > 0 || 
-                       Object.keys(phase.state.activeAudio || {}).length > 0)
-      );
-      
-      if (hasValidStates) {
-        console.log("[TIMELINE] Phases have valid state data, applying now");
         
-        // Log details of each phase for debugging
-        timeline.phases.forEach(phase => {
-          console.log(`- Phase "${phase.name}" (${phase.id}):`);
-          if (phase.state) {
-            if (phase.state.volumes) {
-              console.log(`  Volumes: ${JSON.stringify(phase.state.volumes)}`);
-            }
-            if (phase.state.activeAudio) {
-              console.log(`  Tracks: ${JSON.stringify(phase.state.activeAudio)}`);
-            }
+        // Reapply pre-onset phase
+        applyPreOnsetPhase();
+        
+        // Restart playback if it was playing before
+        if (wasPlayingBeforeStop.current && playback.play) {
+          setTimeout(() => {
+            playback.play();
+          }, 50);
+        }
+      }, [applyPreOnsetPhase, playback, timeline, timelineIsPlaying]);
+    
+    
+      // Handle marker drag
+      const handleMarkerDrag = useCallback((id, newPosition) => {
+        logger.debug(`[SessionTimeline: marker] Marker ${id} dragged to position ${newPosition}`);
+        
+        // Update marker position
+        setPhases(prevPhases => {
+          // Create a copy of the phases array
+          const newPhases = [...prevPhases];
+          
+          // Find the index of the phase with the given id
+          const phaseIndex = newPhases.findIndex(phase => phase.id === id);
+          
+          if (phaseIndex !== -1) {
+            // Create a copy of the phase object to avoid mutating the original
+            const updatedPhase = { ...newPhases[phaseIndex], position: newPosition };
+            
+            // Replace the old phase with the updated one
+            newPhases[phaseIndex] = updatedPhase;
+            
+            // Sort phases by position
+            newPhases.sort((a, b) => a.position - b.position);
           }
+          
+          return newPhases;
+        });
+      }, []);
+    
+      // De-select all markers
+      const deselectAllMarkers = useCallback(() => {
+        logger.debug("[SessionTimeline: marker] Deselecting all markers");
+        setSelectedPhase(null);
+      }, []);
+    
+    
+      // Handle click on a phase marker
+      const handlePhaseClick = useCallback((id) => {
+        if (editMode) {
+          // Set as selected marker for editing
+          logger.debug(`[SessionTimeline: marker] Phase ${id} selected for editing`);
+          setSelectedPhase(id);
+        } else {
+          logger.info(`[SessionTimeline: marker] Manually activating phase: ${id}`);
+          handlePhaseTransition(id);
+        }
+      }, [editMode, handlePhaseTransition]);
+    
+    
+      // Handle phase state capture
+      const handleCaptureState = useCallback((phaseId) => {
+        logger.info(`[SessionTimeline: state] Capturing current state for phase: ${phaseId}`);
+        
+        // Find the phase by ID
+        const phaseIndex = phases.findIndex(p => p.id === phaseId);
+        
+        if (phaseIndex === -1) {
+          logger.error(`[SessionTimeline: state] Phase ${phaseId} not found`);
+          return;
+        }
+        
+        // Get current state
+        const capturedState = {
+          volumes: { ...volume.layers },
+          activeAudio: { ...layers.active }
+        };
+        
+        // Log the captured state
+        logger.debug(`[SessionTimeline: state] Captured volumes: ${JSON.stringify(capturedState.volumes)}`);
+        logger.debug(`[SessionTimeline: state] Captured tracks: ${JSON.stringify(capturedState.activeAudio)}`);
+    
+        // Update the phase state
+        setPhases(prevPhases => {
+          const newPhases = [...prevPhases];
+          newPhases[phaseIndex] = {
+            ...newPhases[phaseIndex],
+            state: capturedState
+          };
+          return newPhases;
         });
         
-        // Apply the phases directly from the timeline
-        setPhases(timeline.phases);
-        phasesApplied.current = true;
+        logger.info(`[SessionTimeline: state] State captured for phase: ${phaseId}`);
+      }, [phases, volume, layers]);
+      
+      
+      // Handle phase editor changes
+      const handlePhaseChange = useCallback((id, updates) => {
+        logger.debug(`[SessionTimeline: marker] Updating phase ${id}:`, updates);
         
-        // Apply the pre-onset phase immediately
-        const preOnsetPhase = timeline.phases.find(p => p.id === 'pre-onset');
-        if (preOnsetPhase && preOnsetPhase.state) {
-          console.log("[TIMELINE] Reapplying pre-onset phase from collection config");
+        // Update the phase
+        setPhases(prevPhases => {
+          const newPhases = [...prevPhases];
+          const phaseIndex = newPhases.findIndex(phase => phase.id === id);
           
-          // Set as active phase
-          lastActivePhaseId.current = 'pre-onset';
-          setActivePhase('pre-onset');
-        }
-      } else {
-        console.warn("[TIMELINE] Phases from timeline don't have valid state data");
-      }
-    }
-  }, [timeline.phases]);
-  
-
-  // Effect to track edit mode changes and ensure deselection
-  useEffect(() => {
-    if (previousEditMode.current !== editMode) {
-      // If exiting edit mode, deselect all markers
-      if (!editMode && previousEditMode.current) {
-        deselectAllMarkers();
-      }
-      
-      // Update the previous value
-      previousEditMode.current = editMode;
-    }
-  }, [editMode]);
- 
-
-
-// Apply Pre-Onset Phase 
-const applyPreOnsetPhase = useCallback(() => {
-  console.log("[SessionTimeline: applyPreOnsetPhase] Applying pre-onset phase state immediately");
-  
-  // Find the pre-onset phase
-  const preOnsetPhase = phases.find(p => p.id === 'pre-onset');
-  
-  if (preOnsetPhase && preOnsetPhase.state) {
-    console.log("[SessionTimeline: applyPreOnsetPhase] Found pre-onset phase with saved state");
-    
-   // Log state details
-   if (preOnsetPhase.state.volumes) {
-    console.log(`[SessionTimeline: applyPreOnsetPhase] Volumes: ${JSON.stringify(preOnsetPhase.state.volumes)}`);
-  }
-  
-  if (preOnsetPhase.state.activeAudio) {
-    console.log(`[SessionTimeline: applyPreOnsetPhase] Tracks: ${JSON.stringify(preOnsetPhase.state.activeAudio)}`);
-  }
-
-    // Immediately set volumes without transitions
-    if (preOnsetPhase.state.volumes) {
-      Object.entries(preOnsetPhase.state.volumes).forEach(([layer, vol]) => {
-        console.log(`[SessionTimeline: applyPreOnsetPhase] Setting ${layer} volume to ${vol}`);
-        volume.setLayer(layer, vol, { immediate: true });
-      });
-    }
-    
-    // Immediately switch to pre-onset tracks without crossfade
-    if (preOnsetPhase.state.activeAudio) {
-      Object.entries(preOnsetPhase.state.activeAudio).forEach(([layer, trackId]) => {
-        if (trackId !== layers.active[layer]) {
-          console.log(`[SessionTimeline: applyPreOnsetPhase] Switching ${layer} to track ${trackId}`);
-          // Use a minimal 50ms transition to prevent audio pops but still be immediate
-          transitions.crossfade(layer, trackId, 50);
-        }
-      });
-    }
-    
-    // Set pre-onset as the active phase
-    lastActivePhaseId.current = 'pre-onset';
-    setActivePhase('pre-onset');
-  } else {
-    console.log("[SessionTimeline: applyPreOnsetPhase] No pre-onset phase state found, using defaults");
-    
-    // Apply default state for layers if no pre-onset phase state exists
-Object.values(layers.TYPES).forEach(layer => {
-  const layerKey = layer.toLowerCase();
-  // Set default volumes for each layer
-  let defaultVolume = 0;
-  
-  // Assign different default volumes based on layer type
-  switch(layerKey) {
-    case 'Layer 1':
-      defaultVolume = 0.10; // Keep your existing L1 default
-      break;
-    case 'Layer 2':
-      defaultVolume = 0.15; // New default for L2
-      break;
-    case 'Layer 3hm':
-      defaultVolume = 0.10; // New default for L3
-      break;
-    case 'Layer 4':
-      defaultVolume = 0.20; // New default for L4
-      break;
-    default:
-      defaultVolume = 0; // Fallback
-  }
-  
-  volume.setLayer(layerKey, defaultVolume, { immediate: true });
-});
-  }
-}, [phases, volume, layers, transitions]);
-
-
-  //Toggle timeline playback
-  const toggleTimelinePlayback = useCallback(() => {
-    // Only allow starting timeline if audio is playing
-    if (!playback.isPlaying && !timelineIsPlaying) {
-      console.log("[SessionTimeline: toggleTimelinePlayback] Cannot start timeline when audio is not playing");
-      return;
-    }
-    
-    console.log("[SessionTimeline: toggleTimelinePlayback] Timeline toggle button clicked, current state:", timelineIsPlaying);
-    
-    // Toggle the local timeline state
-    const newTimelineState = !timelineIsPlaying;
-    console.log("[SessionTimeline: toggleTimelinePlayback] Setting new timeline state to:", newTimelineState);
-    
-    setTimelineIsPlaying(newTimelineState);
-    setLocalTimelineIsPlaying(newTimelineState);
-  
-    if (newTimelineState) {
-      // We're starting/resuming playback
-      if (currentTime > 0) {
-        // If we have elapsed time, RESUME from that position
-        console.log("[SessionTimeline: toggleTimelinePlayback] Resuming timeline from current position:", currentTime);
-        if (timeline.resumeTimeline) {
-          console.log("[SessionTimeline: toggleTimelinePlayback] Calling timeline.resumeTimeline()");
-          timeline.resumeTimeline();
-        } else {
-          // Fallback if resumeTimeline doesn't exist yet
-          console.log("[SessionTimeline: toggleTimelinePlayback] No resumeTimeline method available, using startTimeline with reset:false");
-          timeline.startTimeline({ reset: false });
-        }
-      } else {
-        // If no elapsed time, START from beginning
-        console.log("[SessionTimeline: toggleTimelinePlayback] Starting timeline from beginning");
-        applyPreOnsetPhase();
-
-        if (timeline.startTimeline) {
-          console.log("[SessionTimeline: toggleTimelinePlayback] Calling timeline.startTimeline()");
-          timeline.startTimeline({ reset: true });
-        }
-      }
-    } else {
-      // We're pausing the timeline
-      console.log("[SessionTimeline: toggleTimelinePlayback] Pausing timeline progression");
-      if (timeline.pauseTimeline) {
-        console.log("[SessionTimeline: toggleTimelinePlayback] Calling timeline.pauseTimeline()");
-        timeline.pauseTimeline();
-      } else {
-        // Fallback to stopTimeline if pauseTimeline doesn't exist
-        console.log("[SessionTimeline: toggleTimelinePlayback] No pauseTimeline method, using stopTimeline as fallback");
-        timeline.stopTimeline();
-      }
-      
-      // Cancel active transitions
-      if (volumeTransitionTimer.current) {
-        clearInterval(volumeTransitionTimer.current);
-        volumeTransitionTimer.current = null;
-      }
-      
-      if (transitionTimeoutRef.current) {
-        clearTimeout(transitionTimeoutRef.current);
-        transitionTimeoutRef.current = null;
-      }
-      
-      setTransitionState(false, true); // Force update transition state
-    }
-  }, [timelineIsPlaying, applyPreOnsetPhase, playback.isPlaying, timeline, setTransitionState, currentTime]);
-
-
-
-// Restart Timeline
-const handleRestartTimeline = useCallback(() => {
-  console.log("[SessionTimeline: handleRestartTimeline] Restarting timeline immediately to pre-onset phase");
-  
-  // First, stop the timeline if it's playing
-  if (timelineIsPlaying) {
-    if (timeline.stopTimeline) {
-      console.log("[SessionTimeline: handleRestartTimeline] Stopping timeline progression");
-      timeline.stopTimeline();
-    }
-    setTimelineIsPlaying(false);
-    setLocalTimelineIsPlaying(false);
-  }
-  
-  // Reset progress tracking
-  setProgress(0);
-  setCurrentTime(0);
-  
-  // Reset phase tracking
-  lastActivePhaseId.current = null;
-  setActivePhase(null);
-  
-  // Cancel any active transitions
-  if (volumeTransitionTimer.current) {
-    clearInterval(volumeTransitionTimer.current);
-    volumeTransitionTimer.current = null;
-  }
-  
-  if (transitionTimeoutRef.current) {
-    clearTimeout(transitionTimeoutRef.current);
-    transitionTimeoutRef.current = null;
-  }
-  
-  setTransitionState(false, true); // Force update transition state
-  
-  // Find the pre-onset phase
-  const preOnsetPhase = phases.find(p => p.id === 'pre-onset');
-  if (preOnsetPhase && preOnsetPhase.state) {
-    console.log("[SessionTimeline: handleRestartTimeline] Applying pre-onset phase immediately");
-    
-    // Immediately set volumes without transitions
-    if (preOnsetPhase.state.volumes) {
-      Object.entries(preOnsetPhase.state.volumes).forEach(([layer, vol]) => {
-        volume.setLayer(layer, vol, { immediate: true });
-      });
-    }
-    
-  
-    applyPreOnsetPhase();
-    // Set pre-onset as the active phase
-    lastActivePhaseId.current = 'pre-onset';
-    setActivePhase('pre-onset');
-  } else {
-    console.log("[SessionTimeline: handleRestartTimeline] No pre-onset phase state found, using defaults");
-  }
-  
-  
-  // Reset timeline in the service
-  if (timeline.reset) {
-    console.log("[SessionTimeline: handleRestartTimeline] Resetting timeline service");
-    timeline.reset();
-  }
-  
-  if (timeline.seekToPercent) {
-    console.log("[SessionTimeline: handleRestartTimeline] Seeking to beginning");
-    timeline.seekToPercent(0);
-  }
-  
-  return true;
-}, [
-  timelineIsPlaying, 
-  timeline, 
-  phases, 
-  volume, 
-  layers, 
-  transitions, 
-  setTransitionState,
-  applyPreOnsetPhase
-]);
-
-  // Refresh Volume State Reference function
-const refreshVolumeStateReference = useCallback(() => {
-  // Get the ACTUAL current volumes directly from the volume controller
-  if (volume && volume.layers) {
-    // Create a new object to ensure it's a different reference
-    const actualCurrentVolumes = {};
-    Object.entries(volume.layers).forEach(([layer, vol]) => {
-      // Round to avoid floating point issues
-      actualCurrentVolumes[layer] = Math.round(vol * 100) / 100;
-    });
-    
-    // Replace the current state reference
-    currentVolumeState.current = actualCurrentVolumes;
-    console.log('[SessionTimeline: refreshVolumeStateReference] Refreshed volume state with ACTUAL current values:', actualCurrentVolumes);
-  }
-  
-  // Get the ACTUAL current audio tracks
-  if (layers && layers.active) {
-    const actualCurrentAudio = {};
-    Object.entries(layers.active).forEach(([layer, trackId]) => {
-      if (trackId) {
-        actualCurrentAudio[layer] = trackId;
-      }
-    });
-    
-    currentAudioState.current = actualCurrentAudio;
-    console.log('[SessionTimeline: refreshVolumeStateReference] Refreshed audio state with ACTUAL current tracks:', actualCurrentAudio);
-  }
-}, [volume, layers]);
-  
-//the Finish Transition function
-const finishTransition = useCallback((phase) => {
-  console.log('[SessionTimeline: finishTransition] Finishing transition to phase:', phase.name);
-  
-  // NOW is when we update the current state references to the target values
-  // This ensures we only update after the transition is complete
-  
-  // Update volume state reference
-  if (phase.state?.volumes) {
-    currentVolumeState.current = {};
-    Object.entries(phase.state.volumes).forEach(([layer, vol]) => {
-      currentVolumeState.current[layer] = vol;
-    });
-    console.log('[SessionTimeline: finishTransition] Updated volume state reference to target values:', currentVolumeState.current);
-  }
-  
-  // Update audio state reference
-  if (phase.state?.activeAudio) {
-    currentAudioState.current = {};
-    Object.entries(phase.state.activeAudio).forEach(([layer, trackId]) => {
-      currentAudioState.current[layer] = trackId;
-    });
-    console.log('[SessionTimeline: finishTransition] Updated audio state reference to target values:', currentAudioState.current);
-  }
-  
-  // Reset transition flags
-  transitionCompletedRef.current = true;
-  transitionInProgress.current = false;
-  
-  // Set React state
-  setTransitioning(false);
-  
-  console.log('[SessionTimeline: finishTransition] Transition complete - flags reset, phase detection unblocked');
-}, []);
-
- //=======START FULL TRANSITION========
-// Replace the existing startFullTransition function
-const startFullTransition = useCallback((phase) => {
-  console.log(`[startFullTransition] Starting transition to phase: ${phase.name}`);
-  
-  // Skip transition if already in progress or no state available
-  if (!phase.state || transitionInProgress.current) {
-    console.log('[startFullTransition] Skipping transition - disabled, no state, or already in progress');
-    return;
-  }
-  
-  // Signal that transition is starting
-  setTransitionState(true);
-  
-  // Get the transition duration from settings
-  const duration = timeline.transitionDuration;
-  console.log(`[startFullTransition] Using transition duration: ${duration}ms`);
-  
-  // Handle volume transitions using fadeVolume
-  if (phase.state.volumes) {
-    // Create a list of fade promises to track completion
-    const fadePromises = [];
-    
-    Object.entries(phase.state.volumes).forEach(([layer, targetVolume]) => {
-      // Get current volume from the volume controller
-      const currentVolume = volume.layers[layer] || 0;
-      
-      console.log(`[startFullTransition] Volume transition for ${layer}: ${currentVolume} → ${targetVolume}`);
-      
-      try {
-        // Use fadeVolume for smooth transition with UI updates
-        const fadePromise = volume.fadeVolume(layer, targetVolume, duration);
-        fadePromises.push(fadePromise);
-      } catch (error) {
-        console.error(`[startFullTransition] Error starting fade for ${layer}:`, error);
-      }
-    });
-    
-    // Wait for all fades to complete
-    Promise.all(fadePromises)
-      .then(() => {
-        console.log(`[startFullTransition] All volume transitions completed for phase: ${phase.name}`);
-      })
-      .catch(err => {
-        console.error(`[startFullTransition] Error during volume transitions:`, err);
-      });
-  }
-  
-  // Handle track changes if needed
-  if (phase.state.activeAudio) {
-    Object.entries(phase.state.activeAudio).forEach(([layer, trackId]) => {
-      if (trackId !== layers.active[layer]) {
-        console.log(`[startFullTransition] Track change for ${layer}: ${layers.active[layer]} → ${trackId}`);
-        try {
-          transitions.crossfade(layer, trackId, duration);
-        } catch (error) {
-          console.error(`[startFullTransition] Error crossfading for ${layer}:`, error);
-        }
-      }
-    });
-  }
-  
-  // Set a timeout to mark transition as complete
-  if (transitionTimeoutRef.current) {
-    clearTimeout(transitionTimeoutRef.current);
-  }
-  
-  transitionTimeoutRef.current = setTimeout(() => {
-    console.log(`[startFullTransition] Transition to ${phase.name} complete`);
-    setTransitionState(false);
-    transitionTimeoutRef.current = null;
-  }, duration + 100); // Add a small buffer
-}, [ timeline, volume, layers, transitions, setTransitionState]);
-
-
-
-// Watch for active crossfades to update transition state
-useEffect(() => {
-  const hasActiveCrossfades = Object.keys(transitions.active).length > 0;
-  
-  console.log(`[SessionTimeline: crossfadeWatchEffect] Active crossfades: ${Object.keys(transitions.active).join(', ') || 'none'}`);
-  
-  // If any layer is in transition, mark as transitioning
-  if (hasActiveCrossfades) {
-    transitionInProgress.current = true;
-    setTransitionState(true);
-  } else if (transitionInProgress.current) {
-    // If was transitioning but now no crossfades are active
-    console.log('[SessionTimeline: crossfadeWatchEffect] All crossfades completed');
-    
-    // Short delay before allowing new transitions
-    setTimeout(() => {
-      setTransitionState(false);
-      transitionCompletedRef.current = true;
-    }, 200);
-  }
-}, [transitions.active, setTransitionState]);
-
-//=======Progress Tracking Effect=======
-
-// Keep tracking during transitions
-useEffect(() => {
-  // If we enter a transition state, make sure progress tracking is running
-  if (transitionInProgress.current && playback.isPlaying && localTimelineIsPlaying) {
-    console.log("[SessionTimeline] Ensuring progress tracking continues during transition");
-    
-    // Create a dedicated timer just for transition periods
-    const transitionProgressTimer = setInterval(() => {
-      const time = playback.getTime();
-      const progressPercent = Math.min(100, (time / timeline.duration) * 100);
-      
-      // Force progress updates even during transitions
-      setCurrentTime(time);
-      setProgress(progressPercent);
-    }, 50);
-    
-    return () => clearInterval(transitionProgressTimer);
-  }
-}, [transitionInProgress.current,  playback.isPlaying, localTimelineIsPlaying, timeline.duration, playback]);
-
-//=======Phase detection effect=======
-
-useEffect(() => {
-  // Skip if disabled or not playing
-  if ( !playback.isPlaying || !localTimelineIsPlaying) {
-    console.log("[SessionTimeline] Progress tracking not starting - disabled or not playing");
-    return;
-  }
-  
-  console.log("[SessionTimeline] Starting stable progress tracking");
-  
-  // Use a ref to track if we already have an active interval
-  // This prevents creating multiple intervals during re-renders
-  if (progressTimerRef.current) {
-    console.log("[SessionTimeline] Reusing existing progress timer");
-    return; // Already have a timer, don't create another
-  }
-  
-  // Create a stable timer that will persist across re-renders
-  progressTimerRef.current = setInterval(() => {
-    // Get current time directly from playback
-    const currentTime = playback.getTime();
-    const progressPercent = Math.min(100, (currentTime / timeline.duration) * 100);
-    
-    // Use a function form of setState to avoid stale closures
-    setCurrentTime(time => currentTime);
-    setProgress(prog => progressPercent);
-  }, 50);
-  
-  // Clear timer only when really stopping playback
-  return () => {
-    if (progressTimerRef.current) {
-      console.log("[SessionTimeline] Cleaning up progress timer");
-      clearInterval(progressTimerRef.current);
-      progressTimerRef.current = null;
-    }
-  };
-}, [
-  // Minimal dependencies to avoid recreation
-  playback.isPlaying,
-  localTimelineIsPlaying,
-  timeline.duration
-  // Explicitly remove playback from dependencies
-]);
-
-// -------Phase change event listener-------
-// Listen for phase change events from the TimelineEngine
-useEffect(() => {
-  // Listen for phase change events from the TimelineEngine
-  const handlePhaseChangeEvent = (event) => {
-    
-    const { phaseId, phaseData } = event.detail;
-    console.log(`[SessionTimeline: handlePhaseChangeEvent] Received phase change event phaseData: ${phaseData}`);
-    console.log(`[SessionTimeline: handlePhaseChangeEvent] Received phase change event phaseId: ${phaseId}`);
-    
-    // Always update the activePhase state, even during transitions
-    // This ensures the UI shows the correct phase marker
-    if (phaseId !== lastActivePhaseId.current) {
-      lastActivePhaseId.current = phaseId;
-      setActivePhase(phaseId);
-      
-      // Find the phase object in our local phases
-      const phase = phases.find(p => p.id === phaseId);
-      
-      // Start transition for the new phase, but delay if another is in progress
-      if (phase && phase.state) {
-        if (!transitionInProgress.current) {
-          // Start transition immediately if none is in progress
-          console.log(`[SessionTimeline: handlePhaseChangeEvent] Starting transition to phase: ${phase.name}`);
-          startFullTransition(phase);
-        } else {
-          // Queue this transition to start after the current one finishes
-          console.log(`[SessionTimeline: handlePhaseChangeEvent] Transition already in progress, queuing phase change to: ${phase.name}`);
+          if (phaseIndex !== -1) {
+            newPhases[phaseIndex] = {
+              ...newPhases[phaseIndex],
+              ...updates
+            };
+          }
           
-          // Store the phase to transition to after current completes
-          // You'd need to add a queuedPhaseRef for this
-          queuedPhaseRef.current = phase;
+          return newPhases;
+        });
+      }, []);
+    
+    
+      // Handle phase editor deletion
+      const handlePhaseDelete = useCallback((id) => {
+        logger.info(`[SessionTimeline: marker] Deleting phase: ${id}`);
+        
+        // Don't allow deleting locked phases
+        const phaseToDelete = phases.find(p => p.id === id);
+        if (phaseToDelete?.locked) {
+          logger.warn(`[SessionTimeline: marker] Cannot delete locked phase: ${id}`);
+          return;
         }
-      }
-    }
-  };
-  
-  // Add event listener for phase changes
-  window.addEventListener('timeline-phase-changed', handlePhaseChangeEvent);
-  
-  // Clean up
-  return () => {
-    window.removeEventListener('timeline-phase-changed', handlePhaseChangeEvent);
-  };
-}, [ phases, startFullTransition]);
-
-
-// Cleanup transitions when playback stops
-useEffect(() => {
-  // Force reset all transition state when playback stops
-  if (!playback.isPlaying) {
-    console.log("[SessionTimeline: playbackStateEffect] Playback stopped, forcing transition state reset");
-    
-    // Ensure all transition state is reset
-    transitionInProgress.current = false;
-    transitionCompletedRef.current = true;
-    setTransitioning(false);
-    
-    // Clear any volume transition timers
-    if (volumeTransitionTimer.current) {
-      clearInterval(volumeTransitionTimer.current);
-      volumeTransitionTimer.current = null;
-    }
-    
-    // Clear any transition timeout
-    if (transitionTimeoutRef.current) {
-      clearTimeout(transitionTimeoutRef.current);
-      transitionTimeoutRef.current = null;
-    }
-  }
-  
-  return () => {
-    if (volumeTransitionTimer.current) {
-      clearInterval(volumeTransitionTimer.current);
-      volumeTransitionTimer.current = null;
-    }
-    
-    if (transitionTimeoutRef.current) {
-      clearTimeout(transitionTimeoutRef.current);
-      transitionTimeoutRef.current = null;
-    }
-  };
-}, [playback.isPlaying]);
-
-
-  // Format time display (HH:MM:SS)
-  const formatTime = useCallback((ms) => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  }, []);
-  
-
-  // Format estimated time remaining
-  const formatTimeRemaining = useCallback(() => {
-    const remainingMs = timeline.duration - currentTime;
-    if (remainingMs <= 0) return '00:00:00';
-    return formatTime(remainingMs);
-  }, [formatTime, currentTime, timeline.duration]);
-  
-
-  // Handle phase marker position change
-const handlePhaseMarkerDrag = useCallback((index, newPosition) => {
-  if (phases[index].locked) {
-    console.log('[SessionTimeline: handlePhaseMarkerDrag] Cannot move Pre-Onset marker as it is locked to position 0');
-    return;
-  }
-  
-  const lowerBound = index > 0 ? phases[index - 1].position + 1 : 0;
-  const upperBound = index < phases.length - 1 ? phases[index + 1].position - 1 : 100;
-  
-  const clampedPosition = Math.max(lowerBound, Math.min(upperBound, newPosition));
-  
- // console.log(`[SessionTimeline: handlePhaseMarkerDrag] Moving phase marker ${phases[index].id} to position ${clampedPosition}`);
-  
-  const newPhases = [...phases];
-  newPhases[index].position = clampedPosition;
-  setPhases(newPhases);
-  
-  // Notify the timeline service that phases have been updated
-  if (timeline.updatePhases) {
-    console.log('[SessionTimeline: handlePhaseMarkerDrag] Updating phases in TimelineEngine');
-    timeline.updatePhases(newPhases);
-  }
-}, [phases, timeline]);
-  
-
-  // Deselect all markers
-  const deselectAllMarkers = useCallback(() => {
-    if (selectedPhase !== null) {
-      console.log('Deselecting all markers');
-      setSelectedPhase(null);
-    }
-  }, [selectedPhase]);
-
-  
-  // Toggle edit mode
-  const toggleEditMode = useCallback(() => {
-    // If currently in edit mode and about to exit, deselect all markers first
-    if (editMode) {
-      deselectAllMarkers();
-    }
-    
-    // Toggle edit mode state
-    setEditMode(!editMode);
-  }, [editMode, deselectAllMarkers]);
-
-
-  // Select a marker
-  const handleSelectMarker = useCallback((index) => {
-    // If the same marker is already selected
-    if (selectedPhase === index) {
-      // In edit mode, don't deselect (keep selected for capture)
-      if (!editMode) {
-        // In view mode, toggle selection
+        
+        // Remove the phase
+        setPhases(prevPhases => {
+          return prevPhases.filter(phase => phase.id !== id);
+        });
+        
+        // Deselect the marker
         setSelectedPhase(null);
-      }
-    } else {
-      // Different marker selected, or no marker was selected before
-      setSelectedPhase(index);
-    }
-  }, [selectedPhase, editMode]);
-  
-
-  // Deselect a specific marker
-  const handleDeselectMarker = useCallback((index) => {
-    if (selectedPhase === index) {
-      setSelectedPhase(null);
-    }
-  }, [selectedPhase]);
-  
-
-  // Capture current player state for a phase
-const capturePhaseState = useCallback((index) => {
-  console.log(`[SessionTimeline: capturePhaseState] Capturing current state for phase: ${phases[index].name}`);
-  
-  // Refresh volume state reference first to ensure we have the latest state
-  refreshVolumeStateReference();
-  
-  const state = {
-    volumes: { ...volume.layers },
-    activeAudio: { ...layers.active }
-  };
-  
-  console.log('[SessionTimeline: capturePhaseState] Captured state:', state);
-  
-  const newPhases = [...phases];
-  newPhases[index].state = state;
-  setPhases(newPhases);
-  
-  // Notify the timeline service of updated phases
-  if (timeline.updatePhases) {
-    console.log('[SessionTimeline: capturePhaseState] Updating phases in TimelineEngine');
-    timeline.updatePhases(newPhases);
-  }
-  
-  // If capturing state for the current phase, update our references
-  if (phases[index].id === lastActivePhaseId.current) {
-    console.log('[SessionTimeline: capturePhaseState] Updating current state references as this is the active phase');
-    currentVolumeState.current = { ...volume.layers };
-    currentAudioState.current = { ...layers.active };
-  }
-  
-  // After capturing state, deselect all markers
-  console.log('[SessionTimeline: capturePhaseState] Deselecting markers after capture');
-  deselectAllMarkers();
-}, [phases, volume.layers, layers.active, timeline, deselectAllMarkers, refreshVolumeStateReference]);
-
-
-  // Handle click away from markers - deselect the current marker
-  const handleBackgroundClick = useCallback((e) => {
-    // Make sure we're clicking on the timeline background, not a marker
-    if (e.target === timelineRef.current) {
-      deselectAllMarkers();
-    }
-  }, [deselectAllMarkers]);
-
-
-  // useImperativeHandle hook
-React.useImperativeHandle(ref, () => ({
-  resetTimelinePlayback: () => {
-    console.log("Timeline playback reset by parent component");
-    setTimelineIsPlaying(false);
-    setLocalTimelineIsPlaying(false);
-   // Also reset phase tracking
-   lastActivePhaseId.current = null;
-   setActivePhase(null);
-   
-   // Stop any running transitions
-   if (volumeTransitionTimer.current) {
-     clearInterval(volumeTransitionTimer.current);
-     volumeTransitionTimer.current = null;
-   }
-   setTransitionState(false);
-   
-   // Stop timeline in the service
-   if (timeline.stopTimeline) {
-     timeline.stopTimeline();
-   }
- },
- restartTimeline: () => handleRestartTimeline()
-}));
-  
-
-
-  return (
-    <div className={timelinestyles.timelineContainer}>
-      <div className={timelinestyles.timelineHeader}>
-        <h2 className={timelinestyles.timelineTitle}>Session Timeline</h2>
+      }, [phases]);
+    
+    
+      // Add a new marker
+      const handleAddPhase = useCallback(() => {
+        logger.info("[SessionTimeline: marker] Adding new phase");
         
-        <div className={timelinestyles.timelineControls}>
-          <button 
-            className={`${timelinestyles.controlButton} ${editMode ? timelinestyles.active : ''}`}
-            onClick={toggleEditMode}
-          >
-            {editMode ? 'Done' : 'Edit Timeline'}
-          </button>
-        </div>
-      </div>
-      
-      {activePhase && (
-        <div className={timelinestyles.phaseIndicator}>
-          Current Phase: <span className={timelinestyles.activePhase}>
-            {phases.find(p => p.id === activePhase)?.name}
-          </span>
-          {transitioning && <span className={timelinestyles.transitioningLabel}> (Transitioning)</span>}
-        </div>
-      )}
-      
-      <div 
-        className={timelinestyles.timelineWrapper}
-      >
-        <div 
-          className={timelinestyles.timeline} 
-          ref={timelineRef}
-          onClick={handleBackgroundClick}
-        >
+        // Create a new unique ID
+        const newId = `phase-${Date.now()}`;
+        
+        // Create a new phase at a reasonable position
+        const newPhase = {
+          id: newId,
+          name: 'New Phase',
+          position: 50, // Middle of timeline
+          color: '#6E9CAA', // Default color
+          state: null,
+          locked: false
+        };
+        
+        // Add the new phase
+        setPhases(prevPhases => {
+          const newPhases = [...prevPhases, newPhase];
+          // Sort phases by position
+          return newPhases.sort((a, b) => a.position - b.position);
+        });
+        
+        // Select the new phase for editing
+        setSelectedPhase(newId);
+      }, []);
+    
+    
+      // Toggle edit mode
+      const handleToggleEditMode = useCallback(() => {
+        logger.info(`[SessionTimeline: editMode] ${editMode ? 'Disabling' : 'Enabling'} edit mode`);
+        setEditMode(prev => !prev);
+      }, [editMode]);
+    
+    
+      // Format time for display (MM:SS)
+      const formatTime = useCallback((timeMs) => {
+        const totalSeconds = Math.floor(timeMs / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      }, []);
+    
+    
+      // Format session duration for display (HH:MM:SS)
+      const formatSessionDuration = useCallback((durationMs) => {
+        const totalSeconds = Math.floor(durationMs / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        
+        if (hours > 0) {
+          return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        } else {
+          return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+      }, []);
+    
+    
+      // Calculate progress bar position
+      const getProgressBarPosition = useCallback(() => {
+        return `${progress}%`;
+      }, [progress]);
+    
+    
+      // Convert a position from pixels to percent
+      const convertPositionToPercent = useCallback((positionPx) => {
+        if (!timelineRef.current) return 0;
+        
+        const timelineWidth = timelineRef.current.clientWidth;
+        let percent = (positionPx / timelineWidth) * 100;
+        
+        // Clamp between 0 and 100
+        percent = Math.max(0, Math.min(100, percent));
+        
+        return percent;
+      }, []);
+    
+    
+      // Handle click on the timeline to position a marker
+      const handleTimelineClick = useCallback((event) => {
+        if (!editMode) return;
+        
+        // Get click position relative to timeline
+        const rect = timelineRef.current.getBoundingClientRect();
+        const offsetX = event.clientX - rect.left;
+        
+        // Convert to percentage
+        const position = convertPositionToPercent(offsetX);
+        
+        // If we have a selected marker, update its position
+        if (selectedPhase) {
+          handleMarkerDrag(selectedPhase, position);
+        }
+      }, [editMode, selectedPhase, handleMarkerDrag, convertPositionToPercent]);
+    
+      //=== Reference methods for parent components ===
+      // Expose methods via ref
+      React.useImperativeHandle(ref, () => ({
+        // Get all phase data with their states
+        getPhases: () => phases,
+        
+        // Get the active phase ID
+        getActivePhase: () => activePhase,
+        
+        // Update phases from external source
+        updatePhases: (newPhases) => {
+          logger.info("[SessionTimeline: ref] External update to phases:", newPhases.length);
+          setPhases(newPhases);
+        },
+        
+        // Add a phase from external source
+        addPhase: (phaseData) => {
+          logger.info("[SessionTimeline: ref] Adding phase from external source:", phaseData.id);
+          setPhases(prevPhases => {
+            const newPhases = [...prevPhases, phaseData];
+            return newPhases.sort((a, b) => a.position - b.position);
+          });
+        },
+        
+        // Reset timeline to beginning
+        restart: () => {
+          logger.info("[SessionTimeline: ref] External restart request");
+          handleRestartTimeline();
+        },
+        
+        // Toggle timeline playback
+        togglePlayback: () => {
+          logger.info("[SessionTimeline: ref] External toggle playback request");
+          toggleTimelinePlayback();
+        }
+      }));
+    
+      return (
+        <div className={timelinestyles.sessionTimelineContainer}>
           <div 
-            className={timelinestyles.progressBar} 
-            style={{ width: `${progress}%` }}
-          />
-          
-          {/* Map phase markers */}
-          {phases.map((phase, index) => (
-            <PhaseMarker
-              key={phase.id || index}
-              name={phase.name}
-              color={phase.color}
-              position={phase.position}
-              isActive={activePhase === phase.id}
-              isSelected={selectedPhase === index}
-              isDraggable={editMode && !phase.locked}
-              onDrag={(newPosition) => handlePhaseMarkerDrag(index, newPosition)}
-              onSelect={() => handleSelectMarker(index)}
-              onDeselect={() => handleDeselectMarker(index)}
-              onStateCapture={() => capturePhaseState(index)}
-              storedState={phase.state}
-              editMode={editMode}
-              sessionDuration={timeline.duration}
-              hasStateCaptured={!!phase.state}
-            />
-          ))}
-        </div>
-      </div>
-      <div className={timelinestyles.timelineControls}>
-  
-  
-  {/* Add timeline playback controls */}
- {/* Add debug info to the button */}
-<button 
-  className={`${timelinestyles.controlButton} ${timelineIsPlaying ? timelinestyles.active : ''}`}
-  onClick={() => {
-    console.log("Timeline button clicked!");
-    toggleTimelinePlayback();
-  }}
-  disabled={!playback.isPlaying}
->
-  {timelineIsPlaying ? 'Pause Timeline' : 'Start Timeline'}
-</button>
-<button 
-    className={timelinestyles.controlButton}
-    onClick={handleRestartTimeline}
-    disabled={!playback.isPlaying}
-  >
-    Restart
-  </button>
-</div>
-      {/* Time info below the timeline */}
-      <div className={timelinestyles.timeInfo}>
-        <span>{formatTime(currentTime)}</span>
-        <span className={timelinestyles.remainingTime}>-{formatTimeRemaining()}</span>
-      </div>
-      
-      <div className={timelinestyles.timelineLabels}>
-        <span>Start</span>
-        <span>End</span>
-      </div>
-      
-      {editMode && (
-        <>
-          <div className={timelinestyles.editInstructions}>
-            Press and hold a marker to drag it. Tap "Capture State" to save current audio layers and volumes.
+            ref={timelineRef}
+            className={timelinestyles.timeline} 
+            onClick={handleTimelineClick}
+          >
+            {/* Timeline background */}
+            <div className={timelinestyles.timelineBackground}></div>
+            
+            {/* Time markers */}
+            <div className={timelinestyles.timeMarkers}>
+              <span className={timelinestyles.startTime}>00:00</span>
+              <span className={timelinestyles.endTime}>
+                {formatSessionDuration(timeline.duration || 1800000)}
+              </span>
+            </div>
+            
+            {/* Phase markers */}
+            {phases.map((phase) => (
+              <PhaseMarker
+                key={phase.id}
+                id={phase.id}
+                name={phase.name}
+                position={phase.position}
+                color={phase.color}
+                isActive={activePhase === phase.id}
+                isSelected={selectedPhase === phase.id}
+                transitioning={transitioning}
+                editable={editMode && !phase.locked}
+                onClick={handlePhaseClick}
+                onDrag={handleMarkerDrag}
+              />
+            ))}
+            
+            {/* Progress indicator */}
+            <div 
+              className={timelinestyles.progressIndicator}
+              style={{ left: getProgressBarPosition() }}
+            >
+              <div className={timelinestyles.progressLine}></div>
+              <div className={timelinestyles.progressHandle}></div>
+            </div>
           </div>
           
-          {/* Add SessionSettings here when in edit mode */}
-          <SessionSettings 
+          {/* Playback controls and time display */}
+          <div className={timelinestyles.controls}>
+            <button 
+              onClick={toggleTimelinePlayback}
+              className={timelinestyles.playPauseButton}
+            >
+              {timelineIsPlaying ? 'Pause' : 'Play'}
+            </button>
+            
+            <button 
+              onClick={handleRestartTimeline}
+              className={timelinestyles.restartButton}
+            >
+              Restart
+            </button>
+            
+            <div className={timelinestyles.timeDisplay}>
+              {formatTime(currentTime)}
+            </div>
+            
+            <button
+              onClick={handleToggleEditMode}
+              className={`${timelinestyles.editButton} ${editMode ? timelinestyles.active : ''}`}
+            >
+              Edit
+            </button>
+          </div>
+          
+          {/* Phase editor (when in edit mode) */}
+          {editMode && (
+            <div className={timelinestyles.editorToolbar}>
+              <button 
+                onClick={handleAddPhase}
+                className={timelinestyles.addPhaseButton}
+              >
+                Add Phase
+              </button>
+              
+              {selectedPhase && (
+                <div className={timelinestyles.phaseEditor}>
+                  <h3>Edit Phase</h3>
+                  
+                  {/* Phase being edited */}
+                  {(() => {
+                    const phase = phases.find(p => p.id === selectedPhase);
+                    if (!phase) return null;
+                    
+                    return (
+                      <>
+                        <div className={timelinestyles.editorField}>
+                          <label>Name:</label>
+                          <input 
+                            type="text"
+                            value={phase.name}
+                            onChange={(e) => handlePhaseChange(phase.id, { name: e.target.value })}
+                          />
+                        </div>
+                        
+                        <div className={timelinestyles.editorField}>
+                          <label>Position:</label>
+                          <input 
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="1"
+                            value={Math.round(phase.position)}
+                            onChange={(e) => handlePhaseChange(phase.id, { position: Number(e.target.value) })}
+                          />
+                        </div>
+                        
+                        <div className={timelinestyles.editorField}>
+                          <label>Color:</label>
+                          <input 
+                            type="color"
+                            value={phase.color}
+                            onChange={(e) => handlePhaseChange(phase.id, { color: e.target.value })}
+                          />
+                        </div>
+                        
+                        <div className={timelinestyles.editorActions}>
+                          <button 
+                            onClick={() => handleCaptureState(phase.id)}
+                            className={timelinestyles.captureButton}
+                          >
+                            Capture Current State
+                          </button>
+                          
+                          {!phase.locked && (
+                            <button 
+                              onClick={() => handlePhaseDelete(phase.id)}
+                              className={timelinestyles.deleteButton}
+                            >
+                              Delete Phase
+                            </button>
+                          )}
+                        </div>
+                        
+                        {/* Display if this phase has saved state */}
+                        {phase.state && (
+                          <div className={timelinestyles.stateInfo}>
+                            <span>State data captured ✓</span>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Session settings */}
+          <SessionSettings
             sessionDuration={timeline.duration}
-            transitionDuration={transitionDuration}
-            onDurationChange={onDurationChange}
-            onTransitionDurationChange={onTransitionDurationChange}
-            className={settingsStyles.timelineSettings}
+            transitionDuration={timeline.transitionDuration}
+            onSessionDurationChange={(duration) => {
+              if (onDurationChange) onDurationChange(duration);
+            }}
+            onTransitionDurationChange={(duration) => {
+              if (onTransitionDurationChange) onTransitionDurationChange(duration);
+            }}
           />
-        </>
-      )}
-    </div>
-  );
-});
-
-export default React.memo(SessionTimeline);
+        </div>
+      );
+    });
+    
+    export default SessionTimeline;
+    

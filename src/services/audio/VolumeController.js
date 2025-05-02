@@ -4,6 +4,7 @@
  * Service for managing volume levels across multiple audio layers
  * Handles volume state tracking and smooth volume transitions
  */
+import logger from '../../services/LoggingService';
 
 class VolumeController {
   /**
@@ -341,16 +342,6 @@ class VolumeController {
    * @param {string} layerId - Identifier for the audio layer
    * @param {number} targetVolume - Target volume level (0-1)
    * @param {number} duration - Fade duration in seconds
-   * @returns {Promise<boolean>} - Resolves to success status when fade completes
-   */
-  // In src/services/audio/VolumeController.js
-  // Updated VolumeController.fadeVolume method
-  /**
-   * Fade volume over time from current to target value with improved UI updates
-   * 
-   * @param {string} layerId - Identifier for the audio layer
-   * @param {number} targetVolume - Target volume level (0-1)
-   * @param {number} duration - Fade duration in seconds
    * @param {Function} progressCallback - Callback for progress updates
    * @returns {Promise<boolean>} - Resolves to success status when fade completes
    */
@@ -381,155 +372,149 @@ class VolumeController {
         // Start from current value
         gainNode.gain.setValueAtTime(currentVolume, now);
 
-        // Linear ramp to target
-        gainNode.gain.linearRampToValueAtTime(safeTarget, now + duration);
+              // Linear ramp to target
+              gainNode.gain.linearRampToValueAtTime(safeTarget, now + duration);
 
-        // Calculate appropriate update interval based on duration
-        // Longer durations should have more frequent updates
-        // For long transitions (>5s), update every 16ms (60fps)
-        // For medium transitions (1-5s), update every 30ms
-        // For short transitions (<1s), update every 50ms
-        let updateInterval = 30; // Default: 30ms
-
-        if (duration > 5) {
-          updateInterval = 16; // ~60fps for long transitions
-        } else if (duration < 1) {
-          updateInterval = 50; // Less frequent for very short transitions
-        }
-
-        this.log(`Using UI update interval of ${updateInterval}ms for ${duration}s transition`);
-
-        const totalUpdates = Math.floor((duration * 1000) / updateInterval);
-        let updateCount = 0;
-
-        const updateIntervalId = setInterval(() => {
-          updateCount++;
-
-          // Calculate elapsed ratio (0-1)
-          const progress = updateCount / totalUpdates;
-
-          // Instead of linear interpolation, calculate actual current value
-          // based on the Web Audio API's timing curve
-          // This more closely matches what the user actually hears
-          const currentIntermediate = currentVolume + (volumeDiff * progress);
-
-          // Every 10th update, log the progress to help with debugging
-          if (updateCount % 10 === 0 || updateCount === 1) {
-            this.log(`Volume fade progress for "${layerId}": ${Math.round(progress * 100)}% - Volume: ${currentIntermediate.toFixed(3)}`, 'info');
-          }
-
-          // Update stored volume level for UI consistency
-          this.volumeLevels.set(layerId, currentIntermediate);
-
-          // Call progress callback if provided
-          if (progressCallback && typeof progressCallback === 'function') {
-            progressCallback(layerId, currentIntermediate, progress);
-          }
-
-          // Clear interval when done
-          if (updateCount >= totalUpdates) {
-            clearInterval(updateIntervalId);
-
-            // Make sure the final value is exactly what was requested
-            this.volumeLevels.set(layerId, safeTarget);
-
-            // One final callback with exact target
-            if (progressCallback) {
-              progressCallback(layerId, safeTarget, 1);
+              // Set up progress tracking if we have a callback
+              if (typeof progressCallback === 'function') {
+                const startTime = now;
+                const endTime = now + duration;
+                const interval = 30; // Update progress every 30ms
+                let lastProgressUpdate = performance.now();
+      
+                // Interval for tracking progress
+                const trackProgress = () => {
+                  const currentTime = this.audioContext.currentTime;
+                  const currentProgressTime = performance.now();
+                  
+                  // Calculate elapsed percentage (0-1)
+                  const elapsed = Math.min(1, (currentTime - startTime) / duration);
+                  const newVolume = currentVolume + (volumeDiff * elapsed);
+                  
+                  // Only call progress callback if significant time has passed (throttling)
+                  if (currentProgressTime - lastProgressUpdate > interval) {
+                    progressCallback(layerId, newVolume, elapsed);
+                    lastProgressUpdate = currentProgressTime;
+                  }
+                  
+                  // If not complete, continue tracking
+                  if (currentTime < endTime) {
+                    requestAnimationFrame(trackProgress);
+                  } else {
+                    // Ensure final callback with exactly 100%
+                    progressCallback(layerId, safeTarget, 1);
+                    
+                    // Update stored volume
+                    this.volumeLevels.set(layerId, safeTarget);
+                    
+                    // Resolve the promise
+                    resolve(true);
+                  }
+                };
+                
+                // Start tracking
+                requestAnimationFrame(trackProgress);
+              } else {
+                // If no callback, just set a timeout for when the fade completes
+                setTimeout(() => {
+                  this.volumeLevels.set(layerId, safeTarget);
+                  resolve(true);
+                }, duration * 1000 + 50); // Add small buffer to ensure completion
+              }
+              
+              // Update stored volume now for consistency
+              this.volumeLevels.set(layerId, safeTarget);
+              
+            } catch (error) {
+              this.log(`Error during volume fade for "${layerId}": ${error.message}`, 'error');
+              resolve(false);
             }
-
-            this.log(`Volume fade complete for "${layerId}": final volume ${safeTarget}`, 'info');
-
-            // Resolve the promise
-            resolve(true);
+          });
+        }
+      
+        /**
+         * Immediately stop all transitions and set final values
+         * 
+         * @returns {boolean} - Success status
+         */
+        stopAllTransitions() {
+          try {
+            // Cancel all pending timeouts
+            this.pendingTransitions.forEach((timeoutId) => {
+              clearTimeout(timeoutId);
+            });
+            this.pendingTransitions.clear();
+            
+            // For each gain node, cancel scheduled values and set current value
+            this.gainNodes.forEach((gainNode, layerId) => {
+              const currentVol = this.volumeLevels.get(layerId);
+              const now = this.audioContext.currentTime;
+              
+              // Cancel any scheduled values and set current
+              gainNode.gain.cancelScheduledValues(now);
+              gainNode.gain.setValueAtTime(currentVol, now);
+            });
+            
+            this.log('All volume transitions stopped');
+            return true;
+          } catch (error) {
+            this.log(`Error stopping transitions: ${error.message}`, 'error');
+            return false;
           }
-        }, updateInterval);
-
-      } catch (error) {
-        this.log(`Error fading volume for "${layerId}": ${error.message}`, 'error');
-        resolve(false);
+        }
+        
+        /**
+         * Log a message with the specified level
+         * @private
+         * @param {string} message - Message to log
+         * @param {string} [level='info'] - Log level
+         */
+        log(message, level = 'info') {
+          if (!this.config.enableLogging) return;
+          
+          switch (level) {
+            case 'error':
+              logger.error('VolumeController', message);
+              break;
+            case 'warn':
+              logger.warn('VolumeController', message);
+              break;
+            case 'debug':
+              logger.debug('VolumeController', message);
+              break;
+            case 'info':
+            default:
+              logger.info('VolumeController', message);
+              break;
+          }
+        }
+        
+        /**
+         * Clean up resources when no longer needed
+         */
+        dispose() {
+          this.log('Disposing VolumeController');
+          
+          // Stop all transitions
+          this.stopAllTransitions();
+          
+          // Disconnect all gain nodes
+          this.gainNodes.forEach((gainNode) => {
+            try {
+              gainNode.disconnect();
+            } catch (e) {
+              // Ignore disconnect errors
+            }
+          });
+          
+          // Clear maps
+          this.gainNodes.clear();
+          this.volumeLevels.clear();
+          this.pendingTransitions.clear();
+          
+          this.log('VolumeController disposed');
+        }
       }
-    });
-  }
-
-
-  /**
-   * Get a snapshot of the current volume state for all layers
-   * 
-   * @returns {Object} - Object with layer IDs as keys and volume levels as values
-   */
-  getVolumeSnapshot() {
-    return this.getAllVolumes();
-  }
-
-  /**
-   * Apply a volume snapshot to restore previous state
-   * 
-   * @param {Object} snapshot - Volume snapshot to apply
-   * @param {Object} [options] - Apply options
-   * @param {boolean} [options.immediate=false] - Apply immediately without transitions
-   * @returns {boolean} - Success status
-   */
-  applyVolumeSnapshot(snapshot, options = {}) {
-    if (!snapshot || typeof snapshot !== 'object') {
-      this.log('Invalid volume snapshot', 'error');
-      return false;
-    }
-
-    return this.setMultipleVolumes(snapshot, options);
-  }
-
-  /**
-   * Logging helper that respects configuration
-   * 
-   * @private
-   * @param {string} message - Message to log
-   * @param {string} [level='info'] - Log level
-   */
-  log(message, level = 'info') {
-    if (!this.config.enableLogging) return;
-
-    const prefix = '[VolumeController]';
-
-    switch (level) {
-      case 'error':
-        console.error(`${prefix} ${message}`);
-        break;
-      case 'warn':
-        console.warn(`${prefix} ${message}`);
-        break;
-      case 'info':
-      default:
-        console.log(`${prefix} ${message}`);
-        break;
-    }
-  }
-
-  /**
-   * Clean up resources when no longer needed
-   */
-  dispose() {
-    // Disconnect all gain nodes
-    this.gainNodes.forEach((gainNode) => {
-      try {
-        gainNode.disconnect();
-      } catch (e) {
-        // Ignore errors during cleanup
-      }
-    });
-
-    // Clear all pending transitions
-    this.pendingTransitions.forEach((timeoutId) => {
-      clearTimeout(timeoutId);
-    });
-
-    // Clear maps
-    this.gainNodes.clear();
-    this.volumeLevels.clear();
-    this.pendingTransitions.clear();
-
-    this.log('VolumeController disposed');
-  }
-}
-
-export default VolumeController;
+      
+      export default VolumeController;
+      

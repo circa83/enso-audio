@@ -4,6 +4,7 @@
  * Manages audio playback operations including start, pause, and timing
  * Extracted from StreamingAudioContext to improve modularity
  */
+import logger from '../../services/LoggingService';
 
 /**
  * Creates a playback manager with the provided dependencies
@@ -31,7 +32,7 @@ const createplaybackManager = ({
    */
   const updatePlayingState = (newState) => {
     // Debug log before updating
-    console.log(`Updating playing state from ${isPlayingRef.current} to ${newState}`);
+    logger.debug('PlaybackManager', `Updating playing state from ${isPlayingRef.current} to ${newState}`);
 
     // Update the ref immediately (sync)
     isPlayingRef.current = newState;
@@ -40,7 +41,7 @@ const createplaybackManager = ({
     setIsPlaying(newState);
 
     // Debug log after updating
-    console.log(`Updated playing state, ref is now: ${isPlayingRef.current}`);
+    logger.debug('PlaybackManager', `Updated playing state, ref is now: ${isPlayingRef.current}`);
   };
 
   /**
@@ -49,16 +50,16 @@ const createplaybackManager = ({
   const handleStartSession = () => {
     // Use ref for current state check to avoid race conditions
     if (!serviceRef.current.audioCore || isPlayingRef.current) {
-      console.log("Can't start: AudioCore missing or already playing");
+      logger.debug('PlaybackManager', "Can't start: AudioCore missing or already playing");
       return;
     }
 
     try {
-      console.log("[PlaybackManager: handleStartSession] Starting session...");
+      logger.info('PlaybackManager', "[handleStartSession] Starting session...");
 
       // Resume AudioCore
       serviceRef.current.audioCore.resume().catch(err => {
-        console.error('[PlaybackManager: handleStartSession] Error resuming audio context:', err);
+        logger.error('PlaybackManager', `[handleStartSession] Error resuming audio context: ${err}`);
       });
 
       // Get currently active audio elements
@@ -72,11 +73,11 @@ const createplaybackManager = ({
             immediate: false,
             transitionTime: 0.05
           });
-          console.log(`[PlaybackManager: handleStartSession] Layer ${layer} - Set initial volume: ${volume}`);
+          logger.debug('PlaybackManager', `[handleStartSession] Layer ${layer} - Set initial volume: ${volume}`);
         }
       });
 
-      console.log("[PlaybackManager: handleStartSession] Audio Elements:",
+      logger.debug('PlaybackManager', "[handleStartSession] Audio Elements:",
         Object.keys(audioElements).map(layer =>
           `${layer}: ${Object.keys(audioElements[layer] || {}).join(', ')}`
         )
@@ -84,18 +85,18 @@ const createplaybackManager = ({
 
       // Log active layer info
       Object.entries(activeAudio).forEach(([layer, trackId]) => {
-        console.log(`[PlaybackManager: handleStartSession] Layer ${layer} - Active track: ${trackId}, Volume: ${volumes[layer]}`);
+        logger.debug('PlaybackManager', `[handleStartSession] Layer ${layer} - Active track: ${trackId}, Volume: ${volumes[layer]}`);
       });
 
       // Make sure all audio elements are reset to beginning
       Object.entries(activeAudio).forEach(([layer, trackId]) => {
         const track = audioElements[layer]?.[trackId];
-        console.log(`[PlaybackManager: handleStartSession] Layer ${layer} - Attempting to play track ${trackId}:`, track ? 'Found' : 'Not found');
+        logger.debug('PlaybackManager', `[handleStartSession] Layer ${layer} - Attempting to play track ${trackId}: ${track ? 'Found' : 'Not found'}`);
 
         if (track?.element) {
           // Log volume level
-          console.log(`[PlaybackManager: handleStartSession] Layer ${layer} - Volume level:`, volumes[layer]);
-          console.log(`[PlaybackManager: handleStartSession] Layer ${layer} - Audio element readyState:`, track.element.readyState);
+          logger.debug('PlaybackManager', `[handleStartSession] Layer ${layer} - Volume level: ${volumes[layer]}`);
+          logger.debug('PlaybackManager', `[handleStartSession] Layer ${layer} - Audio element readyState: ${track.element.readyState}`);
 
           // Reset to beginning of track
           track.element.currentTime = 0;
@@ -115,21 +116,21 @@ const createplaybackManager = ({
         if (track?.element) {
           // Play and collect the promise
           try {
-            console.log(`[PlaybackManager: handleStartSession] Layer ${layer} - Initiating play() for track ${trackId}`);
+            logger.debug('PlaybackManager', `[handleStartSession] Layer ${layer} - Initiating play() for track ${trackId}`);
             const playPromise = track.element.play();
             if (playPromise !== undefined) {
               allPlayPromises.push(
                 playPromise.catch(err => {
-                  console.error(`[PlaybackManager: handleStartSession] Error playing ${layer}:`, err);
+                  logger.error('PlaybackManager', `[handleStartSession] Error playing ${layer}: ${err}`);
                   return null;
                 })
               );
             }
           } catch (err) {
-            console.error(`[PlaybackManager: handleStartSession] Error starting ${layer}:`, err);
+            logger.error('PlaybackManager', `[handleStartSession] Error starting ${layer}: ${err}`);
           }
         } else {
-          console.error(`[PlaybackManager: handleStartSession] No track found for ${layer}/${trackId}`);
+          logger.error('PlaybackManager', `[handleStartSession] No track found for ${layer}/${trackId}`);
         }
       });
 
@@ -142,7 +143,7 @@ const createplaybackManager = ({
             if (serviceRef.current.volumeController) {
               // Fade in using the volume controller with 50ms duration
               const targetVolume = volumes[layer] || 0;
-              console.log(`[PlaybackManager: handleStartSession] Fading in ${layer} to ${targetVolume}`);
+              logger.debug('PlaybackManager', `[handleStartSession] Fading in ${layer} to ${targetVolume}`);
               serviceRef.current.volumeController.setVolume(layerKey, targetVolume, {
                 immediate: false,
                 transitionTime: 0.05 // 50ms
@@ -155,7 +156,7 @@ const createplaybackManager = ({
           }
         })
         .catch(error => {
-          console.error('[PlaybackManager: handleStartSession] Error in play promises:', error);
+          logger.error('PlaybackManager', `[handleStartSession] Error in play promises: ${error}`);
           // Try to update state anyway
           updatePlayingState(true);
         });
@@ -166,7 +167,7 @@ const createplaybackManager = ({
       }
 
     } catch (error) {
-      console.error('[PlaybackManager: handleStartSession] Error starting session:', error);
+      logger.error('PlaybackManager', `[handleStartSession] Error starting session: ${error}`);
       updatePlayingState(false);
     }
   };
@@ -176,12 +177,12 @@ const createplaybackManager = ({
    */
   const handlePauseSession = () => {
     if (!isPlayingRef.current) {
-      console.log("[PlaybackManager: handlePauseSession] Not playing, nothing to pause");
+      logger.debug('PlaybackManager', "[handlePauseSession] Not playing, nothing to pause");
       return;
     }
 
     try {
-      console.log("[PlaybackManager: handlePauseSession] Fading out and pausing session...");
+      logger.info('PlaybackManager', "[handlePauseSession] Fading out and pausing session...");
 
       // First, cancel any active crossfades
       if (serviceRef.current.crossfadeEngine) {
@@ -209,9 +210,9 @@ const createplaybackManager = ({
             });
 
             layerFadePromises.push(fadePromise);
-            console.log(`[PlaybackManager: handlePauseSession] Fading out ${layer}`);
+            logger.debug('PlaybackManager', `[handlePauseSession] Fading out ${layer}`);
           } catch (err) {
-            console.error(`[PlaybackManager: handlePauseSession] Error fading out ${layer}:`, err);
+            logger.error('PlaybackManager', `[handlePauseSession] Error fading out ${layer}: ${err}`);
           }
         }
       });
@@ -223,9 +224,9 @@ const createplaybackManager = ({
           if (track?.element) {
             try {
               track.element.pause();
-              console.log(`[PlaybackManager: handlePauseSession] Paused ${layer}`);
+              logger.debug('PlaybackManager', `[handlePauseSession] Paused ${layer}`);
             } catch (err) {
-              console.error(`[PlaybackManager: handlePauseSession] Error pausing ${layer}:`, err);
+              logger.error('PlaybackManager', `[handlePauseSession] Error pausing ${layer}: ${err}`);
             }
           }
         });
@@ -238,18 +239,18 @@ const createplaybackManager = ({
         // Suspend the AudioCore context
         if (serviceRef.current.audioCore) {
           serviceRef.current.audioCore.suspend().catch(err => {
-            console.warn('[PlaybackManager: handlePauseSession] Error suspending audio context:', err);
+            logger.warn('PlaybackManager', `[handlePauseSession] Error suspending audio context: ${err}`);
           });
         }
 
         // Check for proper state update
-        console.log("[PlaybackManager: handlePauseSession] Before updatePlayingState, current state:", isPlayingRef.current);
+        logger.debug('PlaybackManager', `[handlePauseSession] Before updatePlayingState, current state: ${isPlayingRef.current}`);
         updatePlayingState(false);
-        console.log("[PlaybackManager: handlePauseSession] After updatePlayingState, new state:", isPlayingRef.current);
+        logger.debug('PlaybackManager', `[handlePauseSession] After updatePlayingState, new state: ${isPlayingRef.current}`);
       }, fadeDuration + 10); // Add a small buffer to ensure fade completes
 
     } catch (error) {
-      console.error('[PlaybackManager: handlePauseSession] Error pausing session:', error);
+      logger.error('PlaybackManager', `[handlePauseSession] Error pausing session: ${error}`);
       // Still try to update state even if an error occurs
       updatePlayingState(false);
     }
@@ -263,16 +264,16 @@ const createplaybackManager = ({
    */
   const handlePreloadAudio = async (layer, trackId) => {
     if (!serviceRef.current.bufferManager) {
-      console.error("Cannot preload: missing BufferManager");
+      logger.error('PlaybackManager', "Cannot preload: missing BufferManager");
       return false;
     }
 
     try {
       // Find the track in library
       const track = audioLibrary[layer].find(t => t.id === trackId);
-      console.log(`Preloading audio for ${layer}/${trackId}:`, track ? 'Found' : 'Not found', track);
+      logger.debug('PlaybackManager', `Preloading audio for ${layer}/${trackId}: ${track ? 'Found' : 'Not found'}`, track);
       if (!track) {
-        console.error(`Track ${trackId} not found in library`);
+        logger.error('PlaybackManager', `Track ${trackId} not found in library`);
         return false;
       }
 
@@ -301,7 +302,7 @@ const createplaybackManager = ({
 
       return true;
     } catch (error) {
-      console.error(`Error preloading audio: ${error.message}`);
+      logger.error('PlaybackManager', `Error preloading audio: ${error.message}`);
 
       // Reset progress on error
       setPreloadProgress(prev => {

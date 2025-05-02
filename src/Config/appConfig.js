@@ -5,7 +5,7 @@
  * and provides utilities for accessing them.
  */
 
-
+import logger from '../services/LoggingService';
 
 // Import collection configurations
 import StillnessConfig from './collections/Stillness_config';
@@ -124,7 +124,7 @@ const appConfig = {
   
   // Function to get configuration for a specific collection
   getCollectionConfig: function(collectionId) {
-    console.log(`[appConfig] getCollectionConfig called with ID: "${collectionId}" (${typeof collectionId})`);
+    logger.debug('AppConfig', `getCollectionConfig called with ID: "${collectionId}" (${typeof collectionId})`);
   
     // Convert collectionId to a standardized format for comparison (e.g., lowercase)
     const normalizedId = typeof collectionId === 'string' ? collectionId.trim() : collectionId;
@@ -141,18 +141,18 @@ const appConfig = {
     }
     
     // Log the match result
-    console.log(`[appConfig] Collection "${collectionId}" normalized to "${normalizedId}"`);
-    console.log(`[appConfig] Matched to config ID: ${matchedCollection || 'NONE'}`);
+    logger.debug('AppConfig', `Collection "${collectionId}" normalized to "${normalizedId}"`);
+    logger.debug('AppConfig', `Matched to config ID: ${matchedCollection || 'NONE'}`);
   
     // Check if global config use is enabled
-    console.log(`[appConfig] Global useCollectionConfigs setting: ${this.useCollectionConfigs ? 'ENABLED' : 'DISABLED'}`);
+    logger.debug('AppConfig', `Global useCollectionConfigs setting: ${this.useCollectionConfigs ? 'ENABLED' : 'DISABLED'}`);
     
     // If collection exists, check if it's enabled
     const collectionExists = !!matchedCollection;
-    console.log(`[appConfig] Collection exists in registry: ${collectionExists ? 'YES' : 'NO'}`);
+    logger.debug('AppConfig', `Collection exists in registry: ${collectionExists ? 'YES' : 'NO'}`);
     
     if (collectionExists) {
-      console.log(`[appConfig] Collection "${matchedCollection}" enabled status: ${this.collections[matchedCollection].enabled ? 'ENABLED' : 'DISABLED'}`);
+      logger.debug('AppConfig', `Collection "${matchedCollection}" enabled status: ${this.collections[matchedCollection].enabled ? 'ENABLED' : 'DISABLED'}`);
     }
   
     // Check if we should use collection configs and if this collection has one
@@ -161,7 +161,7 @@ const appConfig = {
                       this.collections[matchedCollection].enabled;
     
     if (useConfig) {
-      console.log(`Using custom configuration for collection: ${matchedCollection}`);
+      logger.info('AppConfig', `Using custom configuration for collection: ${matchedCollection}`);
       
       // Get the collection config
       const collectionConfig = this.collections[matchedCollection].config;
@@ -169,15 +169,15 @@ const appConfig = {
       // Validate that the config has all needed properties
       const validatedConfig = this._ensureValidConfig(collectionConfig);
       
-      console.log(`[appConfig] Returning validated collection config with ${validatedConfig.phaseMarkers?.length || 0} phase markers`);
+      logger.debug('AppConfig', `Returning validated collection config with ${validatedConfig.phaseMarkers?.length || 0} phase markers`);
       
       // Return the collection config directly without merging
       return validatedConfig;
     }
     
     // Otherwise return default config
-    console.warn(`[appConfig] Using default configuration for collection: ${collectionId}`);
-    console.log(`[appConfig] Default config has ${this.defaults.phaseMarkers?.length || 0} phase markers`);
+    logger.warn('AppConfig', `Using default configuration for collection: ${collectionId}`);
+    logger.debug('AppConfig', `Default config has ${this.defaults.phaseMarkers?.length || 0} phase markers`);
     return this.defaults;
   },
 
@@ -188,18 +188,18 @@ _ensureValidConfig: function(config) {
   
   // Ensure essential properties exist
   if (!validConfig.sessionDuration) {
-    console.warn('Collection config missing sessionDuration, using default');
+    logger.warn('AppConfig', 'Collection config missing sessionDuration, using default');
     validConfig.sessionDuration = this.defaults.sessionDuration;
   }
   
   if (!validConfig.transitionDuration) {
-    console.warn('Collection config missing transitionDuration, using default');
+    logger.warn('AppConfig', 'Collection config missing transitionDuration, using default');
     validConfig.transitionDuration = this.defaults.transitionDuration;
   }
   
   // Ensure volumes exist
   if (!validConfig.volumes) {
-    console.warn('Collection config missing volumes, using default');
+    logger.warn('AppConfig', 'Collection config missing volumes, using default');
     validConfig.volumes = { ...this.defaults.volumes };
   }
   
@@ -226,7 +226,7 @@ _ensureValidConfig: function(config) {
       return validMarker;
     });
   } else {
-    console.warn('Collection config missing phaseMarkers, using default');
+    logger.warn('AppConfig', 'Collection config missing phaseMarkers, using default');
     validConfig.phaseMarkers = [...this.defaults.phaseMarkers];
   }
   
@@ -236,14 +236,14 @@ _ensureValidConfig: function(config) {
   // Toggle collection config usage globally
   setUseCollectionConfigs: function(enabled) {
     this.useCollectionConfigs = enabled;
-    console.log(`Collection configs ${enabled ? 'enabled' : 'disabled'} globally`);
+    logger.info('AppConfig', `Collection configs ${enabled ? 'enabled' : 'disabled'} globally`);
     return this.useCollectionConfigs;
   },
   
   // Toggle a specific collection's config
   toggleCollectionConfig: function(collectionId, enabled) {
     if (!this.collections[collectionId]) {
-      console.warn(`Collection not found: ${collectionId}`);
+      logger.warn('AppConfig', `Collection not found: ${collectionId}`);
       return false;
     }
     
@@ -253,7 +253,7 @@ _ensureValidConfig: function(config) {
     }
     
     this.collections[collectionId].enabled = enabled;
-    console.log(`Configuration for ${collectionId} ${enabled ? 'enabled' : 'disabled'}`);
+    logger.info('AppConfig', `Configuration for ${collectionId} ${enabled ? 'enabled' : 'disabled'}`);
     return true;
   },
   
@@ -305,17 +305,17 @@ _ensureValidConfig: function(config) {
 };
 
 // Log the loaded collection configs
-console.log("[appConfig] Collection configs:");
+logger.info('AppConfig', "Collection configs:");
 Object.entries(appConfig.collections).forEach(([id, collection]) => {
-  console.log(`[appConfig] - ${id} (enabled: ${collection.enabled})`);
+  logger.info('AppConfig', `- ${id} (enabled: ${collection.enabled})`);
   
   if (collection.config?.phaseMarkers) {
-    console.log(`[appConfig] -- Phase markers: ${collection.config.phaseMarkers.length}`);
+    logger.debug('AppConfig', `-- Phase markers: ${collection.config.phaseMarkers.length}`);
     collection.config.phaseMarkers.forEach(phase => {
-      console.log(`[appConfig] --- Phase "${phase.name}" has state: ${phase.state ? 'YES' : 'NO'}`);
+      logger.debug('AppConfig', `--- Phase "${phase.name}" has state: ${phase.state ? 'YES' : 'NO'}`);
       if (phase.state) {
-        console.log(`[appConfig] ---- Volumes: ${JSON.stringify(phase.state.volumes || {})}`);
-        console.log(`[appConfig] ---- ActiveAudio: ${JSON.stringify(phase.state.activeAudio || {})}`);
+        logger.debug('AppConfig', `---- Volumes: ${JSON.stringify(phase.state.volumes || {})}`);
+        logger.debug('AppConfig', `---- ActiveAudio: ${JSON.stringify(phase.state.activeAudio || {})}`);
       }
     });
   }

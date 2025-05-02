@@ -4,6 +4,8 @@
  * @param {Object} deps - Dependencies needed by the function
  * @returns {Function} The handleLoadCollection function
  */
+import logger from '../../services/LoggingService';
+
 export const CollectionLoader = ({
     // State setters
     setPhasesLoaded,
@@ -79,7 +81,7 @@ export const CollectionLoader = ({
         if (formattedCollection.phaseMarkers && Array.isArray(formattedCollection.phaseMarkers)) {
           processAndApplyPhaseMarkers(formattedCollection);
         } else {
-          console.log('[StreamingAudioContext: PHASES] No phase markers in collection config to apply');
+          logger.debug('CollectionLoader', '[PHASES] No phase markers in collection config to apply');
         }
   
         // Load initial tracks for each layer
@@ -101,10 +103,10 @@ export const CollectionLoader = ({
         setCurrentCollection(formattedCollection);
         setCollectionLoadProgress(100);
   
-        console.log(`[StreamingAudioContext: handleLoadCollection] Successfully loaded collection: ${collection.name}`);
+        logger.info('CollectionLoader', `[handleLoadCollection] Successfully loaded collection: ${collection.name}`);
         return true;
       } catch (err) {
-        console.error(`[StreamingAudioContext: handleLoadCollection] Error: ${err.message}`);
+        logger.error('CollectionLoader', `[handleLoadCollection] Error: ${err.message}`);
         setCollectionError(err.message);
         return false;
       } finally {
@@ -119,7 +121,7 @@ export const CollectionLoader = ({
      */
     const validateCollectionId = (collectionId) => {
       if (!collectionId) {
-        console.error('[StreamingAudioContext: handleLoadCollection] No collection ID provided');
+        logger.error('CollectionLoader', '[handleLoadCollection] No collection ID provided');
         return false;
       }
       return true;
@@ -153,11 +155,11 @@ export const CollectionLoader = ({
      * @throws {Error} If collection fetch fails
      */
     const fetchCollectionData = async (collectionId, options) => {
-      console.log(`[StreamingAudioContext: handleLoadCollection] Loading collection: ${collectionId}, autoPlay:`,
-        options.autoPlay === true ? 'true' : 'false');
+      logger.info('CollectionLoader', `[handleLoadCollection] Loading collection: ${collectionId}, autoPlay: ${
+        options.autoPlay === true ? 'true' : 'false'}`);
   
       const result = await collectionService.getCollection(collectionId);
-      console.log('[StreamingAudioContext: handleLoadCollection] Collection result:', {
+      logger.debug('CollectionLoader', '[handleLoadCollection] Collection result:', {
         success: result.success,
         id: result.data?.id,
         idType: typeof result.data?.id,
@@ -172,11 +174,11 @@ export const CollectionLoader = ({
   
       // Validate collection has tracks
       if (!collection.tracks || !Array.isArray(collection.tracks) || collection.tracks.length === 0) {
-        console.error(`[StreamingAudioContext: handleLoadCollection] Collection "${collectionId}" has no tracks`);
+        logger.error('CollectionLoader', `[handleLoadCollection] Collection "${collectionId}" has no tracks`);
         throw new Error(`Collection "${collection.name || collectionId}" has no audio tracks`);
       }
   
-      console.log(`[StreamingAudioContext: handleLoadCollection] Loaded collection: ${collection.name} with ${collection.tracks.length} tracks`);
+      logger.info('CollectionLoader', `[handleLoadCollection] Loaded collection: ${collection.name} with ${collection.tracks.length} tracks`);
   
       return collection;
     };
@@ -188,7 +190,7 @@ export const CollectionLoader = ({
      * @throws {Error} If formatting fails
      */
     const prepareFormattedCollection = async (collection) => {
-      console.log(`[StreamingAudioContext: handleLoadCollection] About to format collection with ID: "${collection.id}" (${typeof collection.id})`);
+      logger.debug('CollectionLoader', `[handleLoadCollection] About to format collection with ID: "${collection.id}" (${typeof collection.id})`);
       // Use applyConfig parameter (defaults to true) to apply collection-specific configuration
       const formattedCollection = collectionService.formatCollectionForPlayer(collection, { applyConfig: true });
   
@@ -201,7 +203,7 @@ export const CollectionLoader = ({
       );
   
       if (!hasAnyTracks) {
-        console.error('[StreamingAudioContext: handleLoadCollection] No tracks found in formatted collection');
+        logger.error('CollectionLoader', '[handleLoadCollection] No tracks found in formatted collection');
         throw new Error('No compatible audio tracks found in this collection');
       }
   
@@ -216,37 +218,37 @@ export const CollectionLoader = ({
      * @param {Object} collection - Collection to log
      */
     const logCollectionConfig = (collection) => {
-      console.log('[StreamingAudioContext: CONFIG] Collection config details for', collection.id);
-      console.log(`[StreamingAudioContext: CONFIG] - Session Duration: ${collection.sessionDuration || 'Not set'}`);
-      console.log(`[StreamingAudioContext: CONFIG] - Transition Duration: ${collection.transitionDuration || 'Not set'}`);
+      logger.debug('CollectionLoader', `[CONFIG] Collection config details for ${collection.id}`);
+      logger.debug('CollectionLoader', `[CONFIG] - Session Duration: ${collection.sessionDuration || 'Not set'}`);
+      logger.debug('CollectionLoader', `[CONFIG] - Transition Duration: ${collection.transitionDuration || 'Not set'}`);
   
       // Log phase marker details
       if (collection.phaseMarkers && collection.phaseMarkers.length > 0) {
-        console.log(`[StreamingAudioContext: CONFIG] - Phase Markers: ${collection.phaseMarkers.length}`);
+        logger.debug('CollectionLoader', `[CONFIG] - Phase Markers: ${collection.phaseMarkers.length}`);
         collection.phaseMarkers.forEach(phase => {
-          console.log(`[StreamingAudioContext: CONFIG] -- Phase "${phase.name}" (id: ${phase.id}):`);
+          logger.debug('CollectionLoader', `[CONFIG] -- Phase "${phase.name}" (id: ${phase.id}):`);
   
           if (phase.state?.volumes) {
-            console.log(`[StreamingAudioContext: CONFIG] --- Volumes: ${JSON.stringify(phase.state.volumes)}`);
+            logger.debug('CollectionLoader', `[CONFIG] --- Volumes: ${JSON.stringify(phase.state.volumes)}`);
           } else {
-            console.log(`[StreamingAudioContext: CONFIG] --- Volumes: None defined`);
+            logger.debug('CollectionLoader', `[CONFIG] --- Volumes: None defined`);
           }
   
           if (phase.state?.activeAudio) {
-            console.log(`[StreamingAudioContext: CONFIG] --- Tracks: ${JSON.stringify(phase.state.activeAudio)}`);
+            logger.debug('CollectionLoader', `[CONFIG] --- Tracks: ${JSON.stringify(phase.state.activeAudio)}`);
           } else {
-            console.log(`[StreamingAudioContext: CONFIG] --- Tracks: None defined`);
+            logger.debug('CollectionLoader', `[CONFIG] --- Tracks: None defined`);
           }
         });
       } else {
-        console.log('[StreamingAudioContext: CONFIG] - No phase markers defined in collection config');
+        logger.debug('CollectionLoader', '[CONFIG] - No phase markers defined in collection config');
       }
   
       // Log default volumes
       if (collection.defaultVolumes) {
-        console.log(`[StreamingAudioContext: CONFIG] - Default Volumes: ${JSON.stringify(collection.defaultVolumes)}`);
+        logger.debug('CollectionLoader', `[CONFIG] - Default Volumes: ${JSON.stringify(collection.defaultVolumes)}`);
       } else {
-        console.log('[StreamingAudioContext: CONFIG] - No default volumes defined in collection config');
+        logger.debug('CollectionLoader', '[CONFIG] - No default volumes defined in collection config');
       }
     };
   
@@ -260,11 +262,11 @@ export const CollectionLoader = ({
   
         // Replace each layer's tracks with the ones from the collection
         Object.entries(formattedCollection.layers).forEach(([layerName, tracks]) => {
-          console.log(`[StreamingAudioContext: handleLoadCollection] Setting ${tracks.length} tracks for ${layerName}`);
+          logger.debug('CollectionLoader', `[handleLoadCollection] Setting ${tracks.length} tracks for ${layerName}`);
   
           // Log the actual track IDs and names for debugging
           tracks.forEach(track => {
-            console.log(`[StreamingAudioContext: handleLoadCollection] Track: ${track.id} (${track.name})`);
+            logger.debug('CollectionLoader', `[handleLoadCollection] Track: ${track.id} (${track.name})`);
           });
   
           // Update this layer in the library
@@ -274,7 +276,7 @@ export const CollectionLoader = ({
         // Also update the reference for immediate access
         audioLibraryRef.current = { ...newLibrary };
   
-        console.log('[StreamingAudioContext: handleLoadCollection] Updated audioLibrary with collection tracks');
+        logger.debug('CollectionLoader', '[handleLoadCollection] Updated audioLibrary with collection tracks');
         return newLibrary;
       });
     };
@@ -285,7 +287,7 @@ export const CollectionLoader = ({
      * @returns {Promise<boolean>} Registration success
      */
     const registerCollectionAudio = async (formattedCollection) => {
-      console.log('[StreamingAudioContext: handleLoadCollection] Registering new collection audio with AudioCore');
+      logger.debug('CollectionLoader', '[handleLoadCollection] Registering new collection audio with AudioCore');
   
       // First, get the audio context and master gain node
       const audioCtx = serviceRef.current.audioCore.getContext();
@@ -302,7 +304,7 @@ export const CollectionLoader = ({
         // Process each track in the layer
         tracks.forEach(track => {
           try {
-            console.log(`[StreamingAudioContext: handleLoadCollection] Creating audio element for ${layerName}/${track.id}`);
+            logger.debug('CollectionLoader', `[handleLoadCollection] Creating audio element for ${layerName}/${track.id}`);
   
             // Create new audio element
             const audioElement = new Audio();
@@ -328,7 +330,7 @@ export const CollectionLoader = ({
             };
   
           } catch (error) {
-            console.error(`[StreamingAudioContext: handleLoadCollection] Error creating audio element for ${track.id}: ${error.message}`);
+            logger.error('CollectionLoader', `[handleLoadCollection] Error creating audio element for ${track.id}: ${error.message}`);
           }
         });
       });
@@ -336,10 +338,10 @@ export const CollectionLoader = ({
       // Register the new audio elements with AudioCore
       if (serviceRef.current.audioCore.registerElements) {
         const registered = serviceRef.current.audioCore.registerElements(newAudioElements);
-        console.log('[StreamingAudioContext: handleLoadCollection] AudioCore registration result:', registered);
+        logger.debug('CollectionLoader', `[handleLoadCollection] AudioCore registration result: ${registered}`);
         return registered;
       } else {
-        console.error('[StreamingAudioContext: handleLoadCollection] AudioCore.registerElements is not defined');
+        logger.error('CollectionLoader', '[handleLoadCollection] AudioCore.registerElements is not defined');
         return false;
       }
     };
@@ -352,286 +354,286 @@ export const CollectionLoader = ({
       // Apply configured session and transition duration
       if (formattedCollection.sessionDuration) {
         handleSetSessionDuration(formattedCollection.sessionDuration);
-        console.log(`[StreamingAudioContext: handleLoadCollection] Set session duration: ${formattedCollection.sessionDuration}ms`);
+        logger.debug('CollectionLoader', `[handleLoadCollection] Set session duration: ${formattedCollection.sessionDuration}ms`);
       }
   
       if (formattedCollection.transitionDuration) {
         handleSetTransitionDuration(formattedCollection.transitionDuration);
-        console.log(`[StreamingAudioContext: handleLoadCollection] Set transition duration: ${formattedCollection.transitionDuration}ms`);
+        logger.debug('CollectionLoader', `[handleLoadCollection] Set transition duration: ${formattedCollection.transitionDuration}ms`);
       }
     };
   
-     /**
-   * Processes and applies phase markers
-   * @param {Object} formattedCollection - Formatted collection
-   */
-  const processAndApplyPhaseMarkers = (formattedCollection) => {
-    console.log(`[StreamingAudioContext: PHASES] Processing ${formattedCollection.phaseMarkers.length} phase markers from collection config`);
+    /**
+  * Processes and applies phase markers
+  * @param {Object} formattedCollection - Formatted collection
+  */
+ const processAndApplyPhaseMarkers = (formattedCollection) => {
+   logger.debug('CollectionLoader', `[PHASES] Processing ${formattedCollection.phaseMarkers.length} phase markers from collection config`);
 
-    // Process each phase marker to ensure track IDs reference actual tracks in the collection
-    const processedPhaseMarkers = formattedCollection.phaseMarkers.map(marker => {
-      // Create a deep clone of the marker
-      const processedMarker = JSON.parse(JSON.stringify(marker));
-      console.log(`[StreamingAudioContext: PHASES] Processing phase "${marker.name}" (${marker.id})`);
+   // Process each phase marker to ensure track IDs reference actual tracks in the collection
+   const processedPhaseMarkers = formattedCollection.phaseMarkers.map(marker => {
+     // Create a deep clone of the marker
+     const processedMarker = JSON.parse(JSON.stringify(marker));
+     logger.debug('CollectionLoader', `[PHASES] Processing phase "${marker.name}" (${marker.id})`);
 
-      // If this phase has state with activeAudio, validate and possibly update track IDs
-      if (processedMarker.state && processedMarker.state.activeAudio) {
-        console.log(`[StreamingAudioContext: PHASES] -- Validating ${Object.keys(processedMarker.state.activeAudio).length} track references`);
+     // If this phase has state with activeAudio, validate and possibly update track IDs
+     if (processedMarker.state && processedMarker.state.activeAudio) {
+       logger.debug('CollectionLoader', `[PHASES] -- Validating ${Object.keys(processedMarker.state.activeAudio).length} track references`);
 
-        // For each layer in the phase's activeAudio
-        Object.entries(processedMarker.state.activeAudio).forEach(([layer, trackId]) => {
-          // Find if this track exists in the collection
-          const layerTracks = formattedCollection.layers[layer];
-          const trackExists = layerTracks && layerTracks.some(t => t.id === trackId);
+       // For each layer in the phase's activeAudio
+       Object.entries(processedMarker.state.activeAudio).forEach(([layer, trackId]) => {
+         // Find if this track exists in the collection
+         const layerTracks = formattedCollection.layers[layer];
+         const trackExists = layerTracks && layerTracks.some(t => t.id === trackId);
 
-          if (!trackExists) {
-            console.warn(`[StreamingAudioContext: PHASES] Phase "${marker.name}" references non-existent track "${trackId}" for layer "${layer}"`);
+         if (!trackExists) {
+           logger.warn('CollectionLoader', `[PHASES] Phase "${marker.name}" references non-existent track "${trackId}" for layer "${layer}"`);
 
-            // If the track doesn't exist, use the first track from the layer instead
-            if (layerTracks && layerTracks.length > 0) {
-              const fallbackTrack = layerTracks[0];
-              console.log(`[StreamingAudioContext: PHASES] Using fallback track "${fallbackTrack.id}" for layer "${layer}" in phase "${marker.name}"`);
-              processedMarker.state.activeAudio[layer] = fallbackTrack.id;
-            } else {
-              // If there are no tracks in this layer, remove the entry
-              delete processedMarker.state.activeAudio[layer];
-              console.log(`[StreamingAudioContext: PHASES] Removed entry for layer "${layer}" in phase "${marker.name}" - no tracks available`);
-            }
-          } else {
-            console.log(`[StreamingAudioContext: PHASES] -- Valid track reference: ${layer}/${trackId}`);
-          }
-        });
-      } else {
-        console.log(`[StreamingAudioContext: PHASES] -- No activeAudio state for phase "${marker.name}"`);
-      }
+           // If the track doesn't exist, use the first track from the layer instead
+           if (layerTracks && layerTracks.length > 0) {
+             const fallbackTrack = layerTracks[0];
+             logger.debug('CollectionLoader', `[PHASES] Using fallback track "${fallbackTrack.id}" for layer "${layer}" in phase "${marker.name}"`);
+             processedMarker.state.activeAudio[layer] = fallbackTrack.id;
+           } else {
+             // If there are no tracks in this layer, remove the entry
+             delete processedMarker.state.activeAudio[layer];
+             logger.debug('CollectionLoader', `[PHASES] Removed entry for layer "${layer}" in phase "${marker.name}" - no tracks available`);
+           }
+         } else {
+           logger.debug('CollectionLoader', `[PHASES] -- Valid track reference: ${layer}/${trackId}`);
+         }
+       });
+     } else {
+       logger.debug('CollectionLoader', `[PHASES] -- No activeAudio state for phase "${marker.name}"`);
+     }
 
-      return processedMarker;
-    });
+     return processedMarker;
+   });
 
-    // Log processed phase markers
-    logProcessedPhaseMarkers(processedPhaseMarkers);
+   // Log processed phase markers
+   logProcessedPhaseMarkers(processedPhaseMarkers);
 
-    // Update timeline phases with the processed markers
-    console.log('[StreamingAudioContext: PHASES] Calling handleUpdateTimelinePhases with processed markers');
-    handleUpdateTimelinePhases(processedPhaseMarkers);
-    console.log(`[StreamingAudioContext: PHASES] Timeline phases updated. Check if these appear in SessionTimeline component.`);
-  };
+   // Update timeline phases with the processed markers
+   logger.debug('CollectionLoader', '[PHASES] Calling handleUpdateTimelinePhases with processed markers');
+   handleUpdateTimelinePhases(processedPhaseMarkers);
+   logger.debug('CollectionLoader', `[PHASES] Timeline phases updated. Check if these appear in SessionTimeline component.`);
+ };
 
-  /**
-   * Logs processed phase marker information
-   * @param {Array} phaseMarkers - Processed phase markers
-   */
-  const logProcessedPhaseMarkers = (phaseMarkers) => {
-    console.log(`[StreamingAudioContext: PHASES] Final processed phase markers (${phaseMarkers.length}):`);
-    phaseMarkers.forEach(phase => {
-      console.log(`[StreamingAudioContext: PHASES] - Phase "${phase.name}" (${phase.id}) at position ${phase.position}%`);
-      if (phase.state) {
-        if (phase.state.volumes) {
-          console.log(`[StreamingAudioContext: PHASES] -- Volumes: ${JSON.stringify(phase.state.volumes)}`);
-        }
-        if (phase.state.activeAudio) {
-          console.log(`[StreamingAudioContext: PHASES] -- Tracks: ${JSON.stringify(phase.state.activeAudio)}`);
-        }
-      } else {
-        console.log(`[StreamingAudioContext: PHASES] -- No state data defined`);
-      }
-    });
-  };
+ /**
+  * Logs processed phase marker information
+  * @param {Array} phaseMarkers - Processed phase markers
+  */
+ const logProcessedPhaseMarkers = (phaseMarkers) => {
+   logger.debug('CollectionLoader', `[PHASES] Final processed phase markers (${phaseMarkers.length}):`);
+   phaseMarkers.forEach(phase => {
+     logger.debug('CollectionLoader', `[PHASES] - Phase "${phase.name}" (${phase.id}) at position ${phase.position}%`);
+     if (phase.state) {
+       if (phase.state.volumes) {
+         logger.debug('CollectionLoader', `[PHASES] -- Volumes: ${JSON.stringify(phase.state.volumes)}`);
+       }
+       if (phase.state.activeAudio) {
+         logger.debug('CollectionLoader', `[PHASES] -- Tracks: ${JSON.stringify(phase.state.activeAudio)}`);
+       }
+     } else {
+       logger.debug('CollectionLoader', `[PHASES] -- No state data defined`);
+     }
+   });
+ };
 
-  /**
-   * Loads initial tracks for each layer
-   * @param {Object} formattedCollection - Formatted collection
-   * @param {Object} options - Loading options
-   * @returns {Promise<Object>} Map of loaded layers
-   */
-  const loadInitialTracks = async (formattedCollection, options) => {
-    const loadedLayers = {};
-    const initialPhaseState = getInitialPhaseState(formattedCollection);
-    
-    console.log('[StreamingAudioContext: LAYERS] Begin loading tracks for each layer');
-    
-    for (const [layerFolder, tracks] of Object.entries(formattedCollection.layers)) {
-      if (!tracks || tracks.length === 0) {
-        console.log(`[StreamingAudioContext: LAYERS] No tracks for layer: ${layerFolder}`);
-        continue;
-      }
+ /**
+  * Loads initial tracks for each layer
+  * @param {Object} formattedCollection - Formatted collection
+  * @param {Object} options - Loading options
+  * @returns {Promise<Object>} Map of loaded layers
+  */
+ const loadInitialTracks = async (formattedCollection, options) => {
+   const loadedLayers = {};
+   const initialPhaseState = getInitialPhaseState(formattedCollection);
+   
+   logger.debug('CollectionLoader', '[LAYERS] Begin loading tracks for each layer');
+   
+   for (const [layerFolder, tracks] of Object.entries(formattedCollection.layers)) {
+     if (!tracks || tracks.length === 0) {
+       logger.debug('CollectionLoader', `[LAYERS] No tracks for layer: ${layerFolder}`);
+       continue;
+     }
 
-      try {
-        // Determine track to load and volume
-        const { trackToLoad, trackSource, initialVolume, volumeSource } = determineTrackAndVolume(
-          layerFolder, tracks, initialPhaseState, formattedCollection, options
-        );
+     try {
+       // Determine track to load and volume
+       const { trackToLoad, trackSource, initialVolume, volumeSource } = determineTrackAndVolume(
+         layerFolder, tracks, initialPhaseState, formattedCollection, options
+       );
 
-        console.log(`[StreamingAudioContext: LAYERS] Layer ${layerFolder} final setup: 
-          track=${trackToLoad.id} (from ${trackSource}), 
-          volume=${initialVolume} (from ${volumeSource})`);
+       logger.debug('CollectionLoader', `[LAYERS] Layer ${layerFolder} final setup: 
+         track=${trackToLoad.id} (from ${trackSource}), 
+         volume=${initialVolume} (from ${volumeSource})`);
 
-        // Set volume for layer
-        layerManager.setVolume(layerFolder, initialVolume, { immediate: true });
+       // Set volume for layer
+       layerManager.setVolume(layerFolder, initialVolume, { immediate: true });
 
-        // Load the track
-        await layerManager.crossfadeTo(layerFolder, trackToLoad.id, 100);
+       // Load the track
+       await layerManager.crossfadeTo(layerFolder, trackToLoad.id, 100);
 
-        // Track successful load
-        loadedLayers[layerFolder] = trackToLoad.id;
-        console.log(`[StreamingAudioContext: LAYERS] Successfully loaded layer ${layerFolder}: ${trackToLoad.id} at volume ${initialVolume}`);
-      } catch (layerError) {
-        console.error(`[StreamingAudioContext: LAYERS] Error loading ${layerFolder}: ${layerError.message}`);
-      }
-    }
-    
-    return loadedLayers;
-  };
+       // Track successful load
+       loadedLayers[layerFolder] = trackToLoad.id;
+       logger.debug('CollectionLoader', `[LAYERS] Successfully loaded layer ${layerFolder}: ${trackToLoad.id} at volume ${initialVolume}`);
+     } catch (layerError) {
+       logger.error('CollectionLoader', `[LAYERS] Error loading ${layerFolder}: ${layerError.message}`);
+     }
+   }
+   
+   return loadedLayers;
+ };
 
-  /**
-   * Gets initial phase state if available
-   * @param {Object} formattedCollection - Formatted collection
-   * @returns {Object|null} Initial phase state or null
-   */
-  const getInitialPhaseState = (formattedCollection) => {
-    if (formattedCollection.phaseMarkers && formattedCollection.phaseMarkers.length > 0) {
-      // Find the pre-onset phase (usually the first one)
-      const initialPhase = formattedCollection.phaseMarkers.find(p => p.id === 'pre-onset') ||
-        formattedCollection.phaseMarkers[0];
+ /**
+  * Gets initial phase state if available
+  * @param {Object} formattedCollection - Formatted collection
+  * @returns {Object|null} Initial phase state or null
+  */
+ const getInitialPhaseState = (formattedCollection) => {
+   if (formattedCollection.phaseMarkers && formattedCollection.phaseMarkers.length > 0) {
+     // Find the pre-onset phase (usually the first one)
+     const initialPhase = formattedCollection.phaseMarkers.find(p => p.id === 'pre-onset') ||
+       formattedCollection.phaseMarkers[0];
 
-      if (initialPhase && initialPhase.state) {
-        console.log(`[StreamingAudioContext: INITIAL_STATE] Found initial phase state: ${initialPhase.id}`);
-        console.log(`[StreamingAudioContext: INITIAL_STATE] - Phase name: ${initialPhase.name}`);
+     if (initialPhase && initialPhase.state) {
+       logger.debug('CollectionLoader', `[INITIAL_STATE] Found initial phase state: ${initialPhase.id}`);
+       logger.debug('CollectionLoader', `[INITIAL_STATE] - Phase name: ${initialPhase.name}`);
 
-        if (initialPhase.state.volumes) {
-          console.log(`[StreamingAudioContext: INITIAL_STATE] - Volumes: ${JSON.stringify(initialPhase.state.volumes)}`);
-        }
+       if (initialPhase.state.volumes) {
+         logger.debug('CollectionLoader', `[INITIAL_STATE] - Volumes: ${JSON.stringify(initialPhase.state.volumes)}`);
+       }
 
-        if (initialPhase.state.activeAudio) {
-          console.log(`[StreamingAudioContext: INITIAL_STATE] - Tracks: ${JSON.stringify(initialPhase.state.activeAudio)}`);
-        }
+       if (initialPhase.state.activeAudio) {
+         logger.debug('CollectionLoader', `[INITIAL_STATE] - Tracks: ${JSON.stringify(initialPhase.state.activeAudio)}`);
+       }
 
-        return initialPhase.state;
-      } else {
-        console.log(`[StreamingAudioContext: INITIAL_STATE] Found phase ${initialPhase.id} but it has no state data`);
-      }
-    } else {
-      console.log(`[StreamingAudioContext: INITIAL_STATE] No phase markers found in collection`);
-    }
-    return null;
-  };
+       return initialPhase.state;
+     } else {
+       logger.debug('CollectionLoader', `[INITIAL_STATE] Found phase ${initialPhase.id} but it has no state data`);
+     }
+   } else {
+     logger.debug('CollectionLoader', `[INITIAL_STATE] No phase markers found in collection`);
+   }
+   return null;
+ };
 
-  /**
-   * Determines which track to load and what volume to use
-   * @param {string} layerFolder - Layer name
-   * @param {Array} tracks - Available tracks
-   * @param {Object|null} initialPhaseState - Initial phase state
-   * @param {Object} formattedCollection - Formatted collection
-   * @param {Object} options - Loading options
-   * @returns {Object} Track and volume information
-   */
-  const determineTrackAndVolume = (layerFolder, tracks, initialPhaseState, formattedCollection, options) => {
-    // Determine which track to load in order of precedence
-    let trackToLoad;
-    let trackSource = "default";
+ /**
+  * Determines which track to load and what volume to use
+  * @param {string} layerFolder - Layer name
+  * @param {Array} tracks - Available tracks
+  * @param {Object|null} initialPhaseState - Initial phase state
+  * @param {Object} formattedCollection - Formatted collection
+  * @param {Object} options - Loading options
+  * @returns {Object} Track and volume information
+  */
+ const determineTrackAndVolume = (layerFolder, tracks, initialPhaseState, formattedCollection, options) => {
+   // Determine which track to load in order of precedence
+   let trackToLoad;
+   let trackSource = "default";
 
-    // Check initial phase state first
-    if (initialPhaseState?.activeAudio && initialPhaseState.activeAudio[layerFolder]) {
-      const phaseTrackId = initialPhaseState.activeAudio[layerFolder];
-      const phaseTrack = findTrackById(tracks, phaseTrackId);
+   // Check initial phase state first
+   if (initialPhaseState?.activeAudio && initialPhaseState.activeAudio[layerFolder]) {
+     const phaseTrackId = initialPhaseState.activeAudio[layerFolder];
+     const phaseTrack = findTrackById(tracks, phaseTrackId);
 
-      if (phaseTrack) {
-        trackToLoad = phaseTrack;
-        trackSource = "phase state";
-        console.log(`[StreamingAudioContext: LAYERS] Using initial phase track for ${layerFolder}: ${trackToLoad.id}`);
-      } else {
-        console.log(`[StreamingAudioContext: LAYERS] Phase state specified track ${phaseTrackId} for ${layerFolder} but it wasn't found`);
-      }
-    }
+     if (phaseTrack) {
+       trackToLoad = phaseTrack;
+       trackSource = "phase state";
+       logger.debug('CollectionLoader', `[LAYERS] Using initial phase track for ${layerFolder}: ${trackToLoad.id}`);
+     } else {
+       logger.debug('CollectionLoader', `[LAYERS] Phase state specified track ${phaseTrackId} for ${layerFolder} but it wasn't found`);
+     }
+   }
 
-    // If no track from phase state, check collection defaultActiveAudio
-    if (!trackToLoad && formattedCollection.defaultActiveAudio && formattedCollection.defaultActiveAudio[layerFolder]) {
-      const configTrackId = formattedCollection.defaultActiveAudio[layerFolder];
-      const configTrack = findTrackById(tracks, configTrackId);
+   // If no track from phase state, check collection defaultActiveAudio
+   if (!trackToLoad && formattedCollection.defaultActiveAudio && formattedCollection.defaultActiveAudio[layerFolder]) {
+     const configTrackId = formattedCollection.defaultActiveAudio[layerFolder];
+     const configTrack = findTrackById(tracks, configTrackId);
 
-      if (configTrack) {
-        trackToLoad = configTrack;
-        trackSource = "collection config";
-        console.log(`[StreamingAudioContext: LAYERS] Using configured track for ${layerFolder}: ${trackToLoad.id}`);
-      } else {
-        console.log(`[StreamingAudioContext: LAYERS] Config specified track ${configTrackId} for ${layerFolder} but it wasn't found`);
-      }
-    }
+     if (configTrack) {
+       trackToLoad = configTrack;
+       trackSource = "collection config";
+       logger.debug('CollectionLoader', `[LAYERS] Using configured track for ${layerFolder}: ${trackToLoad.id}`);
+     } else {
+       logger.debug('CollectionLoader', `[LAYERS] Config specified track ${configTrackId} for ${layerFolder} but it wasn't found`);
+     }
+   }
 
-    // Fall back to first track if needed
-    if (!trackToLoad) {
-      trackToLoad = tracks[0];
-      trackSource = "fallback";
-      console.log(`[StreamingAudioContext: LAYERS] Using first track for ${layerFolder}: ${trackToLoad.id} (fallback)`);
-    }
+   // Fall back to first track if needed
+   if (!trackToLoad) {
+     trackToLoad = tracks[0];
+     trackSource = "fallback";
+     logger.debug('CollectionLoader', `[LAYERS] Using first track for ${layerFolder}: ${trackToLoad.id} (fallback)`);
+   }
 
-    // Determine volume to use in order of precedence
-    let initialVolume;
-    let volumeSource;
+   // Determine volume to use in order of precedence
+   let initialVolume;
+   let volumeSource;
 
-    // Use initial phase state volumes if available
-    if (initialPhaseState?.volumes && initialPhaseState.volumes[layerFolder] !== undefined) {
-      initialVolume = initialPhaseState.volumes[layerFolder];
-      volumeSource = "phase state";
-      console.log(`[StreamingAudioContext: LAYERS] Using volume from phase state for ${layerFolder}: ${initialVolume}`);
-    }
-    // Try collection default volumes
-    else if (formattedCollection.defaultVolumes && formattedCollection.defaultVolumes[layerFolder] !== undefined) {
-      initialVolume = formattedCollection.defaultVolumes[layerFolder];
-      volumeSource = "collection config";
-      console.log(`[StreamingAudioContext: LAYERS] Using volume from collection config for ${layerFolder}: ${initialVolume}`);
-    }
-    // Fall back to options or default
-    else {
-      initialVolume = options.initialVolumes?.[layerFolder] !== undefined
-        ? options.initialVolumes[layerFolder]
-        : layerFolder === 'Layer 1' ? 0.6 : 0;
-      volumeSource = options.initialVolumes?.[layerFolder] !== undefined ? "options" : "fallback";
-      console.log(`[StreamingAudioContext: LAYERS] Using ${volumeSource} volume for ${layerFolder}: ${initialVolume}`);
-    }
+   // Use initial phase state volumes if available
+   if (initialPhaseState?.volumes && initialPhaseState.volumes[layerFolder] !== undefined) {
+     initialVolume = initialPhaseState.volumes[layerFolder];
+     volumeSource = "phase state";
+     logger.debug('CollectionLoader', `[LAYERS] Using volume from phase state for ${layerFolder}: ${initialVolume}`);
+   }
+   // Try collection default volumes
+   else if (formattedCollection.defaultVolumes && formattedCollection.defaultVolumes[layerFolder] !== undefined) {
+     initialVolume = formattedCollection.defaultVolumes[layerFolder];
+     volumeSource = "collection config";
+     logger.debug('CollectionLoader', `[LAYERS] Using volume from collection config for ${layerFolder}: ${initialVolume}`);
+   }
+   // Fall back to options or default
+   else {
+     initialVolume = options.initialVolumes?.[layerFolder] !== undefined
+       ? options.initialVolumes[layerFolder]
+       : layerFolder === 'Layer 1' ? 0.6 : 0;
+     volumeSource = options.initialVolumes?.[layerFolder] !== undefined ? "options" : "fallback";
+     logger.debug('CollectionLoader', `[LAYERS] Using ${volumeSource} volume for ${layerFolder}: ${initialVolume}`);
+   }
 
-    return { trackToLoad, trackSource, initialVolume, volumeSource };
-  };
+   return { trackToLoad, trackSource, initialVolume, volumeSource };
+ };
 
-  /**
-   * Finds a track by ID within an array of tracks
-   * @param {Array} tracks - Array of tracks to search
-   * @param {string} trackId - ID to find
-   * @returns {Object|undefined} Found track or undefined
-   */
-  const findTrackById = (tracks, trackId) => {
-    return tracks.find(t => t.id === trackId);
-  };
+ /**
+  * Finds a track by ID within an array of tracks
+  * @param {Array} tracks - Array of tracks to search
+  * @param {string} trackId - ID to find
+  * @returns {Object|undefined} Found track or undefined
+  */
+ const findTrackById = (tracks, trackId) => {
+   return tracks.find(t => t.id === trackId);
+ };
 
-  /**
-   * Logs summary information about loaded layers
-   * @param {Object} loadedLayers - Map of loaded layers
-   */
-  const logLoadingSummary = (loadedLayers) => {
-    console.log(`[StreamingAudioContext: SUMMARY] Successfully loaded ${Object.keys(loadedLayers).length} layers with tracks`);
-    console.log(`[StreamingAudioContext: SUMMARY] Loaded layers: ${JSON.stringify(loadedLayers)}`);
-    console.log(`[StreamingAudioContext: SUMMARY] Final volumes: ${JSON.stringify(volumes)}`);
-  };
+ /**
+  * Logs summary information about loaded layers
+  * @param {Object} loadedLayers - Map of loaded layers
+  */
+ const logLoadingSummary = (loadedLayers) => {
+   logger.info('CollectionLoader', `[SUMMARY] Successfully loaded ${Object.keys(loadedLayers).length} layers with tracks`);
+   logger.debug('CollectionLoader', `[SUMMARY] Loaded layers: ${JSON.stringify(loadedLayers)}`);
+   logger.debug('CollectionLoader', `[SUMMARY] Final volumes: ${JSON.stringify(volumes)}`);
+ };
 
-  /**
-   * Handles auto-play if requested
-   * @param {boolean} shouldAutoPlay - Whether to auto-play
-   */
-  const handleAutoPlay = (shouldAutoPlay) => {
-    // Only auto-start playback if specifically requested
-    const autoPlay = shouldAutoPlay === true;
-    console.log(`[StreamingAudioContext: handleLoadCollection] Auto-play is ${autoPlay ? 'ENABLED' : 'DISABLED'}`);
+ /**
+  * Handles auto-play if requested
+  * @param {boolean} shouldAutoPlay - Whether to auto-play
+  */
+ const handleAutoPlay = (shouldAutoPlay) => {
+   // Only auto-start playback if specifically requested
+   const autoPlay = shouldAutoPlay === true;
+   logger.debug('CollectionLoader', `[handleLoadCollection] Auto-play is ${autoPlay ? 'ENABLED' : 'DISABLED'}`);
 
-    if (autoPlay) {
-      console.log('[StreamingAudioContext: handleLoadCollection] Auto-starting playback as requested');
-      handleStartSession();
-    } else {
-      console.log('[StreamingAudioContext: handleLoadCollection] Playback not auto-started, waiting for user action');
-    }
-  };
+   if (autoPlay) {
+     logger.info('CollectionLoader', '[handleLoadCollection] Auto-starting playback as requested');
+     handleStartSession();
+   } else {
+     logger.debug('CollectionLoader', '[handleLoadCollection] Playback not auto-started, waiting for user action');
+   }
+ };
 
-  // Return the main load collection function
-  return handleLoadCollection;
+ // Return the main load collection function
+ return handleLoadCollection;
 };
 
 // Export the factory function

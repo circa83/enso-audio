@@ -2,6 +2,7 @@
  * AudioCore.js
  * Core service for managing Web Audio API context and master output
  */
+import logger from '../../services/LoggingService';
 
 class AudioCore {
   /**
@@ -28,6 +29,8 @@ class AudioCore {
 
     // Bound methods to maintain context
     this._handleUserInteraction = this._handleUserInteraction.bind(this);
+
+    logger.debug('AudioCore', 'Instance created with options:', this.options);
   }
 
   /**
@@ -37,14 +40,14 @@ class AudioCore {
   async initialize() {
     try {
       if (this._initialized) {
-        console.log('AudioCore already initialized');
+        logger.info('AudioCore', 'Already initialized');
         return true;
       }
 
-      console.log('Initializing AudioCore...');
+      logger.info('AudioCore', 'Initializing audio system...');
 
       if (typeof window === 'undefined') {
-        console.error('AudioCore: Window is not defined (server-side rendering)');
+        logger.error('AudioCore', 'Window is not defined (server-side rendering)');
         return false;
       }
 
@@ -52,7 +55,7 @@ class AudioCore {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
 
       if (!AudioContext) {
-        console.error('AudioCore: Web Audio API not supported in this browser');
+        logger.error('AudioCore', 'Web Audio API not supported in this browser');
         return false;
       }
 
@@ -77,10 +80,10 @@ class AudioCore {
       this._initialized = true;
       this._suspended = this._context.state === 'suspended';
 
-      console.log(`AudioCore initialized. Context state: ${this._context.state}`);
+      logger.info('AudioCore', `Initialized. Context state: ${this._context.state}`);
       return true;
     } catch (error) {
-      console.error('AudioCore: Initialization failed:', error);
+      logger.error('AudioCore', 'Initialization failed:', error);
       return false;
     }
   }
@@ -116,7 +119,7 @@ class AudioCore {
    */
   setMasterVolume(level) {
     if (!this._initialized || !this._masterGain) {
-      console.error('AudioCore: Cannot set volume, not initialized');
+      logger.error('AudioCore', 'Cannot set volume, not initialized');
       return false;
     }
 
@@ -129,14 +132,14 @@ class AudioCore {
       this._masterGain.gain.setTargetAtTime(safeLevel, now, 0.01);
       return true;
     } catch (error) {
-      console.error('AudioCore: Error setting master volume:', error);
+      logger.error('AudioCore', 'Error setting master volume:', error);
 
       // Fallback to immediate value change
       try {
         this._masterGain.gain.value = safeLevel;
         return true;
       } catch (e) {
-        console.error('AudioCore: Fallback volume setting failed:', e);
+        logger.error('AudioCore', 'Fallback volume setting failed:', e);
         return false;
       }
     }
@@ -159,24 +162,24 @@ class AudioCore {
    */
   async resume() {
     if (!this._initialized || !this._context) {
-      console.error('AudioCore: Cannot resume, not initialized');
+      logger.error('AudioCore', 'Cannot resume, not initialized');
       return false;
     }
 
     // Only attempt resume if suspended
     if (this._context.state === 'suspended') {
       try {
-        console.log('AudioCore: Attempting to resume context from state:', this._context.state);
+        logger.debug('AudioCore', 'Attempting to resume context from state:', this._context.state);
         await this._context.resume();
         this._suspended = false;
-        console.log('AudioCore: Context resumed successfully, new state:', this._context.state);
+        logger.info('AudioCore', 'Context resumed successfully, new state:', this._context.state);
         return true;
       } catch (error) {
-        console.error('AudioCore: Failed to resume context:', error);
+        logger.error('AudioCore', 'Failed to resume context:', error);
         return false;
       }
     } else {
-      console.log('AudioCore: Context already running, state:', this._context.state);
+      logger.debug('AudioCore', 'Context already running, state:', this._context.state);
     }
 
     return true;
@@ -188,7 +191,7 @@ class AudioCore {
    */
   async suspend() {
     if (!this._initialized || !this._context) {
-      console.error('AudioCore: Cannot suspend, not initialized');
+      logger.error('AudioCore', 'Cannot suspend, not initialized');
       return false;
     }
 
@@ -197,10 +200,10 @@ class AudioCore {
       try {
         await this._context.suspend();
         this._suspended = true;
-        console.log('AudioCore: Context suspended');
+        logger.info('AudioCore', 'Context suspended');
         return true;
       } catch (error) {
-        console.error('AudioCore: Failed to suspend context:', error);
+        logger.error('AudioCore', 'Failed to suspend context:', error);
         return false;
       }
     }
@@ -226,11 +229,11 @@ class AudioCore {
    */
   registerElements(elements) {
     if (!elements || typeof elements !== 'object') {
-      console.error('AudioCore: Invalid elements provided to registerElements');
+      logger.error('AudioCore', 'Invalid elements provided to registerElements');
       return false;
     }
 
-    console.log('AudioCore: Registering audio elements:',
+    logger.info('AudioCore', 'Registering audio elements:',
       Object.keys(elements).map(layer => {
         const trackIds = Object.keys(elements[layer] || {});
         return `${layer}: ${trackIds.join(', ')}`;
@@ -243,19 +246,19 @@ class AudioCore {
   }
 
   /**
-* Update a single audio element
-* @param {string} layer - Layer identifier
-* @param {string} trackId - Track identifier
-* @param {Object} elementData - Audio element data
-* @returns {boolean} Success status
-*/
+   * Update a single audio element
+   * @param {string} layer - Layer identifier
+   * @param {string} trackId - Track identifier
+   * @param {Object} elementData - Audio element data
+   * @returns {boolean} Success status
+   */
   updateElement(layer, trackId, elementData) {
     if (!layer || !trackId || !elementData) {
-      console.error('AudioCore: Invalid parameters for updateElement');
+      logger.error('AudioCore', 'Invalid parameters for updateElement');
       return false;
     }
 
-    console.log(`AudioCore: Updating element for ${layer}/${trackId}`);
+    logger.debug('AudioCore', `Updating element for ${layer}/${trackId}`);
 
     // Initialize layer if it doesn't exist
     if (!this._audioElements[layer]) {
@@ -266,7 +269,7 @@ class AudioCore {
     this._audioElements[layer][trackId] = elementData;
 
     // Log current state after update for debugging
-    console.log('AudioCore: Current audio elements after update:',
+    logger.trace('AudioCore', 'Current audio elements after update:',
       Object.keys(this._audioElements).map(layer => {
         const trackIds = Object.keys(this._audioElements[layer] || {});
         return `${layer}: ${trackIds.join(', ')}`;
@@ -281,7 +284,7 @@ class AudioCore {
    * @returns {Object} Map of audio elements by layer and track ID
    */
   getElements() {
-    console.log('AudioCore: getElements called, returning:',
+    logger.debug('AudioCore', 'getElements called, returning:',
       Object.keys(this._audioElements).map(layer =>
         `${layer}: ${Object.keys(this._audioElements[layer] || {}).join(', ')}`
       )
@@ -315,9 +318,9 @@ class AudioCore {
    */
   _handleUserInteraction(event) {
     if (this._suspended && this._context) {
-      console.log('AudioCore: User interaction detected, attempting to resume');
+      logger.debug('AudioCore', 'User interaction detected, attempting to resume');
       this.resume().catch(err => {
-        console.warn('AudioCore: Could not resume on user interaction:', err);
+        logger.warn('AudioCore', 'Could not resume on user interaction:', err);
       });
     }
   }
@@ -336,7 +339,7 @@ class AudioCore {
     // Close the audio context if it exists
     if (this._context && typeof this._context.close === 'function') {
       this._context.close().catch(err => {
-        console.warn('AudioCore: Error closing audio context:', err);
+        logger.warn('AudioCore', 'Error closing audio context:', err);
       });
     }
 
@@ -348,7 +351,7 @@ class AudioCore {
     this._suspended = true;
     this._audioElements = {};
 
-    console.log('AudioCore: Cleanup complete');
+    logger.info('AudioCore', 'Cleanup complete');
   }
 }
 

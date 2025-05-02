@@ -5,6 +5,7 @@
  * Handles creation and coordination of gain nodes for seamless transitions
  * Tracks transition progress and provides status updates
  */
+import logger from '../../services/LoggingService';
 
 class CrossfadeEngine {
     /**
@@ -42,7 +43,7 @@ class CrossfadeEngine {
       this.crossfadeProgress = new Map(); // Maps layer name to progress (0-1)
       this.crossfadeTimers = new Map(); // Maps layer name to interval timer ID
       
-      this.log('CrossfadeEngine initialized');
+      this.logInfo('CrossfadeEngine initialized');
     }
     
     /**
@@ -74,11 +75,11 @@ class CrossfadeEngine {
       } = options;
       
       if (!layer || !sourceNode || !targetNode) {
-        this.log(`Invalid crossfade parameters for layer ${layer}`, 'error');
+        this.logError(`Invalid crossfade parameters for layer ${layer}`);
         return false;
       }
       
-      this.log(`Starting crossfade for ${layer}, duration: ${duration}ms`);
+      this.logInfo(`Starting crossfade for ${layer}, duration: ${duration}ms`);
       
       // Cancel any existing crossfade for this layer
       this.cancelCrossfade(layer);
@@ -105,14 +106,14 @@ class CrossfadeEngine {
           targetNode.disconnect();
           targetNode.connect(fadeInGain);
         } catch (error) {
-          this.log(`Error connecting audio graph: ${error.message}`, 'error');
+          this.logError(`Error connecting audio graph: ${error.message}`);
           
           // Recovery - attempt to restore connections
           try {
             sourceNode.connect(this.destination);
             targetNode.connect(this.destination);
           } catch (e) {
-            this.log(`Recovery failed: ${e.message}`, 'error');
+            this.logError(`Recovery failed: ${e.message}`);
           }
           
           return false;
@@ -130,9 +131,9 @@ class CrossfadeEngine {
             
             // Set target element's time position
             targetElement.currentTime = relativePosition * targetDuration;
-            this.log(`Synced playback position at ${Math.round(relativePosition * 100)}%`);
+            this.logInfo(`Synced playback position at ${Math.round(relativePosition * 100)}%`);
           } catch (error) {
-            this.log(`Error syncing playback position: ${error.message}`, 'warn');
+            this.logWarn(`Error syncing playback position: ${error.message}`);
             // Continue with crossfade anyway
           }
         }
@@ -141,9 +142,9 @@ class CrossfadeEngine {
         if (targetElement && targetElement.paused) {
           try {
             await targetElement.play()
-              .catch(e => this.log(`Error playing target: ${e.message}`, 'error'));
+              .catch(e => this.logError(`Error playing target: ${e.message}`));
           } catch (error) {
-            this.log(`Error starting playback: ${error.message}`, 'error');
+            this.logError(`Error starting playback: ${error.message}`);
             // Continue with crossfade despite error
           }
         }
@@ -165,7 +166,7 @@ class CrossfadeEngine {
           fadeInGain.gain.setValueAtTime(0.001, now);
           fadeInGain.gain.linearRampToValueAtTime(currentVolume, endTime);
         } catch (error) {
-          this.log(`Error scheduling gain ramps: ${error.message}`, 'error');
+          this.logError(`Error scheduling gain ramps: ${error.message}`);
           
           // Recovery - immediately set final values
           fadeOutGain.gain.value = 0;
@@ -233,7 +234,7 @@ class CrossfadeEngine {
         return crossfadePromise;
         
       } catch (error) {
-        this.log(`Crossfade error: ${error.message}`, 'error');
+        this.logError(`Crossfade error: ${error.message}`);
         
         // Clean up any partial crossfade state
         this.cancelCrossfade(layer);
@@ -262,7 +263,7 @@ class CrossfadeEngine {
         return false;
       }
       
-      this.log(`Cancelling crossfade for ${layer}`);
+      this.logInfo(`Cancelling crossfade for ${layer}`);
       
       // Get the crossfade info
       const crossfade = this.activeCrossfades.get(layer);
@@ -289,7 +290,7 @@ class CrossfadeEngine {
             crossfade.sourceNode.disconnect();
             crossfade.sourceNode.connect(this.destination);
           } catch (e) {
-            this.log(`Error reconnecting source: ${e.message}`, 'warn');
+            this.logWarn(`Error reconnecting source: ${e.message}`);
           }
         }
         
@@ -298,11 +299,11 @@ class CrossfadeEngine {
             crossfade.targetNode.disconnect();
             crossfade.targetNode.connect(this.destination);
           } catch (e) {
-            this.log(`Error reconnecting target: ${e.message}`, 'warn');
+            this.logWarn(`Error reconnecting target: ${e.message}`);
           }
         }
       } catch (error) {
-        this.log(`Error during crossfade cancellation: ${error.message}`, 'error');
+        this.logError(`Error during crossfade cancellation: ${error.message}`);
       }
       
       // Clean up state
@@ -320,7 +321,7 @@ class CrossfadeEngine {
      * @param {Object} crossfade - Crossfade information
      */
     _completeCrossfade(layer, crossfade) {
-      this.log(`Completing crossfade for ${layer}`);
+      this.logInfo(`Completing crossfade for ${layer}`);
       
       try {
         // Stop source element if provided
@@ -328,7 +329,7 @@ class CrossfadeEngine {
           try {
             crossfade.sourceElement.pause();
           } catch (e) {
-            this.log(`Error pausing source: ${e.message}`, 'warn');
+            this.logWarn(`Error pausing source: ${e.message}`);
           }
         }
         
@@ -361,7 +362,7 @@ class CrossfadeEngine {
               crossfade.targetNode.gain.value = crossfade.currentVolume;
             }
           } catch (e) {
-            this.log(`Error reconnecting target: ${e.message}`, 'warn');
+            this.logWarn(`Error reconnecting target: ${e.message}`);
           }
         }
         
@@ -369,10 +370,10 @@ class CrossfadeEngine {
         this.activeCrossfades.delete(layer);
         this.crossfadeProgress.set(layer, 0);
         
-        this.log(`Crossfade complete for ${layer}`);
+        this.logInfo(`Crossfade complete for ${layer}`);
         
       } catch (error) {
-        this.log(`Error during crossfade completion: ${error.message}`, 'error');
+        this.logError(`Error during crossfade completion: ${error.message}`);
       }
     }
     
@@ -488,34 +489,52 @@ class CrossfadeEngine {
         
         return true;
       } catch (error) {
-        this.log(`Error adjusting crossfade volume: ${error.message}`, 'error');
+        this.logError(`Error adjusting crossfade volume: ${error.message}`);
         return false;
       }
     }
     
     /**
-     * Logging helper that respects configuration
-     * 
+     * Log a debug message
      * @private
      * @param {string} message - Message to log
-     * @param {string} [level='info'] - Log level
      */
-    log(message, level = 'info') {
-      if (!this.config.enableLogging) return;
-      
-      const prefix = '[CrossfadeEngine]';
-      
-      switch (level) {
-        case 'error':
-          console.error(`${prefix} ${message}`);
-          break;
-        case 'warn':
-          console.warn(`${prefix} ${message}`);
-          break;
-        case 'info':
-        default:
-          console.log(`${prefix} ${message}`);
-          break;
+    logDebug(message) {
+      if (this.config.enableLogging) {
+        logger.debug('CrossfadeEngine', message);
+      }
+    }
+    
+    /**
+     * Log an info message
+     * @private
+     * @param {string} message - Message to log
+     */
+    logInfo(message) {
+      if (this.config.enableLogging) {
+        logger.info('CrossfadeEngine', message);
+      }
+    }
+    
+    /**
+     * Log a warning message
+     * @private
+     * @param {string} message - Message to log
+     */
+    logWarn(message) {
+      if (this.config.enableLogging) {
+        logger.warn('CrossfadeEngine', message);
+      }
+    }
+    
+    /**
+     * Log an error message
+     * @private
+     * @param {string} message - Message to log
+     */
+    logError(message) {
+      if (this.config.enableLogging) {
+        logger.error('CrossfadeEngine', message);
       }
     }
     
@@ -525,7 +544,7 @@ class CrossfadeEngine {
      */
     dispose() {
       this.cancelAllCrossfades();
-      this.log('CrossfadeEngine disposed');
+      this.logInfo('CrossfadeEngine disposed');
     }
   }
   

@@ -4,6 +4,7 @@
  * Manages timeline functionality including phases, events, and timeline playback
  * Extracted from StreamingAudioContext to improve modularity
  */
+import logger from '../../services/LoggingService';
 
 /**
  * Creates a timeline manager with the provided dependencies
@@ -41,13 +42,13 @@ const createTimelineManager = ({
      */
     const handleStartTimeline = () => {
       if (!serviceRef.current.timelineEngine) {
-        console.error("[TimelineManager: handleStartTimeline] TimelineEngine not initialized");
+        logger.error('TimelineManager', "handleStartTimeline: TimelineEngine not initialized");
         return false;
       }
   
       // Ensure the audio is playing first - timeline should not auto-start audio
       if (!isPlayingRef.current) {
-        console.log("[TimelineManager: handleStartTimeline] Audio is not playing, cannot start timeline");
+        logger.info('TimelineManager', "handleStartTimeline: Audio is not playing, cannot start timeline");
         return false;
       }
   
@@ -56,7 +57,7 @@ const createTimelineManager = ({
   
       // Start the timeline with reset option
       const started = serviceRef.current.timelineEngine.start({ reset: true });
-      console.log("[TimelineManager: handleStartTimeline] TimelineEngine start result:", started);
+      logger.info('TimelineManager', `handleStartTimeline: TimelineEngine start result: ${started}`);
   
       if (started) {
         setTimelineIsPlaying(true);
@@ -71,14 +72,14 @@ const createTimelineManager = ({
      */
     const handleStopTimeline = () => {
       if (!serviceRef.current.timelineEngine) {
-        console.log("[TimelineManager: handleStopTimeline] Can't stop timeline: TimelineEngine missing");
+        logger.info('TimelineManager', "handleStopTimeline: Can't stop timeline: TimelineEngine missing");
         return false;
       }
-      console.log("[TimelineManager: handleStopTimeline] Stopping timeline...");
+      logger.info('TimelineManager', "handleStopTimeline: Stopping timeline...");
       
       // Just stop the timeline without affecting audio playback
       const stopped = serviceRef.current.timelineEngine.stop();
-      console.log("[TimelineManager: handleStopTimeline] TimelineEngine stop result:", stopped);
+      logger.info('TimelineManager', `handleStopTimeline: TimelineEngine stop result: ${stopped}`);
   
       if (stopped) {
         setTimelineIsPlaying(false);
@@ -93,15 +94,15 @@ const createTimelineManager = ({
      */
     const handlePauseTimeline = () => {
       if (!serviceRef.current.timelineEngine) {
-        console.log("[TimelineManager: handlePauseTimeline] Can't pause timeline: TimelineEngine missing");
+        logger.info('TimelineManager', "handlePauseTimeline: Can't pause timeline: TimelineEngine missing");
         return false;
       }
-      console.log("[TimelineManager: handlePauseTimeline] Pausing timeline (preserving position)...");
+      logger.info('TimelineManager', "handlePauseTimeline: Pausing timeline (preserving position)...");
   
       // Use the pauseTimeline method if it exists, otherwise fall back to stop
       if (serviceRef.current.timelineEngine.pauseTimeline) {
         const paused = serviceRef.current.timelineEngine.pauseTimeline();
-        console.log("[TimelineManager: handlePauseTimeline] TimelineEngine pause result:", paused);
+        logger.info('TimelineManager', `handlePauseTimeline: TimelineEngine pause result: ${paused}`);
   
         if (paused) {
           setTimelineIsPlaying(false);
@@ -110,9 +111,9 @@ const createTimelineManager = ({
         return paused;
       } else {
         // Fall back to stop if pause isn't available
-        console.log("[TimelineManager: handlePauseTimeline] pauseTimeline not available, using stopTimeline as fallback");
+        logger.info('TimelineManager', "handlePauseTimeline: pauseTimeline not available, using stopTimeline as fallback");
         const stopped = serviceRef.current.timelineEngine.stop();
-        console.log("[TimelineManager: handlePauseTimeline] TimelineEngine stop result:", stopped);
+        logger.info('TimelineManager', `handlePauseTimeline: TimelineEngine stop result: ${stopped}`);
   
         if (stopped) {
           setTimelineIsPlaying(false);
@@ -128,15 +129,15 @@ const createTimelineManager = ({
      */
     const handleResumeTimeline = () => {
       if (!serviceRef.current.timelineEngine) {
-        console.log("[TimelineManager: handleResumeTimeline] Can't resume timeline: TimelineEngine missing");
+        logger.info('TimelineManager', "handleResumeTimeline: Can't resume timeline: TimelineEngine missing");
         return false;
       }
-      console.log("[TimelineManager: handleResumeTimeline] Resuming timeline from current position...");
+      logger.info('TimelineManager', "handleResumeTimeline: Resuming timeline from current position...");
   
       // Use the resumeTimeline method if it exists
       if (serviceRef.current.timelineEngine.resumeTimeline) {
         const resumed = serviceRef.current.timelineEngine.resumeTimeline();
-        console.log("[TimelineManager: handleResumeTimeline] TimelineEngine resume result:", resumed);
+        logger.info('TimelineManager', `handleResumeTimeline: TimelineEngine resume result: ${resumed}`);
   
         if (resumed) {
           setTimelineIsPlaying(true);
@@ -145,9 +146,9 @@ const createTimelineManager = ({
         return resumed;
       } else {
         // Fall back to start with reset:false if resume isn't available
-        console.log("[TimelineManager: handleResumeTimeline] resumeTimeline not available, using startTimeline with reset:false as fallback");
+        logger.info('TimelineManager', "handleResumeTimeline: resumeTimeline not available, using startTimeline with reset:false as fallback");
         const started = serviceRef.current.timelineEngine.start({ reset: false });
-        console.log("[TimelineManager: handleResumeTimeline] TimelineEngine start result:", started);
+        logger.info('TimelineManager', `handleResumeTimeline: TimelineEngine start result: ${started}`);
   
         if (started) {
           setTimelineIsPlaying(true);
@@ -163,7 +164,7 @@ const createTimelineManager = ({
      */
     const handleResetTimelineEventIndex = () => {
       if (!serviceRef.current.timelineEngine) {
-        console.log("[TimelineManager: handleResetTimelineEventIndex] TimelineEngine not available");
+        logger.info('TimelineManager', "handleResetTimelineEventIndex: TimelineEngine not available");
         return false;
       }
       
@@ -179,22 +180,21 @@ const createTimelineManager = ({
      */
     const handleUpdateTimelinePhases = (phases) => {
       if (!phases || !Array.isArray(phases)) {
-        console.log("[TimelineManager: handleUpdateTimelinePhases] No phases to update");
+        logger.info('TimelineManager', "handleUpdateTimelinePhases: No phases to update");
         return false;
       }
 
-  // Add optimization guard
-  if (JSON.stringify(timelinePhases) === JSON.stringify(phases)) {
-    console.log("[TimelineManager: handleUpdateTimelinePhases] Phases unchanged, skipping update");
-    return true;
-  }
-
+      // Add optimization guard
+      if (JSON.stringify(timelinePhases) === JSON.stringify(phases)) {
+        logger.info('TimelineManager', "handleUpdateTimelinePhases: Phases unchanged, skipping update");
+        return true;
+      }
   
-      console.log(`[TimelineManager: handleUpdateTimelinePhases] Updating ${phases.length} timeline phases:`);
+      logger.debug('TimelineManager', `handleUpdateTimelinePhases: Updating ${phases.length} timeline phases:`);
   
       // Ensure phases are properly formed with states
       const validPhases = phases.map(phase => {
-        console.log(`[TimelineManager: handleUpdateTimelinePhases] - Phase "${phase.name}" (${phase.id}) at position ${phase.position}:`);
+        logger.debug('TimelineManager', `handleUpdateTimelinePhases: - Phase "${phase.name}" (${phase.id}) at position ${phase.position}:`);
   
         // Create a properly structured phase
         const validPhase = {
@@ -207,21 +207,21 @@ const createTimelineManager = ({
   
         // Ensure state is properly structured if it exists
         if (phase.state) {
-          console.log(`[TimelineManager: handleUpdateTimelinePhases] -- Phase has state`);
+          logger.debug('TimelineManager', `handleUpdateTimelinePhases: -- Phase has state`);
           validPhase.state = {
             volumes: phase.state.volumes ? { ...phase.state.volumes } : {},
             activeAudio: phase.state.activeAudio ? { ...phase.state.activeAudio } : {}
           };
   
           if (phase.state.volumes) {
-            console.log(`[TimelineManager: handleUpdateTimelinePhases] -- Volumes: ${JSON.stringify(phase.state.volumes)}`);
+            logger.debug('TimelineManager', `handleUpdateTimelinePhases: -- Volumes: ${JSON.stringify(phase.state.volumes)}`);
           }
   
           if (phase.state.activeAudio) {
-            console.log(`[TimelineManager: handleUpdateTimelinePhases] -- Tracks: ${JSON.stringify(phase.state.activeAudio)}`);
+            logger.debug('TimelineManager', `handleUpdateTimelinePhases: -- Tracks: ${JSON.stringify(phase.state.activeAudio)}`);
           }
         } else {
-          console.log(`[TimelineManager: handleUpdateTimelinePhases] -- No state defined, creating empty state`);
+          logger.debug('TimelineManager', `handleUpdateTimelinePhases: -- No state defined, creating empty state`);
           // Always provide a state object, even if empty
           validPhase.state = {
             volumes: {},
@@ -237,19 +237,19 @@ const createTimelineManager = ({
       // Then update the TimelineEngine - IMPORTANT: this makes phases available to components
       if (serviceRef.current.timelineEngine) {
         const success = serviceRef.current.timelineEngine.setPhases(validPhases);
-        console.log(`[TimelineManager: handleUpdateTimelinePhases] TimelineEngine phases update ${success ? 'succeeded' : 'failed'}`);
+        logger.info('TimelineManager', `handleUpdateTimelinePhases: TimelineEngine phases update ${success ? 'succeeded' : 'failed'}`);
   
         // Verify the phases were actually set in the engine
         const enginePhases = serviceRef.current.timelineEngine.getPhases?.();
         if (enginePhases) {
-          console.log(`[TimelineManager: handleUpdateTimelinePhases] TimelineEngine now has ${enginePhases.length} phases`);
+          logger.debug('TimelineManager', `handleUpdateTimelinePhases: TimelineEngine now has ${enginePhases.length} phases`);
   
           // Check if each phase has proper state
           const hasStates = enginePhases.some(p => p.state &&
             (Object.keys(p.state.volumes || {}).length > 0 ||
               Object.keys(p.state.activeAudio || {}).length > 0));
   
-          console.log(`[TimelineManager: handleUpdateTimelinePhases] TimelineEngine phases have states: ${hasStates ? 'YES' : 'NO'}`);
+          logger.debug('TimelineManager', `handleUpdateTimelinePhases: TimelineEngine phases have states: ${hasStates ? 'YES' : 'NO'}`);
         }
       }
   
@@ -300,13 +300,13 @@ const createTimelineManager = ({
      */
     const handleSetSessionDuration = (duration) => {
       if (!serviceRef.current.timelineEngine) {
-        console.log("[TimelineManager: handleSetSessionDuration] TimelineEngine not available");
+        logger.info('TimelineManager', "handleSetSessionDuration: TimelineEngine not available");
         return false;
       }
       
       // Update both the engine and React state
       serviceRef.current.timelineEngine.setSessionDuration(duration);
-      setSessionDuration(duration); // Add this line
+      setSessionDuration(duration);
       return true;
     };
   
@@ -317,7 +317,7 @@ const createTimelineManager = ({
      */
     const handleSetTransitionDuration = (duration) => {
       if (!serviceRef.current.timelineEngine) {
-        console.log("[TimelineManager: handleSetTransitionDuration] TimelineEngine not available");
+        logger.info('TimelineManager', "handleSetTransitionDuration: TimelineEngine not available");
         return false;
       }
       
@@ -333,7 +333,7 @@ const createTimelineManager = ({
      */
     const handleSeekToTime = (timeMs) => {
       if (!serviceRef.current.timelineEngine) {
-        console.log("[TimelineManager: handleSeekToTime] TimelineEngine not available");
+        logger.info('TimelineManager', "handleSeekToTime: TimelineEngine not available");
         return false;
       }
       
@@ -347,7 +347,7 @@ const createTimelineManager = ({
      */
     const handleSeekToPercent = (percent) => {
       if (!serviceRef.current.timelineEngine) {
-        console.log("[TimelineManager: handleSeekToPercent] TimelineEngine not available");
+        logger.info('TimelineManager', "handleSeekToPercent: TimelineEngine not available");
         return false;
       }
       
@@ -387,4 +387,3 @@ const createTimelineManager = ({
   };
   
   export default createTimelineManager;
-  

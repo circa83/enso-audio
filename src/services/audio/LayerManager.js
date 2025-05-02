@@ -5,6 +5,8 @@
  * Factory function returns methods to control layer operations
  */
 
+import logger from '../../services/LoggingService';
+
 const createLayerManager = ({
     // Refs
     serviceRef,
@@ -60,12 +62,12 @@ const createLayerManager = ({
                                 }))
                             ];
                         });
-                        console.log("Extended audio library Variations:", extendedLibrary);
+                        logger.debug('LayerManager', "Extended audio library Variations:", extendedLibrary);
                         return extendedLibrary;
                     });
                 }
             } catch (error) {
-                console.log('Variation audio files not detected, using defaults only');
+                logger.info('LayerManager', 'Variation audio files not detected, using defaults only');
             }
         }, 1000);
     };
@@ -79,14 +81,14 @@ const createLayerManager = ({
      * @returns {Promise<boolean>} Success status
      */
     const handleCrossfadeTo = async (layer, newTrackId, fadeDuration = null) => {
-        console.log(`Starting crossfade process for ${layer}: ${newTrackId}`);
+        logger.debug('LayerManager', `Starting crossfade process for ${layer}: ${newTrackId}`);
         const actualDuration = fadeDuration !== null ? fadeDuration : transitionDuration;
 
         // Verify we have what we need
         if (!serviceRef.current.audioCore ||
             !serviceRef.current.volumeController ||
             !serviceRef.current.crossfadeEngine) {
-            console.error("Cannot crossfade: missing required services");
+            logger.error('LayerManager', "Cannot crossfade: missing required services");
             return false;
         }
 
@@ -95,7 +97,7 @@ const createLayerManager = ({
 
         // Get the audio elements
         const audioElements = serviceRef.current.audioCore.getElements?.() || {};
-        console.log("Audio elements retrieved:", audioElements);
+        logger.debug('LayerManager', "Audio elements retrieved:", audioElements);
 
         // Get the current active track ID with improved reliability
         const currentTrackId = (() => {
@@ -107,12 +109,12 @@ const createLayerManager = ({
 
             // If either is valid, use it
             if (stateTrackId) {
-                console.log(`Using current track for ${layer} from state: ${stateTrackId}`);
+                logger.debug('LayerManager', `Using current track for ${layer} from state: ${stateTrackId}`);
                 return stateTrackId;
             }
 
             if (refTrackId) {
-                console.log(`Using current track for ${layer} from ref: ${refTrackId}`);
+                logger.debug('LayerManager', `Using current track for ${layer} from ref: ${refTrackId}`);
                 return refTrackId;
             }
 
@@ -121,34 +123,34 @@ const createLayerManager = ({
             const activeTrackEntry = Object.entries(layerElements).find(([id, data]) => data?.isActive);
 
             if (activeTrackEntry) {
-                console.log(`Recovered current track for ${layer} from audio elements: ${activeTrackEntry[0]}`);
+                logger.debug('LayerManager', `Recovered current track for ${layer} from audio elements: ${activeTrackEntry[0]}`);
                 return activeTrackEntry[0];
             }
 
             // Last resort - use the first track from the library or default pattern
             if (audioLibrary[layer]?.length > 0) {
                 const defaultTrackId = audioLibrary[layer][0].id;
-                console.log(`No active track found for ${layer}, using first from library: ${defaultTrackId}`);
+                logger.debug('LayerManager', `No active track found for ${layer}, using first from library: ${defaultTrackId}`);
                 return defaultTrackId;
             }
 
             // Absolute fallback
             const fallbackId = `${layer}1`;
-            console.log(`No tracks found in library for ${layer}, using fallback ID: ${fallbackId}`);
+            logger.debug('LayerManager', `No tracks found in library for ${layer}, using fallback ID: ${fallbackId}`);
             return fallbackId;
         })();
 
-        console.log(`Current track for ${layer}: ${currentTrackId}`);
+        logger.debug('LayerManager', `Current track for ${layer}: ${currentTrackId}`);
 
         // CRITICAL: Ensure the audio library is populated - sync from ref if needed
         if (!audioLibrary[layer] || audioLibrary[layer].length === 0) {
-            console.log(`Proactively syncing audio library for ${layer} from reference`);
+            logger.debug('LayerManager', `Proactively syncing audio library for ${layer} from reference`);
             if (audioLibraryRef.current[layer] && audioLibraryRef.current[layer].length > 0) {
                 // Update the audio library state
                 setAudioLibrary(prevLibrary => {
                     const updated = { ...prevLibrary };
                     updated[layer] = [...audioLibraryRef.current[layer]];
-                    console.log(`Synchronized audio library for ${layer}:`, updated[layer]);
+                    logger.debug('LayerManager', `Synchronized audio library for ${layer}:`, updated[layer]);
                     return updated;
                 });
             }
@@ -156,7 +158,7 @@ const createLayerManager = ({
 
         // Skip if already playing requested track
         if (currentTrackId === newTrackId) {
-            console.log(`Already playing ${newTrackId} on ${layer}`);
+            logger.debug('LayerManager', `Already playing ${newTrackId} on ${layer}`);
             return true;
         }
 
@@ -174,7 +176,7 @@ const createLayerManager = ({
 
             // If found in ref but not in state, update state
             if (libraryTrack) {
-                console.log(`Found track ${newTrackId} in backup library reference but not in state, updating state`);
+                logger.debug('LayerManager', `Found track ${newTrackId} in backup library reference but not in state, updating state`);
                 setAudioLibrary(prevLibrary => {
                     const updated = { ...prevLibrary };
                     if (!updated[layer]) updated[layer] = [];
@@ -188,7 +190,7 @@ const createLayerManager = ({
 
         // If still not found, create a fallback
         if (!libraryTrack) {
-            console.log(`Track ${newTrackId} not found in any library source for layer ${layer}, creating fallback`);
+            logger.warn('LayerManager', `Track ${newTrackId} not found in any library source for layer ${layer}, creating fallback`);
 
             // Create a fallback track
             libraryTrack = {
@@ -211,8 +213,8 @@ const createLayerManager = ({
             });
         }
 
-        console.log(`[LayerManager: handleCrossfadeTo] Starting crossfade for ${layer} to track ${newTrackId}`);
-        console.log(`[LayerManager: handleCrossfadeTo] Available tracks in audioLibrary for ${layer}:`,
+        logger.debug('LayerManager', `[handleCrossfadeTo] Starting crossfade for ${layer} to track ${newTrackId}`);
+        logger.debug('LayerManager', `[handleCrossfadeTo] Available tracks in audioLibrary for ${layer}:`,
             audioLibrary[layer] ? audioLibrary[layer].map(t => `${t.id} (${t.name})`).join(', ') : 'None'
         );
 
@@ -221,7 +223,7 @@ const createLayerManager = ({
 
         // Create the new track if it doesn't exist yet
         if (!newTrackElements) {
-            console.log(`[LayerManager: handleCrossfadeTo] Creating new audio element for ${layer}/${newTrackId} with path ${libraryTrack.path}`);
+            logger.debug('LayerManager', `[handleCrossfadeTo] Creating new audio element for ${layer}/${newTrackId} with path ${libraryTrack.path}`);
             const audioElement = new Audio();
             audioElement.preload = "auto";
             audioElement.loop = true;
@@ -244,14 +246,14 @@ const createLayerManager = ({
 
             // Update audio elements in AudioCore if it supports it
             if (serviceRef.current.audioCore.updateElement) {
-                console.log(`[LayerManager: handleCrossfadeTo] Registering new element with AudioCore: ${layer}/${newTrackId}`);
+                logger.debug('LayerManager', `[handleCrossfadeTo] Registering new element with AudioCore: ${layer}/${newTrackId}`);
                 serviceRef.current.audioCore.updateElement(layer, newTrackId, newTrackElements);
             }
         }
 
         // If we're not playing or have no current track, do an immediate switch
         if (!isPlayingRef.current || !currentTrackId) {
-            console.log(`Not currently playing or no current track, using immediate switch instead of crossfade`);
+            logger.debug('LayerManager', `Not currently playing or no current track, using immediate switch instead of crossfade`);
 
             // Update active audio state immediately
             setActiveAudio(prev => {
@@ -267,7 +269,7 @@ const createLayerManager = ({
                 return updated;
             });
 
-            console.log(`Immediate switch to ${newTrackId} successful for ${layer}`);
+            logger.debug('LayerManager', `Immediate switch to ${newTrackId} successful for ${layer}`);
             return true;
         }
 
@@ -276,17 +278,17 @@ const createLayerManager = ({
 
         // Handle case where current track elements are missing but should exist
         if (!currentTrack) {
-            console.log(`Current track ${currentTrackId} not found in audio elements, attempting recovery`);
+            logger.warn('LayerManager', `Current track ${currentTrackId} not found in audio elements, attempting recovery`);
 
             // Try to find any active element for this layer as a fallback
             const activeElement = Object.values(audioElements[layer] || {}).find(elem => elem.isActive);
 
             if (activeElement) {
-                console.log(`Found active element for ${layer}, using as current track`);
+                logger.debug('LayerManager', `Found active element for ${layer}, using as current track`);
                 currentTrack = activeElement;
             } else {
                 // If no active element found, create one for immediate switch
-                console.log(`No active elements found for ${layer}, switching immediately to new track`);
+                logger.debug('LayerManager', `No active elements found for ${layer}, switching immediately to new track`);
 
                 // Update active audio state
                 setActiveAudio(prev => {
@@ -308,7 +310,7 @@ const createLayerManager = ({
                     try {
                         await newTrackElements.element.play();
                     } catch (e) {
-                        console.error(`Error playing new track: ${e.message}`);
+                        logger.error('LayerManager', `Error playing new track: ${e.message}`);
                     }
                 }
 
@@ -378,7 +380,7 @@ const createLayerManager = ({
 
             // When crossfade completes, check if successful
             if (!success) {
-                console.error(`Crossfade failed for ${layer}`);
+                logger.error('LayerManager', `Crossfade failed for ${layer}`);
                 // Clear the UI state
                 setActiveCrossfades(prev => {
                     const newState = { ...prev };
@@ -410,10 +412,10 @@ const createLayerManager = ({
                 return newState;
             });
 
-            console.log(`Crossfade complete for ${layer}: ${currentTrackId} -> ${newTrackId}`);
+            logger.debug('LayerManager', `Crossfade complete for ${layer}: ${currentTrackId} -> ${newTrackId}`);
             return true;
         } catch (error) {
-            console.error(`Error during crossfade: ${error.message}`);
+            logger.error('LayerManager', `Error during crossfade: ${error.message}`);
 
             // Clear UI state
             setActiveCrossfades(prev => {
@@ -445,14 +447,14 @@ const createLayerManager = ({
         const { transitionDuration = 2000 } = options;
 
         if (!layerFolder || !trackId) {
-            console.error('[LayerManager: handleSwitchTrack] Layer folder and track ID required');
+            logger.error('LayerManager', '[handleSwitchTrack] Layer folder and track ID required');
             return false;
         }
 
         try {
             return handleCrossfadeTo(layerFolder, trackId, transitionDuration);
         } catch (err) {
-            console.error(`[LayerManager: handleSwitchTrack] Error switching track: ${err.message}`);
+            logger.error('LayerManager', `[handleSwitchTrack] Error switching track: ${err.message}`);
             return false;
         }
     };
@@ -467,11 +469,11 @@ const createLayerManager = ({
      */
     const handleFadeVolume = (layer, targetVolume, durationMs) => {
         if (!serviceRef.current.volumeController) {
-            console.error("[LayerManager] Cannot fade volume: VolumeController not available");
+            logger.error('LayerManager', "Cannot fade volume: VolumeController not available");
             return Promise.resolve(false);
         }
 
-        console.log(`[LayerManager] Fading ${layer} volume to ${targetVolume} over ${durationMs}ms`);
+        logger.debug('LayerManager', `Fading ${layer} volume to ${targetVolume} over ${durationMs}ms`);
 
         // Convert milliseconds to seconds for VolumeController
         const durationSec = durationMs / 1000;
@@ -484,7 +486,7 @@ const createLayerManager = ({
                 [layerId]: currentValue
             }));
             // Log progress for debugging
-            // console.log(`[LayerManager] Fade progress for ${layerId}: ${Math.round(progress * 100)}% - Volume: ${Math.round(currentValue * 100)}%`);
+            // logger.trace('LayerManager', `Fade progress for ${layerId}: ${Math.round(progress * 100)}% - Volume: ${Math.round(currentValue * 100)}%`);
         };
 
         // Call the service method with progress callback
@@ -511,10 +513,10 @@ const createLayerManager = ({
      * @returns {boolean} Success status
      */
     const handleSetVolume = (layer, value, options = {}) => {
-        console.log(`[LayerManager: handleSetVolume] Setting volume for ${layer} to ${value}`);
+        logger.debug('LayerManager', `[handleSetVolume] Setting volume for ${layer} to ${value}`);
 
         if (!serviceRef.current.volumeController) {
-            console.error("Cannot set volume: VolumeController not available");
+            logger.error('LayerManager', "Cannot set volume: VolumeController not available");
             return false;
         }
 
@@ -529,12 +531,12 @@ const createLayerManager = ({
 
         // Apply volume using the VolumeController
         const result = serviceRef.current.volumeController.setVolume(layer, value, options);
-        console.log(`[LayerManager: handleSetVolume] Volume controller result: ${result}`);
+        logger.debug('LayerManager', `[handleSetVolume] Volume controller result: ${result}`);
 
         // If there's an active crossfade for this layer, update its volume too
         if (serviceRef.current.crossfadeEngine?.isActive(layer)) {
             const result = serviceRef.current.crossfadeEngine.adjustCrossfadeVolume(layer, value);
-            console.log(`CrossfadeEngine.adjustCrossfadeVolume result for ${layer}: ${result}`);
+            logger.debug('LayerManager', `CrossfadeEngine.adjustCrossfadeVolume result for ${layer}: ${result}`);
         }
 
         return result;

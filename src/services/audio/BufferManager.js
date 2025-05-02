@@ -5,6 +5,7 @@
  * Handles the loading and decoding of audio files into AudioBuffers
  * Provides progress tracking and memory optimization
  */
+import logger from '../../services/LoggingService';
 
 class BufferManager {
   /**
@@ -46,7 +47,7 @@ class BufferManager {
       totalBytes: 0
     };
 
-    this.log('BufferManager initialized');
+    this.logDebug('BufferManager initialized');
   }
 
   /**
@@ -64,7 +65,7 @@ class BufferManager {
     // Check cache first (unless force reload is requested)
     if (!force && this.bufferCache.has(url)) {
       this.stats.cacheHits++;
-      this.log(`Cache hit for ${url}`);
+      this.logDebug(`Cache hit for ${url}`);
 
       // Get cached buffer
       const cachedBuffer = this.bufferCache.get(url);
@@ -80,7 +81,7 @@ class BufferManager {
 
     // Check if this URL is already being loaded
     if (this.pendingLoads.has(url)) {
-      this.log(`Already loading ${url}, returning existing promise`);
+      this.logDebug(`Already loading ${url}, returning existing promise`);
       return this.pendingLoads.get(url);
     }
 
@@ -186,7 +187,7 @@ class BufferManager {
 
     this.bufferCache.delete(url);
     this.bufferMetadata.delete(url);
-    this.log(`Released buffer: ${url}`);
+    this.logDebug(`Released buffer: ${url}`);
 
     return true;
   }
@@ -270,7 +271,7 @@ class BufferManager {
         // Continue with next in queue
         return loadNext();
       } catch (error) {
-        this.log(`Error preloading ${url}: ${error.message}`, 'error');
+        this.logError(`Error preloading ${url}: ${error.message}`);
 
         // Mark as complete even on failure
         completedCount++;
@@ -302,7 +303,7 @@ class BufferManager {
     const count = this.bufferCache.size;
     this.bufferCache.clear();
     this.bufferMetadata.clear();
-    this.log(`Cleared ${count} buffers from cache`);
+    this.logDebug(`Cleared ${count} buffers from cache`);
     return count;
   }
 
@@ -372,7 +373,7 @@ class BufferManager {
    */
   async _loadAndDecodeAudioFile(url, onProgress) {
     try {
-      this.log(`Loading audio file: ${url}`);
+      this.logDebug(`Loading audio file: ${url}`);
 
       // Initialize progress tracking for this URL
       this.loadingProgress.set(url, 0);
@@ -382,7 +383,7 @@ class BufferManager {
       const isStreamingOptimized = isBlobUrl; // Use streaming optimization for Blob URLs
 
       if (isBlobUrl) {
-        this.log(`Detected Blob URL: ${url}, using streaming fetch`);
+        this.logDebug(`Detected Blob URL: ${url}, using streaming fetch`);
       }
 
       // Use optimized fetch for Blob URLs
@@ -421,7 +422,7 @@ class BufferManager {
         throw new Error(`Failed to decode audio data: ${decodeError.message}`);
       }
     } catch (error) {
-      this.log(`Error loading audio: ${error.message}`, 'error');
+      this.logError(`Error loading audio: ${error.message}`);
       throw error; // Re-throw to be handled by caller
     }
   }
@@ -470,7 +471,7 @@ class BufferManager {
       xhr.addEventListener('error', () => {
         // Add specific error handling for Blob URLs
         if (isStreamingOptimized) {
-          this.log(`Error loading Blob URL: ${url}. Attempting fallback...`, 'warn');
+          this.logWarn(`Error loading Blob URL: ${url}. Attempting fallback...`);
           // Try fallback to regular fetch if XHR fails for Blob URL
           fetch(url)
             .then(response => {
@@ -533,7 +534,7 @@ class BufferManager {
       return; // Cache is not full
     }
 
-    this.log(`Cache size ${this.bufferCache.size} exceeds limit of ${this.config.maxCacheSize}, pruning...`);
+    this.logDebug(`Cache size ${this.bufferCache.size} exceeds limit of ${this.config.maxCacheSize}, pruning...`);
 
     // Get all metadata entries
     const entries = Array.from(this.bufferMetadata.entries())
@@ -559,28 +560,46 @@ class BufferManager {
   }
 
   /**
-   * Logging helper that respects configuration
-   * 
+   * Log a message at debug level
    * @private
    * @param {string} message - Message to log
-   * @param {string} [level='info'] - Log level
    */
-  log(message, level = 'info') {
-    if (!this.config.enableLogging) return;
+  logDebug(message) {
+    if (this.config.enableLogging) {
+      logger.debug('BufferManager', message);
+    }
+  }
 
-    const prefix = '[BufferManager]';
+  /**
+   * Log a message at info level
+   * @private
+   * @param {string} message - Message to log
+   */
+  logInfo(message) {
+    if (this.config.enableLogging) {
+      logger.info('BufferManager', message);
+    }
+  }
 
-    switch (level) {
-      case 'error':
-        console.error(`${prefix} ${message}`);
-        break;
-      case 'warn':
-        console.warn(`${prefix} ${message}`);
-        break;
-      case 'info':
-      default:
-        console.log(`${prefix} ${message}`);
-        break;
+  /**
+   * Log a message at warning level
+   * @private
+   * @param {string} message - Message to log
+   */
+  logWarn(message) {
+    if (this.config.enableLogging) {
+      logger.warn('BufferManager', message);
+    }
+  }
+
+  /**
+   * Log a message at error level
+   * @private
+   * @param {string} message - Message to log
+   */
+  logError(message) {
+    if (this.config.enableLogging) {
+      logger.error('BufferManager', message);
     }
   }
 
@@ -594,8 +613,9 @@ class BufferManager {
     this.loadingProgress.clear();
     this.errors.clear();
     this.bufferMetadata.clear();
-    this.log('BufferManager disposed');
+    this.logInfo('BufferManager disposed');
   }
 }
 
 export default BufferManager;
+

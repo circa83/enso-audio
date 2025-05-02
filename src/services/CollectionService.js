@@ -6,7 +6,7 @@
  */
 
 import appConfig from "../Config/appConfig";
-
+import logger from "../services/LoggingService";
 
 class CollectionService {
   /**
@@ -59,13 +59,13 @@ class CollectionService {
         this.collectionsCache &&
         Date.now() - this.lastCacheTime < this.config.cacheDuration &&
         !tag && !artist) {
-        console.log(`[CollectionService: getCollections] Using cached collections data (${this.collectionsCache.data.length} items)`);
+        this.log(`Using cached collections data (${this.collectionsCache.data.length} items)`);
         return this.collectionsCache;
       }
 
       // Check for pending request with same parameters
       if (this.pendingRequests.has(cacheKey)) {
-        console.log(`[CollectionService: getCollections] Using pending request for key: ${cacheKey}`);
+        this.log(`Using pending request for key: ${cacheKey}`);
         return this.pendingRequests.get(cacheKey);
       }
 
@@ -73,7 +73,7 @@ class CollectionService {
       const requestPromise = (async () => {
         try {
           // Fetch collections from local file
-          console.log('[CollectionService: getCollections] Fetching collections from local file');
+          this.log('Fetching collections from local file');
           const response = await fetch('/collections/collections.json');
 
           if (!response.ok) {
@@ -87,14 +87,14 @@ class CollectionService {
             collections = collections.filter(collection =>
               collection.metadata?.tags?.includes(tag)
             );
-            console.log(`[CollectionService: getCollections] Filtered by tag "${tag}": ${collections.length} results`);
+            this.log(`Filtered by tag "${tag}": ${collections.length} results`);
           }
 
           if (artist) {
             collections = collections.filter(collection =>
               collection.metadata?.artist?.toLowerCase().includes(artist.toLowerCase())
             );
-            console.log(`[CollectionService: getCollections] Filtered by artist "${artist}": ${collections.length} results`);
+            this.log(`Filtered by artist "${artist}": ${collections.length} results`);
           }
 
           // Calculate pagination
@@ -117,12 +117,12 @@ class CollectionService {
           if (!tag && !artist) {
             this.collectionsCache = result;
             this.lastCacheTime = Date.now();
-            console.log(`[CollectionService: getCollections] Updated cache with ${collections.length} collections`);
+            this.log(`Updated cache with ${collections.length} collections`);
           }
 
           return result;
         } catch (error) {
-          console.error(`[CollectionService: getCollections] Error: ${error.message}`);
+          this.log(`Error: ${error.message}`, 'error');
           return {
             success: false,
             error: error.message
@@ -137,7 +137,7 @@ class CollectionService {
 
       return requestPromise;
     } catch (error) {
-      console.error(`[CollectionService: getCollections] Error: ${error.message}`);
+      this.log(`Error: ${error.message}`, 'error');
       return {
         success: false,
         error: error.message
@@ -163,7 +163,7 @@ class CollectionService {
       Date.now() - this.lastCacheTime < this.config.cacheDuration) {
       const cachedCollection = this.collectionsCache.data.find(c => c.id === id);
       if (cachedCollection) {
-        this.log(`[getCollection] Using cached data for collection: ${id}`);
+        this.log(`Using cached data for collection: ${id}`);
         return { success: true, data: cachedCollection };
       }
     }
@@ -171,7 +171,7 @@ class CollectionService {
     // Check for pending request
     const cacheKey = `collection:${id}`;
     if (this.pendingRequests.has(cacheKey)) {
-      this.log(`[getCollection] Using pending request for: ${id}`);
+      this.log(`Using pending request for: ${id}`);
       return this.pendingRequests.get(cacheKey);
     }
 
@@ -179,7 +179,7 @@ class CollectionService {
     const requestPromise = (async () => {
       try {
         // Fetch the collection metadata from the local file
-        console.log(`[CollectionService: getCollection] Fetching collection ${id} from local metadata file`);
+        this.log(`Fetching collection ${id} from local metadata file`);
         const response = await fetch(`/collections/${id}/metadata.json`);
 
         if (!response.ok) {
@@ -201,7 +201,7 @@ class CollectionService {
           data: collectionData
         };
       } catch (error) {
-        console.log(`[CollectionService: getCollection] Error: ${error.message}`, 'error');
+        this.log(`Error: ${error.message}`, 'error');
         return {
           success: false,
           error: error.message
@@ -234,29 +234,29 @@ class CollectionService {
     }
 
     try {
-      console.log(`[CollectionService: formatCollectionForPlayer] Formatting collection: ${collection.id}`);
-      console.log(`[CollectionService: formatCollectionForPlayer] Collection ID type: ${typeof collection.id}`);
-      console.log(`[CollectionService: formatCollectionForPlayer] Raw collection ID value: "${collection.id}"`);
-      
+      this.log(`Formatting collection: ${collection.id}`);
+      this.log(`Collection ID type: ${typeof collection.id}`);
+      this.log(`Raw collection ID value: "${collection.id}"`);
+
       // // More specific check of collection ID:
       // if (collection.id === 'Stillness') {
-      //   console.log('[CollectionService: formatCollectionForPlayer] MATCH: Collection ID exactly matches "stillness"');
+      //   this.log('MATCH: Collection ID exactly matches "stillness"');
       // } else {
-      //   console.log('[CollectionService: formatCollectionForPlayer] NO MATCH: Collection ID does not exactly match "stillness"');
+      //   this.log('NO MATCH: Collection ID does not exactly match "stillness"');
       // }
       let collectionConfig = null;
       if (applyConfig) {
         const appConfig = require('../Config/appConfig').default;
-              // Log available collection IDs in appConfig
-      console.log('[CollectionService: formatCollectionForPlayer] Available collection configs in appConfig:');
-      const availableCollections = appConfig.getAvailableCollections();
-      console.log(`[CollectionService: formatCollectionForPlayer] - Available IDs: ${JSON.stringify(availableCollections)}`);
-      
+        // Log available collection IDs in appConfig
+        this.log('Available collection configs in appConfig:');
+        const availableCollections = appConfig.getAvailableCollections();
+        this.log(`- Available IDs: ${JSON.stringify(availableCollections)}`);
+
         collectionConfig = appConfig.getCollectionConfig(collection.id);
-        console.log(`[CollectionService: formatCollectionForPlayer] Config fetched for "${collection.id}":`);
-        console.log(`- Config found: ${collectionConfig ? 'YES' : 'NO'}`);
-        console.log(`- Is default config: ${collectionConfig === appConfig.defaults ? 'YES' : 'NO'}`);
-        console.log(`- Has phases: ${collectionConfig.phaseMarkers?.length || 0}`);
+        this.log(`Config fetched for "${collection.id}":`);
+        this.log(`- Config found: ${collectionConfig ? 'YES' : 'NO'}`);
+        this.log(`- Is default config: ${collectionConfig === appConfig.defaults ? 'YES' : 'NO'}`);
+        this.log(`- Has phases: ${collectionConfig.phaseMarkers?.length || 0}`);
         this.log(`Applying collection config for "${collection.id}":`, 'info');
         this.log(`- Session Duration: ${collectionConfig.sessionDuration}ms`, 'info');
         this.log(`- Transition Duration: ${collectionConfig.transitionDuration}ms`, 'info');
@@ -295,7 +295,7 @@ class CollectionService {
 
       // Ensure collection has tracks array
       if (!collection.tracks || !Array.isArray(collection.tracks) || collection.tracks.length === 0) {
-        console.error(`[CollectionService: formatCollectionForPlayer] Collection ${collection.id} has no tracks`);
+        this.log(`Collection ${collection.id} has no tracks`, 'error');
         throw new Error(`Collection "${collection.name || collection.id}" has no audio tracks`);
       }
 
@@ -305,26 +305,26 @@ class CollectionService {
       collection.tracks.forEach(track => {
         // Handle missing properties with clear logging
         if (!track.id) {
-          console.warn('[CollectionService: formatCollectionForPlayer] Track missing id:', track);
+          this.log('Track missing id:', 'warn');
           return;
         }
 
         if (!track.audioUrl) {
-          console.warn(`[CollectionService: formatCollectionForPlayer] Track ${track.id} missing audioUrl`);
+          this.log(`Track ${track.id} missing audioUrl`, 'warn');
           return;
         }
 
         // Get the layer folder from the track
         const layerFolder = track.layerFolder;
         if (!layerFolder) {
-          console.warn(`[CollectionService: formatCollectionForPlayer] Track ${track.id} missing layerFolder`);
+          this.log(`Track ${track.id} missing layerFolder`, 'warn');
           return;
         }
 
         // Map the folder name to player layer name
         const playerLayer = folderToLayerMap[layerFolder];
         if (!playerLayer) {
-          console.warn(`[CollectionService: formatCollectionForPlayer] Invalid layer folder: ${layerFolder}`);
+          this.log(`Invalid layer folder: ${layerFolder}`, 'warn');
           return;
         }
 
@@ -348,12 +348,12 @@ class CollectionService {
           track.variations.forEach(variation => {
             // Skip invalid variations
             if (!variation.id) {
-              console.warn(`[CollectionService: formatCollectionForPlayer] Variation missing id in track ${track.id}`);
+              this.log(`Variation missing id in track ${track.id}`, 'warn');
               return;
             }
 
             if (!variation.audioUrl) {
-              console.warn(`[CollectionService: formatCollectionForPlayer] Variation ${variation.id} missing audioUrl`);
+              this.log(`Variation ${variation.id} missing audioUrl`, 'warn');
               return;
             }
 
@@ -377,7 +377,7 @@ class CollectionService {
 
       // Ensure we have at least one track formatted
       if (formattedTrackCount === 0) {
-        console.error('[CollectionService: formatCollectionForPlayer] No valid tracks found in collection');
+        this.log('No valid tracks found in collection', 'error');
         throw new Error('No valid audio tracks found in this collection');
       }
 
@@ -394,130 +394,291 @@ class CollectionService {
         originalTracks: collection.tracks
       };
 
-      // NEW: Apply collection-specific configuration if requested
-      if (applyConfig) {
-        this.applyCollectionConfig(formattedCollection);
+      // NEW
+      // Add configuration from appConfig if available
+      if (applyConfig && collectionConfig) {
+        // Apply collection configuration
+        formattedCollection.sessionDuration = collectionConfig.sessionDuration;
+        formattedCollection.transitionDuration = collectionConfig.transitionDuration;
+        formattedCollection.phaseMarkers = collectionConfig.phaseMarkers;
+        formattedCollection.defaultVolumes = collectionConfig.defaultVolumes;
+        formattedCollection.defaultActiveAudio = collectionConfig.defaultActiveAudio;
+
+        this.log(`Applied collection config:
+          - Session Duration: ${formattedCollection.sessionDuration}
+          - Transition Duration: ${formattedCollection.transitionDuration}
+          - Phase Markers: ${formattedCollection.phaseMarkers?.length || 0}`, 'debug');
       }
 
-      console.log(`[CollectionService: formatCollectionForPlayer] Formatted ${formattedTrackCount} tracks across ${Object.keys(playerLayers).length} layers`);
-      console.log(`[CollectionService: formatCollectionForPlayer] Cover image URL: ${formattedCollection.coverImage}`);
+      this.log(`Formatted ${formattedTrackCount} tracks across ${Object.keys(playerLayers).length} layers for collection ${collection.id}`);
 
-      // Return the formatted collection
       return formattedCollection;
     } catch (error) {
-      console.error(`[CollectionService: formatCollectionForPlayer] Error: ${error.message}`);
-      throw new Error(`Failed to format collection: ${error.message}`);
+      this.log(`Error formatting collection: ${error.message}`, 'error');
+      throw error;
     }
   }
 
   /**
-    * Apply collection-specific configuration from appConfig
-    * @param {Object} formattedCollection - Formatted collection object
-    * @returns {Object} Collection with applied configuration
-    */
-  applyCollectionConfig(formattedCollection) {
-    try {
-      if (!formattedCollection || !formattedCollection.id) {
-        console.warn('[CollectionService: applyCollectionConfig] Cannot apply config: Invalid collection');
-        return formattedCollection;
-      }
-
-      // Normalize the collection ID for better matching
-      const collectionId = formattedCollection.id.trim();
-      console.log(`[CollectionService: applyCollectionConfig] Applying config for normalized ID: "${collectionId}"`);
-
-      // Get the collection-specific configuration (this checks if enabled)
-      const collectionConfig = appConfig.getCollectionConfig(collectionId);
-
-      if (!collectionConfig) {
-        console.warn(`[CollectionService: applyCollectionConfig] No configuration found for collection: ${formattedCollection.id}`);
-        return formattedCollection;
-      }
-
-      console.log(`[CollectionService: applyCollectionConfig] Applying configuration to collection: ${formattedCollection.id}`);
-
-      // Apply session and transition duration
-      formattedCollection.sessionDuration = collectionConfig.sessionDuration;
-      formattedCollection.transitionDuration = collectionConfig.transitionDuration;
-
-      // Apply default volumes
-      formattedCollection.defaultVolumes = { ...collectionConfig.volumes };
-
-      // Apply phase markers if available
-      if (collectionConfig.phaseMarkers && Array.isArray(collectionConfig.phaseMarkers)) {
-        console.log(`[CollectionService: applyCollectionConfig] Found ${collectionConfig.phaseMarkers.length} phase markers in config`);
-        
-        // Log state information before cloning
-        collectionConfig.phaseMarkers.forEach(phase => {
-          console.log(`[CollectionService: applyCollectionConfig] Phase "${phase.name}" before cloning:`);
-          console.log(`- Has state: ${phase.state ? 'YES' : 'NO'}`);
-          if (phase.state) {
-            console.log(`- Volumes: ${JSON.stringify(phase.state.volumes || {})}`);
-            console.log(`- ActiveAudio: ${JSON.stringify(phase.state.activeAudio || {})}`);
-          }
-        });
-        
-        // Use structured cloning instead of JSON parse/stringify to better preserve objects
-        formattedCollection.phaseMarkers = collectionConfig.phaseMarkers.map(marker => {
-          // Create a new marker object with all properties
-          const newMarker = {
-            id: marker.id,
-            name: marker.name,
-            position: marker.position,
-            color: marker.color,
-            locked: marker.locked || false
-          };
-          
-          // Explicitly copy the state object if it exists
-          if (marker.state) {
-            newMarker.state = {
-              volumes: marker.state.volumes ? {...marker.state.volumes} : {},
-              activeAudio: marker.state.activeAudio ? {...marker.state.activeAudio} : {}
-            };
-          }
-          
-          return newMarker;
-        });
-        
-        // Validate and log after cloning
-        formattedCollection.phaseMarkers.forEach(marker => {
-          console.log(`[CollectionService: applyCollectionConfig] Phase "${marker.name}" after cloning:`);
-          console.log(`- Has state: ${marker.state ? 'YES' : 'NO'}`);
-          if (marker.state) {
-            console.log(`- Volumes: ${JSON.stringify(marker.state.volumes || {})}`);
-            console.log(`- ActiveAudio: ${JSON.stringify(marker.state.activeAudio || {})}`);
-          }
-          
-          // Validate tracks if activeAudio is present
-          if (marker.state && marker.state.activeAudio) {
-            Object.entries(marker.state.activeAudio).forEach(([layer, trackId]) => {
-              const valid = this.validateTrackExists(formattedCollection, layer, trackId);
-             // console.log(`[CollectionService: applyCollectionConfig] - Track ${trackId} for layer ${layer}: ${valid ? 'VALID' : 'INVALID'}`);
-            });
-          }
-        });
-      }
-
-      return formattedCollection;
-    } catch (error) {
-      console.error(`[CollectionService: applyCollectionConfig] Error applying config: ${error.message}`);
-      // Return the original collection without config applied
-      return formattedCollection;
-    }
-  }
-
-
-  /**
-   * Reset the collection cache
+   * Get featured collections
+   * @param {number} [limit=3] - Maximum number of featured collections
+   * @returns {Promise<Object>} Featured collections data
    */
-  resetCache() {
+  async getFeaturedCollections(limit = 3) {
+    try {
+      // Fetch all collections first
+      const result = await this.getCollections({ limit: 100 });
+
+      if (!result.success) {
+        return result;
+      }
+
+      // Filter for featured collections
+      const featured = result.data
+        .filter(collection => collection.metadata?.featured === true)
+        .slice(0, limit);
+
+      this.log(`Found ${featured.length} featured collections`);
+
+      return {
+        success: true,
+        data: featured
+      };
+    } catch (error) {
+      this.log(`Error getting featured collections: ${error.message}`, 'error');
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Search collections by query
+   * @param {string} query - Search query
+   * @param {number} [limit=10] - Maximum number of results
+   * @returns {Promise<Object>} Search results
+   */
+  async searchCollections(query, limit = 10) {
+    if (!query || query.trim() === '') {
+      return {
+        success: true,
+        data: [],
+        message: 'Query is required'
+      };
+    }
+
+    try {
+      // Get all collections first
+      const result = await this.getCollections({ limit: 100 });
+
+      if (!result.success) {
+        return result;
+      }
+
+      // Normalize query
+      const normalizedQuery = query.toLowerCase().trim();
+      this.log(`Searching collections for: "${normalizedQuery}"`);
+
+      // Search in various fields
+      const searchResults = result.data.filter(collection => {
+        // Search in name
+        if (collection.name?.toLowerCase().includes(normalizedQuery)) {
+          return true;
+        }
+
+        // Search in description
+        if (collection.description?.toLowerCase().includes(normalizedQuery)) {
+          return true;
+        }
+
+        // Search in artist
+        if (collection.metadata?.artist?.toLowerCase().includes(normalizedQuery)) {
+          return true;
+        }
+
+        // Search in tags
+        if (collection.metadata?.tags && Array.isArray(collection.metadata.tags)) {
+          return collection.metadata.tags.some(tag =>
+            tag.toLowerCase().includes(normalizedQuery)
+          );
+        }
+
+        return false;
+      });
+
+      // Limit results
+      const limitedResults = searchResults.slice(0, limit);
+
+      this.log(`Found ${searchResults.length} collections, returning ${limitedResults.length}`);
+
+      return {
+        success: true,
+        data: limitedResults,
+        total: searchResults.length
+      };
+    } catch (error) {
+      this.log(`Error searching collections: ${error.message}`, 'error');
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Get collections by tag
+   * @param {string} tag - Tag to filter by
+   * @param {number} [limit=10] - Maximum number of results
+   * @returns {Promise<Object>} Collections with the specified tag
+   */
+  async getCollectionsByTag(tag, limit = 10) {
+    if (!tag || tag.trim() === '') {
+      return {
+        success: false,
+        error: 'Tag is required'
+      };
+    }
+
+    try {
+      // Use the existing getCollections method with tag filter
+      return await this.getCollections({
+        tag: tag.trim(),
+        limit
+      });
+    } catch (error) {
+      this.log(`Error getting collections by tag: ${error.message}`, 'error');
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Get collections by artist
+   * @param {string} artist - Artist name to filter by
+   * @param {number} [limit=10] - Maximum number of results
+   * @returns {Promise<Object>} Collections by the specified artist
+   */
+  async getCollectionsByArtist(artist, limit = 10) {
+    if (!artist || artist.trim() === '') {
+      return {
+        success: false,
+        error: 'Artist name is required'
+      };
+    }
+
+    try {
+      // Use the existing getCollections method with artist filter
+      return await this.getCollections({
+        artist: artist.trim(),
+        limit
+      });
+    } catch (error) {
+      this.log(`Error getting collections by artist: ${error.message}`, 'error');
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Get available tags from all collections
+   * @returns {Promise<Object>} List of unique tags
+   */
+  async getAvailableTags() {
+    try {
+      // Get all collections
+      const result = await this.getCollections({ limit: 100 });
+
+      if (!result.success) {
+        return result;
+      }
+
+      // Extract and deduplicate tags
+      const tagSet = new Set();
+
+      result.data.forEach(collection => {
+        if (collection.metadata?.tags && Array.isArray(collection.metadata.tags)) {
+          collection.metadata.tags.forEach(tag => {
+            if (tag && tag.trim() !== '') {
+              tagSet.add(tag.trim());
+            }
+          });
+        }
+      });
+
+      const tags = Array.from(tagSet).sort();
+
+      this.log(`Found ${tags.length} unique tags`);
+
+      return {
+        success: true,
+        data: tags
+      };
+    } catch (error) {
+      this.log(`Error getting available tags: ${error.message}`, 'error');
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Get available artists from all collections
+   * @returns {Promise<Object>} List of unique artists
+   */
+  async getAvailableArtists() {
+    try {
+      // Get all collections
+      const result = await this.getCollections({ limit: 100 });
+
+      if (!result.success) {
+        return result;
+      }
+
+      // Extract and deduplicate artists
+      const artistSet = new Set();
+
+      result.data.forEach(collection => {
+        if (collection.metadata?.artist && collection.metadata.artist.trim() !== '') {
+          artistSet.add(collection.metadata.artist.trim());
+        }
+      });
+
+      const artists = Array.from(artistSet).sort();
+
+      this.log(`Found ${artists.length} unique artists`);
+
+      return {
+        success: true,
+        data: artists
+      };
+    } catch (error) {
+      this.log(`Error getting available artists: ${error.message}`, 'error');
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Clear the collections cache
+   * @returns {boolean} Success status
+   */
+  clearCache() {
     this.collectionsCache = null;
     this.lastCacheTime = 0;
-    console.log('[CollectionService: resetCache] Collection cache cleared');
+    this.log('Collections cache cleared');
+    return true;
   }
 
   /**
-   * Logging helper that respects configuration
+   * Log a message with the specified level
    * @private
    * @param {string} message - Message to log
    * @param {string} [level='info'] - Log level
@@ -525,18 +686,19 @@ class CollectionService {
   log(message, level = 'info') {
     if (!this.config.enableLogging) return;
 
-    const prefix = '[CollectionService]';
-
     switch (level) {
       case 'error':
-        console.error(`${prefix} ${message}`);
+        logger.error('CollectionService', message);
         break;
       case 'warn':
-        console.warn(`${prefix} ${message}`);
+        logger.warn('CollectionService', message);
+        break;
+      case 'debug':
+        logger.debug('CollectionService', message);
         break;
       case 'info':
       default:
-        console.log(`${prefix} ${message}`);
+        logger.info('CollectionService', message);
         break;
     }
   }
