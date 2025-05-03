@@ -294,7 +294,7 @@ _ensureValidConfig: function(config) {
     //ambient archive
     filterControls: false, 
     //timeline
-    captureState: false,
+    captureState: true,
     
   },
   

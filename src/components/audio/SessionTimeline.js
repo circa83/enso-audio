@@ -146,9 +146,9 @@ const setTransitionState = useCallback((isTransitioning, force = false) => {
     }
       
       // Register session duration
-      if (timeline.setDuration) {
+      if (timeline.setSessionDuration) {
         console.log("[INITIALIZE] Setting initial session duration");
-        timeline.setDuration(timeline.duration);
+        timeline.setSessionDuration(timeline.duration);
       }
       
       // Register transition duration
@@ -212,8 +212,8 @@ const setTransitionState = useCallback((isTransitioning, force = false) => {
       console.log('Timeline received duration change event:', event.detail.duration);
       
       // Force an update of the timeline
-      if (timeline.setDuration) {
-        timeline.setDuration(event.detail.duration);
+      if (timeline.setSessionDuration) {
+        timeline.setSessionDuration(event.detail.duration);
       }
       
       // Update local state if needed
@@ -297,9 +297,8 @@ const setTransitionState = useCallback((isTransitioning, force = false) => {
     };
   }, [onDurationChange]);
   
-  
+  // Check if timeline.phases is available AND has proper state data
   useEffect(() => {
-    // Check if timeline.phases is available AND has proper state data
     if (timeline.phases && 
         timeline.phases.length > 0 && 
         !phasesApplied.current) {

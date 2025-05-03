@@ -214,7 +214,7 @@ export function useAudio() {
       console.log(`[useAudio] Seeking to percent: ${percent}%`);
       return seekToPercent(percent);
     },
-    setDuration: (duration) => {
+    setSessionDuration: (duration) => {
       console.log(`[useAudio] Setting session duration: ${duration}ms`);
       return setSessionDuration(duration);
     },

@@ -29,7 +29,7 @@ class AudioCore {
 
     // Bound methods to maintain context
     this._handleUserInteraction = this._handleUserInteraction.bind(this);
-
+    
     logger.debug('AudioCore', 'Instance created with options:', this.options);
   }
 

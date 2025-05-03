@@ -1,389 +1,662 @@
-/**
- * TimelineManager.js
- * 
- * Manages timeline functionality including phases, events, and timeline playback
- * Extracted from StreamingAudioContext to improve modularity
- */
-import logger from '../../services/LoggingService';
+// /**
+//  * TimelineManager.js
+//  * 
+//  * Adapter connecting TimelineEngine to React state management
+//  * Delegates core timeline functionality to TimelineEngine
+//  */
+// import logger from '../../services/LoggingService';
 
-/**
- * Creates a timeline manager with the provided dependencies
- * 
- * @param {Object} deps - Dependencies needed by the timeline manager
- * @returns {Object} Timeline operations
- */
-const createTimelineManager = ({
-    // Refs
-    serviceRef,
+// const createTimelineManager = ({
+//   // Refs
+//   serviceRef,
+//   progressTimerRef,
+//   nextEventIndexRef,
+//   isPlayingRef,
+  
+//   // State values
+//   timelinePhases,
+//   activePhase,
+//   timelineEvents,
+//   progress,
+//   sessionDuration,
+//   transitionDuration,
+//   timelineIsPlaying,
+//   phasesLoaded,
+  
+//   // State setters
+//   setTimelineIsPlaying,
+//   setProgress,
+//   setActivePhase,
+//   setTimelineEvents,
+//   setTimelinePhases,
+//   setSessionDuration,
+//   setTransitionDuration,
+//   setPhasesLoaded
+// }) => {
+//   /**
+//    * Initializes the TimelineEngine if not already initialized
+//    * @returns {Object|null} TimelineEngine instance or null if initialization failed
+//    * @private
+//    */
+//   const ensureTimelineEngine = () => {
+//     if (!serviceRef.current) {
+//       logger.error('TimelineManager', 'Service reference is unavailable');
+//       return null;
+//     }
     
-    // State setters
-    setTimelineIsPlaying,
-    setProgress,
-    setActivePhase,
-    setTimelineEvents,
-    setTimelinePhases,
-    setSessionDuration,
-    setTransitionDuration,
+//     if (!serviceRef.current.timelineEngine) {
+//       logger.error('TimelineManager', 'TimelineEngine not initialized');
+//       return null;
+//     }
     
-    // State values
-    sessionDuration,
-    transitionDuration,
-    timelineEvents,
-    timelinePhases,
-    
-    // Additional refs/state
-    isPlayingRef,
-    phasesLoaded,
-    setPhasesLoaded
-  }) => {
-    /**
-     * Starts the timeline playback
-     * @returns {boolean} Success status
-     */
-    const handleStartTimeline = () => {
-      if (!serviceRef.current.timelineEngine) {
-        logger.error('TimelineManager', "handleStartTimeline: TimelineEngine not initialized");
-        return false;
-      }
-  
-      // Ensure the audio is playing first - timeline should not auto-start audio
-      if (!isPlayingRef.current) {
-        logger.info('TimelineManager', "handleStartTimeline: Audio is not playing, cannot start timeline");
-        return false;
-      }
-  
-      // Reset the timeline state first
-      serviceRef.current.timelineEngine.stop();
-  
-      // Start the timeline with reset option
-      const started = serviceRef.current.timelineEngine.start({ reset: true });
-      logger.info('TimelineManager', `handleStartTimeline: TimelineEngine start result: ${started}`);
-  
-      if (started) {
-        setTimelineIsPlaying(true);
-      }
-  
-      return started;
-    };
-  
-    /**
-     * Stops timeline playback
-     * @returns {boolean} Success status
-     */
-    const handleStopTimeline = () => {
-      if (!serviceRef.current.timelineEngine) {
-        logger.info('TimelineManager', "handleStopTimeline: Can't stop timeline: TimelineEngine missing");
-        return false;
-      }
-      logger.info('TimelineManager', "handleStopTimeline: Stopping timeline...");
-      
-      // Just stop the timeline without affecting audio playback
-      const stopped = serviceRef.current.timelineEngine.stop();
-      logger.info('TimelineManager', `handleStopTimeline: TimelineEngine stop result: ${stopped}`);
-  
-      if (stopped) {
-        setTimelineIsPlaying(false);
-      }
-  
-      return stopped;
-    };
-  
-    /**
-     * Pauses timeline playback while preserving position
-     * @returns {boolean} Success status
-     */
-    const handlePauseTimeline = () => {
-      if (!serviceRef.current.timelineEngine) {
-        logger.info('TimelineManager', "handlePauseTimeline: Can't pause timeline: TimelineEngine missing");
-        return false;
-      }
-      logger.info('TimelineManager', "handlePauseTimeline: Pausing timeline (preserving position)...");
-  
-      // Use the pauseTimeline method if it exists, otherwise fall back to stop
-      if (serviceRef.current.timelineEngine.pauseTimeline) {
-        const paused = serviceRef.current.timelineEngine.pauseTimeline();
-        logger.info('TimelineManager', `handlePauseTimeline: TimelineEngine pause result: ${paused}`);
-  
-        if (paused) {
-          setTimelineIsPlaying(false);
-        }
-  
-        return paused;
-      } else {
-        // Fall back to stop if pause isn't available
-        logger.info('TimelineManager', "handlePauseTimeline: pauseTimeline not available, using stopTimeline as fallback");
-        const stopped = serviceRef.current.timelineEngine.stop();
-        logger.info('TimelineManager', `handlePauseTimeline: TimelineEngine stop result: ${stopped}`);
-  
-        if (stopped) {
-          setTimelineIsPlaying(false);
-        }
-  
-        return stopped;
-      }
-    };
-  
-    /**
-     * Resumes timeline playback from current position
-     * @returns {boolean} Success status
-     */
-    const handleResumeTimeline = () => {
-      if (!serviceRef.current.timelineEngine) {
-        logger.info('TimelineManager', "handleResumeTimeline: Can't resume timeline: TimelineEngine missing");
-        return false;
-      }
-      logger.info('TimelineManager', "handleResumeTimeline: Resuming timeline from current position...");
-  
-      // Use the resumeTimeline method if it exists
-      if (serviceRef.current.timelineEngine.resumeTimeline) {
-        const resumed = serviceRef.current.timelineEngine.resumeTimeline();
-        logger.info('TimelineManager', `handleResumeTimeline: TimelineEngine resume result: ${resumed}`);
-  
-        if (resumed) {
-          setTimelineIsPlaying(true);
-        }
-  
-        return resumed;
-      } else {
-        // Fall back to start with reset:false if resume isn't available
-        logger.info('TimelineManager', "handleResumeTimeline: resumeTimeline not available, using startTimeline with reset:false as fallback");
-        const started = serviceRef.current.timelineEngine.start({ reset: false });
-        logger.info('TimelineManager', `handleResumeTimeline: TimelineEngine start result: ${started}`);
-  
-        if (started) {
-          setTimelineIsPlaying(true);
-        }
-  
-        return started;
-      }
-    };
-  
-    /**
-     * Resets the timeline event index
-     * @returns {boolean} Success status
-     */
-    const handleResetTimelineEventIndex = () => {
-      if (!serviceRef.current.timelineEngine) {
-        logger.info('TimelineManager', "handleResetTimelineEventIndex: TimelineEngine not available");
-        return false;
-      }
-      
-      serviceRef.current.timelineEngine.stop();
-      serviceRef.current.timelineEngine.reset();
-      return true;
-    };
-  
-    /**
-     * Updates timeline phases
-     * @param {Array} phases - Array of timeline phase objects
-     * @returns {boolean} Success status
-     */
-    const handleUpdateTimelinePhases = (phases) => {
-      if (!phases || !Array.isArray(phases)) {
-        logger.info('TimelineManager', "handleUpdateTimelinePhases: No phases to update");
-        return false;
-      }
+//     return serviceRef.current.timelineEngine;
+//   };
 
-      // Add optimization guard
-      if (JSON.stringify(timelinePhases) === JSON.stringify(phases)) {
-        logger.info('TimelineManager', "handleUpdateTimelinePhases: Phases unchanged, skipping update");
-        return true;
-      }
-  
-      logger.debug('TimelineManager', `handleUpdateTimelinePhases: Updating ${phases.length} timeline phases:`);
-  
-      // Ensure phases are properly formed with states
-      const validPhases = phases.map(phase => {
-        logger.debug('TimelineManager', `handleUpdateTimelinePhases: - Phase "${phase.name}" (${phase.id}) at position ${phase.position}:`);
-  
-        // Create a properly structured phase
-        const validPhase = {
-          id: phase.id,
-          name: phase.name,
-          position: phase.position,
-          color: phase.color,
-          locked: phase.locked || false,
-        };
-  
-        // Ensure state is properly structured if it exists
-        if (phase.state) {
-          logger.debug('TimelineManager', `handleUpdateTimelinePhases: -- Phase has state`);
-          validPhase.state = {
-            volumes: phase.state.volumes ? { ...phase.state.volumes } : {},
-            activeAudio: phase.state.activeAudio ? { ...phase.state.activeAudio } : {}
-          };
-  
-          if (phase.state.volumes) {
-            logger.debug('TimelineManager', `handleUpdateTimelinePhases: -- Volumes: ${JSON.stringify(phase.state.volumes)}`);
-          }
-  
-          if (phase.state.activeAudio) {
-            logger.debug('TimelineManager', `handleUpdateTimelinePhases: -- Tracks: ${JSON.stringify(phase.state.activeAudio)}`);
-          }
-        } else {
-          logger.debug('TimelineManager', `handleUpdateTimelinePhases: -- No state defined, creating empty state`);
-          // Always provide a state object, even if empty
-          validPhase.state = {
-            volumes: {},
-            activeAudio: {}
-          };
-        }
-  
-        return validPhase;
-      });
-  
-      setTimelinePhases(validPhases);
-  
-      // Then update the TimelineEngine - IMPORTANT: this makes phases available to components
-      if (serviceRef.current.timelineEngine) {
-        const success = serviceRef.current.timelineEngine.setPhases(validPhases);
-        logger.info('TimelineManager', `handleUpdateTimelinePhases: TimelineEngine phases update ${success ? 'succeeded' : 'failed'}`);
-  
-        // Verify the phases were actually set in the engine
-        const enginePhases = serviceRef.current.timelineEngine.getPhases?.();
-        if (enginePhases) {
-          logger.debug('TimelineManager', `handleUpdateTimelinePhases: TimelineEngine now has ${enginePhases.length} phases`);
-  
-          // Check if each phase has proper state
-          const hasStates = enginePhases.some(p => p.state &&
-            (Object.keys(p.state.volumes || {}).length > 0 ||
-              Object.keys(p.state.activeAudio || {}).length > 0));
-  
-          logger.debug('TimelineManager', `handleUpdateTimelinePhases: TimelineEngine phases have states: ${hasStates ? 'YES' : 'NO'}`);
-        }
-      }
-  
-      // Mark phases as loaded, allowing components to initialize
-      setPhasesLoaded(true);
+//   /**
+//    * Updates React state based on TimelineEngine progress
+//    * Called periodically to sync UI with engine state
+//    */
+//   const syncProgressWithEngine = () => {
+//     const engine = ensureTimelineEngine();
+//     if (!engine) return;
+    
+//     // Get current progress from TimelineEngine
+//     const currentProgress = engine.getProgress();
+    
+//     // Update progress state if changed
+//     if (currentProgress !== progress) {
+//       setProgress(currentProgress);
+//     }
+    
+//     // Get current phase from TimelineEngine
+//     const currentPhase = engine.getCurrentPhase();
+    
+//     // Update active phase if changed
+//     if (currentPhase && (!activePhase || activePhase !== currentPhase.id)) {
+//       setActivePhase(currentPhase.id);
+//     }
+//   };
+
+//   /**
+//    * Setup event handlers for TimelineEngine callbacks
+//    * @private
+//    */
+//   const setupEngineCallbacks = () => {
+//     const engine = ensureTimelineEngine();
+//     if (!engine) return;
+    
+//     // Set up the phase change callback
+//     engine.onPhaseChange = (phaseId, phaseState) => {
+//       logger.info('TimelineManager', `Phase changed: ${phaseId}`);
       
-      return true;
-    };
-  
-    /**
-     * Registers a timeline event
-     * @param {Object} event - Timeline event object
-     * @returns {boolean} Success status
-     */
-    const handleRegisterTimelineEvent = (event) => {
-      if (!event) return false;
-  
-      setTimelineEvents(prev => {
-        const updatedEvents = [...prev, event].sort((a, b) => a.time - b.time);
-        return updatedEvents;
-      });
-  
-      if (serviceRef.current.timelineEngine) {
-        serviceRef.current.timelineEngine.addEvent(event);
-      }
-  
-      return true;
-    };
-  
-    /**
-     * Clears all timeline events
-     * @returns {boolean} Success status
-     */
-    const handleClearTimelineEvents = () => {
-      setTimelineEvents([]);
-  
-      if (serviceRef.current.timelineEngine) {
-        serviceRef.current.timelineEngine.clearEvents();
-      }
-  
-      return true;
-    };
-  
-    /**
-     * Sets the session duration
-     * @param {number} duration - Duration in milliseconds
-     * @returns {boolean} Success status
-     */
-    const handleSetSessionDuration = (duration) => {
-      if (!serviceRef.current.timelineEngine) {
-        logger.info('TimelineManager', "handleSetSessionDuration: TimelineEngine not available");
-        return false;
-      }
+//       // Update state
+//       setActivePhase(phaseId);
       
-      // Update both the engine and React state
-      serviceRef.current.timelineEngine.setSessionDuration(duration);
-      setSessionDuration(duration);
-      return true;
-    };
-  
-    /**
-     * Sets the transition duration for phase changes
-     * @param {number} duration - Duration in milliseconds
-     * @returns {boolean} Success status
-     */
-    const handleSetTransitionDuration = (duration) => {
-      if (!serviceRef.current.timelineEngine) {
-        logger.info('TimelineManager', "handleSetTransitionDuration: TimelineEngine not available");
-        return false;
-      }
+//       // Find the full phase data
+//       const phaseData = timelinePhases.find(p => p.id === phaseId);
       
-      serviceRef.current.timelineEngine.setTransitionDuration(duration);
-      setTransitionDuration(duration);
-      return true;
-    };
-  
-    /**
-     * Seeks to a specific time in the timeline
-     * @param {number} timeMs - Time in milliseconds
-     * @returns {boolean} Success status
-     */
-    const handleSeekToTime = (timeMs) => {
-      if (!serviceRef.current.timelineEngine) {
-        logger.info('TimelineManager', "handleSeekToTime: TimelineEngine not available");
-        return false;
-      }
+//       // Dispatch event for other components
+//       if (phaseData) {
+//         const phaseChangeEvent = new CustomEvent('timeline-phase-changed', {
+//           detail: {
+//             phaseId,
+//             phaseData,
+//             state: phaseState,
+//             progress: engine.getProgress()
+//           }
+//         });
+        
+//         window.dispatchEvent(phaseChangeEvent);
+//       }
+//     };
+    
+//     // Set up progress update callback
+//     engine.onProgress = (progressPercent, timeMs) => {
+//       setProgress(progressPercent);
+//     };
+    
+//     // Set up scheduled event callback
+//     engine.onScheduledEvent = (event) => {
+//       logger.info('TimelineManager', `Event triggered: ${event.id}`);
       
-      return serviceRef.current.timelineEngine.seekTo(timeMs);
-    };
-  
-    /**
-     * Seeks to a percentage position in the timeline
-     * @param {number} percent - Position as percentage (0-100)
-     * @returns {boolean} Success status
-     */
-    const handleSeekToPercent = (percent) => {
-      if (!serviceRef.current.timelineEngine) {
-        logger.info('TimelineManager', "handleSeekToPercent: TimelineEngine not available");
-        return false;
-      }
+//       // Dispatch event for other components
+//       const timelineEvent = new CustomEvent('timeline-event-triggered', {
+//         detail: event
+//       });
       
-      return serviceRef.current.timelineEngine.seekToPercent(percent);
-    };
-  
-    /**
-     * Toggles timeline playback
-     * @returns {boolean} New playing state
-     */
-    const toggleTimeline = () => {
-      const isTimelinePlaying = serviceRef.current.timelineEngine?.isPlaying() || false;
+//       window.dispatchEvent(timelineEvent);
+//     };
+//   };
+
+//   /**
+//    * Updates timeline phases in both state and engine
+//    * @param {Array} phases - New timeline phases
+//    * @returns {boolean} Success status
+//    */
+//   const handleUpdateTimelinePhases = (phases) => {
+//     try {
+//       const engine = ensureTimelineEngine();
+//       if (!engine) return false;
       
-      if (isTimelinePlaying) {
-        return handlePauseTimeline();
-      } else {
-        return handleStartTimeline();
-      }
-    };
+//       if (!phases || !Array.isArray(phases)) {
+//         logger.error('TimelineManager', 'Invalid phases data');
+//         return false;
+//       }
+      
+//       logger.info('TimelineManager', `Updating timeline phases (${phases.length} phases)`);
+      
+//       // Sort phases by position
+//       const sortedPhases = [...phases].sort((a, b) => a.position - b.position);
+      
+//       // Update React state
+//       setTimelinePhases(sortedPhases);
+      
+//       // Update TimelineEngine with the new phases
+//       const success = engine.setPhases(sortedPhases);
+      
+//       // Set phases loaded flag
+//       setPhasesLoaded(true);
+      
+//       // Trigger an immediate phase check
+//       engine.checkCurrentPhase();
+      
+//       return success;
+//     } catch (error) {
+//       logger.error('TimelineManager', 'handleUpdateTimelinePhases error:', error);
+//       return false;
+//     }
+//   };
+
+//   /**
+//    * Starts timeline progression
+//    * @returns {boolean} Success status
+//    */
+//   const handleStartTimeline = () => {
+//     try {
+//       const engine = ensureTimelineEngine();
+//       if (!engine) return false;
+      
+//       logger.info('TimelineManager', 'Starting timeline progression');
+      
+//       // Start the engine with reset option
+//       const success = engine.start({ reset: true });
+      
+//       if (success) {
+//         // Update React state
+//         setTimelineIsPlaying(true);
+        
+//         // Set up engine callbacks if needed
+//         setupEngineCallbacks();
+        
+//         return true;
+//       } else {
+//         logger.error('TimelineManager', 'Failed to start TimelineEngine');
+//         return false;
+//       }
+//     } catch (error) {
+//       logger.error('TimelineManager', 'handleStartTimeline error:', error);
+//       return false;
+//     }
+//   };
+
+//   /**
+//    * Pauses timeline progression
+//    * @returns {boolean} Success status
+//    */
+//   const handlePauseTimeline = () => {
+//     try {
+//       const engine = ensureTimelineEngine();
+//       if (!engine) return false;
+      
+//       logger.info('TimelineManager', 'Pausing timeline progression');
+      
+//       // Use pauseTimeline method from TimelineEngine
+//       const success = engine.pauseTimeline();
+      
+//       if (success) {
+//         // Update React state
+//         setTimelineIsPlaying(false);
+//         return true;
+//       } else {
+//         logger.error('TimelineManager', 'Failed to pause TimelineEngine');
+//         return false;
+//       }
+//     } catch (error) {
+//       logger.error('TimelineManager', 'handlePauseTimeline error:', error);
+//       return false;
+//     }
+//   };
+
+//   /**
+//    * Resumes timeline progression from current position
+//    * @returns {boolean} Success status
+//    */
+//   const handleResumeTimeline = () => {
+//     try {
+//       const engine = ensureTimelineEngine();
+//       if (!engine) return false;
+      
+//       logger.info('TimelineManager', 'Resuming timeline progression');
+      
+//       // Use resumeTimeline method from TimelineEngine
+//       const success = engine.resumeTimeline();
+      
+//       if (success) {
+//         // Update React state
+//         setTimelineIsPlaying(true);
+//         return true;
+//       } else {
+//         logger.error('TimelineManager', 'Failed to resume TimelineEngine');
+//         return false;
+//       }
+//     } catch (error) {
+//       logger.error('TimelineManager', 'handleResumeTimeline error:', error);
+//       return false;
+//     }
+//   };
+
+//   /**
+//    * Stops timeline progression
+//    * @returns {boolean} Success status
+//    */
+//   const handleStopTimeline = () => {
+//     try {
+//       const engine = ensureTimelineEngine();
+//       if (!engine) return false;
+      
+//       logger.info('TimelineManager', 'Stopping timeline progression');
+      
+//       // Use stop method from TimelineEngine
+//       const success = engine.stop();
+      
+//       if (success) {
+//         // Update React state
+//         setTimelineIsPlaying(false);
+//         setProgress(0);
+//         setActivePhase(null);
+//         return true;
+//       } else {
+//         logger.error('TimelineManager', 'Failed to stop TimelineEngine');
+//         return false;
+//       }
+//     } catch (error) {
+//       logger.error('TimelineManager', 'handleStopTimeline error:', error);
+//       return false;
+//     }
+//   };
+
+//   /**
+//    * Resets the timeline state completely
+//    * @returns {boolean} Success status
+//    */
+//   const handleResetTimeline = () => {
+//     try {
+//       const engine = ensureTimelineEngine();
+//       if (!engine) return false;
+      
+//       logger.info('TimelineManager', 'Resetting timeline');
+      
+//       // Use reset method from TimelineEngine
+//       const success = engine.reset();
+      
+//       if (success) {
+//         // Update React state
+//         setTimelineIsPlaying(false);
+//         setProgress(0);
+//         setActivePhase(null);
+//         nextEventIndexRef.current = 0;
+//         return true;
+//       } else {
+//         logger.error('TimelineManager', 'Failed to reset TimelineEngine');
+//         return false;
+//       }
+//     } catch (error) {
+//       logger.error('TimelineManager', 'handleResetTimeline error:', error);
+//       return false;
+//     }
+//   };
+
+//   /**
+//    * Toggles timeline play/pause state
+//    * @returns {boolean} Success status
+//    */
+//   const toggleTimeline = () => {
+//     if (timelineIsPlaying) {
+//       return handlePauseTimeline();
+//     } else {
+//       return timelineIsPlaying ? handleResumeTimeline() : handleStartTimeline();
+//     }
+//   };
   
-    // Return the public API
-    return {
-      handleStartTimeline,
-      handleStopTimeline,
-      handlePauseTimeline,
-      handleResumeTimeline,
-      handleResetTimelineEventIndex,
-      handleUpdateTimelinePhases,
-      handleRegisterTimelineEvent,
-      handleClearTimelineEvents,
-      handleSetSessionDuration,
-      handleSetTransitionDuration,
-      handleSeekToTime,
-      handleSeekToPercent,
-      toggleTimeline
-    };
-  };
-  
-  export default createTimelineManager;
+//   /**
+//    * Registers a timeline event
+//    * @param {Object} event - Event to register
+//    * @returns {boolean} Success status
+//    */
+//   const handleRegisterTimelineEvent = (event) => {
+//     try {
+//       const engine = ensureTimelineEngine();
+//       if (!engine) return false;
+      
+//       if (!event || !event.id) {
+//         logger.error('TimelineManager', 'Invalid event data');
+//         return false;
+//       }
+      
+//       logger.info('TimelineManager', `Registering timeline event: ${event.id}`);
+      
+//       // Add to React state
+//       setTimelineEvents(prevEvents => {
+//         const newEvents = [...prevEvents, event].sort((a, b) => 
+//           (a.time || 0) - (b.time || 0)
+//         );
+//         return newEvents;
+//       });
+      
+//       // Add to TimelineEngine
+//       return engine.addEvent(event);
+//     } catch (error) {
+//       logger.error('TimelineManager', 'handleRegisterTimelineEvent error:', error);
+//       return false;
+//     }
+//   };
+
+//   /**
+//    * Clears all timeline events
+//    * @returns {boolean} Success status
+//    */
+//   const handleClearTimelineEvents = () => {
+//     try {
+//       const engine = ensureTimelineEngine();
+//       if (!engine) return false;
+      
+//       logger.info('TimelineManager', 'Clearing all timeline events');
+      
+//       // Clear from React state
+//       setTimelineEvents([]);
+      
+//       // Clear from TimelineEngine - replace with actual method if different
+//       const success = engine.clearEvents ? engine.clearEvents() : true;
+      
+//       // Reset event index
+//       nextEventIndexRef.current = 0;
+      
+//       return success;
+//     } catch (error) {
+//       logger.error('TimelineManager', 'handleClearTimelineEvents error:', error);
+//       return false;
+//     }
+//   };
+
+//   /**
+//    * Sets the session duration
+//    * @param {number} duration - Duration in milliseconds
+//    * @returns {boolean} Success status
+//    */
+//   const handleSetSessionDuration = (duration) => {
+//     try {
+//       const engine = ensureTimelineEngine();
+//       if (!engine) return false;
+      
+//       if (!duration || typeof duration !== 'number' || duration <= 0) {
+//         logger.error('TimelineManager', 'Invalid session duration:', duration);
+//         return false;
+//       }
+      
+//       logger.info('TimelineManager', `Setting session duration: ${duration}ms`);
+      
+//       // Update in React state
+//       setSessionDuration(duration);
+      
+//       // Update in TimelineEngine
+//       return engine.setSessionDuration(duration);
+//     } catch (error) {
+//       logger.error('TimelineManager', 'handleSetSessionDuration error:', error);
+//       return false;
+//     }
+//   };
+
+//   /**
+//    * Sets the transition duration
+//    * @param {number} duration - Duration in milliseconds
+//    * @returns {boolean} Success status
+//    */
+//   const handleSetTransitionDuration = (duration) => {
+//     try {
+//       const engine = ensureTimelineEngine();
+//       if (!engine) return false;
+      
+//       if (!duration || typeof duration !== 'number' || duration < 0) {
+//         logger.error('TimelineManager', 'Invalid transition duration:', duration);
+//         return false;
+//       }
+      
+//       logger.info('TimelineManager', `Setting transition duration: ${duration}ms`);
+      
+//       // Update in React state
+//       setTransitionDuration(duration);
+      
+//       // Update in TimelineEngine
+//       return engine.setTransitionDuration(duration);
+//     } catch (error) {
+//       logger.error('TimelineManager', 'handleSetTransitionDuration error:', error);
+//       return false;
+//     }
+//   };
+
+//    /**
+//    * Triggers a manual phase transition
+//    * @param {string} phaseId - ID of the phase to transition to
+//    * @returns {boolean} Success status
+//    */
+//    const handleManualPhaseTransition = (phaseId) => {
+//     try {
+//       const engine = ensureTimelineEngine();
+//       if (!engine) return false;
+      
+//       // Find the phase in our timeline phases
+//       const phase = timelinePhases.find(p => p.id === phaseId);
+//       if (!phase) {
+//         logger.error('TimelineManager', `Phase not found: ${phaseId}`);
+//         return false;
+//       }
+      
+//       logger.info('TimelineManager', `Manually triggering phase: ${phaseId}`);
+      
+//       // Trigger phase in TimelineEngine
+//       const success = engine.triggerPhase(phaseId);
+      
+//       if (success) {
+//         // Update active phase in React state
+//         setActivePhase(phaseId);
+//         return true;
+//       } else {
+//         logger.error('TimelineManager', `Failed to trigger phase: ${phaseId}`);
+//         return false;
+//       }
+//     } catch (error) {
+//       logger.error('TimelineManager', 'handleManualPhaseTransition error:', error);
+//       return false;
+//     }
+//   };
+
+//   /* Seeks to a specific time in the timeline
+//   * @param {number} timeMs - Time in milliseconds
+//   * @returns {boolean} Success status
+//   */
+//  const handleSeekToTime = (timeMs) => {
+//    try {
+//      const engine = ensureTimelineEngine();
+//      if (!engine) return false;
+     
+//      if (typeof timeMs !== 'number' || timeMs < 0) {
+//        logger.error('TimelineManager', 'Invalid seek time:', timeMs);
+//        return false;
+//      }
+     
+//      logger.info('TimelineManager', `Seeking to time: ${timeMs}ms`);
+     
+//      // Use the seekToTime method from TimelineEngine
+//      const success = engine.seekToTime(timeMs);
+     
+//      if (success) {
+//        // The engine will update progress internally, but we'll sync state as well
+//        const progressPercent = (timeMs / sessionDuration) * 100;
+//        setProgress(Math.min(100, progressPercent));
+       
+//        // Tell the engine to check phases right away
+//        engine.checkCurrentPhase();
+       
+//        return true;
+//      } else {
+//        logger.error('TimelineManager', 'Failed to seek in TimelineEngine');
+//        return false;
+//      }
+//    } catch (error) {
+//      logger.error('TimelineManager', 'handleSeekToTime error:', error);
+//      return false;
+//    }
+//  };
+
+//  /**
+//   * Seeks to a percentage position in the timeline
+//   * @param {number} percent - Position as percentage (0-100)
+//   * @returns {boolean} Success status
+//   */
+//  const handleSeekToPercent = (percent) => {
+//    try {
+//      const engine = ensureTimelineEngine();
+//      if (!engine) return false;
+     
+//      if (typeof percent !== 'number' || percent < 0 || percent > 100) {
+//        logger.error('TimelineManager', 'Invalid seek percentage:', percent);
+//        return false;
+//      }
+     
+//      logger.info('TimelineManager', `Seeking to percent: ${percent}%`);
+     
+//      // Calculate time in ms from percentage
+//      const timeMs = (percent / 100) * sessionDuration;
+     
+//      // Use seekToTime method
+//      return handleSeekToTime(timeMs);
+//    } catch (error) {
+//      logger.error('TimelineManager', 'handleSeekToPercent error:', error);
+//      return false;
+//    }
+//  };
+
+//  /**
+//   * Checks for phase transitions using TimelineEngine
+//   * Use this to manually trigger a phase check
+//   * @returns {boolean} Success status
+//   */
+//  const checkPhaseTransitions = () => {
+//    try {
+//      const engine = ensureTimelineEngine();
+//      if (!engine) return false;
+     
+//      logger.debug('TimelineManager', 'Manually checking phase transitions');
+     
+//      // Use the checkCurrentPhase method from TimelineEngine
+//      const success = engine.checkCurrentPhase();
+     
+//      // Sync state with engine
+//      syncProgressWithEngine();
+     
+//      return success;
+//    } catch (error) {
+//      logger.error('TimelineManager', 'checkPhaseTransitions error:', error);
+//      return false;
+//    }
+//  };
+
+//  /**
+//   * Updates progress and checks for phase transitions
+//   * Called periodically to sync UI with engine state
+//   * @returns {boolean} Success status
+//   */
+//  const updateProgressAndCheckPhases = () => {
+//    try {
+//      const engine = ensureTimelineEngine();
+//      if (!engine) return false;
+     
+//      // Sync state with engine
+//      syncProgressWithEngine();
+     
+//      // No need to manually check phases as TimelineEngine does this internally
+//      // when running, but we'll trigger a check just to be safe
+//      engine.checkCurrentPhase();
+     
+//      return true;
+//    } catch (error) {
+//      logger.error('TimelineManager', 'updateProgressAndCheckPhases error:', error);
+//      return false;
+//    }
+//  };
+
+//  /**
+//   * Resets the timeline event index
+//   * @returns {boolean} Success status
+//   */
+//  const resetTimelineEventIndex = () => {
+//    try {
+//      const engine = ensureTimelineEngine();
+//      if (!engine) return false;
+     
+//      logger.info('TimelineManager', 'Resetting timeline event index');
+     
+//      // Reset event index in ref
+//      nextEventIndexRef.current = 0;
+     
+//      // Reset event index in TimelineEngine if it has that capability
+//      if (typeof engine.resetEventIndex === 'function') {
+//        engine.resetEventIndex();
+//      }
+     
+//      return true;
+//    } catch (error) {
+//      logger.error('TimelineManager', 'resetTimelineEventIndex error:', error);
+//      return false;
+//    }
+//  };
+
+//  // Return public API with methods that delegate to TimelineEngine
+//  return {
+//    // Timeline control methods
+//    handleStartTimeline,
+//    handlePauseTimeline,
+//    handleResumeTimeline,
+//    handleStopTimeline,
+//    handleResetTimeline,
+//    toggleTimeline,
+   
+//    // Timeline content methods
+//    handleUpdateTimelinePhases,
+//    handleRegisterTimelineEvent,
+//    handleClearTimelineEvents,
+//    handleManualPhaseTransition,
+   
+//    // Configuration methods
+//    handleSetSessionDuration,
+//    handleSetTransitionDuration,
+   
+//    // Navigation methods
+//    handleSeekToTime,
+//    handleSeekToPercent,
+   
+//    // Phase detection methods
+//    checkPhaseTransitions,
+//    updateProgressAndCheckPhases,
+   
+//    // Internal helpers (exposed for testing)
+//    ensureTimelineEngine,
+//    syncProgressWithEngine,
+//    setupEngineCallbacks,
+   
+//    // Reset timeline event index (standardized name)
+//    resetTimelineEventIndex
+//  };
+// };
+
+// export default createTimelineManager;

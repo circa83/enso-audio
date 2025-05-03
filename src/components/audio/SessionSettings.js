@@ -9,9 +9,9 @@ const SessionSettings = ({
   onTransitionDurationChange,
 
 }) => {
-  const [durationHours, setDurationHours] = useState(Math.floor(sessionDuration / (60 * 60 * 1000)));
-  const [durationMinutes, setDurationMinutes] = useState(Math.floor((sessionDuration % (60 * 60 * 1000)) / (60 * 1000)));
-  const [durationSeconds, setDurationSeconds] = useState(Math.floor((sessionDuration % (60 * 1000)) / 1000));
+  const [durationHours, setSessionDurationHours] = useState(Math.floor(sessionDuration / (60 * 60 * 1000)));
+  const [durationMinutes, setSessionDurationMinutes] = useState(Math.floor((sessionDuration % (60 * 60 * 1000)) / (60 * 1000)));
+  const [durationSeconds, setSessionDurationSeconds] = useState(Math.floor((sessionDuration % (60 * 1000)) / 1000));
   
   // Initialize with default 4 second transition
   /*useEffect(() => {
@@ -34,7 +34,7 @@ const SessionSettings = ({
   const handleHoursChange = useCallback((e) => {
     const value = parseInt(e.target.value, 10);
     if (!isNaN(value) && value >= 0 && value <= 12) {
-      setDurationHours(value);
+      setSessionDurationHours(value);
     // Use a micro-task to allow state to update first
     setTimeout(() => {
       const newDuration = (value * 60 * 60 * 1000) + 
@@ -49,7 +49,7 @@ const SessionSettings = ({
   const handleMinutesChange = useCallback((e) => {
     const value = parseInt(e.target.value, 10);
     if (!isNaN(value) && value >= 0 && value < 60) {
-      setDurationMinutes(value);
+      setSessionDurationMinutes(value);
    // Use a micro-task to allow state to update first
    setTimeout(() => {
     const newDuration = (durationHours * 60 * 60 * 1000) + 
@@ -64,7 +64,7 @@ const SessionSettings = ({
   const handleSecondsChange = useCallback((e) => {
     const value = parseInt(e.target.value, 10);
     if (!isNaN(value) && value >= 0 && value < 60) {
-      setDurationSeconds(value);
+      setSessionDurationSeconds(value);
       // Use a micro-task to allow state to update first
       setTimeout(() => {
         const newDuration = (durationHours * 60 * 60 * 1000) + 

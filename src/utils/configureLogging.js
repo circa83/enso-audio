@@ -12,7 +12,7 @@ export function configureLogging(options = {}) {
     disabledCategories: [],
     // In production, disable verbose categories
     ...(process.env.NODE_ENV === 'production' ? {
-      disabledCategories: ['TimelineManager', 'LayerManager', 'CollectionLoader']
+      disabledCategories: ['Timeline', 'LayerManager', 'CollectionLoader']
     } : {})
   };
   

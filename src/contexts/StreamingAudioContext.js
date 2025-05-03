@@ -6,9 +6,10 @@ import AudioFileService from '../services/AudioFileService';
 import { useCollections } from '../hooks/useCollections';
 import CollectionLoader from '../services/audio/CollectionLoader';
 import createplaybackManager from '../services/audio/PlaybackManager';
-import createTimelineManager from '../services/audio/TimelineManager';
+import useTimeline from '../hooks/useTimeline';
 import createLayerManager from '../services/audio/LayerManager';
 import { mapCollectionToLayers } from '../utils/collectionUtils';
+import logger from '../services/LoggingService';
 
 // Define our audio layers as a frozen object to prevent modifications
 const LAYERS = Object.freeze({
@@ -30,15 +31,6 @@ const DEFAULT_AUDIO = Object.freeze({
 const AudioContext = createContext(null);
 
 // AudioLibrary 
-
-// Custom hook for using the audio context
-export const useAudio = () => {
-  const context = useContext(AudioContext);
-  if (!context) {
-    throw new Error('useAudio must be used within an AudioProvider');
-  }
-  return context;
-};
 
 export const AudioProvider = ({ children }) => {
   // Service references
@@ -128,25 +120,14 @@ export const AudioProvider = ({ children }) => {
   // Track preloading progress
   const [preloadProgress, setPreloadProgress] = useState({});
 
+  // Timeline progress 
+  const progressTimerRef = useRef(null);
 
- // Timeline features
- const [timelineEvents, setTimelineEvents] = useState([]);
- const [timelinePhases, setTimelinePhases] = useState([]);
- const [activePhase, setActivePhase] = useState(null);
- const [progress, setProgress] = useState(0);
- const [sessionDuration, setSessionDuration] = useState(1 * 60 * 1000); // 1 min
- const [transitionDuration, setTransitionDuration] = useState(4000); // 4 seconds
- const [timelineIsPlaying, setTimelineIsPlaying] = useState(false);
-
- // Phase loading
- const [phasesLoaded, setPhasesLoaded] = useState(false);
-
-
- // Collection state
- const [currentCollection, setCurrentCollection] = useState(null);
- const [loadingCollection, setLoadingCollection] = useState(false);
- const [collectionError, setCollectionError] = useState(null);
- const [collectionLoadProgress, setCollectionLoadProgress] = useState(0);
+  // Collection state
+  const [currentCollection, setCurrentCollection] = useState(null);
+  const [loadingCollection, setLoadingCollection] = useState(false);
+  const [collectionError, setCollectionError] = useState(null);
+  const [collectionLoadProgress, setCollectionLoadProgress] = useState(0);
 
 
 
@@ -169,97 +150,79 @@ export const AudioProvider = ({ children }) => {
   }), [activeAudio, volumes, audioLibrary]);
 
 
-   //======================
-  //  Create TimelineManager instance
+ //======================
+  // Use the Timeline Hook 
+  
+  // Use our timeline hook with the timelineEngine from serviceRef
+  const timeline = useTimeline({
+    timelineEngine: serviceRef.current.timelineEngine,
+    isPlaying,
+    onPhaseChange: (phaseId, phaseData) => {
+      logger.info('StreamingAudioContext', `PhaseId changed to: ${phaseId}`);
+      
+      // Instead of directly applying volume changes here, we'll defer to the SessionTimeline
+      // component which should handle transitions via the audio services
+
+      // Broadcast a phase change event that SessionTimeline will listen for
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent('timeline-phase-changed', {
+          detail: { phaseId, phaseData }
+        });
+        window.dispatchEvent(event);
+      }
+    },
+    // Pass the current duration values
+    sessionDuration: serviceRef.current.timeline?.getSessionDuration() || (1 * 60 * 1000),
+    transitionDuration: serviceRef.current.timeline?.getTransitionDuration() || 4000,
+    enableLogging: true
+  });
+
+  //======================
+  //  Create LayerManager instance
   //======================
 
-const timelineManager = useMemo(() => createTimelineManager({
-  // Refs
-  serviceRef,
-  
-  // State setters
-  setTimelineIsPlaying,
-  setProgress,
-  setActivePhase,
-  setTimelineEvents,
-  setTimelinePhases,
-  setSessionDuration,
-  setTransitionDuration,
-  
-  // State values
-  sessionDuration,
-  transitionDuration,
-  timelineEvents,
-  timelinePhases,
-  
-  // Additional refs/state
-  isPlayingRef,
-  phasesLoaded,
-  setPhasesLoaded
-}), [
-  // Dependencies
-  timelineEvents,
-  timelinePhases,
-  sessionDuration,
-  transitionDuration,
-  serviceRef, // Note: If serviceRef is a useRef, you typically don't include it
-  setTimelineIsPlaying, // State setters typically don't change, but for consistency
-  setProgress,
-  setActivePhase,
-  setTimelineEvents,
-  setTimelinePhases,
-  setSessionDuration,
-  setTransitionDuration,
-  phasesLoaded,
-]);
+  const layerManager = useMemo(() => createLayerManager({
+    // Refs
+    serviceRef,
+    audioLibraryRef,
+    activeAudioRef,
+    isPlayingRef,
+
+    // State
+    audioLibrary,
+    activeAudio,
+    volumes,
+
+    // State setters
+    setAudioLibrary,
+    setActiveAudio,
+    setVolumes,
+    setHasSwitchableAudio,
+    setActiveCrossfades,
+    setCrossfadeProgress,
+    setMasterVolume,
+
+    // Constants
+    LAYERS,
+    DEFAULT_AUDIO
+  }), [
+    // Dependencies
+    audioLibrary,
+    activeAudio,
+    volumes,
+    
+  ]);
 
 
- //======================
-//  Create LayerManager instance
-//======================
-
-const layerManager = useMemo(() => createLayerManager({
-  // Refs
-  serviceRef,
-  audioLibraryRef,
-  activeAudioRef,
-  isPlayingRef,
-
-  // State
-  audioLibrary,
-  activeAudio,
-  volumes,
-  transitionDuration,
-  
-  // State setters
-  setAudioLibrary,
-  setActiveAudio,
-  setVolumes,
-  setHasSwitchableAudio,
-  setActiveCrossfades,
-  setCrossfadeProgress,
-  setMasterVolume,
-  
-  // Constants
-  LAYERS,
-  DEFAULT_AUDIO
-}), [
-  // Dependencies
-  audioLibrary,
-  activeAudio,
-  volumes,
-  transitionDuration
-]);
-
-
- //======================
-// Collection Loader
-//======================
+  //======================
+  // Collection Loader
+  //======================
 
   const handleLoadCollection = useCallback(
     CollectionLoader({
       // State setters
-      setPhasesLoaded,
+      setPhasesLoaded : timeline.setPhasesLoaded, 
+      setActivePhase : timeline.setActivePhase,
       setLoadingCollection,
       setCollectionError,
       setCollectionLoadProgress,
@@ -268,14 +231,14 @@ const layerManager = useMemo(() => createLayerManager({
 
       //Managers
       layerManager,
-      timelineManager,
+      timeline,
 
       // Handler functions
       handleStartSession: playbackManager.handleStartSession,
       handlePauseSession: playbackManager.handlePauseSession,
-      handleSetSessionDuration: timelineManager.handleSetSessionDuration,
-      handleSetTransitionDuration: timelineManager.handleSetTransitionDuration,
-      handleUpdateTimelinePhases: timelineManager.handleUpdateTimelinePhases,
+      handleSetSessionDuration: timeline.setSessionDuration,
+      handleSetTransitionDuration: timeline.setTransitionDuration,
+      handleUpdateTimelinePhases: timeline.updatePhases,
 
       // Services
       collectionService,
@@ -292,7 +255,7 @@ const layerManager = useMemo(() => createLayerManager({
     [
       // Dependencies that should trigger recreation
       layerManager,
-      timelineManager,
+      timeline,
       collectionService,
       audioFileService,
       volumes,
@@ -323,7 +286,7 @@ const layerManager = useMemo(() => createLayerManager({
   // Initialize services - Only run once on mount
   useEffect(() => {
     let isMounted = true; // For preventing state updates after unmount
-    console.log("AudioProvider mounted, initializing services...");
+    logger.info('StreamingAudioContext', "AudioProvider mounted, initializing services...");
 
     const initializeServices = async () => {
       if (typeof window === 'undefined') return;
@@ -351,13 +314,13 @@ const layerManager = useMemo(() => createLayerManager({
             }
           },
           timelineEngine: {
-            sessionDuration,
-            transitionDuration,
+            sessionDuration: timeline.sessionDuration,
+            transitionDuration: timeline.transitionDuration,
             onPhaseChange: (phaseId, phaseData) => {
               if (!isMounted) return;
 
-              console.log(`[STREAMINGSUDIOCONTEXT: intitialize services] PhaseId changed to: ${phaseId}`);
-              setActivePhase(phaseId);
+              logger.info('StreamingAudioContext', `PhaseId changed to: ${phaseId}`);
+              timeline.setActivePhase(phaseId);
 
               // Instead of directly applying volume changes here, we'll defer to the SessionTimeline
               // component which should handle transitions via the audio services
@@ -370,18 +333,19 @@ const layerManager = useMemo(() => createLayerManager({
                 window.dispatchEvent(event);
               }
             },
-            onScheduledEvent: (event) => {
+                 onScheduledEvent: (event) => {
               if (!isMounted) return;
 
-              console.log('Timeline event triggered:', event);
-
-
+              logger.info('StreamingAudioContext', 'Timeline event triggered:', event);
             },
             onProgress: (progress, elapsedTime) => {
-              if (isMounted) setProgress(progress);
-            }
+              if (isMounted) {
+                logger.debug('StreamingAudioContext', `Timeline progress update: ${progress.toFixed(2)}% at ${elapsedTime}ms`);
+                timeline.setProgress(progress);
+              }
+            },
+            enableLogging: true
           }
-
         });
 
         // Store services in ref
@@ -394,14 +358,14 @@ const layerManager = useMemo(() => createLayerManager({
 
         // You can replace 'your-collection-id' with any collection ID you want to load by default
         if (isMounted) {
-          console.log("Loading initial collection...");
+          logger.info('StreamingAudioContext', "Loading initial collection...");
           // Don't auto-play since this is the initial load
           handleLoadCollection('Stillness', { autoPlay: false })
             .then(success => {
-              console.log(`Initial collection load ${success ? 'succeeded' : 'failed'}`);
+              logger.info('StreamingAudioContext', `Initial collection load ${success ? 'succeeded' : 'failed'}`);
             })
             .catch(err => {
-              console.error("Error loading initial collection:", err);
+              logger.error('StreamingAudioContext', "Error loading initial collection:", err);
             });
         }
 
@@ -410,7 +374,7 @@ const layerManager = useMemo(() => createLayerManager({
         if (isMounted) layerManager.tryLoadVariationFiles();
 
       } catch (error) {
-        console.error("Error initializing audio system:", error);
+        logger.error('StreamingAudioContext', "Error initializing audio system:", error);
         if (isMounted) {
           setLoadingProgress(100);
           setIsLoading(false);
@@ -450,16 +414,16 @@ const layerManager = useMemo(() => createLayerManager({
         await loadCollections();
         collectionsLoadedRef.current = true;
       } catch (error) {
-        console.error('Error loading initial collections:', error);
+        logger.error('StreamingAudioContext', 'Error loading initial collections:', error);
 
         // Retry with exponential backoff
         if (retryCount < maxRetries) {
           retryCount++;
           const delay = retryDelay * Math.pow(2, retryCount - 1);
-          console.log(`Retrying collection load in ${delay}ms (attempt ${retryCount}/${maxRetries})`);
+          logger.info('StreamingAudioContext', `Retrying collection load in ${delay}ms (attempt ${retryCount}/${maxRetries})`);
           setTimeout(loadInitialCollections, delay);
         } else {
-          console.error('Max retries reached for loading collections');
+          logger.error('StreamingAudioContext', 'Max retries reached for loading collections');
         }
       }
     };
@@ -483,19 +447,80 @@ const layerManager = useMemo(() => createLayerManager({
 
   // Recover Audio From AudioLibrary if needed
   useEffect(() => {
-    if (Object.values(audioLibrary).some(layerTracks => layerTracks.length === 0)) {
-      console.warn('Detected empty audio library, recovering from ref...');
-      setAudioLibrary(audioLibraryRef.current);
+    if (Object.values(audioLibrary).some(
+      layer => Array.isArray(layer) && layer.length > 0
+    )) {
+      setHasSwitchableAudio(true);
+      logger.info('StreamingAudioContext', 'Audio library contains switchable tracks');
+    } else {
+      setHasSwitchableAudio(false);
+      logger.info('StreamingAudioContext', 'Audio library does not contain switchable tracks');
     }
   }, [audioLibrary]);
 
+    // Log when volumes change for debugging
+    useEffect(() => {
+      logger.debug('StreamingAudioContext', 'Volume state changed:', volumes);
+  
+      // If we have a volume controller, update its values
+      if (serviceRef.current.volumeController) {
+        Object.entries(volumes).forEach(([layer, volume]) => {
+          serviceRef.current.volumeController.setVolume(layer, volume);
+        });
+        logger.debug('StreamingAudioContext', 'Applied volume changes to VolumeController');
+      }
+    }, [volumes]);
+
   // Update master volume when state changes
   useEffect(() => {
+    logger.debug('StreamingAudioContext', `Master volume changed to ${masterVolume}`);
     if (serviceRef.current.audioCore) {
       serviceRef.current.audioCore.setMasterVolume(masterVolume);
+      logger.debug('StreamingAudioContext', 'Applied master volume to AudioCore');
     }
   }, [masterVolume]);
 
+  // Effect for phase detection during timeline playback
+  useEffect(() => {
+    logger.debug('StreamingAudioContext', `Timeline playback state changed: isPlaying=${timeline.isPlaying}`);
+
+    if (timeline.IsPlaying && serviceRef.current.timelineEngine) {
+      // Start progress timer for phase detection if not already running
+      if (!progressTimerRef.current) {
+         logger.info('StreamingAudioContext', 'Starting phase detection timer');
+
+        progressTimerRef.current = setInterval(() => {
+          if (timeline && typeof timeline.updateProgressAndCheckPhases === 'function') {
+            logger.debug('StreamingAudioContext', 'Calling updateProgressAndCheckPhases');
+            timeline.updateProgressAndCheckPhases();
+            logger.debug('StreamingAudioContext', `updateProgressAndCheckPhases result: ${result ? 'success' : 'failed'}`);
+          } else {
+            logger.warn('StreamingAudioContext', 'Cannot check phases - updateProgressAndCheckPhases not available');
+          }
+    
+        }, 100); // Check every 100ms
+        logger.debug('StreamingAudioContext', 'Phase detection timer registered with ID: ' + progressTimerRef.current);
+      } else {
+        logger.debug('StreamingAudioContext', 'Phase detection timer already running, ID: ' + progressTimerRef.current);
+      }
+    } else {
+      // Stop timer when not playing
+      if (progressTimerRef.current) {
+        logger.info('StreamingAudioContext', 'Stopping phase detection timer');
+        clearInterval(progressTimerRef.current);
+        progressTimerRef.current = null;
+      }
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (progressTimerRef.current) {
+        logger.debug('StreamingAudioContext', 'Cleaning up phase detection timer on unmount');
+        clearInterval(progressTimerRef.current);
+        progressTimerRef.current = null;
+      }
+    };
+  }, [timeline.IsPlaying, timeline]);
 
 
 
@@ -530,38 +555,50 @@ const layerManager = useMemo(() => createLayerManager({
       getSessionTime: playbackManager.getSessionTime,
       togglePlayback: playbackManager.togglePlayback,
 
-     // Layer and Volume - USE LAYER MANAGER HERE
-     masterVolume,
-     setMasterVolumeLevel: layerManager.setMasterVolume,
-     setVolume: layerManager.setVolume,
-     crossfadeTo: layerManager.crossfadeTo,
-     fadeLayerVolume: layerManager.fadeVolume,
-     switchTrack: layerManager.switchTrack,
+      // Layer and Volume - USE LAYER MANAGER HERE
+      masterVolume,
+      setMasterVolumeLevel: layerManager.setMasterVolume,
+      setVolume: layerManager.setVolume,
+      crossfadeTo: layerManager.crossfadeTo,
+      fadeLayerVolume: layerManager.fadeVolume,
+      switchTrack: layerManager.switchTrack,
 
 
-      // Timeline functions
-      activePhase,
-      progress,
-      timelineEvents,
-      timelinePhases,
-      sessionDuration,
-      transitionDuration,
-      timelineIsPlaying,
-      resetTimelineEventIndex: timelineManager.handleResetTimelineEventIndex,
-      registerTimelineEvent: timelineManager.handleRegisterTimelineEvent,
-      clearTimelineEvents: timelineManager.handleClearTimelineEvents,
-      updateTimelinePhases: timelineManager.handleUpdateTimelinePhases,
-      seekToTime: timelineManager.handleSeekToTime,
-      seekToPercent: timelineManager.handleSeekToPercent,
-      setSessionDuration: timelineManager.handleSetSessionDuration,
-      setTransitionDuration: timelineManager.handleSetTransitionDuration,
-      startTimeline: timelineManager.handleStartTimeline,
-      pauseTimeline: timelineManager.handlePauseTimeline,
-      resumeTimeline: timelineManager.handleResumeTimeline,
-      stopTimeline: timelineManager.handleStopTimeline,
-      toggleTimeline: timelineManager.toggleTimeline, 
+     // Timeline state - Use timeline hook properties
+     activePhase: timeline.activePhase,
+     progress: timeline.progress,
+     timelineEvents: timeline.timelineEvents,
+     timelinePhases: timeline.timelinePhases,
+     sessionDuration: timeline.sessionDuration,
+     transitionDuration: timeline.transitionDuration,
+     timelineIsPlaying: timeline.isPlaying,
+     phasesLoaded: timeline.phasesLoaded,
 
+ // Timeline control methods - Use timeline hook methods
+ startTimeline: timeline.start,
+ pauseTimeline: timeline.pause,
+ resumeTimeline: timeline.resume,
+ stopTimeline: timeline.stop,
+ resetTimeline: timeline.reset,
+ toggleTimeline: timeline.toggle,
 
+        // Timeline content methods - Use timeline hook methods
+        resetTimelineEventIndex: timeline.resetEventIndex,
+        registerTimelineEvent: timeline.registerEvent,
+        clearTimelineEvents: timeline.clearEvents,
+        updateTimelinePhases: timeline.updatePhases,
+  
+        // Timeline navigation methods - Use timeline hook methods
+        seekToTime: timeline.seekToTime,
+        seekToPercent: timeline.seekToPercent,
+  
+        // Timeline configuration methods - Use timeline hook methods
+        setSessionDuration: timeline.setSessionDuration,
+        setTransitionDuration: timeline.setTransitionDuration,
+
+       // Timeline utility methods - Use timeline hook methods
+       checkPhaseTransitions: timeline.checkPhaseTransitions,
+       updateProgressAndCheckPhases: timeline.updateProgressAndCheckPhases,
 
 
 
@@ -580,6 +617,24 @@ const layerManager = useMemo(() => createLayerManager({
       loadCollections,
       loadCollection: handleLoadCollection,
       switchTrack: layerManager.switchTrack,
+
+  // Track preloading state
+  preloadProgress,
+
+  // Keep the timeline object for direct access if needed
+  timeline,
+
+  // Layer API for direct layer operations
+  layers: {
+    setLayerVolume: layerManager.setVolume,
+    fadeLayer: layerManager.fadeVolume,
+    switchLayerTrack: layerManager.switchTrack,
+    getLayerVolume: (layer) => volumes[layer] || 0,
+    getActiveTrack: (layer) => activeAudio[layer] || null,
+    getLayerTracks: (layer) => audioLibrary[layer] || []
+  },
+
+
     };
   }, [
     // Audio state
@@ -594,33 +649,29 @@ const layerManager = useMemo(() => createLayerManager({
     activeCrossfades,
     preloadProgress,
     masterVolume,
-    timelineManager,
+
     playbackManager,
-    layerManager,
+
 
     // Function dependencies
+    layerManager,
     layerManager.setMasterVolume,
     layerManager.setVolume,
     layerManager.crossfadeTo,
     layerManager.switchTrack,
 
-    // Timeline state
-    timelineEvents,
-    timelinePhases,
-    activePhase,
-    progress,
-    sessionDuration,
-    transitionDuration,
 
-    // Timeline functions
-    timelineEvents,
-    timelinePhases,
-    activePhase,
-    progress,
-    sessionDuration,
-    transitionDuration,
-    timelineIsPlaying,
 
+     // Timeline dependencies - use the timeline hook
+     timeline.activePhase,
+     timeline.progress,
+     timeline.timelineEvents,
+     timeline.timelinePhases,
+     timeline.sessionDuration,
+     timeline.transitionDuration,
+     timeline.isPlaying,
+     timeline.phasesLoaded,
+     timeline,
 
     // Collection state
     collections,
@@ -631,10 +682,10 @@ const layerManager = useMemo(() => createLayerManager({
     collectionError,
     loadCollections,
     handleLoadCollection,
-    
-    
-    //layer
-    layerManager,
+    preloadProgress
+
+
+
   ]);
 
   return (
@@ -643,5 +694,16 @@ const layerManager = useMemo(() => createLayerManager({
     </AudioContext.Provider>
   );
 };
+
+// Export the context hook for component use
+export function useAudioContext() {
+  const context = useContext(AudioContext);
+  if (context === undefined) {
+    throw new Error('useAudio must be used within an AudioProvider');
+  }
+  return context;
+}
+
+
 
 export default AudioContext;

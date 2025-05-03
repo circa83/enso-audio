@@ -33,7 +33,9 @@ class TimelineEngine {
     this.config = {
       sessionDuration: options.sessionDuration || 3600000, // 1 hour default
       transitionDuration: options.transitionDuration || 4000, // 4 second default
-      enableLogging: options.enableLogging || false
+      enableLogging: options.enableLogging || false,
+      currentCollection: options.currentCollection || null,
+      currentPhase: options.currentPhase || null,
     };
 
     // Callbacks
@@ -63,7 +65,7 @@ class TimelineEngine {
     this.progressTimer = null;
     this.eventCheckTimer = null;
 
-    this.logInfo('TimelineEngine initialized');
+    this.logInfo('TimelineEngine initialized with config:', this.config);
   }
 
   /**
@@ -125,7 +127,7 @@ class TimelineEngine {
         this.logWarn('Timeline is already playing');
         return true;
       }
-
+      this.logInfo(`Starting timeline with options: ${JSON.stringify(options)}`);
       this.logInfo('Starting timeline. Reset=' + reset);
 
       // Reset elapsed time if requested
@@ -138,6 +140,7 @@ class TimelineEngine {
         this.nextEventIndex = 0;
         // Ensure we trigger initial progress updates
         if (this.onProgress) {
+          this.logDebug('Sending initial 0% progress update');
           this.onProgress(0, 0);
         }
 
@@ -147,6 +150,7 @@ class TimelineEngine {
       // Set start time based on current elapsed time
       this.startTime = Date.now() - this.elapsedTime;
       this.isPlaying = true;
+      this.logDebug(`Timeline startTime set to: ${this.startTime}, current elapsed: ${this.elapsedTime}ms`);
 
       // Start progress timer
       this.startProgressTimer(true); // Added parameter for immediate update
@@ -309,11 +313,14 @@ class TimelineEngine {
    */
   getElapsedTime() {
     if (!this.isPlaying) {
+      // this.logDebug(`getElapsedTime called while paused, returning: ${this.elapsedTime}ms`);
       return this.elapsedTime;
     }
 
     // If playing, calculate based on startTime
-    return this.startTime ? Date.now() - this.startTime : 0;
+    const currentTime = this.startTime ? Date.now() - this.startTime : 0;
+    // this.logDebug(`getElapsedTime calculation: ${currentTime}ms (now: ${Date.now()}, startTime: ${this.startTime})`);
+    return currentTime;
   }
 
   /**
@@ -323,7 +330,7 @@ class TimelineEngine {
    */
   setSessionDuration(duration) {
     if (isNaN(duration) || duration <= 0) {
-      this.logError('Invalid session duration');
+      this.logError(`Invalid session duration: ${duration}`);
       return false;
     }
     this.logInfo(`Changing session duration from ${this.config.sessionDuration}ms to ${duration}ms`);
@@ -335,6 +342,14 @@ class TimelineEngine {
 
     return true;
   }
+
+ /**
+   * Get the session duration
+   * @returns {number} Duration in milliseconds
+   */
+ getSessionDuration() {
+  return this.config.sessionDuration;
+}
 
   /**
    * Set the default transition duration
@@ -352,14 +367,13 @@ class TimelineEngine {
     return true;
   }
 
-  /**
-   * Get the current timeline progress as a percentage
-   * @returns {number} Progress from 0-100
+    /**
+   * Get the transition duration
+   * @returns {number} Duration in milliseconds
    */
-  getProgress() {
-    const elapsedTime = this.getElapsedTime();
-    return Math.min(100, (elapsedTime / this.config.sessionDuration) * 100);
-  }
+    getTransitionDuration() {
+      return this.config.transitionDuration;
+    }
 
   /**
    * Replace all timeline phases
@@ -610,6 +624,7 @@ class TimelineEngine {
    */
   checkCurrentPhase() {
     if (this.phases.length === 0) {
+      this.logWarn("No phases defined, checkCurrentPhase returning null");
       return null;
     }
 
@@ -625,17 +640,21 @@ class TimelineEngine {
     for (let i = this.phases.length - 1; i >= 0; i--) {
       if (currentProgress >= this.phases[i].position) {
         activePhaseIndex = i;
+        this.logDebug(`Found phase match: ${this.phases[i].id} at position ${this.phases[i].position}%`);
         break;
       }
     }
 
     const newActivePhase = this.phases[activePhaseIndex];
+    this.logDebug(`Selected phase: ${newActivePhase.id} at position ${newActivePhase.position}%`);
 
     // Check if the phase has changed
     if (!this.currentPhase || this.currentPhase.id !== newActivePhase.id) {
       this.logInfo(`Phase changed to ${newActivePhase.id} at progress ${currentProgress.toFixed(2)}%`);
       this.currentPhase = newActivePhase;
-      // Notify listeners
+      
+      // Notify listeners - add additional logging
+      this.logDebug(`Calling onPhaseChange with id: ${this.currentPhase.id} and state:`, this.currentPhase.state);
       this.onPhaseChange(this.currentPhase.id, this.currentPhase.state);
     } else {
       this.logDebug(`Still in phase ${this.currentPhase.id}`);
@@ -682,6 +701,20 @@ class TimelineEngine {
   }
 
   /**
+   * Get the current timeline progress as a percentage
+   * @returns {number} Progress from 0-100
+   */
+  getProgress() {
+    const elapsedTime = this.getElapsedTime();
+    const progress = Math.min(100, (elapsedTime / this.config.sessionDuration) * 100);
+    
+    // Add detailed progress logging
+    this.logDebug(`Progress calculation: ${progress.toFixed(2)}% (${elapsedTime}ms / ${this.config.sessionDuration}ms)`);
+    
+    return progress;
+  }
+
+  /**
    * Update the play timer and trigger progress callbacks
    * @param {boolean} [forceUpdate=false] - Force an immediate update
    * @private
@@ -691,11 +724,13 @@ class TimelineEngine {
     
     if (!this.lastProgressUpdate) {
       this.lastProgressUpdate = now;
+      this.logDebug(`Initial progress update timestamp set: ${now}`);
     }
     
     // Check if we need to update (at most every 250ms)
     const timeSinceLastUpdate = now - this.lastProgressUpdate;
     if (!forceUpdate && timeSinceLastUpdate < 250) {
+      this.logDebug(`Skipping progress update - only ${timeSinceLastUpdate}ms since last update`);
       return;
     }
     
@@ -710,9 +745,14 @@ class TimelineEngine {
     const currentTime = this.getElapsedTime();
     const progress = this.getProgress();
 
+    this.logDebug(`Progress update: ${progress.toFixed(2)}% at ${currentTime}ms, isPlaying=${this.isPlaying}`);
+
     // Trigger the callback
     if (this.onProgress) {
       this.onProgress(progress, currentTime);
+      this.logDebug(`Progress callback triggered with ${progress.toFixed(2)}%`);
+    } else {
+      this.logDebug(`No progress callback available to trigger`);
     }
 
     // Check if we've reached the end of the session
@@ -729,6 +769,8 @@ class TimelineEngine {
    */
   startProgressTimer(immediate = false) {
     this.stopProgressTimer(); // Clear any existing timer
+
+    this.logDebug(`Starting progress timer${immediate ? ' with immediate update' : ''}`);
     
     // Trigger immediate update if requested
     if (immediate) {
@@ -739,6 +781,8 @@ class TimelineEngine {
     this.progressTimer = setInterval(() => {
       this.updateProgress();
     }, 250); // Update every 250ms
+    this.logDebug(`Progress timer started with ID: ${this.progressTimer}, interval: 250ms`);
+
   }
 
   /**
@@ -747,11 +791,12 @@ class TimelineEngine {
    */
   stopProgressTimer() {
     if (this.progressTimer) {
+      this.logDebug(`Stopping progress timer with ID: ${this.progressTimer}`);
       clearInterval(this.progressTimer);
       this.progressTimer = null;
+      this.logDebug(`Progress timer stopped`);
     }
   }
-
   /**
    * Start the event checking timer
    * @private
@@ -784,9 +829,13 @@ class TimelineEngine {
    * @private
    * @param {string} message - Message to log
    */
-  logDebug(message) {
+  logDebug(message, ...args) {
     if (this.config.enableLogging) {
-      logger.debug('TimelineEngine', message);
+      if (args.length > 0) {
+        logger.debug('TimelineEngine', message, ...args);
+      } else {
+        logger.debug('TimelineEngine', message);
+      }
     }
   }
   
@@ -794,10 +843,15 @@ class TimelineEngine {
    * Log an info message
    * @private
    * @param {string} message - Message to log
+   * @param {...any} args - Additional arguments
    */
-  logInfo(message) {
+  logInfo(message, ...args) {
     if (this.config.enableLogging) {
-      logger.info('TimelineEngine', message);
+      if (args.length > 0) {
+        logger.info('TimelineEngine', message, ...args);
+      } else {
+        logger.info('TimelineEngine', message);
+      }
     }
   }
   
@@ -805,10 +859,15 @@ class TimelineEngine {
    * Log a warning message
    * @private
    * @param {string} message - Message to log
+   * @param {...any} args - Additional arguments
    */
-  logWarn(message) {
+  logWarn(message, ...args) {
     if (this.config.enableLogging) {
-      logger.warn('TimelineEngine', message);
+      if (args.length > 0) {
+        logger.warn('TimelineEngine', message, ...args);
+      } else {
+        logger.warn('TimelineEngine', message);
+      }
     }
   }
   
@@ -816,10 +875,15 @@ class TimelineEngine {
    * Log an error message
    * @private
    * @param {string} message - Message to log
+   * @param {...any} args - Additional arguments
    */
-  logError(message) {
+  logError(message, ...args) {
     if (this.config.enableLogging) {
-      logger.error('TimelineEngine', message);
+      if (args.length > 0) {
+        logger.error('TimelineEngine', message, ...args);
+      } else {
+        logger.error('TimelineEngine', message);
+      }
     }
   }
 

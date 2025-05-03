@@ -87,9 +87,9 @@ const Player = () => {
 
       try {
         // Initialize timeline duration
-        if (timeline.setDuration) {
+        if (timeline.setSessionDuration) {
           console.log('Setting initial timeline duration:', sessionDuration);
-          timeline.setDuration(sessionDuration);
+          timeline.setSessionDuration(sessionDuration);
         }
 
         // Initialize transition duration
@@ -171,9 +171,9 @@ const Player = () => {
     setSessionDuration(newDuration);
 
     // Only update timeline service once, directly
-    if (timeline && timeline.setDuration) {
+    if (timeline && timeline.setSessionDuration) {
       console.log('Directly updating timeline duration service:', newDuration);
-      timeline.setDuration(newDuration);
+      timeline.setSessionDuration(newDuration);
     }
 
     // Mark settings as initialized
