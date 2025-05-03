@@ -439,7 +439,7 @@ Object.values(layers.TYPES).forEach(layer => {
   //Toggle timeline playback
   const toggleTimelinePlayback = useCallback(() => {
     // Only allow starting timeline if audio is playing
-    if (!playback.isPlaying && !timelineIsPlaying) {
+    if (!playback.isPlaying && !timeline.IsPlaying) {
       console.log("[SessionTimeline: toggleTimelinePlayback] Cannot start timeline when audio is not playing");
       return;
     }
@@ -447,7 +447,7 @@ Object.values(layers.TYPES).forEach(layer => {
     console.log("[SessionTimeline: toggleTimelinePlayback] Timeline toggle button clicked, current state:", timelineIsPlaying);
     
     // Toggle the local timeline state
-    const newTimelineState = !timelineIsPlaying;
+    const newTimelineState = !timeline.IsPlaying;
     console.log("[SessionTimeline: toggleTimelinePlayback] Setting new timeline state to:", newTimelineState);
     
     setTimelineIsPlaying(newTimelineState);
