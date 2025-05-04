@@ -37,11 +37,32 @@ class TimelineEngine {
       currentCollection: options.currentCollection || null,
       currentPhase: options.currentPhase || null,
     };
+    
+    //Transitions
+    this.transition = {
+      // Is a transition currently in progress?
+      isActive: false,
+      
+      // The phase transition that's currently executing
+      currentTransition: null,
+      
+      // Queue for pending transitions
+      queue: [],
+      
+      // Default transition duration (ms)
+      duration: options.transitionDuration || 4000,
+      
+      // Timestamp when current transition started
+      startTime: null
+    };
+
 
     // Callbacks
     this.onPhaseChange = options.onPhaseChange;
     this.onScheduledEvent = options.onScheduledEvent;
     this.onProgress = options.onProgress || (() => { });
+    this.onTransitionStart = options.onTransitionStart || (() => {});
+    this.onTransitionComplete = options.onTransitionComplete || (() => {});
 
     // Session state
     this.startTime = null;
@@ -656,6 +677,12 @@ class TimelineEngine {
       // Notify listeners - add additional logging
       this.logDebug(`Calling onPhaseChange with id: ${this.currentPhase.id} and state:`, this.currentPhase.state);
       this.onPhaseChange(this.currentPhase.id, this.currentPhase.state);
+
+       // Start a transition to the new phase if it has state
+    if (this.currentPhase.state) {
+      this.startPhaseTransition(this.currentPhase);
+    }
+
     } else {
       this.logDebug(`Still in phase ${this.currentPhase.id}`);
     }
@@ -784,6 +811,128 @@ class TimelineEngine {
     this.logDebug(`Progress timer started with ID: ${this.progressTimer}, interval: 250ms`);
 
   }
+
+/**
+ * Start a transition to a specific phase
+ * @param {string|Object} phase - Phase ID or phase object
+ * @param {Object} [options] - Transition options
+ * @param {number} [options.duration] - Override default transition duration
+ * @param {boolean} [options.immediate] - Skip queuing if another transition is in progress
+ * @returns {boolean} Success state
+ */
+startPhaseTransition(phase, options = {}) {
+  try {
+    // Convert phase ID to phase object if needed
+    let phaseObj = phase;
+    if (typeof phase === 'string') {
+      phaseObj = this.getPhase(phase);
+      if (!phaseObj) {
+        this.logError(`Phase ${phase} not found`);
+        return false;
+      }
+    }
+
+    // Get options with defaults
+    const duration = options.duration || this.transition.duration;
+    const immediate = options.immediate === true;
+
+    // If a transition is in progress and not immediate, queue it
+    if (this.transition.isActive && !immediate) {
+      this.logInfo(`Transition to ${phaseObj.id} queued - another transition is in progress`);
+      this.transition.queue.push({ phase: phaseObj, options });
+      return true;
+    }
+
+    // Mark transition as active
+    this.transition.isActive = true;
+    this.transition.currentTransition = phaseObj;
+    this.transition.startTime = Date.now();
+
+    // Notify listeners
+    this.onTransitionStart(phaseObj.id, phaseObj, duration);
+
+    // Dispatch a custom event for backward compatibility
+    if (typeof window !== 'undefined') {
+      const event = new CustomEvent('timeline-transition-started', {
+        detail: {
+          phaseId: phaseObj.id,
+          phase: phaseObj,
+          duration: duration,
+          timestamp: this.transition.startTime
+        }
+      });
+      window.dispatchEvent(event);
+    }
+
+    // Set timeout to mark completion
+    setTimeout(() => {
+      this.completeTransition();
+    }, duration + 50); // Add small buffer
+
+    return true;
+  } catch (error) {
+    this.logError(`Error starting phase transition: ${error.message}`);
+    return false;
+  }
+}
+
+
+/**
+ * Process the transition queue
+ * @private
+ */
+processTransitionQueue() {
+  // If queue is empty or a transition is already active, return
+  if (this.transition.queue.length === 0 || this.transition.isActive) {
+    return;
+  }
+
+  // Get the next transition from the queue
+  const nextTransition = this.transition.queue.shift();
+  
+  // Start the transition with original options
+  this.startPhaseTransition(nextTransition.phase, {
+    ...nextTransition.options,
+    immediate: true // Skip queue check since we're processing the queue
+  });
+}
+
+
+/**
+ * Complete the current transition
+ * @private
+ */
+completeTransition() {
+  if (!this.transition.isActive) {
+    return;
+  }
+
+  const completedPhase = this.transition.currentTransition;
+  
+  // Mark transition as complete
+  this.transition.isActive = false;
+  this.transition.currentTransition = null;
+  
+  // Notify listeners that transition is complete
+  this.onTransitionComplete(completedPhase.id, completedPhase);
+  
+  // Dispatch a custom event for backward compatibility
+  if (typeof window !== 'undefined') {
+    const event = new CustomEvent('timeline-transition-completed', {
+      detail: {
+        phaseId: completedPhase.id,
+        phase: completedPhase,
+        timestamp: Date.now()
+      }
+    });
+    window.dispatchEvent(event);
+  }
+  
+  // Process next transition in queue if any
+  this.processTransitionQueue();
+}
+
+
 
   /**
    * Stop the progress timer

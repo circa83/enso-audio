@@ -318,14 +318,15 @@ export const AudioProvider = ({ children }) => {
             transitionDuration: timeline.transitionDuration,
             onPhaseChange: (phaseId, phaseData) => {
               if (!isMounted) return;
-
+          
               logger.info('StreamingAudioContext', `PhaseId changed to: ${phaseId}`);
-              timeline.setActivePhase(phaseId);
-
-              // Instead of directly applying volume changes here, we'll defer to the SessionTimeline
-              // component which should handle transitions via the audio services
-
-              // Just broadcast a phase change event that SessionTimeline will listen for
+              
+              // Update active phase in timeline hook state
+              if (timeline && timeline.setActivePhase) {
+                timeline.setActivePhase(phaseId);
+              }
+          
+              // Broadcast phase change event
               if (typeof window !== 'undefined') {
                 const event = new CustomEvent('timeline-phase-changed', {
                   detail: { phaseId, phaseData }
@@ -333,14 +334,20 @@ export const AudioProvider = ({ children }) => {
                 window.dispatchEvent(event);
               }
             },
-                 onScheduledEvent: (event) => {
+            onScheduledEvent: (event) => {
               if (!isMounted) return;
-
               logger.info('StreamingAudioContext', 'Timeline event triggered:', event);
             },
             onProgress: (progress, elapsedTime) => {
-              if (isMounted) {
-                logger.debug('StreamingAudioContext', `Timeline progress update: ${progress.toFixed(2)}% at ${elapsedTime}ms`);
+              if (!isMounted) return;
+              
+              // Limit logging frequency to avoid console spam
+              if (Math.floor(progress * 10) % 10 === 0) { // Log at approximately 10% intervals
+                logger.debug('StreamingAudioContext', `Timeline progress: ${progress.toFixed(2)}% at ${elapsedTime}ms`);
+              }
+              
+              // Safely update progress in timeline state if available
+              if (timeline && typeof timeline.setProgress === 'function') {
                 timeline.setProgress(progress);
               }
             },
@@ -480,50 +487,7 @@ export const AudioProvider = ({ children }) => {
     }
   }, [masterVolume]);
 
-  // Effect for phase detection during timeline playback
-  useEffect(() => {
-    logger.debug('StreamingAudioContext', `Timeline playback state changed: isPlaying=${timeline.isPlaying}`);
-
-    if (timeline.IsPlaying && serviceRef.current.timelineEngine) {
-      // Start progress timer for phase detection if not already running
-      if (!progressTimerRef.current) {
-         logger.info('StreamingAudioContext', 'Starting phase detection timer');
-
-        progressTimerRef.current = setInterval(() => {
-          if (timeline && typeof timeline.updateProgressAndCheckPhases === 'function') {
-            logger.debug('StreamingAudioContext', 'Calling updateProgressAndCheckPhases');
-            timeline.updateProgressAndCheckPhases();
-            logger.debug('StreamingAudioContext', `updateProgressAndCheckPhases result: ${result ? 'success' : 'failed'}`);
-          } else {
-            logger.warn('StreamingAudioContext', 'Cannot check phases - updateProgressAndCheckPhases not available');
-          }
-    
-        }, 100); // Check every 100ms
-        logger.debug('StreamingAudioContext', 'Phase detection timer registered with ID: ' + progressTimerRef.current);
-      } else {
-        logger.debug('StreamingAudioContext', 'Phase detection timer already running, ID: ' + progressTimerRef.current);
-      }
-    } else {
-      // Stop timer when not playing
-      if (progressTimerRef.current) {
-        logger.info('StreamingAudioContext', 'Stopping phase detection timer');
-        clearInterval(progressTimerRef.current);
-        progressTimerRef.current = null;
-      }
-    }
-
-    // Cleanup on unmount
-    return () => {
-      if (progressTimerRef.current) {
-        logger.debug('StreamingAudioContext', 'Cleaning up phase detection timer on unmount');
-        clearInterval(progressTimerRef.current);
-        progressTimerRef.current = null;
-      }
-    };
-  }, [timeline.IsPlaying, timeline]);
-
-
-
+ 
 
 
 

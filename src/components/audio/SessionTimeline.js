@@ -5,6 +5,8 @@ import PhaseMarker from './PhaseMarker';
 import SessionSettings from './SessionSettings'
 import timelinestyles from '../../styles/components/SessionTimeline.module.css';
 import settingsStyles from '../../styles/components/SessionSettings.module.css';
+import logger from '../../services/LoggingService';
+
 
 const DEFAULT_PHASES = [
   { id: 'pre-onset', name: 'Pre-Onset', position: 0, color: '#4A6670', state: null, locked: true },
@@ -54,7 +56,6 @@ const SessionTimeline = React.forwardRef(({
   const initialMount = useRef(true);
   const transitionTimeoutRef = useRef(null);
   const queuedPhaseRef = useRef(null);
-  const progressTimerRef = useRef(null);
   const phasesApplied = useRef(false);
 
 //   //simple test
@@ -439,7 +440,7 @@ Object.values(layers.TYPES).forEach(layer => {
   //Toggle timeline playback
   const toggleTimelinePlayback = useCallback(() => {
     // Only allow starting timeline if audio is playing
-    if (!playback.isPlaying && !timeline.IsPlaying) {
+    if (!playback.isPlaying && !timeline.isPlaying) {
       console.log("[SessionTimeline: toggleTimelinePlayback] Cannot start timeline when audio is not playing");
       return;
     }
@@ -447,7 +448,7 @@ Object.values(layers.TYPES).forEach(layer => {
     console.log("[SessionTimeline: toggleTimelinePlayback] Timeline toggle button clicked, current state:", timelineIsPlaying);
     
     // Toggle the local timeline state
-    const newTimelineState = !timeline.IsPlaying;
+    const newTimelineState = !timeline.isPlaying;
     console.log("[SessionTimeline: toggleTimelinePlayback] Setting new timeline state to:", newTimelineState);
     
     setTimelineIsPlaying(newTimelineState);
@@ -772,48 +773,48 @@ useEffect(() => {
 
 //=======Phase detection effect=======
 
-useEffect(() => {
-  // Skip if disabled or not playing
-  if ( !playback.isPlaying || !localTimelineIsPlaying) {
-    console.log("[SessionTimeline] Progress tracking not starting - disabled or not playing");
-    return;
-  }
+// useEffect(() => {
+//   // Skip if disabled or not playing
+//   if ( !playback.isPlaying || !localTimelineIsPlaying) {
+//     console.log("[SessionTimeline] Progress tracking not starting - disabled or not playing");
+//     return;
+//   }
   
-  console.log("[SessionTimeline] Starting stable progress tracking");
+//   console.log("[SessionTimeline] Starting stable progress tracking");
   
-  // Use a ref to track if we already have an active interval
-  // This prevents creating multiple intervals during re-renders
-  if (progressTimerRef.current) {
-    console.log("[SessionTimeline] Reusing existing progress timer");
-    return; // Already have a timer, don't create another
-  }
+//   // Use a ref to track if we already have an active interval
+//   // This prevents creating multiple intervals during re-renders
+//   if (progressTimerRef.current) {
+//     console.log("[SessionTimeline] Reusing existing progress timer");
+//     return; // Already have a timer, don't create another
+//   }
   
-  // Create a stable timer that will persist across re-renders
-  progressTimerRef.current = setInterval(() => {
-    // Get current time directly from playback
-    const currentTime = playback.getTime();
-    const progressPercent = Math.min(100, (currentTime / timeline.duration) * 100);
+//   // Create a stable timer that will persist across re-renders
+//   progressTimerRef.current = setInterval(() => {
+//     // Get current time directly from playback
+//     const currentTime = playback.getTime();
+//     const progressPercent = Math.min(100, (currentTime / timeline.duration) * 100);
     
-    // Use a function form of setState to avoid stale closures
-    setCurrentTime(time => currentTime);
-    setProgress(prog => progressPercent);
-  }, 50);
+//     // Use a function form of setState to avoid stale closures
+//     setCurrentTime(time => currentTime);
+//     setProgress(prog => progressPercent);
+//   }, 50);
   
-  // Clear timer only when really stopping playback
-  return () => {
-    if (progressTimerRef.current) {
-      console.log("[SessionTimeline] Cleaning up progress timer");
-      clearInterval(progressTimerRef.current);
-      progressTimerRef.current = null;
-    }
-  };
-}, [
-  // Minimal dependencies to avoid recreation
-  playback.isPlaying,
-  localTimelineIsPlaying,
-  timeline.duration
-  // Explicitly remove playback from dependencies
-]);
+//   // Clear timer only when really stopping playback
+//   return () => {
+//     if (progressTimerRef.current) {
+//       console.log("[SessionTimeline] Cleaning up progress timer");
+//       clearInterval(progressTimerRef.current);
+//       progressTimerRef.current = null;
+//     }
+//   };
+// }, [
+//   // Minimal dependencies to avoid recreation
+//   playback.isPlaying,
+//   localTimelineIsPlaying,
+//   timeline.duration
+//   // Explicitly remove playback from dependencies
+// ]);
 
 // -------Phase change event listener-------
 // Listen for phase change events from the TimelineEngine
@@ -822,42 +823,58 @@ useEffect(() => {
   const handlePhaseChangeEvent = (event) => {
     
     const { phaseId, phaseData } = event.detail;
-    console.log(`[SessionTimeline: handlePhaseChangeEvent] Received phase change event phaseData: ${phaseData}`);
-    console.log(`[SessionTimeline: handlePhaseChangeEvent] Received phase change event phaseId: ${phaseId}`);
-    
+    logger.info(`[SessionTimeline: handlePhaseChangeEvent] Received phase change event phaseData: ${phaseData}`);
+    logger.info(`[SessionTimeline: handlePhaseChangeEvent] Received phase change event phaseId: ${phaseId}`);
     // Always update the activePhase state, even during transitions
     // This ensures the UI shows the correct phase marker
     if (phaseId !== lastActivePhaseId.current) {
       lastActivePhaseId.current = phaseId;
       setActivePhase(phaseId);
-      
-      // Find the phase object in our local phases
-      const phase = phases.find(p => p.id === phaseId);
-      
-      // Start transition for the new phase, but delay if another is in progress
-      if (phase && phase.state) {
-        if (!transitionInProgress.current) {
-          // Start transition immediately if none is in progress
-          console.log(`[SessionTimeline: handlePhaseChangeEvent] Starting transition to phase: ${phase.name}`);
-          startFullTransition(phase);
-        } else {
-          // Queue this transition to start after the current one finishes
-          console.log(`[SessionTimeline: handlePhaseChangeEvent] Transition already in progress, queuing phase change to: ${phase.name}`);
-          
-          // Store the phase to transition to after current completes
-          // You'd need to add a queuedPhaseRef for this
-          queuedPhaseRef.current = phase;
-        }
-      }
     }
   };
+
+  // Add event listener for transition state
+  const handleTransitionStarted = (event) => {
+    setTransitioning(true);
+  };
   
-  // Add event listener for phase changes
+  const handleTransitionCompleted = (event) => {
+    setTransitioning(false);
+    
+    // Refresh our state references after transition
+    refreshVolumeStateReference();
+  };
+      
+  //     // Find the phase object in our local phases
+  //     const phase = phases.find(p => p.id === phaseId);
+      
+  //     // Start transition for the new phase, but delay if another is in progress
+  //     if (phase && phase.state) {
+  //       if (!transitionInProgress.current) {
+  //         // Start transition immediately if none is in progress
+  //         console.log(`[SessionTimeline: handlePhaseChangeEvent] Starting transition to phase: ${phase.name}`);
+  //         startFullTransition(phase);
+  //       } else {
+  //         // Queue this transition to start after the current one finishes
+  //         console.log(`[SessionTimeline: handlePhaseChangeEvent] Transition already in progress, queuing phase change to: ${phase.name}`);
+          
+  //         // Store the phase to transition to after current completes
+  //         // You'd need to add a queuedPhaseRef for this
+  //         queuedPhaseRef.current = phase;
+  //       }
+  //     }
+  //   }
+  // };
+  
   window.addEventListener('timeline-phase-changed', handlePhaseChangeEvent);
+  window.addEventListener('timeline-transition-started', handleTransitionStarted);
+  window.addEventListener('timeline-transition-completed', handleTransitionCompleted);
   
-  // Clean up
   return () => {
     window.removeEventListener('timeline-phase-changed', handlePhaseChangeEvent);
+    window.removeEventListener('timeline-transition-started', handleTransitionStarted);
+    window.removeEventListener('timeline-transition-completed', handleTransitionCompleted); window.removeEventListener('timeline-phase-changed', handlePhaseChangeEvent);
+    
   };
 }, [ phases, startFullTransition]);
 
