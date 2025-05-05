@@ -763,10 +763,10 @@ class TimelineEngine {
     
     // Update the last update time
     this.lastProgressUpdate = now;
-    
-    if (!this.isPlaying) {
-      return;
-    }
+   
+  if (!this.isPlaying && !forceUpdate) {
+    return;
+  }
 
     // Calculate current time and progress
     const currentTime = this.getElapsedTime();
@@ -778,6 +778,20 @@ class TimelineEngine {
     if (this.onProgress) {
       this.onProgress(progress, currentTime);
       this.logDebug(`Progress callback triggered with ${progress.toFixed(2)}%`);
+
+      // Broadcast progress update to all components
+ if (typeof window !== 'undefined') {
+  const progressEvent = new CustomEvent('timeline-progress-update', {
+    detail: {
+      progress: progress,
+      time: currentTime,
+      isTransitioning: this.transition.isActive
+    }
+  });
+  window.dispatchEvent(progressEvent);
+}
+
+
     } else {
       this.logDebug(`No progress callback available to trigger`);
     }
@@ -788,6 +802,50 @@ class TimelineEngine {
       this.stop();
     }
   }
+
+  /**
+   * Enable or disable continuous progress tracking during transitions
+   * @param {boolean} [enabled=true] - Whether to enable or disable continuous tracking
+   * @returns {boolean} - True if the operation was successful, false otherwise
+   */
+  ensureContinuousProgressTracking(enabled = true) {
+    try {
+    // If we're already in the requested state, do nothing
+    if (this.continuousProgressTracking === enabled) {
+      return;
+    }
+
+    this.logInfo(`${enabled ? 'Enabling' : 'Disabling'} continuous progress tracking during transitions`);
+    this.continuousProgressTracking = enabled;
+
+    // If enabling and we're playing, ensure timer is running with higher frequency
+    if (enabled && this.isPlaying) {
+      // Stop existing timer if any
+      this.stopProgressTimer();
+      
+      // Start with shorter interval for smoother updates during transitions
+      this.progressTimer = setInterval(() => {
+        this.updateProgress(true); // Force updates
+      }, 50); // Use 50ms interval for smoother transitions
+      
+      this.logDebug(`Started high-frequency progress timer with ID: ${this.progressTimer}`);
+    } 
+    // If disabling, return to normal update frequency
+    else if (!enabled && this.isPlaying) {
+      // Stop high-frequency timer
+      this.stopProgressTimer();
+      
+      // Restart with normal frequency
+      this.startProgressTimer();
+    }
+    
+    return true;
+  } catch (error) {
+    this.logError(`Error in ensureContinuousProgressTracking: ${error.message}`);
+    return false;
+  }
+}
+
 
   /**
    * Start the progress timer
@@ -847,6 +905,9 @@ startPhaseTransition(phase, options = {}) {
     this.transition.isActive = true;
     this.transition.currentTransition = phaseObj;
     this.transition.startTime = Date.now();
+
+       //Enable continuous progress tracking during transition
+       this.ensureContinuousProgressTracking(true);
 
     // Notify listeners
     this.onTransitionStart(phaseObj.id, phaseObj, duration);
@@ -912,6 +973,9 @@ completeTransition() {
   // Mark transition as complete
   this.transition.isActive = false;
   this.transition.currentTransition = null;
+
+   // Restore normal progress tracking
+   this.ensureContinuousProgressTracking(false);
   
   // Notify listeners that transition is complete
   this.onTransitionComplete(completedPhase.id, completedPhase);

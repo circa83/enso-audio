@@ -1,6 +1,7 @@
 // src/components/audio/SessionTimeline.js
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudio } from '../../hooks/useAudio';
+import useTimeline from '../../hooks/useTimeline';
 import PhaseMarker from './PhaseMarker';
 import SessionSettings from './SessionSettings'
 import timelinestyles from '../../styles/components/SessionTimeline.module.css';
@@ -30,6 +31,8 @@ const SessionTimeline = React.forwardRef(({
     timeline,
   } = useAudio();
   
+  
+
   // Local state
   const [currentTime, setCurrentTime] = useState(0);
   const [progress, setProgress] = useState(0);
@@ -725,8 +728,6 @@ const startFullTransition = useCallback((phase) => {
   }, duration + 100); // Add a small buffer
 }, [ timeline, volume, layers, transitions, setTransitionState]);
 
-
-
 // Watch for active crossfades to update transition state
 useEffect(() => {
   const hasActiveCrossfades = Object.keys(transitions.active).length > 0;
@@ -749,27 +750,48 @@ useEffect(() => {
   }
 }, [transitions.active, setTransitionState]);
 
-//=======Progress Tracking Effect=======
+// //=======Progress Tracking Effect=======
 
-// Keep tracking during transitions
-useEffect(() => {
-  // If we enter a transition state, make sure progress tracking is running
-  if (transitionInProgress.current && playback.isPlaying && localTimelineIsPlaying) {
-    console.log("[SessionTimeline] Ensuring progress tracking continues during transition");
+// // Keep tracking during transitions
+// useEffect(() => {
+//   // If we enter a transition state, make sure progress tracking is running
+//   if (transitionInProgress.current && playback.isPlaying && localTimelineIsPlaying) {
+//     console.log("[SessionTimeline] Ensuring progress tracking continues during transition");
     
-    // Create a dedicated timer just for transition periods
-    const transitionProgressTimer = setInterval(() => {
-      const time = playback.getTime();
-      const progressPercent = Math.min(100, (time / timeline.duration) * 100);
+//     // Create a dedicated timer just for transition periods
+//     const transitionProgressTimer = setInterval(() => {
+//       const time = playback.getTime();
+//       const progressPercent = Math.min(100, (time / timeline.duration) * 100);
       
-      // Force progress updates even during transitions
-      setCurrentTime(time);
-      setProgress(progressPercent);
-    }, 50);
+//       // Force progress updates even during transitions
+//       setCurrentTime(time);
+//       setProgress(progressPercent);
+//     }, 50);
     
-    return () => clearInterval(transitionProgressTimer);
-  }
-}, [transitionInProgress.current,  playback.isPlaying, localTimelineIsPlaying, timeline.duration, playback]);
+//     return () => clearInterval(transitionProgressTimer);
+//   }
+// }, [transitionInProgress.current,  playback.isPlaying, localTimelineIsPlaying, timeline.duration, playback]);
+// useEffect(() => {
+//   if (!timeline.isPlaying) return;
+  
+//   // Handle progress updates from the timeline engine
+//   const handleTimelineProgress = (event) => {
+//     const { progress: newProgress, time } = event.detail;
+//     setProgress(newProgress);
+//     setCurrentTime(time);
+//     logger.info('[SessionTimeline] Timeline progress update', { progress: newProgress, time });
+//   };
+  
+//   // Listen for progress updates
+//   window.addEventListener('timeline-progress-update', handleTimelineProgress);
+  
+//   // Clean up
+//   return () => {
+//     window.removeEventListener('timeline-progress-update', handleTimelineProgress);
+//   };
+// }, [timeline.isPlaying]);
+
+
 
 //=======Phase detection effect=======
 

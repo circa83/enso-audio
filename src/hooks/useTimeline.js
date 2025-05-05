@@ -46,6 +46,7 @@ export function useTimeline(options = {}) {
   const isPlayingRef = useRef(isPlaying);
   const timelineEngineRef = useRef(providedTimelineEngine || null);
   const timelinePhasesRef = useRef(timelinePhases);
+  const componentIsUnmountingRef = useRef(false);
 
   // Update refs when dependencies change
   useEffect(() => {
@@ -53,7 +54,17 @@ export function useTimeline(options = {}) {
     timelinePhasesRef.current = timelinePhases;
   }, [isPlaying, timelinePhases]);
 
-
+  //  effect to track unmounting
+  useEffect(() => {
+    return () => {
+      componentIsUnmountingRef.current = true;
+      logger.info('useTimeline', 'Component is unmounting, disposing timeline engine');
+      const engine = ensureTimelineEngine();
+      if (engine && engine.dispose) {
+        engine.dispose();
+      }
+    };
+  }, []);
 
   //=======UTILITY FUNCTIONS========
   //===============================
@@ -71,29 +82,6 @@ export function useTimeline(options = {}) {
   }, []);
 
 
-  /**
-   * Synchronizes React state with the timeline engine state
-   */
-  const syncProgressWithEngine = useCallback(() => {
-    const engine = ensureTimelineEngine();
-    if (!engine) return;
-
-    // Get current progress from TimelineEngine
-    const currentProgress = engine.getProgress();
-
-    // Update progress state if changed
-    if (currentProgress !== progress) {
-      setProgress(currentProgress);
-    }
-
-    // Get current phase from TimelineEngine
-    const currentPhase = engine.getCurrentPhase();
-
-    // Update active phase if changed
-    if (currentPhase && (!activePhase || activePhase !== currentPhase.id)) {
-      setActivePhase(currentPhase.id);
-    }
-  }, [activePhase, progress, ensureTimelineEngine]);
 
 
 
@@ -127,10 +115,65 @@ export function useTimeline(options = {}) {
     }
   }, [onPhaseChange]);
 
-  // Set up progress callback
-  const handleProgress = useCallback((progressValue, elapsedTime) => {
+  /**
+ * Primary callback for timeline progress updates
+ * Handles both progress state and phase checking in one place
+ */
+const handleProgress = useCallback((progressValue, elapsedTime) => {
+  try {
+    // Update progress state
     setProgress(progressValue);
-  }, []);
+
+    // Log progress updates at appropriate level
+    logger.debug('useTimeline', `Progress updated to: ${progressValue.toFixed(2)}%`);
+
+    // Check if we need to update phase information
+    const engine = ensureTimelineEngine();
+    if (engine) {
+      // Get current phase from engine
+      const currentPhase = engine.getCurrentPhase();
+
+      // Update active phase if changed
+      if (currentPhase && (!activePhase || activePhase !== currentPhase.id)) {
+        logger.debug('useTimeline', `Phase updated to: ${currentPhase.id} during progress update`);
+        setActivePhase(currentPhase.id);
+      }
+
+    }
+
+    return true;
+  } catch (error) {
+    logger.error('useTimeline', 'handleProgress error:', error);
+    return false;
+  }
+}, [activePhase, ensureTimelineEngine]);
+
+/**
+ * Synchronizes React state with the timeline engine state
+ * @returns {boolean} Success state
+ */
+const syncProgressWithEngine = useCallback(() => {
+  try {
+    const engine = ensureTimelineEngine();
+    if (!engine) return false;
+
+    // Get current progress from TimelineEngine
+    const currentProgress = engine.getProgress();
+    const currentTime = engine.getElapsedTime();
+
+    // Update progress state if changed
+    if (currentProgress !== progress) {
+      // Use handleProgress to ensure consistent handling
+      handleProgress(currentProgress, currentTime);
+    }
+
+    // No need to handle phase updates here as handleProgress now does that
+    return true;
+  } catch (error) {
+    logger.error('useTimeline', 'syncProgressWithEngine error:', error);
+    return false;
+  }
+}, [progress, ensureTimelineEngine, handleProgress]);
 
   // Set up event callback
   const handleScheduledEvent = useCallback((event) => {
@@ -226,8 +269,8 @@ export function useTimeline(options = {}) {
 
       logger.info('useTimeline', 'Starting timeline with reset');
 
-      // Reset the timeline state first
-      engine.stop();
+      // // Reset the timeline state first
+      // engine.stop();
 
       // Start the timeline with reset option
       const started = engine.start({ reset: true });
@@ -242,8 +285,8 @@ export function useTimeline(options = {}) {
       logger.error('useTimeline', 'Error starting timeline:', error);
       return false;
     }
-  }, [ensureTimelineEngine]);
- 
+  }, [ensureTimelineEngine, timelineIsPlaying]);
+
   // Stop the timeline
   const stopTimeline = useCallback(() => {
     try {
@@ -401,6 +444,11 @@ export function useTimeline(options = {}) {
     return 0;
   }, [ensureTimelineEngine]);
 
+
+
+  //========PROGRESS TRACKING METHODS=========
+  //==========================================
+
   // Set current progress
   const handleSetProgress = useCallback((progressValue) => {
     try {
@@ -408,13 +456,13 @@ export function useTimeline(options = {}) {
         logger.error('useTimeline', 'Invalid progress value:', progressValue);
         return false;
       }
-      
+
       // Clamp progress value between 0-100
       const clampedProgress = Math.max(0, Math.min(100, progressValue));
-      
+
       // Update React state
       setProgress(clampedProgress);
-      
+
       logger.debug('useTimeline', `Progress updated to: ${clampedProgress.toFixed(2)}%`);
       return true;
     } catch (error) {
@@ -423,41 +471,71 @@ export function useTimeline(options = {}) {
     }
   }, []);
 
+/**
+ * Force an immediate progress update
+ * Useful during transitions or for manual updates
+ * @returns {Object|boolean} Current time and progress or false if failed
+ */
+const forceProgressUpdate = useCallback(() => {
+  try {
+    const engine = ensureTimelineEngine();
+    if (!engine) return false;
+    
+    // Get current time and progress from engine
+    const currentTime = engine.getElapsedTime();
+    const progressValue = engine.getProgress();
+    
+    // Force engine to update progress
+    // This ensures callbacks are triggered and events are dispatched
+    if (engine.updateProgress) {
+      engine.updateProgress(true); // Pass true to force the update
+    } else {
+      // Manually call our progress handler if engine method isn't available
+      handleProgress(progressValue, currentTime);
+    }
+    
+    // Return the current values for convenience
+    return { time: currentTime, progress: progressValue };
+  } catch (error) {
+    logger.error('useTimeline', 'Force progress update error:', error);
+    return false;
+  }
+}, [ensureTimelineEngine, handleProgress]);
 
 
   //=======TRANSITION METHODS======
   //===============================
 
-// Start a phase transition
-const startTransition = useCallback((phaseId, options = {}) => {
-  try {
-    const engine = ensureTimelineEngine();
-    if (!engine) return false;
-    
-    if (!engine.startPhaseTransition) {
-      logger.error('useTimeline', 'startPhaseTransition not available');
+  // Start a phase transition
+  const startTransition = useCallback((phaseId, options = {}) => {
+    try {
+      const engine = ensureTimelineEngine();
+      if (!engine) return false;
+
+      if (!engine.startPhaseTransition) {
+        logger.error('useTimeline', 'startPhaseTransition not available');
+        return false;
+      }
+
+      return engine.startPhaseTransition(phaseId, options);
+    } catch (error) {
+      logger.error('useTimeline', 'startTransition error:', error);
       return false;
     }
-    
-    return engine.startPhaseTransition(phaseId, options);
-  } catch (error) {
-    logger.error('useTimeline', 'startTransition error:', error);
-    return false;
-  }
-}, [ensureTimelineEngine]);
+  }, [ensureTimelineEngine]);
 
-// Cancel a transition
-const cancelTransition = useCallback(() => {
-  try {
-    const engine = ensureTimelineEngine();
-    if (!engine || !engine.cancelTransition) return false;
-    
-    return engine.cancelTransition();
-  } catch (error) {
-    logger.error('useTimeline', 'cancelTransition error:', error);
-    return false;
-  }
-}, [ensureTimelineEngine]);
+  // Cancel a transition
+  const cancelTransition = useCallback(() => {
+    try {
+      const engine = ensureTimelineEngine();
+      if (!engine || !engine.cancelTransition) return false;
+
+      return engine.cancelTransition();
+    } catch (error) {
+      logger.error('useTimeline', 'cancelTransition error:', error);
+      return false;
+    }
+  }, [ensureTimelineEngine]);
 
 
 
@@ -488,7 +566,7 @@ const cancelTransition = useCallback(() => {
   const updateTimelinePhases = useCallback((phases) => {
     try {
       const engine = ensureTimelineEngine();
-      if (!phases || !Array.isArray(phases)) {
+      if (!phases || !Array.isArray(phases) || phases.length === 0) {
         logger.error('useTimeline', 'Invalid phases data');
         return false;
       }
@@ -575,7 +653,7 @@ const cancelTransition = useCallback(() => {
 
 
 
-  //=======CONFIGURATION METHODS=====
+  //=======TRANSITION METHODS=====
   //=================================
 
   // Transition started state
@@ -583,19 +661,34 @@ const cancelTransition = useCallback(() => {
     logger.info('useTimeline', `Transition started to phase: ${phaseId}`);
     setIsTransitioning(true);
     setCurrentTransition({ phaseId, phase, duration, startTime: Date.now() });
-  }, []);
+
+    // Ensure progress tracking continues during transition
+    const engine = ensureTimelineEngine();
+    if (engine && engine.ensureContinuousProgressTracking) {
+      engine.ensureContinuousProgressTracking(true);
+    }
+
+  }, [ensureTimelineEngine]);
 
   // Transition completed state
   const handleTransitionComplete = useCallback((phaseId, phase) => {
     logger.info('useTimeline', `Transition completed to phase: ${phaseId}`);
     setIsTransitioning(false);
     setCurrentTransition(null);
-  }, []);
+
+    // Return to normal progress tracking
+    const engine = ensureTimelineEngine();
+    if (engine && engine.ensureContinuousProgressTracking) {
+      engine.ensureContinuousProgressTracking(false);
+    }
+
+  }, [ensureTimelineEngine]);
 
 
 
- //=======PHASE MANAGEMENT========
-//===============================
+
+  //=======PHASE MANAGEMENT========
+  //===============================
 
   /**
    * Manually trigger a phase transition
@@ -635,57 +728,31 @@ const cancelTransition = useCallback(() => {
     }
   }, [ensureTimelineEngine, handlePhaseChange]);
 
-    /**
-   * Checks for phase transitions
-   * From TimelineManager
-   */
-    const checkPhaseTransitions = useCallback(() => {
-      try {
-        const engine = ensureTimelineEngine();
-        if (!engine) return false;
-  
-        logger.debug('useTimeline', 'Manually checking phase transitions');
-  
-        // Use the checkCurrentPhase method from TimelineEngine
-        const success = engine.checkCurrentPhase ? engine.checkCurrentPhase() : false;
-  
-        // Sync state with engine
-        syncProgressWithEngine();
-  
-        return success;
-      } catch (error) {
-        logger.error('useTimeline', 'checkPhaseTransitions error:', error);
-        return false;
-      }
-    }, [ensureTimelineEngine, syncProgressWithEngine]);
-  
+  /**
+ * Checks for phase transitions
+ * From TimelineManager
+ */
+  const checkPhaseTransitions = useCallback(() => {
+    try {
+      const engine = ensureTimelineEngine();
+      if (!engine) return false;
 
-    
+      logger.debug('useTimeline', 'Manually checking phase transitions');
 
-    /**
-     * Updates progress and checks for phase transitions
-     * From TimelineManager
-     */
-    const updateProgressAndCheckPhases = useCallback(() => {
-      try {
-        const engine = ensureTimelineEngine();
-        if (!engine) return false;
-  
-        // Sync state with engine
-        syncProgressWithEngine();
-  
-        // Check phases (if needed)
-        if (engine.checkCurrentPhase) {
-          engine.checkCurrentPhase();
-        }
-  
-        return true;
-      } catch (error) {
-        logger.error('useTimeline', 'updateProgressAndCheckPhases error:', error);
-        return false;
-      }
-    }, [ensureTimelineEngine, syncProgressWithEngine]);
-  
+      // Use the checkCurrentPhase method from TimelineEngine
+      const success = engine.checkCurrentPhase ? engine.checkCurrentPhase() : false;
+
+      // Sync state with engine
+      syncProgressWithEngine();
+
+      return success;
+    } catch (error) {
+      logger.error('useTimeline', 'checkPhaseTransitions error:', error);
+      return false;
+    }
+  }, [ensureTimelineEngine, syncProgressWithEngine]);
+
+
 
   //=======NAVIGATION METHODS======
   //===============================
@@ -767,6 +834,12 @@ const cancelTransition = useCallback(() => {
 
   // Initialize the TimelineEngine
   useEffect(() => {
+    // Add this check to prevent recreating the engine if it already exists
+    if (timelineEngineRef.current && providedTimelineEngine === timelineEngineRef.current) {
+      logger.info('useTimeline', 'TimelineEngine already exists, skipping initialization');
+      return;
+    }
+
     // If an engine is provided, use that
     if (providedTimelineEngine) {
       timelineEngineRef.current = providedTimelineEngine;
@@ -802,12 +875,21 @@ const cancelTransition = useCallback(() => {
     if (engine) {
       engine.setSessionDuration(sessionDuration);
       engine.setTransitionDuration(transitionDuration);
+
+      // Make sure we set the phases if they exist but haven't been set yet
+      if (timelinePhases.length > 0 && engine.setPhases) {
+        logger.info('useTimeline', `Setting ${timelinePhases.length} phases on initialization`);
+        engine.setPhases(timelinePhases);
+      }
+
+
     }
+
 
     // Cleanup on unmount
     return () => {
-      const engine = timelineEngineRef.current;
-      if (engine && engine.dispose) {
+      // Only dispose if component is actually unmounting, not on every dependency change
+      if (engine && engine.dispose && componentIsUnmountingRef.current) {
         engine.dispose();
       }
     };
@@ -821,7 +903,7 @@ const cancelTransition = useCallback(() => {
     sessionDuration,
     transitionDuration,
     enableLogging
-    
+
   ]);
 
 
@@ -848,14 +930,16 @@ const cancelTransition = useCallback(() => {
     // Transition methods
     startTransition,
     cancelTransition,
+    forceProgressUpdate,
 
 
-  //Setters
-  setPhasesLoaded,
-  setActivePhase, 
-  setProgress: handleSetProgress,
 
- 
+    //Setters
+    setPhasesLoaded,
+    setActivePhase,
+    setProgress: handleSetProgress,
+
+
 
     // Core timeline control methods
     start: startTimeline,
@@ -875,7 +959,6 @@ const cancelTransition = useCallback(() => {
     // Added from TimelineManager
     manualPhaseTransition: handleManualPhaseTransition,
     checkPhaseTransitions,
-    updateProgressAndCheckPhases,
     syncProgressWithEngine,
 
     // Configuration methods
