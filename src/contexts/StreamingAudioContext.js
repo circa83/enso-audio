@@ -4,10 +4,13 @@ import { createAudioServices } from '../services/audio';
 import CollectionService from '../services/CollectionService';
 import AudioFileService from '../services/AudioFileService';
 import { useCollections } from '../hooks/useCollections';
+import useCrossfade from '../hooks/useCrossfade';
 import CollectionLoader from '../services/audio/CollectionLoader';
 import createplaybackManager from '../services/audio/PlaybackManager';
 import useTimeline from '../hooks/useTimeline';
 import createLayerManager from '../services/audio/LayerManager';
+import PhaseManager from '../services/audio/PhaseManager';
+import CrossfadeEngine from '../services/audio';
 import { mapCollectionToLayers } from '../utils/collectionUtils';
 import logger from '../services/LoggingService';
 
@@ -41,7 +44,7 @@ export const AudioProvider = ({ children }) => {
     layerController: null,
     crossfadeEngine: null,
     timelineEngine: null,
-
+    phaseManager: null,
   });
 
   // Collection services
@@ -155,7 +158,9 @@ export const AudioProvider = ({ children }) => {
   
   // Use our timeline hook with the timelineEngine from serviceRef
   const timeline = useTimeline({
+    crossfadeEngine: serviceRef.current.crossfadeEngine,
     timelineEngine: serviceRef.current.timelineEngine,
+ 
     isPlaying,
     onPhaseChange: (phaseId, phaseData) => {
       logger.info('StreamingAudioContext', `PhaseId changed to: ${phaseId}`);
@@ -283,6 +288,9 @@ export const AudioProvider = ({ children }) => {
   // Use a ref to track if collections have been loaded
   const collectionsLoadedRef = useRef(false);
 
+  
+
+
   // Initialize services - Only run once on mount
   useEffect(() => {
     let isMounted = true; // For preventing state updates after unmount
@@ -312,6 +320,12 @@ export const AudioProvider = ({ children }) => {
                 }));
               }
             }
+          },
+          phaseManager: {
+            // Add appropriate configuration for PhaseManager
+            // Will be initialized with the crossfadeEngine
+            getCrossfadeEngine: (services) => services.crossfadeEngine,
+            enableLogging: true
           },
           timelineEngine: {
             sessionDuration: timeline.sessionDuration,

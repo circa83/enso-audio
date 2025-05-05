@@ -169,52 +169,63 @@ class LoggingService {
         return result;
       }
       
-      /**
-       * Format a log message
-       * @param {string} level - Log level
-       * @param {string} category - Log category
-       * @param {string} message - Log message
-       * @returns {Array} - Formatted log arguments
-       */
-      formatLogMessage(level, category, message, ...args) {
-        const parts = [];
-        const styles = [];
-        
-        // Add timestamp if enabled
-        if (this.config.showTimestamps) {
-          const timestamp = new Date().toISOString().split('T')[1].split('Z')[0];
-          parts.push(`[${timestamp}]`);
-          styles.push(this.colors.timestamp);
-        }
-        
-        // Add level indicator
-        parts.push(`[${level.toUpperCase()}]`);
-        styles.push(this.colors[level.toLowerCase()] || '');
-        
-        // Add category
-        if (category) {
-          parts.push(`[${category}]`);
-          styles.push(this.colors.category);
-        }
-        
-        // Add message
-        parts.push('%s');
-        styles.push('');
-        
-        // Create format string - safely check for browser environment
-        if (isBrowser && this.config.colorize && console.log) {
-          // For browsers with color support
-          return [
-            parts.map((_, i) => i === parts.length - 1 ? '%s' : `%c${parts[i]}`).join(' '),
-            ...styles.slice(0, -1),
-            message,
-            ...args
-          ];
-        } else {
-          // For environments without color support or server-side
-          return [parts.join(' '), message, ...args];
-        }
-      }
+    /**
+ * Format a log message
+ * @param {string} level - Log level
+ * @param {string} category - Log category
+ * @param {string} message - Log message
+ * @returns {Array} - Formatted log arguments
+ */
+formatLogMessage(level, category, message, ...args) {
+  // Safety checks from second implementation
+  const safeCategory = category === undefined ? 'Unknown' : category;
+  const safeMessage = message === undefined ? 'No message provided' : message;
+  
+  // Safe args processing
+  const safeArgs = args.map(arg => {
+    if (arg === undefined) return 'undefined';
+    if (arg === null) return 'null';
+    return arg;
+  });
+  
+  // Rest of first implementation with safe values
+  const parts = [];
+  const styles = [];
+  
+  // Add timestamp if enabled
+  if (this.config.showTimestamps) {
+    const timestamp = new Date().toISOString().split('T')[1].split('Z')[0];
+    parts.push(`[${timestamp}]`);
+    styles.push(this.colors.timestamp);
+  }
+  
+  // Add level indicator
+  parts.push(`[${level.toUpperCase()}]`);
+  styles.push(this.colors[level.toLowerCase()] || '');
+  
+  // Add category - now using safeCategory
+  parts.push(`[${safeCategory}]`);
+  styles.push(this.colors.category);
+  
+  // Add message
+  parts.push('%s');
+  styles.push('');
+  
+  // Create format string - safely check for browser environment
+  if (isBrowser && this.config.colorize && console.log) {
+    // For browsers with color support
+    return [
+      parts.map((_, i) => i === parts.length - 1 ? '%s' : `%c${parts[i]}`).join(' '),
+      ...styles.slice(0, -1),
+      safeMessage,
+      ...safeArgs
+    ];
+  } else {
+    // For environments without color support or server-side
+    return [parts.join(' '), safeMessage, ...safeArgs];
+  }
+}
+
       
       /**
        * Log an error message
@@ -229,6 +240,8 @@ class LoggingService {
         return this;
       }
       
+
+
       /**
        * Log a warning message
        * @param {string} category - Log category

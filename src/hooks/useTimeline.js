@@ -1,6 +1,7 @@
 // src/hooks/useTimeline.js
 import { useState, useEffect, useCallback, useRef } from 'react';
 import TimelineEngine from '../services/audio/TimelineEngine';
+import PhaseManager from '../services/audio/PhaseManager';
 import logger from '../services/LoggingService';
 
 /**
@@ -17,7 +18,11 @@ import logger from '../services/LoggingService';
  */
 export function useTimeline(options = {}) {
   const {
+    crossfadeEngine: providedCrossfadeEngine,
+    PhaseManager: providedPhaseManager,
     timelineEngine: providedTimelineEngine,
+ 
+    
     isPlaying = false,
     onPhaseChange = null,
     sessionDuration: initialSessionDuration = 60000, // 1 min default
@@ -41,12 +46,13 @@ export function useTimeline(options = {}) {
   const [phasesLoaded, setPhasesLoaded] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [currentTransition, setCurrentTransition] = useState(null);
-
+  const [isInitialized, setIsInitialized] = useState(false);
   // Refs for callback stability
   const isPlayingRef = useRef(isPlaying);
   const timelineEngineRef = useRef(providedTimelineEngine || null);
   const timelinePhasesRef = useRef(timelinePhases);
   const componentIsUnmountingRef = useRef(false);
+  const phaseManagerRef = useRef(providedPhaseManager || null);
 
   // Update refs when dependencies change
   useEffect(() => {
@@ -80,6 +86,7 @@ export function useTimeline(options = {}) {
     }
     return timelineEngineRef.current;
   }, []);
+
 
 
 
@@ -752,6 +759,17 @@ const forceProgressUpdate = useCallback(() => {
     }
   }, [ensureTimelineEngine, syncProgressWithEngine]);
 
+  /**
+ * Get the current PhaseManager instance
+ * @returns {Object|null} Phase manager or null if unavailable
+ */
+const getPhaseManager = useCallback(() => {
+  if (!phaseManagerRef.current) {
+    logger.error('useTimeline', 'Phase manager is not available');
+    return null;
+  }
+  return phaseManagerRef.current;
+}, []);
 
 
   //=======NAVIGATION METHODS======
@@ -837,55 +855,78 @@ const forceProgressUpdate = useCallback(() => {
     // Add this check to prevent recreating the engine if it already exists
     if (timelineEngineRef.current && providedTimelineEngine === timelineEngineRef.current) {
       logger.info('useTimeline', 'TimelineEngine already exists, skipping initialization');
+      // Still set initialized state in case this is a re-render
+      setIsInitialized(true);
       return;
     }
-
+    
     // If an engine is provided, use that
     if (providedTimelineEngine) {
       timelineEngineRef.current = providedTimelineEngine;
       logger.info('useTimeline', 'Using provided TimelineEngine instance');
     }
+    
     // Otherwise create a new TimelineEngine
     else if (!timelineEngineRef.current) {
       try {
         logger.info('useTimeline', 'Creating new TimelineEngine instance');
+        
+   // First, ensure we have a PhaseManager
+   if (!phaseManagerRef.current && !providedPhaseManager) {
+    // We need to create a PhaseManager
+    if (!providedCrossfadeEngine) {
+      logger.error('useTimeline', 'Cannot create PhaseManager: No CrossfadeEngine provided');
+      throw new Error('useTimeline requires either a phaseManager or a crossfadeEngine');
+    }
+
+ // Create PhaseManager with the provided CrossfadeEngine
+ logger.info('useTimeline', 'Creating new PhaseManager instance');
+ phaseManagerRef.current = new PhaseManager({
+   crossfadeEngine: providedCrossfadeEngine,
+   onPhaseChange: handlePhaseChange,
+   sessionDuration: sessionDuration,
+   enableLogging: enableLogging
+ });
+} else if (providedPhaseManager) {
+ phaseManagerRef.current = providedPhaseManager;
+}
 
         // Create a new TimelineEngine with required callbacks
         const engine = new TimelineEngine({
           onPhaseChange: handlePhaseChange,
           onProgress: handleProgress,
-          onScheduledEvent: handleScheduledEvent,
-          onScheduledEvent: handleScheduledEvent,
+          onScheduledEvent: handleScheduledEvent,  // Fixed duplicate
           onTransitionStart: handleTransitionStarted,
           onTransitionComplete: handleTransitionComplete,
           sessionDuration,
           transitionDuration,
           enableLogging
         });
-
+        
         timelineEngineRef.current = engine;
         logger.info('useTimeline', 'TimelineEngine created successfully');
       } catch (error) {
         logger.error('useTimeline', 'Failed to create TimelineEngine:', error);
       }
     }
-
+    
     // Configure the engine
     const engine = timelineEngineRef.current;
     if (engine) {
       engine.setSessionDuration(sessionDuration);
       engine.setTransitionDuration(transitionDuration);
-
+      
       // Make sure we set the phases if they exist but haven't been set yet
       if (timelinePhases.length > 0 && engine.setPhases) {
         logger.info('useTimeline', `Setting ${timelinePhases.length} phases on initialization`);
         engine.setPhases(timelinePhases);
       }
-
-
+      
+      // Add this to mark initialization complete
+      setIsInitialized(true);
+      logger.info('useTimeline', 'Timeline initialization complete');
     }
-
-
+    
     // Cleanup on unmount
     return () => {
       // Only dispose if component is actually unmounting, not on every dependency change
@@ -895,6 +936,8 @@ const forceProgressUpdate = useCallback(() => {
     };
   }, [
     providedTimelineEngine,
+    providedPhaseManager,
+    providedCrossfadeEngine,
     handlePhaseChange,
     handleProgress,
     handleScheduledEvent,
@@ -902,10 +945,9 @@ const forceProgressUpdate = useCallback(() => {
     handleTransitionComplete,
     sessionDuration,
     transitionDuration,
-    enableLogging
-
+    timelinePhases,
+    enableLogging,
   ]);
-
 
 
 
@@ -926,6 +968,9 @@ const forceProgressUpdate = useCallback(() => {
     phasesLoaded,
     isTransitioning,
     currentTransition,
+    isInitialized,
+    getPhaseManager,
+
 
     // Transition methods
     startTransition,
@@ -971,6 +1016,7 @@ const forceProgressUpdate = useCallback(() => {
 
     // Engine access (for advanced usage)
     getEngine: ensureTimelineEngine
+    
   };
 }
 

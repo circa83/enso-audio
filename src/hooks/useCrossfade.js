@@ -1,6 +1,6 @@
 // src/hooks/useCrossfade.js
 import { useState, useEffect, useCallback, useRef } from 'react';
-import audioServiceManager from '../services/audio/AudioServiceManager';
+
 
 /**
  * Hook for managing audio crossfades and track transitions
@@ -19,10 +19,10 @@ import audioServiceManager from '../services/audio/AudioServiceManager';
  */
 export function useCrossfade(options = {}) {
   const {
-    audioCore: providedAudioCore,
-    volumeController: providedVolumeController,
-    crossfadeEngine: providedCrossfadeEngine,
-    bufferManager: providedBufferManager,
+    audioCore,
+    volumeController,
+    crossfadeEngine,
+    bufferManager,
     activeAudio = {},
     audioLibrary = {},
     onActiveAudioChange = null,
@@ -31,13 +31,11 @@ export function useCrossfade(options = {}) {
     transitionDuration = 4000, // Default if not provided by useTimeline
   } = options;
 
-   // Use provided services or get from manager
-   const services = audioServiceManager.getServices();
-   const audioCore = providedAudioCore || services?.audioCore;
-   const volumeController = providedVolumeController || services?.volumeController;
-   const crossfadeEngine = providedCrossfadeEngine || services?.crossfadeEngine;
-   const bufferManager = providedBufferManager || services?.bufferManager;
-  
+    // Check if required services are provided
+    if (!audioCore || !volumeController || !crossfadeEngine || !bufferManager) {
+      console.error('[useCrossfade] Required audio services are missing');
+    }
+   
   // Crossfade state
   const [crossfadeProgress, setCrossfadeProgress] = useState({});
   const [activeCrossfades, setActiveCrossfades] = useState({});
