@@ -1,44 +1,33 @@
 <script lang="ts">
-  import WaveSurfer from 'wavesurfer.js';
   import { onMount, onDestroy } from 'svelte';
+  import { audioEngine } from '$lib/player/services/AudioEngine';
   import { current, isPlaying, time, duration } from './store';
+  import type { Track } from '$lib/types/track';
 
   export let src: string;
   export let title = '';
   export let artwork = '';
 
   let container: HTMLDivElement;
-  let wavesurfer: WaveSurfer | null = null;
   let showArtworkError = false;
-  let audioUnlocked = false;
+  
+  // Subscribe to AudioEngine stores and sync with legacy stores
+  const audioIsPlaying = audioEngine.isPlaying;
+  const audioCurrentTime = audioEngine.currentTime;
+  const audioDuration = audioEngine.duration;
+  
+  // Sync AudioEngine values with legacy stores for backward compatibility
+  $: isPlaying.set($audioIsPlaying);
+  $: time.set($audioCurrentTime);
+  $: duration.set($audioDuration);
 
   function toggle() {
     console.log('Player.svelte - toggle() called');
     
-    if (!wavesurfer) return;
-    
-    // For mobile: unlock Web Audio context on first user interaction
-    if (!audioUnlocked) {
-      const audioElement = wavesurfer.getMediaElement();
-      if (audioElement) {
-        // Force audio element to load
-        audioElement.load();
-        console.log('Player.svelte - Audio element loaded for mobile');
-      }
-      audioUnlocked = true;
-    }
-    
-    if (wavesurfer.isPlaying()) {
-      wavesurfer.pause();
+    if ($audioIsPlaying) {
+      audioEngine.pause();
     } else {
-      wavesurfer.play().catch(error => {
-        console.error('Player.svelte - Play error:', error);
-        // If play fails, try loading the audio again
-        if (wavesurfer && wavesurfer.getDuration() === 0) {
-          console.log('Player.svelte - Reloading audio for mobile');
-          wavesurfer.load(src);
-        }
-      });
+      audioEngine.play();
     }
   }
 
@@ -53,83 +42,46 @@
     showArtworkError = true;
   }
 
-  onMount(() => {
+  onMount(async () => {
     console.log('Player.svelte - onMount called, creating WaveSurfer instance');
+    console.log('Player.svelte - src:', src);
     
-    // Detect if we're on mobile
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    console.log('Player.svelte - Is mobile device:', isMobile);
+    // Initialize AudioEngine
+    audioEngine.initialize(container);
     
-    // Create WaveSurfer with mobile-friendly options
-    wavesurfer = WaveSurfer.create({
-      container,
-      url: src,
-      waveColor: '#333333',
-      progressColor: '#ffffff',
-      cursorColor: '#ffffff',
-      cursorWidth: 1,
-      height: 48,
-      normalize: true,
-      backend: 'WebAudio',
-      interact: true,
-      barWidth: 1,
-      barGap: 1,
-    });
-
-    wavesurfer.on('ready', () => {
-      console.log('Player.svelte - WaveSurfer ready event');
-      if (wavesurfer) {
-        duration.set(wavesurfer.getDuration());
-        current.set({ 
-          id: Date.now().toString(),
-          src: src, 
-          title, 
-          artwork,
-          artist: undefined
-        });
-      }
-    });
-
-    wavesurfer.on('audioprocess', () => {
-      if (wavesurfer) {
-        time.set(wavesurfer.getCurrentTime());
-      }
-    });
-
-    wavesurfer.on('play', () => {
-      console.log('Player.svelte - WaveSurfer play event');
-      isPlaying.set(true);
-    });
-    
-    wavesurfer.on('pause', () => {
-      console.log('Player.svelte - WaveSurfer pause event');
-      isPlaying.set(false);
-    });
-
-    wavesurfer.on('error', (error) => {
-      console.error('Player.svelte - WaveSurfer error:', error);
-    });
-
-    // Handle window resize manually since 'responsive' is no longer available
-    const handleResize = () => {
-      if (wavesurfer) {
-        console.log('Player.svelte - handleResize() called');
-        wavesurfer.setOptions({ fillParent: true });
-      }
+    // Create track for store (matching original)
+    const track: Track = { 
+      id: Date.now().toString(),
+      src, 
+      title, 
+      artwork,
+      artist: undefined
     };
-
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      wavesurfer?.destroy();
-    };
+    current.set(track);
+    
+    // Load in AudioEngine - handle both relative and absolute paths
+    if (src) {
+      try {
+        // If src doesn't start with '/', assume it's in the audio directory
+        const audioUrl = src.startsWith('/') ? src : `/${src}`;
+        await audioEngine.load({ url: audioUrl, title, artwork });
+      } catch (error) {
+        console.error('Player.svelte - Error loading track:', error);
+      }
+    }
   });
 
   onDestroy(() => {
     console.log('Player.svelte - onDestroy called');
-    wavesurfer?.destroy();
+    audioEngine.destroy();
   });
+
+  // Handle track changes
+  $: if (src && container) {
+    audioEngine.load({ url: src, title, artwork }).catch(err => {
+      console.error('Player.svelte - Error reloading track:', err);
+    });
+  }
 </script>
 
 <div class="w-full space-y-4">
@@ -152,6 +104,7 @@
       </div>
     </div>
   {/if}  
+  
   <!-- Waveform container -->
   <div 
     bind:this={container} 
