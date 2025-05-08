@@ -23,7 +23,7 @@ export class AudioEngine {
   
   initialize(container: HTMLElement): void {
     if (typeof window === 'undefined') return;
-    
+    console.log('AudioEngine - initialize called');
     if (this.wavesurfer) {
       this.destroy();
     }
@@ -31,7 +31,11 @@ export class AudioEngine {
     try {
       // Create AudioContext first for iOS
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      
+      console.log('AudioEngine - AudioContext created:', {
+        state: this.audioContext.state,
+        sampleRate: this.audioContext.sampleRate,
+        currentTime: this.audioContext.currentTime,
+      });
       // Try to unlock audio on iOS
       this.unlockAudioContext();
      
@@ -52,6 +56,7 @@ const options: any = {
   audioContext: this.audioContext
 };
 this.wavesurfer = WaveSurfer.create(options);  
+console.log('AudioEngine - WaveSurfer created');
 
 
       
@@ -111,6 +116,8 @@ this.wavesurfer = WaveSurfer.create(options);
   }
   
   async load(track: AudioTrack): Promise<void> {
+    console.log('AudioEngine - load called with track:', track);
+    
     if (!this.wavesurfer || !track || !track.url) {
       console.error('AudioEngine - Invalid load parameters:', { wavesurfer: !!this.wavesurfer, track });
       return;
@@ -149,19 +156,27 @@ this.wavesurfer = WaveSurfer.create(options);
   }
   
   play(): void {
-    if (!this.wavesurfer) return;
+    if (!this.wavesurfer) {
+      console.log('AudioEngine - play called but no wavesurfer instance');
+      return;
+    }
+    console.log('AudioEngine - play called, audioContext state:', this.audioContext?.state);
     
     // Try to resume AudioContext first (important for iOS)
     if (this.audioContext && this.audioContext.state === 'suspended') {
+      console.log('AudioEngine - AudioContext suspended, attempting resume');
       this.audioContext.resume().then(() => {
+        console.log('AudioEngine - AudioContext resumed, state:', this.audioContext?.state);
         if (this.wavesurfer) {
           this.wavesurfer.play();
+          console.log('AudioEngine - WaveSurfer play called');
         }
       }).catch(err => {
-        console.error('Failed to resume audio context:', err);
+        console.error('AudioEngine - Failed to resume audio context:', err);
       });
     } else {
       this.wavesurfer.play();
+      console.log('AudioEngine - WaveSurfer play called directly');
     }
   }
   
