@@ -1,2 +1,40 @@
-@import 'tailwindcss';
-@plugin '@tailwindcss/typography';
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@100;200;300&family=Space+Mono:wght@400&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles */
+@layer base {
+  html {
+    @apply bg-enso-bg-primary text-enso-text-primary;
+  }
+  
+  body {
+    @apply font-archivo font-light tracking-normal;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply uppercase tracking-wider font-light;
+  }
+}
+
+/* Component styles */
+@layer components {
+  .enso-button {
+    @apply border border-enso-border px-6 py-3 uppercase tracking-wider 
+           transition-all duration-200
+           hover:bg-enso-bg-secondary;
+  }
+  
+  .enso-container {
+    @apply bg-enso-bg-primary border border-enso-border;
+  }
+}
+
+/* Utility styles */
+@layer utilities {
+  /* Subtle animations */
+  .fade-in {
+    @apply transition-opacity duration-300;
+  }
+}
