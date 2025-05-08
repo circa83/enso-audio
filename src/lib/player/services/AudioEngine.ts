@@ -34,20 +34,26 @@ export class AudioEngine {
       
       // Try to unlock audio on iOS
       this.unlockAudioContext();
-      
-      this.wavesurfer = WaveSurfer.create({
-        container,
-        waveColor: '#333333',
-        progressColor: '#ffffff',
-        cursorColor: '#ffffff',
-        cursorWidth: 1,
-        height: 48,
-        normalize: true,
-        backend: 'WebAudio',
-        interact: true,
-        barWidth: 1,
-        barGap: 1,
-      });
+     
+     
+      // Initialize WaveSurfer
+const options: any = {
+  container,
+  waveColor: '#333333',
+  progressColor: '#ffffff',
+  cursorColor: '#ffffff',
+  cursorWidth: 1,
+  height: 48,
+  normalize: true,
+  backend: 'WebAudio',
+  interact: true,
+  barWidth: 1,
+  barGap: 1,
+  audioContext: this.audioContext
+};
+this.wavesurfer = WaveSurfer.create(options);  
+
+
       
       this.setupEventListeners();
     } catch (error) {
