@@ -1,9 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx,svelte}",
-  ],
+  content: ['./src/**/*.{html,js,svelte,ts}'],
   theme: {
     extend: {
       colors: {
@@ -12,26 +9,21 @@ export default {
         'enso-border': '#333333',
         'enso-text-primary': '#ffffff',
         'enso-text-secondary': '#aaaaaa',
-        'enso-accent': '#ffffff'
+        'enso-accent': '#ffffff',
       },
       fontFamily: {
         'archivo': ['Archivo', 'sans-serif'],
-        'space-mono': ['Space Mono', 'monospace']
-      },
-      fontWeight: {
-        'thin': '100',
-        'extra-light': '200',
-        'light': '300'
+        'mono': ['Space Mono', 'monospace'],
       },
       letterSpacing: {
-        'normal': '0.1em',
-        'wide': '0.2em',
-        'wider': '0.4em',
-        'widest': '0.8em'
+        'tight': '1px',
+        'wide': '2px',
+        'wider': '4px',
+        'widest': '8px',
       },
       transitionDuration: {
         '200': '200ms',
-        '300': '300ms'
+        '300': '300ms',
       }
     },
   },
