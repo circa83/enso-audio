@@ -24,11 +24,22 @@
   function toggle() {
     console.log('Player.svelte - toggle() called');
     
-    if ($audioIsPlaying) {
-      audioEngine.pause();
-    } else {
-      audioEngine.play();
-    }
+    // This is a user interaction, so it's a good time to ensure audio is unlocked
+    audioEngine.resumeAudioContext().then(() => {
+      if ($audioIsPlaying) {
+        audioEngine.pause();
+      } else {
+        audioEngine.play();
+      }
+    }).catch(err => {
+      console.error('Player.svelte - Error resuming audio context:', err);
+      // Still try to toggle playback even if resuming fails
+      if ($audioIsPlaying) {
+        audioEngine.pause();
+      } else {
+        audioEngine.play();
+      }
+    });
   }
 
   function formatTime(seconds: number): string {
