@@ -1,11 +1,22 @@
 import WaveSurfer from 'wavesurfer.js';
 import { writable, type Writable } from 'svelte/store';
 
-// Simple type for internal use that works with both original and new track structures
-interface AudioTrack {
+// Interface for tracks used by AudioEngine
+export interface AudioTrack {
   url: string;
   title: string;
   artwork?: string;
+  duration?: number;
+  peaksUrl?: string;
+}
+
+// Audio state interface
+export interface AudioState {
+  isPlaying: boolean;
+  currentTime: number;
+  duration: number;
+  isLoading: boolean;
+  error: string | null;
 }
 
 export class AudioEngine {
@@ -20,10 +31,11 @@ export class AudioEngine {
   public duration: Writable<number> = writable(0);
   public isLoading: Writable<boolean> = writable(false);
   public error: Writable<string | null> = writable(null);
+  public volume: Writable<number> = writable(1);
   
   initialize(container: HTMLElement): void {
     if (typeof window === 'undefined') return;
-    console.log('AudioEngine - initialize called');
+    
     if (this.wavesurfer) {
       this.destroy();
     }
@@ -31,95 +43,37 @@ export class AudioEngine {
     try {
       // Create AudioContext first for iOS
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      console.log('AudioEngine - AudioContext created:', {
-        state: this.audioContext.state,
-        sampleRate: this.audioContext.sampleRate,
-        currentTime: this.audioContext.currentTime,
-      });
-      // Try to unlock audio on iOS
-      this.unlockAudioContext();
-     
-     
-      // Initialize WaveSurfer
-const options: any = {
-  container,
-  waveColor: '#333333',
-  progressColor: '#ffffff',
-  cursorColor: '#ffffff',
-  cursorWidth: 1,
-  height: 48,
-  normalize: true,
-  backend: 'WebAudio',
-  interact: true,
-  barWidth: 1,
-  barGap: 1,
-  audioContext: this.audioContext
-};
-this.wavesurfer = WaveSurfer.create(options);  
-console.log('AudioEngine - WaveSurfer created');
-
-
       
+      // Setup audio unlocking for mobile
+      this.setupAudioUnlocking();
+      
+      // Initialize WaveSurfer with our AudioContext
+      const options: any = {
+        container,
+        waveColor: '#333333',
+        progressColor: '#ffffff',
+        cursorColor: '#ffffff',
+        cursorWidth: 1,
+        height: 48,
+        normalize: true,
+        backend: 'WebAudio',
+        interact: true,
+        barWidth: 1,
+        barGap: 1,
+        audioContext: this.audioContext
+      };
+      
+      this.wavesurfer = WaveSurfer.create(options);
       this.setupEventListeners();
     } catch (error) {
-      console.error('AudioEngine - Error initializing WaveSurfer:', error);
-    }
-  }
-  
-  // This function attempts to unlock the AudioContext on iOS
-  unlockAudioContext() {
-    if (!this.audioContext || this.audioUnlocked) return;
-    
-    // Store the unlock function so we can remove it later
-    this.unlockFunction = (e: Event) => {
-      if (this.audioUnlocked) return;
-      
-      // Create an empty buffer and play it
-      const buffer = this.audioContext!.createBuffer(1, 1, 22050);
-      const source = this.audioContext!.createBufferSource();
-      source.buffer = buffer;
-      source.connect(this.audioContext!.destination);
-      
-      // Play the empty buffer
-      if (source.start) {
-        source.start(0);
-      } else {
-        (source as any).noteOn(0);
-      }
-      
-      // Resume the audio context if it's suspended
-      if (this.audioContext!.state === 'suspended') {
-        this.audioContext!.resume();
-      }
-      
-      this.audioUnlocked = true;
-      console.log('AudioEngine - Audio context unlocked');
-      
-      // Remove the event listeners
-      this.removeUnlockListeners();
-    };
-    
-    // Add event listeners to unlock audio
-    document.addEventListener('touchstart', this.unlockFunction, true);
-    document.addEventListener('touchend', this.unlockFunction, true);
-    document.addEventListener('click', this.unlockFunction, true);
-  }
-  
-  // Helper to remove unlock listeners
-  private removeUnlockListeners() {
-    if (this.unlockFunction) {
-      document.removeEventListener('touchstart', this.unlockFunction, true);
-      document.removeEventListener('touchend', this.unlockFunction, true);
-      document.removeEventListener('click', this.unlockFunction, true);
-      this.unlockFunction = null;
+      console.error('AudioEngine - Error initializing:', error);
+      this.error.set('Failed to initialize audio engine');
     }
   }
   
   async load(track: AudioTrack): Promise<void> {
-    console.log('AudioEngine - load called with track:', track);
-
-    if (!this.wavesurfer || !track || !track.url) {
-      console.error('AudioEngine - Invalid load parameters:', { wavesurfer: !!this.wavesurfer, track });
+    if (!this.wavesurfer || !track?.url) {
+      this.error.set('Invalid audio parameters');
       return;
     }
     
@@ -127,24 +81,16 @@ console.log('AudioEngine - WaveSurfer created');
     this.error.set(null);
     
     try {
-      console.log('AudioEngine - Loading track:', track.url);
-      
-      // Make sure URL is properly formatted
-      let audioUrl = track.url;
-      
       // Handle relative URLs properly
+      let audioUrl = track.url;
       if (!audioUrl.startsWith('http') && !audioUrl.startsWith('blob:')) {
-        // Remove leading slash if it exists to avoid double slashes
         audioUrl = audioUrl.startsWith('/') ? audioUrl : `/${audioUrl}`;
         
-        // Make sure we have the full URL
         if (typeof window !== 'undefined') {
-          const baseUrl = window.location.origin;
-          audioUrl = `${baseUrl}${audioUrl}`;
+          audioUrl = `${window.location.origin}${audioUrl}`;
         }
       }
       
-      console.log('AudioEngine - Final URL:', audioUrl);
       await this.wavesurfer.load(audioUrl);
     } catch (error) {
       console.error('AudioEngine - Error loading track:', error);
@@ -156,33 +102,36 @@ console.log('AudioEngine - WaveSurfer created');
   }
   
   play(): void {
-    if (!this.wavesurfer) {
-      console.log('AudioEngine - play called but no wavesurfer instance');
-      return;
-    }
-    console.log('AudioEngine - play called, audioContext state:', this.audioContext?.state);
+    if (!this.wavesurfer) return;
     
-    // Try to resume AudioContext first (important for iOS)
-    if (this.audioContext && this.audioContext.state === 'suspended') {
-      console.log('AudioEngine - AudioContext suspended, attempting resume');
+    // Handle suspended AudioContext (iOS requirement)
+    if (this.audioContext?.state === 'suspended') {
       this.audioContext.resume().then(() => {
-        console.log('AudioEngine - AudioContext resumed, state:', this.audioContext?.state);
-        if (this.wavesurfer) {
-          this.wavesurfer.play();
-          console.log('AudioEngine - WaveSurfer play called');
-        }
+        this.wavesurfer?.play();
       }).catch(err => {
         console.error('AudioEngine - Failed to resume audio context:', err);
+        this.error.set('Failed to play audio');
       });
     } else {
       this.wavesurfer.play();
-      console.log('AudioEngine - WaveSurfer play called directly');
     }
   }
   
   pause(): void {
-    if (!this.wavesurfer) return;
-    this.wavesurfer.pause();
+    this.wavesurfer?.pause();
+  }
+  
+  seek(position: number): void {
+    if (this.wavesurfer && this.wavesurfer.getDuration() > 0) {
+      this.wavesurfer.seekTo(position);
+    }
+  }
+  
+  setVolume(level: number): void {
+    if (this.wavesurfer) {
+      this.wavesurfer.setVolume(level);
+      this.volume.set(level);
+    }
   }
   
   destroy(): void {
@@ -191,77 +140,94 @@ console.log('AudioEngine - WaveSurfer created');
       this.wavesurfer = null;
     }
     
-    // Clean up AudioContext
-    if (this.audioContext) {
-      // Close the AudioContext if it's not already closed
-      if (this.audioContext.state !== 'closed') {
-        try {
-          this.audioContext.close();
-          console.log('AudioEngine - AudioContext closed');
-        } catch (error) {
-          console.error('AudioEngine - Error closing AudioContext:', error);
-        }
-      }
+    if (this.audioContext?.state !== 'closed') {
+      this.audioContext?.close().catch(console.error);
       this.audioContext = null;
-      this.audioUnlocked = false;
     }
     
-    // Remove any lingering event listeners
     this.removeUnlockListeners();
+    this.audioUnlocked = false;
     
-    // Reset stores
+    // Reset all stores
     this.isPlaying.set(false);
     this.currentTime.set(0);
     this.duration.set(0);
     this.isLoading.set(false);
     this.error.set(null);
+    this.volume.set(1);
   }
   
- private setupEventListeners(): void {
-  if (!this.wavesurfer) return;
-  
-  this.wavesurfer.on('ready', () => {
-    console.log('AudioEngine - WaveSurfer ready event fired');
-    this.duration.set(this.wavesurfer!.getDuration());
-    console.log('AudioEngine - Track duration:', this.wavesurfer!.getDuration());
-  });
-  
-  this.wavesurfer.on('audioprocess', () => {
-    this.currentTime.set(this.wavesurfer!.getCurrentTime());
-  });
-  
-  this.wavesurfer.on('play', () => {
-    console.log('AudioEngine - WaveSurfer play event fired');
-    this.isPlaying.set(true);
-  });
-  
-  this.wavesurfer.on('pause', () => {
-    console.log('AudioEngine - WaveSurfer pause event fired');
-    this.isPlaying.set(false);
-  });
-  
-  this.wavesurfer.on('error', (error) => {
-    console.error('AudioEngine - WaveSurfer error:', error);
-    this.error.set('Audio playback error');
-  });
-  
-  // Add loading events
-  this.wavesurfer.on('load', () => {
-    console.log('AudioEngine - WaveSurfer load event fired');
-  });
-  
-  this.wavesurfer.on('loading', (percent) => {
-    console.log('AudioEngine - WaveSurfer loading:', percent + '%');
-  });
-}
-
-  // Add this method to the AudioEngine class
   resumeAudioContext(): Promise<void> {
-    if (this.audioContext && this.audioContext.state === 'suspended') {
-      console.log('AudioEngine - Resuming suspended AudioContext');
+    if (this.audioContext?.state === 'suspended') {
       return this.audioContext.resume();
     }
     return Promise.resolve();
+  }
+  
+  private setupAudioUnlocking(): void {
+    if (!this.audioContext || this.audioUnlocked) return;
+    
+    this.unlockFunction = (e: Event) => {
+      if (this.audioUnlocked || !this.audioContext) return;
+      
+      // Create and play silent buffer to unlock audio
+      const buffer = this.audioContext.createBuffer(1, 1, 22050);
+      const source = this.audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(this.audioContext.destination);
+      source.start(0);
+      
+      // Resume context if suspended
+      if (this.audioContext.state === 'suspended') {
+        this.audioContext.resume();
+      }
+      
+      this.audioUnlocked = true;
+      this.removeUnlockListeners();
+    };
+    
+    // Add listeners for mobile audio unlocking
+    ['touchstart', 'touchend', 'click'].forEach(event => {
+      document.addEventListener(event, this.unlockFunction!, true);
+    });
+  }
+  
+  private removeUnlockListeners(): void {
+    if (this.unlockFunction) {
+      ['touchstart', 'touchend', 'click'].forEach(event => {
+        document.removeEventListener(event, this.unlockFunction!, true);
+      });
+      this.unlockFunction = null;
+    }
+  }
+  
+  private setupEventListeners(): void {
+    if (!this.wavesurfer) return;
+    
+    this.wavesurfer.on('ready', () => {
+      this.duration.set(this.wavesurfer!.getDuration());
+    });
+    
+    this.wavesurfer.on('audioprocess', () => {
+      this.currentTime.set(this.wavesurfer!.getCurrentTime());
+    });
+    
+    this.wavesurfer.on('play', () => {
+      this.isPlaying.set(true);
+    });
+    
+    this.wavesurfer.on('pause', () => {
+      this.isPlaying.set(false);
+    });
+    
+    this.wavesurfer.on('error', (error) => {
+      console.error('AudioEngine - Playback error:', error);
+      this.error.set('Audio playback error');
+    });
+    
+    this.wavesurfer.on('finish', () => {
+      this.isPlaying.set(false);
+    });
   }
 }
 
