@@ -117,7 +117,7 @@ console.log('AudioEngine - WaveSurfer created');
   
   async load(track: AudioTrack): Promise<void> {
     console.log('AudioEngine - load called with track:', track);
-    
+
     if (!this.wavesurfer || !track || !track.url) {
       console.error('AudioEngine - Invalid load parameters:', { wavesurfer: !!this.wavesurfer, track });
       return;
@@ -217,30 +217,43 @@ console.log('AudioEngine - WaveSurfer created');
     this.error.set(null);
   }
   
-  private setupEventListeners(): void {
-    if (!this.wavesurfer) return;
-    
-    this.wavesurfer.on('ready', () => {
-      this.duration.set(this.wavesurfer!.getDuration());
-    });
-    
-    this.wavesurfer.on('audioprocess', () => {
-      this.currentTime.set(this.wavesurfer!.getCurrentTime());
-    });
-    
-    this.wavesurfer.on('play', () => {
-      this.isPlaying.set(true);
-    });
-    
-    this.wavesurfer.on('pause', () => {
-      this.isPlaying.set(false);
-    });
-    
-    this.wavesurfer.on('error', (error) => {
-      console.error('AudioEngine - WaveSurfer error:', error);
-      this.error.set('Audio playback error');
-    });
-  }
+ private setupEventListeners(): void {
+  if (!this.wavesurfer) return;
+  
+  this.wavesurfer.on('ready', () => {
+    console.log('AudioEngine - WaveSurfer ready event fired');
+    this.duration.set(this.wavesurfer!.getDuration());
+    console.log('AudioEngine - Track duration:', this.wavesurfer!.getDuration());
+  });
+  
+  this.wavesurfer.on('audioprocess', () => {
+    this.currentTime.set(this.wavesurfer!.getCurrentTime());
+  });
+  
+  this.wavesurfer.on('play', () => {
+    console.log('AudioEngine - WaveSurfer play event fired');
+    this.isPlaying.set(true);
+  });
+  
+  this.wavesurfer.on('pause', () => {
+    console.log('AudioEngine - WaveSurfer pause event fired');
+    this.isPlaying.set(false);
+  });
+  
+  this.wavesurfer.on('error', (error) => {
+    console.error('AudioEngine - WaveSurfer error:', error);
+    this.error.set('Audio playback error');
+  });
+  
+  // Add loading events
+  this.wavesurfer.on('load', () => {
+    console.log('AudioEngine - WaveSurfer load event fired');
+  });
+  
+  this.wavesurfer.on('loading', (percent) => {
+    console.log('AudioEngine - WaveSurfer loading:', percent + '%');
+  });
+}
 
   // Add this method to the AudioEngine class
   resumeAudioContext(): Promise<void> {
