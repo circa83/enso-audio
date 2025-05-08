@@ -10,11 +10,36 @@
   let container: HTMLDivElement;
   let wavesurfer: WaveSurfer | null = null;
   let showArtworkError = false;
+  let audioUnlocked = false;
 
   function toggle() {
     console.log('Player.svelte - toggle() called');
+    
     if (!wavesurfer) return;
-    wavesurfer.isPlaying() ? wavesurfer.pause() : wavesurfer.play();
+    
+    // For mobile: unlock Web Audio context on first user interaction
+    if (!audioUnlocked) {
+      const audioElement = wavesurfer.getMediaElement();
+      if (audioElement) {
+        // Force audio element to load
+        audioElement.load();
+        console.log('Player.svelte - Audio element loaded for mobile');
+      }
+      audioUnlocked = true;
+    }
+    
+    if (wavesurfer.isPlaying()) {
+      wavesurfer.pause();
+    } else {
+      wavesurfer.play().catch(error => {
+        console.error('Player.svelte - Play error:', error);
+        // If play fails, try loading the audio again
+        if (wavesurfer && wavesurfer.getDuration() === 0) {
+          console.log('Player.svelte - Reloading audio for mobile');
+          wavesurfer.load(src);
+        }
+      });
+    }
   }
 
   function formatTime(seconds: number): string {
@@ -31,6 +56,11 @@
   onMount(() => {
     console.log('Player.svelte - onMount called, creating WaveSurfer instance');
     
+    // Detect if we're on mobile
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    console.log('Player.svelte - Is mobile device:', isMobile);
+    
+    // Create WaveSurfer with mobile-friendly options
     wavesurfer = WaveSurfer.create({
       container,
       url: src,
@@ -48,18 +78,22 @@
 
     wavesurfer.on('ready', () => {
       console.log('Player.svelte - WaveSurfer ready event');
-      duration.set(wavesurfer!.getDuration());
-      current.set({ 
-        id: Date.now().toString(),
-        src: src, 
-        title, 
-        artwork,
-        artist: undefined
-      });
+      if (wavesurfer) {
+        duration.set(wavesurfer.getDuration());
+        current.set({ 
+          id: Date.now().toString(),
+          src: src, 
+          title, 
+          artwork,
+          artist: undefined
+        });
+      }
     });
 
     wavesurfer.on('audioprocess', () => {
-      time.set(wavesurfer!.getCurrentTime());
+      if (wavesurfer) {
+        time.set(wavesurfer.getCurrentTime());
+      }
     });
 
     wavesurfer.on('play', () => {
