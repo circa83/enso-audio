@@ -3,6 +3,7 @@
   import { audioEngine } from '$lib/player/services/AudioEngine';
   import { current, isPlaying, time, duration } from './store';
   import WaveformDisplay from '$lib/components/WaveformDisplay.svelte';
+  import PlaybackControls from '$lib/components/PlaybackControls.svelte';
   import type { Track } from '$lib/types/track';
 
   export let src: string;
@@ -17,26 +18,11 @@
   const audioCurrentTime = audioEngine.currentTime;
   const audioDuration = audioEngine.duration;
   const audioError = audioEngine.error;
-  const audioIsLoading = audioEngine.isLoading;
   
   // Sync AudioEngine values with legacy stores
   $: isPlaying.set($audioIsPlaying);
   $: time.set($audioCurrentTime);
   $: duration.set($audioDuration);
-
-  async function toggle() {
-    try {
-      await audioEngine.resumeAudioContext();
-      
-      if ($audioIsPlaying) {
-        audioEngine.pause();
-      } else {
-        audioEngine.play();
-      }
-    } catch (err) {
-      console.error('Player - Error toggling playback:', err);
-    }
-  }
 
   function formatTime(seconds: number): string {
     const mins = Math.floor(seconds / 60);
@@ -106,31 +92,8 @@
 
   <!-- Controls -->
   <div class="flex items-center gap-6">
-    <!-- Play/Pause button -->
-    <button 
-      class="w-12 h-12 border border-enso-border rounded-full flex items-center justify-center 
-             text-enso-text-primary bg-transparent transition-all duration-200 
-             hover:bg-enso-bg-secondary cursor-pointer disabled:opacity-50"
-      on:click={toggle}
-      disabled={$audioIsLoading}
-      aria-label={$isPlaying ? 'Pause' : 'Play'}
-    >
-      {#if $audioIsLoading}
-        <!-- Loading spinner -->
-        <div class="w-6 h-6 border-2 border-enso-text-secondary border-t-transparent rounded-full animate-spin"></div>
-      {:else if $isPlaying}
-        <!-- Pause icon -->
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-          <rect x="6" y="4" width="4" height="16" />
-          <rect x="14" y="4" width="4" height="16" />
-        </svg>
-      {:else}
-        <!-- Play icon -->
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M8 5v14l11-7z" />
-        </svg>
-      {/if}
-    </button>
+    <!-- Playback Controls -->
+    <PlaybackControls />
 
     <!-- Track title -->
     <span class="flex-1 text-sm uppercase tracking-wider font-thin text-enso-text-primary truncate">
