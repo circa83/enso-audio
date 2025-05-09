@@ -4,6 +4,8 @@
   import { current, isPlaying, time, duration } from './store';
   import WaveformDisplay from '$lib/components/WaveformDisplay.svelte';
   import PlaybackControls from '$lib/components/PlaybackControls.svelte';
+  import TrackInfo from '$lib/components/TrackInfo.svelte';
+  import TimeDisplay from '$lib/components/TimeDisplay.svelte';
   import type { Track } from '$lib/types/track';
 
   export let src: string;
@@ -95,15 +97,11 @@
     <!-- Playback Controls -->
     <PlaybackControls />
 
-    <!-- Track title -->
-    <span class="flex-1 text-sm uppercase tracking-wider font-thin text-enso-text-primary truncate">
-      {title}
-    </span>
+    <!-- Track Info -->
+    <TrackInfo {title} />
 
     <!-- Time display -->
-    <span class="font-mono text-xs text-enso-text-secondary">
-      {formatTime($time)} / {formatTime($duration)}
-    </span>
+    <TimeDisplay currentTime={$time} duration={$duration} />
   </div>
 
   <!-- Error display -->
