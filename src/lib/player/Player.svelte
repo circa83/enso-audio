@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { audioEngine } from '$lib/player/services/AudioEngine';
   import { current, isPlaying, time, duration } from './store';
+  import WaveformDisplay from '$lib/components/WaveformDisplay.svelte';
   import type { Track } from '$lib/types/track';
 
   export let src: string;
@@ -100,8 +101,8 @@
     {/if}
   </div>
   
-  <!-- Waveform container -->
-  <div bind:this={container} class="w-full bg-enso-bg-primary"></div>
+  <!-- Waveform display -->
+  <WaveformDisplay bind:container />
 
   <!-- Controls -->
   <div class="flex items-center gap-6">
