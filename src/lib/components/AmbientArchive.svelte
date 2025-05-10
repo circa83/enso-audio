@@ -1,11 +1,15 @@
 <script lang="ts">
   import { current, session, addToSession, removeFromSession } from '$lib/player/store';
-  import TrackCard from './archive/TrackCard.svelte';
+  import TrackList from './archive/TrackList.svelte';
+  import TrackGrid from './archive/TrackGrid.svelte';
+  import TrackCarousel from './archive/TrackCarousel.svelte';
   import type { Track } from '$lib/types/track';
   
   export let tracks: Track[] = [];
   export let showSessionControls = false;
-  export let layout: 'list' | 'grid' | 'carousel' = 'list'; // For future use
+  export let layout: 'list' | 'grid' | 'carousel' = 'carousel';
+  export let title: string = 'Ambient Archive';
+  export let subtitle: string = 'Curated collection of ambient tracks';
   
   let expandedTrackId: string | null = null;
   let imageErrors: Record<string, boolean> = {};
@@ -39,32 +43,47 @@
   }
 </script>
 
-<!-- Archive container - layout prop ready for future layout implementations -->
+<!-- Archive container -->
 <div class="ambient-archive" data-layout={layout}>
   {#if layout === 'list'}
-    <div class="space-y-1">
-      {#each tracks as track}
-        <TrackCard
-          {track}
-          isPlaying={isCurrentTrack(track.id)}
-          isSession={isInSession(track.id)}
-          isExpanded={expandedTrackId === track.id}
-          imageError={imageErrors[track.id] || false}
-          onToggle={() => handleTrackClick(track)}
-          onPlayNow={() => playNow(track)}
-          onImageError={() => handleImageError(track.id)}
-        />
-      {/each}
-    </div>
+    <TrackList
+      {tracks}
+      {expandedTrackId}
+      {imageErrors}
+      onTrackClick={handleTrackClick}
+      {playNow}
+      onImageError={handleImageError}
+      {isCurrentTrack}
+      {isInSession}
+    />
   {/if}
   
-  <!-- Future layout implementations can be added here -->
   {#if layout === 'grid'}
-    <!-- Grid layout will be implemented later -->
+    <TrackGrid
+      {tracks}
+      {expandedTrackId}
+      {imageErrors}
+      onTrackClick={handleTrackClick}
+      {playNow}
+      onImageError={handleImageError}
+      {isCurrentTrack}
+      {isInSession}
+    />
   {/if}
   
   {#if layout === 'carousel'}
-    <!-- Carousel layout will be implemented later -->
+    <TrackCarousel
+      {title}
+      {subtitle}
+      {tracks}
+      {expandedTrackId}
+      {imageErrors}
+      onTrackClick={handleTrackClick}
+      {playNow}
+      onImageError={handleImageError}
+      {isCurrentTrack}
+      {isInSession}
+    />
   {/if}
 </div>
 
