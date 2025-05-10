@@ -13,21 +13,21 @@ export const time = writable(0);
 /** Track duration (seconds) */
 export const duration = writable(0);
 
-/** Queue of tracks */
-export const queue = writable<Track[]>([]);
+/** Session of tracks */
+export const session = writable<Track[]>([]);
 
 /** Crossfade duration in seconds */
 export const crossfadeDuration = writable(3);
 
-// Queue management functions
-export function addToQueue(track: Track) {
-  queue.update(q => [...q, track]);
+// Session management functions
+export function addToSession(track: Track) {
+  session.update(q => [...q, track]);
 }
 
-export function removeFromQueue(trackId: string) {
-  queue.update(q => q.filter(t => t.id !== trackId));
+export function removeFromSession(trackId: string) {
+  session.update(q => q.filter(t => t.id !== trackId));
 }
 
-export function clearQueue() {
-  queue.set([]);
+export function clearSession() {
+  session.set([]);
 }

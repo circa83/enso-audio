@@ -1,17 +1,17 @@
 <script lang="ts">
-  import { current, isPlaying, queue, addToQueue, clearQueue } from '$lib/player/store';
+  import { current, isPlaying, session, addToSession, clearSession } from '$lib/player/store';
   import type { Track } from '$lib/types/track';
   
   export let track: Track;
   export let onPlayNow: () => void;
   
-  function handleAddToQueue() {
-    console.log('QueueControls.svelte - handleAddToQueue', track.title);
-    addToQueue(track);
+  function handleAddToSession() {
+    console.log('SessionControls.svelte - handleAddToSession', track.title);
+    addToSession(track);
   }
   
   function handlePlayNow() {
-    console.log('QueueControls.svelte - handlePlayNow', track.title);
+    console.log('SessionControls.svelte - handlePlayNow', track.title);
     onPlayNow();
   }
 </script>
@@ -26,11 +26,11 @@
     Play Now
   </button>
   <button
-    on:click={handleAddToQueue}
+    on:click={handleAddToSession}
     class="flex-1 px-3 py-2 text-xs uppercase tracking-wider 
            border border-enso-border hover:bg-enso-bg-secondary 
            transition-colors"
   >
-    Add to Queue
+    Add to Session
   </button>
 </div>

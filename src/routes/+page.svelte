@@ -1,9 +1,9 @@
 <script lang="ts">
   import Player from '$lib/player/Player.svelte';
-  import TrackList from '$lib/components/TrackList.svelte';
+  import AmbientArchive from '$lib/components/AmbientArchive.svelte';
   import CrossfadeController from '$lib/player/CrossfadeController.svelte';
   import { musicLibrary } from '$lib/data/tracks';
-  import { current, queue } from '$lib/player/store';
+  import { current, session } from '$lib/player/store';
   import { onMount } from 'svelte';
   
   // Initialize with first track
@@ -19,7 +19,7 @@
   <div class="max-w-xl mx-auto px-4 py-8">
     <header class="mb-8 text-center">
       <h1 class="text-2xl sm:text-3xl font-thin tracking-[6px] mb-1">ENSŌ AUDIO</h1>
-      <p class="text-enso-text-secondary uppercase tracking-[3px] text-xs">Ambient Archive</p>
+      <!-- <p class="text-enso-text-secondary uppercase tracking-[3px] text-xs">Ambient Archive</p> -->
     </header>
     
     <!-- Current Player -->
@@ -33,27 +33,30 @@
       </div>
     {/if}
     
-    <!-- Queue Controls -->
+    <!-- Session Controls -->
     <div class="flex items-center justify-between mb-4">
-      <h2 class="text-lg font-thin tracking-wider uppercase">Library</h2>
+      
       <div class="flex items-center gap-4">
         <CrossfadeController />
-        {#if $queue.length > 0}
+        {#if $session.length > 0}
           <span class="text-xs text-enso-text-secondary uppercase tracking-wider">
-            {$queue.length} in queue
+            {$session.length} in session
           </span>
         {/if}
       </div>
     </div>
     
-    <!-- Track List -->
-    <TrackList tracks={musicLibrary} />
+    <!-- Ambient Archive -->
+    <div class="mb-8 text-center">
+      <h2 class="mb-4 text-lg font-thin tracking-wider uppercase">Ambient Archive</h2>
+      <AmbientArchive tracks={musicLibrary} />
+    </div>
     
-    <!-- Queue Section (if items are queued) -->
-    {#if $queue.length > 0}
+    <!-- Session Section (if items are in session) -->
+    {#if $session.length > 0}
       <div class="mt-8">
-        <h2 class="text-lg font-thin tracking-wider uppercase mb-4">Queue</h2>
-        <TrackList tracks={$queue} showQueueControls={true} />
+        <h2 class="text-lg font-thin tracking-wider uppercase mb-4">Session</h2>
+        <AmbientArchive tracks={$session} showSessionControls={true} />
       </div>
     {/if}
   </div>
