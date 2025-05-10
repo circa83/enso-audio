@@ -1,3 +1,4 @@
+// src/lib/player/store.ts - NO CHANGES NEEDED
 import { writable, derived } from 'svelte/store';
 import type { Track } from '$lib/types/track';
 

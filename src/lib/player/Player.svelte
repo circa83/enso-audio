@@ -1,6 +1,8 @@
+<!-- src/lib/player/Player.svelte -->
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { audioEngine } from '$lib/player/services/AudioEngine';
+  import { sessionManager } from '$lib/player/services/SessionManager';
   import { current, isPlaying, time, duration } from './store';
   import WaveformDisplay from '$lib/components/WaveformDisplay.svelte';
   import PlaybackControls from '$lib/components/PlaybackControls.svelte';
@@ -36,8 +38,14 @@
     showArtworkError = true;
   }
 
+  function handleTrackFinished() {
+    console.log('Player.svelte - handleTrackFinished');
+    sessionManager.playNext();
+  }
+
   onMount(async () => {
     audioEngine.initialize(container);
+    audioEngine.onFinish(handleTrackFinished);
     
     // Create track for store
     const track: Track = { 
@@ -66,7 +74,15 @@
 
   // Handle track changes
   $: if (src && container) {
-    audioEngine.load({ url: src, title, artwork }).catch(console.error);
+    const shouldAutoPlay = sessionManager.shouldAutoPlay();
+    audioEngine.load({ url: src, title, artwork })
+      .then(() => {
+        if (shouldAutoPlay) {
+          console.log('Player.svelte - Auto-playing next track');
+          audioEngine.play();
+        }
+      })
+      .catch(console.error);
   }
 </script>
 

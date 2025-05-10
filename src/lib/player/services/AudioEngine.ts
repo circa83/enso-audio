@@ -1,3 +1,4 @@
+// src/lib/player/services/AudioEngine.ts
 import WaveSurfer from 'wavesurfer.js';
 import { writable, type Writable } from 'svelte/store';
 
@@ -24,6 +25,7 @@ export class AudioEngine {
   private audioContext: AudioContext | null = null;
   private audioUnlocked = false;
   private unlockFunction: ((e: Event) => void) | null = null;
+  private finishCallback: (() => void) | null = null;
   
   // State stores
   public isPlaying: Writable<boolean> = writable(false);
@@ -85,6 +87,10 @@ export class AudioEngine {
     this.isLoading.set(true);
     this.error.set(null);
     
+    // Reset playback state
+    this.currentTime.set(0);
+    this.isPlaying.set(false);
+    
     try {
       // Handle relative URLs properly
       let audioUrl = track.url;
@@ -96,7 +102,13 @@ export class AudioEngine {
         }
       }
       
+      console.log('AudioEngine - Loading track:', track.title);
       await this.wavesurfer.load(audioUrl);
+      
+      // Ensure we're at the beginning after loading
+      this.wavesurfer.seekTo(0);
+      this.currentTime.set(0);
+      
     } catch (error) {
       console.error('AudioEngine - Error loading track:', error);
       this.error.set('Failed to load audio');
@@ -169,6 +181,10 @@ export class AudioEngine {
     return Promise.resolve();
   }
   
+  onFinish(callback: () => void): void {
+    this.finishCallback = callback;
+  }
+  
   private setupAudioUnlocking(): void {
     if (!this.audioContext || this.audioUnlocked) return;
     
@@ -210,6 +226,7 @@ export class AudioEngine {
     if (!this.wavesurfer) return;
     
     this.wavesurfer.on('ready', () => {
+      console.log('AudioEngine - Track ready, duration:', this.wavesurfer!.getDuration());
       this.duration.set(this.wavesurfer!.getDuration());
     });
     
@@ -231,7 +248,11 @@ export class AudioEngine {
     });
     
     this.wavesurfer.on('finish', () => {
+      console.log('AudioEngine - Track finished');
       this.isPlaying.set(false);
+      if (this.finishCallback) {
+        this.finishCallback();
+      }
     });
   }
 }
