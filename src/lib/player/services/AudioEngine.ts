@@ -41,13 +41,11 @@ export class AudioEngine {
     }
     
     try {
-      // Create AudioContext first for iOS
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      // Detect iOS device
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      console.log('AudioEngine - Initializing. iOS detected:', isIOS);
       
-      // Setup audio unlocking for mobile
-      this.setupAudioUnlocking();
-      
-      // Initialize WaveSurfer with our AudioContext
+      // Base WaveSurfer options
       const options: any = {
         container,
         waveColor: '#333333',
@@ -56,12 +54,19 @@ export class AudioEngine {
         cursorWidth: 1,
         height: 48,
         normalize: true,
-        backend: 'WebAudio',
+        backend: isIOS ? 'MediaElement' : 'WebAudio', // Use MediaElement for iOS
         interact: true,
         barWidth: 1,
-        barGap: 1,
-        audioContext: this.audioContext
+        barGap: 1
       };
+      
+      // Only create AudioContext for WebAudio backend (non-iOS devices)
+      if (!isIOS) {
+        this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        options.audioContext = this.audioContext;
+        // Setup audio unlocking for non-iOS devices
+        this.setupAudioUnlocking();
+      }
       
       this.wavesurfer = WaveSurfer.create(options);
       this.setupEventListeners();
@@ -104,7 +109,7 @@ export class AudioEngine {
   play(): void {
     if (!this.wavesurfer) return;
     
-    // Handle suspended AudioContext (iOS requirement)
+    // Handle suspended AudioContext (only for WebAudio backend)
     if (this.audioContext?.state === 'suspended') {
       this.audioContext.resume().then(() => {
         this.wavesurfer?.play();
