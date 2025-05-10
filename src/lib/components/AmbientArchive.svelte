@@ -7,7 +7,7 @@
   
   export let tracks: Track[] = [];
   export let showSessionControls = false;
-  export let layout: 'list' | 'grid' | 'carousel' = 'carousel';
+  export let layout: 'list' | 'grid' | 'carousel' = 'list';
   export let title: string = 'Ambient Archive';
   export let subtitle: string = 'Curated collection of ambient tracks';
   
