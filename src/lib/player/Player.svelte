@@ -37,15 +37,9 @@
     audioEngine.initialize(container);
     audioEngine.onFinish(handleTrackFinished);
     
-    // Create track for store
-    const track: Track = { 
-      id: Date.now().toString(),
-      src, 
-      title, 
-      artwork,
-      artist: undefined
-    };
-    current.set(track);
+    // DON'T create a new track - the current track should already be set
+    // by the parent component (page.svelte) or session manager
+    console.log('Player.svelte - Current track on mount:', $current);
     
     // Load track
     if (src) {
