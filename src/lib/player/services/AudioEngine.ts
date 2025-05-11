@@ -2,6 +2,7 @@
 import WaveSurfer from 'wavesurfer.js';
 import { writable, type Writable } from 'svelte/store';
 import { AudioUnlocker } from './AudioUnlocker';
+import { checkWaveSurferFade } from './checkWaveSurferFade';
 
 // Interface for tracks used by AudioEngine
 export interface AudioTrack {
@@ -38,6 +39,9 @@ export class AudioEngine {
   initialize(container: HTMLElement): void {
     if (typeof window === 'undefined') return;
     
+    // Run diagnostics to check WaveSurfer fade support
+    checkWaveSurferFade();
+    
     if (this.wavesurfer) {
       this.destroy();
     }
@@ -48,7 +52,7 @@ export class AudioEngine {
       console.log('AudioEngine - Initializing. iOS detected:', isIOS);
       
       // Base WaveSurfer options
-      const options: any = {
+      const options = {
         container,
         waveColor: '#333333',
         progressColor: '#ffffff',
@@ -62,17 +66,27 @@ export class AudioEngine {
         barGap: 1
       };
       
+      // Add fade options using type assertion to avoid TypeScript errors
+      // These may not be officially supported in the TypeScript types
+      const augmentedOptions: any = {
+        ...options,
+        // Try different fade-related parameters to see what works
+        // We'll check the console output to determine what's effective
+        fadein: 150,
+        fadeout: 150
+      };
+      
       // Only create AudioContext for WebAudio backend (non-iOS devices)
       if (!isIOS) {
         this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        options.audioContext = this.audioContext;
+        augmentedOptions.audioContext = this.audioContext;
         
         // Setup audio unlocking using the dedicated service
         this.audioUnlocker = new AudioUnlocker(this.audioContext);
         this.audioUnlocker.setupUnlocking();
       }
       
-      this.wavesurfer = WaveSurfer.create(options);
+      this.wavesurfer = WaveSurfer.create(augmentedOptions);
       this.setupEventListeners();
     } catch (error) {
       console.error('AudioEngine - Error initializing:', error);
@@ -105,6 +119,7 @@ export class AudioEngine {
       }
       
       console.log('AudioEngine - Loading track:', track.title, 'autoPlay:', autoPlay);
+      console.log('AudioEngine - Loading audio with URL:', audioUrl);
       await this.wavesurfer.load(audioUrl);
       
       // Ensure we're at the beginning after loading
