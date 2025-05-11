@@ -80,7 +80,7 @@ export class AudioEngine {
     }
   }
   
-  async load(track: AudioTrack): Promise<void> {
+  async load(track: AudioTrack, autoPlay: boolean = false): Promise<void> {
     if (!this.wavesurfer || !track?.url) {
       this.error.set('Invalid audio parameters');
       return;
@@ -104,12 +104,18 @@ export class AudioEngine {
         }
       }
       
-      console.log('AudioEngine - Loading track:', track.title);
+      console.log('AudioEngine - Loading track:', track.title, 'autoPlay:', autoPlay);
       await this.wavesurfer.load(audioUrl);
       
       // Ensure we're at the beginning after loading
       this.wavesurfer.seekTo(0);
       this.currentTime.set(0);
+      
+      // Auto-play if requested
+      if (autoPlay) {
+        console.log('AudioEngine - Auto-playing track after load');
+        this.play();
+      }
       
     } catch (error) {
       console.error('AudioEngine - Error loading track:', error);

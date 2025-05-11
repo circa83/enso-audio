@@ -1,6 +1,7 @@
 <!-- src/lib/player/Player.svelte -->
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { get } from 'svelte/store';
   import { audioEngine } from '$lib/player/services/AudioEngine';
   import { sessionManager } from '$lib/player/services/SessionManager';
   import { current, isPlaying, time, duration } from './store';
@@ -58,14 +59,13 @@
 
   // Handle track changes
   $: if (src && container) {
-    const shouldAutoPlay = sessionManager.shouldAutoPlay();
-    audioEngine.load({ url: src, title, artwork })
-      .then(() => {
-        if (shouldAutoPlay) {
-          console.log('Player.svelte - Auto-playing next track');
-          audioEngine.play();
-        }
-      })
+    // Check if we should auto-play based on:
+    // 1. Session manager's auto-play flag (for session transitions)
+    // 2. If playback is currently active when "Play Now" is clicked
+    const shouldAutoPlay = sessionManager.shouldAutoPlay() || get(isPlaying);
+    
+    console.log('Player.svelte - Loading track, shouldAutoPlay:', shouldAutoPlay);
+    audioEngine.load({ url: src, title, artwork }, shouldAutoPlay)
       .catch(console.error);
   }
 </script>
