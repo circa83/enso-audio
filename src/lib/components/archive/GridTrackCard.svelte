@@ -89,7 +89,7 @@
           </button>
           <button
             on:click={handleAddToSession}
-            class="w-full px-3 py-2 text-xs uppercase tracking-wider 
+            class="w-full px-2 py-2 text-[9px] sm:text-xs text-center uppercase tracking-wider 
                    border border-enso-border hover:bg-enso-bg-secondary 
                    transition-colors"
           >

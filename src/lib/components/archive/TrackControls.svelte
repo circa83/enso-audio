@@ -6,14 +6,14 @@
   
   export let track: Track;
   export let onPlayNow: () => void;
-  export let sessionItemId: string | undefined = undefined; // NEW PROP
+  export let sessionItemId: string | undefined = undefined;
   
   // Check if track is in session (considering it might be a SessionItem)
   $: isInSession = sessionItemId ? true : $session.some(item => item.track.id === track.id);
 </script>
 
-<!-- Wrapper for track controls  -->
-<div class="track-controls">
+<!-- Wrapper for track controls with responsive text sizing -->
+<div class="track-controls sm:text-[5px]">
   <SessionControls 
     {track} 
     {onPlayNow}
@@ -24,6 +24,6 @@
 
 <style>
   .track-controls {
-    /* Wrapper styling if needed in the future */
+    /* The Tailwind classes above handle the responsive text sizing */
   }
 </style>
