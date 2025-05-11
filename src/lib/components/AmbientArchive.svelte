@@ -7,7 +7,7 @@
   
   export let tracks: Track[] = [];
   export let showSessionControls = false;
-  export let layout: 'list' | 'grid' | 'carousel' = 'carousel';
+  export let layout: 'list' | 'grid' | 'carousel' = 'grid';
   export let title: string = 'Ambient Archive';
   export let subtitle: string = 'Curated collection of ambient tracks';
   
@@ -39,7 +39,9 @@
   }
   
   function isCurrentTrack(trackId: string): boolean {
-    return $current?.id === trackId;
+    // For the Ambient Archive, we don't want to show playing indicators
+    // Always return false
+    return false;
   }
 </script>
 

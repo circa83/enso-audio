@@ -1,11 +1,15 @@
+<!-- src/lib/player/Player.svelte -->
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { get } from 'svelte/store';
   import { audioEngine } from '$lib/player/services/AudioEngine';
+  import { sessionManager } from '$lib/player/services/SessionManager';
   import { current, isPlaying, time, duration } from './store';
   import WaveformDisplay from '$lib/components/WaveformDisplay.svelte';
   import PlaybackControls from '$lib/components/PlaybackControls.svelte';
   import TrackInfo from '$lib/components/TrackInfo.svelte';
   import TimeDisplay from '$lib/components/TimeDisplay.svelte';
+  import AlbumArt from '$lib/components/AlbumArt.svelte';
   import type { Track } from '$lib/types/track';
 
   export let src: string;
@@ -13,7 +17,6 @@
   export let artwork = '';
 
   let container: HTMLDivElement;
-  let showArtworkError = false;
   
   // Subscribe to AudioEngine stores and sync with legacy stores
   const audioIsPlaying = audioEngine.isPlaying;
@@ -26,28 +29,18 @@
   $: time.set($audioCurrentTime);
   $: duration.set($audioDuration);
 
-  function formatTime(seconds: number): string {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  }
-
-  function handleArtworkError() {
-    showArtworkError = true;
+  function handleTrackFinished() {
+    console.log('Player.svelte - handleTrackFinished');
+    sessionManager.playNext();
   }
 
   onMount(async () => {
     audioEngine.initialize(container);
+    audioEngine.onFinish(handleTrackFinished);
     
-    // Create track for store
-    const track: Track = { 
-      id: Date.now().toString(),
-      src, 
-      title, 
-      artwork,
-      artist: undefined
-    };
-    current.set(track);
+    // DON'T create a new track - the current track should already be set
+    // by the parent component (page.svelte) or session manager
+    console.log('Player.svelte - Current track on mount:', $current);
     
     // Load track
     if (src) {
@@ -66,27 +59,23 @@
 
   // Handle track changes
   $: if (src && container) {
-    audioEngine.load({ url: src, title, artwork }).catch(console.error);
+    // Check if we should auto-play based on:
+    // 1. Session manager's auto-play flag (for session transitions)
+    // 2. If playback is currently active when "Play Now" is clicked
+    const shouldAutoPlay = sessionManager.shouldAutoPlay() || get(isPlaying);
+    
+    console.log('Player.svelte - Loading track, shouldAutoPlay:', shouldAutoPlay);
+    audioEngine.load({ url: src, title, artwork }, shouldAutoPlay)
+      .catch(console.error);
   }
 </script>
 
 <div class="w-full space-y-4">
   <!-- Album artwork -->
   <div class="flex justify-center w-full">
-    {#if artwork && !showArtworkError}
-      <div class="w-1/2 aspect-square bg-enso-bg-secondary overflow-hidden">
-        <img 
-          src={artwork} 
-          alt="{title} artwork"
-          class="w-full h-full object-cover"
-          on:error={handleArtworkError}
-        />
-      </div>
-    {:else}
-      <div class="w-full aspect-square bg-enso-bg-secondary border border-enso-border flex items-center justify-center">
-        <span class="text-enso-text-secondary uppercase tracking-wider text-sm">No Artwork</span>
-      </div>
-    {/if}
+    <div class="w-2/3 aspect-square">
+      <AlbumArt src={artwork} alt="{title} artwork" />
+    </div>
   </div>
   
   <!-- Waveform display -->

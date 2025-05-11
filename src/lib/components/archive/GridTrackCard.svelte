@@ -1,15 +1,16 @@
 <script lang="ts">
     import type { Track } from '$lib/types/track';
     import { addToSession } from '$lib/player/store';
+    import AlbumArt from '$lib/components/AlbumArt.svelte';
     
     export let track: Track;
     export let isPlaying: boolean = false;
     export let isSession: boolean = false;
     export let isExpanded: boolean = false;
-    export let imageError: boolean = false;
+    export let imageError: boolean = false;  // Kept for backward compatibility
     export let onToggle: () => void;
     export let onPlayNow: () => void;
-    export let onImageError: () => void;
+    export let onImageError: () => void;      // Kept for backward compatibility
     
     function handleAddToSession() {
       console.log('GridTrackCard.svelte - handleAddToSession', track.title);
@@ -26,11 +27,6 @@
       console.log('GridTrackCard.svelte - handlePlayNow', track.title);
       onPlayNow();
     }
-    
-    function handleImageError() {
-      console.log('GridTrackCard.svelte - handleImageError', track.title);
-      onImageError();
-    }
   </script>
   
   <div class="grid-track-card">
@@ -41,30 +37,9 @@
     >
       <!-- Album artwork -->
       <div class="aspect-square w-full bg-enso-bg-secondary border border-enso-border overflow-hidden">
-        {#if !imageError}
-          <img 
-            src={track.artwork} 
-            alt={track.title}
-            class="w-full h-full object-cover transition-transform duration-300
-                   group-hover:scale-105"
-            on:error={handleImageError}
-          />
-        {:else}
-          <div class="w-full h-full flex items-center justify-center text-enso-text-secondary">
-            <svg 
-              width="48" 
-              height="48" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              class="opacity-30"
-            >
-              <rect x="3" y="3" width="18" height="18" rx="2" stroke-width="1" />
-              <circle cx="8.5" cy="8.5" r="1.5" stroke-width="1" />
-              <path d="M21 15l-5-5L5 21" stroke-width="1" />
-            </svg>
-          </div>
-        {/if}
+        <div class="w-full h-full transition-transform duration-300 group-hover:scale-105">
+          <AlbumArt src={track.artwork} alt={track.title} />
+        </div>
         
         <!-- Playing/Session overlay indicators -->
         {#if isPlaying || isSession}
@@ -114,7 +89,7 @@
           </button>
           <button
             on:click={handleAddToSession}
-            class="w-full px-3 py-2 text-xs uppercase tracking-wider 
+            class="w-full px-2 py-2 text-[9px] sm:text-xs text-center uppercase tracking-wider 
                    border border-enso-border hover:bg-enso-bg-secondary 
                    transition-colors"
           >

@@ -1,6 +1,8 @@
+<!-- src/lib/components/archive/ListTrackCard.svelte -->
 <script lang="ts">
   import type { Track } from '$lib/types/track';
   import TrackControls from './TrackControls.svelte';
+  import AlbumArt from '$lib/components/AlbumArt.svelte';
   
   export let track: Track;
   export let isPlaying: boolean = false;
@@ -10,6 +12,7 @@
   export let onToggle: () => void;
   export let onPlayNow: () => void;
   export let onImageError: () => void;
+  export let sessionItemId: string | undefined = undefined; // NEW PROP
 </script>
 
 <div class="border border-enso-border {isPlaying ? 'border-enso-text-primary' : ''}">
@@ -20,19 +23,8 @@
            {isPlaying ? 'bg-enso-bg-secondary' : ''}"
   >
     <!-- Album artwork thumbnail -->
-    <div class="w-12 h-12 flex-shrink-0 bg-enso-bg-secondary">
-      {#if !imageError}
-        <img 
-          src={track.artwork} 
-          alt={track.title}
-          class="w-full h-full object-cover"
-          on:error={onImageError}
-        />
-      {:else}
-        <div class="w-full h-full flex items-center justify-center text-enso-text-secondary text-xs">
-          No Image
-        </div>
-      {/if}
+    <div class="w-12 h-12 flex-shrink-0">
+      <AlbumArt src={track.artwork} alt={track.title} />
     </div>
     
     <!-- Track info -->
@@ -52,9 +44,6 @@
       {#if isPlaying}
         <span class="text-enso-text-primary uppercase tracking-wider">Playing</span>
       {/if}
-      {#if isSession}
-        <span class="text-enso-text-secondary uppercase tracking-wider">Session</span>
-      {/if}
     </div>
   </button>
   
@@ -64,6 +53,7 @@
       <TrackControls 
         {track} 
         {onPlayNow}
+        {sessionItemId}
       />
     </div>
   {/if}

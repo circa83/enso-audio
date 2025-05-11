@@ -1,5 +1,8 @@
+// src/lib/player/services/AudioEngine.ts
 import WaveSurfer from 'wavesurfer.js';
 import { writable, type Writable } from 'svelte/store';
+import { AudioUnlocker } from './AudioUnlocker';
+import { checkWaveSurferFade } from './checkWaveSurferFade';
 
 // Interface for tracks used by AudioEngine
 export interface AudioTrack {
@@ -22,8 +25,8 @@ export interface AudioState {
 export class AudioEngine {
   private wavesurfer: WaveSurfer | null = null;
   private audioContext: AudioContext | null = null;
-  private audioUnlocked = false;
-  private unlockFunction: ((e: Event) => void) | null = null;
+  private audioUnlocker: AudioUnlocker | null = null;
+  private finishCallback: (() => void) | null = null;
   
   // State stores
   public isPlaying: Writable<boolean> = writable(false);
@@ -36,6 +39,9 @@ export class AudioEngine {
   initialize(container: HTMLElement): void {
     if (typeof window === 'undefined') return;
     
+    // Run diagnostics to check WaveSurfer fade support
+    checkWaveSurferFade();
+    
     if (this.wavesurfer) {
       this.destroy();
     }
@@ -46,7 +52,7 @@ export class AudioEngine {
       console.log('AudioEngine - Initializing. iOS detected:', isIOS);
       
       // Base WaveSurfer options
-      const options: any = {
+      const options = {
         container,
         waveColor: '#333333',
         progressColor: '#ffffff',
@@ -60,15 +66,27 @@ export class AudioEngine {
         barGap: 1
       };
       
+      // Add fade options using type assertion to avoid TypeScript errors
+      // These may not be officially supported in the TypeScript types
+      const augmentedOptions: any = {
+        ...options,
+        // Try different fade-related parameters to see what works
+        // We'll check the console output to determine what's effective
+        fadein: 150,
+        fadeout: 150
+      };
+      
       // Only create AudioContext for WebAudio backend (non-iOS devices)
       if (!isIOS) {
         this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        options.audioContext = this.audioContext;
-        // Setup audio unlocking for non-iOS devices
-        this.setupAudioUnlocking();
+        augmentedOptions.audioContext = this.audioContext;
+        
+        // Setup audio unlocking using the dedicated service
+        this.audioUnlocker = new AudioUnlocker(this.audioContext);
+        this.audioUnlocker.setupUnlocking();
       }
       
-      this.wavesurfer = WaveSurfer.create(options);
+      this.wavesurfer = WaveSurfer.create(augmentedOptions);
       this.setupEventListeners();
     } catch (error) {
       console.error('AudioEngine - Error initializing:', error);
@@ -76,7 +94,7 @@ export class AudioEngine {
     }
   }
   
-  async load(track: AudioTrack): Promise<void> {
+  async load(track: AudioTrack, autoPlay: boolean = false): Promise<void> {
     if (!this.wavesurfer || !track?.url) {
       this.error.set('Invalid audio parameters');
       return;
@@ -84,6 +102,10 @@ export class AudioEngine {
     
     this.isLoading.set(true);
     this.error.set(null);
+    
+    // Reset playback state
+    this.currentTime.set(0);
+    this.isPlaying.set(false);
     
     try {
       // Handle relative URLs properly
@@ -96,7 +118,20 @@ export class AudioEngine {
         }
       }
       
+      console.log('AudioEngine - Loading track:', track.title, 'autoPlay:', autoPlay);
+      console.log('AudioEngine - Loading audio with URL:', audioUrl);
       await this.wavesurfer.load(audioUrl);
+      
+      // Ensure we're at the beginning after loading
+      this.wavesurfer.seekTo(0);
+      this.currentTime.set(0);
+      
+      // Auto-play if requested
+      if (autoPlay) {
+        console.log('AudioEngine - Auto-playing track after load');
+        this.play();
+      }
+      
     } catch (error) {
       console.error('AudioEngine - Error loading track:', error);
       this.error.set('Failed to load audio');
@@ -150,8 +185,10 @@ export class AudioEngine {
       this.audioContext = null;
     }
     
-    this.removeUnlockListeners();
-    this.audioUnlocked = false;
+    if (this.audioUnlocker) {
+      this.audioUnlocker.destroy();
+      this.audioUnlocker = null;
+    }
     
     // Reset all stores
     this.isPlaying.set(false);
@@ -169,47 +206,15 @@ export class AudioEngine {
     return Promise.resolve();
   }
   
-  private setupAudioUnlocking(): void {
-    if (!this.audioContext || this.audioUnlocked) return;
-    
-    this.unlockFunction = (e: Event) => {
-      if (this.audioUnlocked || !this.audioContext) return;
-      
-      // Create and play silent buffer to unlock audio
-      const buffer = this.audioContext.createBuffer(1, 1, 22050);
-      const source = this.audioContext.createBufferSource();
-      source.buffer = buffer;
-      source.connect(this.audioContext.destination);
-      source.start(0);
-      
-      // Resume context if suspended
-      if (this.audioContext.state === 'suspended') {
-        this.audioContext.resume();
-      }
-      
-      this.audioUnlocked = true;
-      this.removeUnlockListeners();
-    };
-    
-    // Add listeners for mobile audio unlocking
-    ['touchstart', 'touchend', 'click'].forEach(event => {
-      document.addEventListener(event, this.unlockFunction!, true);
-    });
-  }
-  
-  private removeUnlockListeners(): void {
-    if (this.unlockFunction) {
-      ['touchstart', 'touchend', 'click'].forEach(event => {
-        document.removeEventListener(event, this.unlockFunction!, true);
-      });
-      this.unlockFunction = null;
-    }
+  onFinish(callback: () => void): void {
+    this.finishCallback = callback;
   }
   
   private setupEventListeners(): void {
     if (!this.wavesurfer) return;
     
     this.wavesurfer.on('ready', () => {
+      console.log('AudioEngine - Track ready, duration:', this.wavesurfer!.getDuration());
       this.duration.set(this.wavesurfer!.getDuration());
     });
     
@@ -231,7 +236,11 @@ export class AudioEngine {
     });
     
     this.wavesurfer.on('finish', () => {
+      console.log('AudioEngine - Track finished');
       this.isPlaying.set(false);
+      if (this.finishCallback) {
+        this.finishCallback();
+      }
     });
   }
 }

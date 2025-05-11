@@ -1,21 +1,29 @@
+<!-- src/lib/components/archive/TrackControls.svelte -->
 <script lang="ts">
-    import type { Track } from '$lib/types/track';
-    import SessionControls from '../SessionControls.svelte';
-    
-    export let track: Track;
-    export let onPlayNow: () => void;
-  </script>
+  import type { Track } from '$lib/types/track';
+  import SessionControls from '../SessionControls.svelte';
+  import { session } from '$lib/player/store';
   
-  <!-- Wrapper for track controls  -->
-  <div class="track-controls">
-    <SessionControls 
-      {track} 
-      {onPlayNow}
-    />
-  </div>
+  export let track: Track;
+  export let onPlayNow: () => void;
+  export let sessionItemId: string | undefined = undefined;
   
-  <style>
-    .track-controls {
-      /* Wrapper styling if needed in the future */
-    }
-  </style>
+  // Check if track is in session (considering it might be a SessionItem)
+  $: isInSession = sessionItemId ? true : $session.some(item => item.track.id === track.id);
+</script>
+
+<!-- Wrapper for track controls with responsive text sizing -->
+<div class="track-controls sm:text-[5px]">
+  <SessionControls 
+    {track} 
+    {onPlayNow}
+    {isInSession}
+    {sessionItemId}
+  />
+</div>
+
+<style>
+  .track-controls {
+    /* The Tailwind classes above handle the responsive text sizing */
+  }
+</style>
