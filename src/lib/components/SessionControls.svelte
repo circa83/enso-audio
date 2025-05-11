@@ -1,13 +1,19 @@
 <script lang="ts">
-  import { current, isPlaying, session, addToSession, clearSession } from '$lib/player/store';
+  import { current, isPlaying, session, addToSession, removeFromSession, clearSession } from '$lib/player/store';
   import type { Track } from '$lib/types/track';
   
   export let track: Track;
   export let onPlayNow: () => void;
+  export let isInSession: boolean = false;
   
   function handleAddToSession() {
     console.log('SessionControls.svelte - handleAddToSession', track.title);
     addToSession(track);
+  }
+  
+  function handleRemoveFromSession() {
+    console.log('SessionControls.svelte - handleRemoveFromSession', track.title);
+    removeFromSession(track.id);
   }
   
   function handlePlayNow() {
@@ -25,12 +31,23 @@
   >
     Play Now
   </button>
-  <button
-    on:click={handleAddToSession}
-    class="flex-1 px-3 py-2 text-xs uppercase tracking-wider 
-           border border-enso-border hover:bg-enso-bg-secondary 
-           transition-colors"
-  >
-    Add to Session
-  </button>
+  {#if isInSession}
+    <button
+      on:click={handleRemoveFromSession}
+      class="flex-1 px-3 py-2 text-xs uppercase tracking-wider 
+             border border-enso-border hover:bg-enso-bg-secondary 
+             transition-colors"
+    >
+      Remove from Session
+    </button>
+  {:else}
+    <button
+      on:click={handleAddToSession}
+      class="flex-1 px-3 py-2 text-xs uppercase tracking-wider 
+             border border-enso-border hover:bg-enso-bg-secondary 
+             transition-colors"
+    >
+      Add to Session
+    </button>
+  {/if}
 </div>

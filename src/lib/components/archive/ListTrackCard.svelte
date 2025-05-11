@@ -42,9 +42,9 @@
       {#if isPlaying}
         <span class="text-enso-text-primary uppercase tracking-wider">Playing</span>
       {/if}
-      {#if isSession}
+      <!-- {#if isSession}
         <span class="text-enso-text-secondary uppercase tracking-wider">Session</span>
-      {/if}
+      {/if} -->
     </div>
   </button>
   

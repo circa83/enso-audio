@@ -39,7 +39,9 @@
   }
   
   function isCurrentTrack(trackId: string): boolean {
-    return $current?.id === trackId;
+    // For the Ambient Archive, we don't want to show playing indicators
+    // Always return false
+    return false;
   }
 </script>
 

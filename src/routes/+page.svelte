@@ -1,6 +1,7 @@
 <script lang="ts">
   import Player from '$lib/player/Player.svelte';
   import AmbientArchive from '$lib/components/AmbientArchive.svelte';
+  import SessionTracks from '$lib/components/SessionTracks.svelte';
   import CrossfadeController from '$lib/player/CrossfadeController.svelte';
   import { musicLibrary } from '$lib/data/tracks';
   import { current, session } from '$lib/player/store';
@@ -10,6 +11,7 @@
   onMount(() => {
     if (!$current && musicLibrary.length > 0) {
       const firstTrack = musicLibrary[0];
+      console.log('+page.svelte - Setting initial track:', firstTrack);
       current.set(firstTrack);
     }
   });
@@ -35,29 +37,18 @@
     
     <!-- Session Controls -->
     <div class="flex items-center justify-between mb-4">
-      
       <div class="flex items-center gap-4">
         <CrossfadeController />
-        {#if $session.length > 0}
-          <span class="text-xs text-enso-text-secondary uppercase tracking-wider">
-            {$session.length} in session
-          </span>
-        {/if}
       </div>
     </div>
+    
+    <!-- Session Tracks (always displayed as list) -->
+    <SessionTracks />
     
     <!-- Ambient Archive -->
     <div class="mb-8 text-center">
       <h2 class="mb-4 text-lg font-thin tracking-wider uppercase">Ambient Archive</h2>
       <AmbientArchive tracks={musicLibrary} />
     </div>
-    
-    <!-- Session Section (if items are in session) -->
-    {#if $session.length > 0}
-      <div class="mt-8">
-        <h2 class="text-lg font-thin tracking-wider uppercase mb-4">Session</h2>
-        <AmbientArchive tracks={$session} showSessionControls={true} />
-      </div>
-    {/if}
   </div>
 </div>
