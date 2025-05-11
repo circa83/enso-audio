@@ -1,24 +1,27 @@
+<!-- // src/lib/components/SessionTracks.svelte -->
 <script lang="ts">
-  import { session, current, isPlaying } from '$lib/player/store';
-  import TrackList from './archive/TrackList.svelte';
+  import { session, current, currentSessionItemId, isPlaying } from '$lib/player/store';
+  import ListTrackCard from './archive/ListTrackCard.svelte';
   import type { Track } from '$lib/types/track';
+  import type { SessionItem } from '$lib/types/session';
   
-  let expandedTrackId: string | null = null;
+  let expandedSessionItemId: string | null = null;
   let imageErrors: Record<string, boolean> = {};
   
-  function handleTrackClick(track: Track) {
-    console.log('SessionTracks.svelte - handleTrackClick', track.title);
-    if (expandedTrackId === track.id) {
-      expandedTrackId = null;
+  function handleTrackClick(sessionItem: SessionItem) {
+    console.log('SessionTracks.svelte - handleTrackClick', sessionItem.track.title);
+    if (expandedSessionItemId === sessionItem.id) {
+      expandedSessionItemId = null;
     } else {
-      expandedTrackId = track.id;
+      expandedSessionItemId = sessionItem.id;
     }
   }
   
-  function playNow(track: Track) {
-    console.log('SessionTracks.svelte - playNow', track.title);
-    current.set(track);
-    expandedTrackId = null;
+  function playNow(sessionItem: SessionItem) {
+    console.log('SessionTracks.svelte - playNow', sessionItem.track.title);
+    current.set(sessionItem.track);
+    currentSessionItemId.set(sessionItem.id);
+    expandedSessionItemId = null;
   }
   
   function handleImageError(trackId: string) {
@@ -26,11 +29,10 @@
     imageErrors[trackId] = true;
   }
   
-  // Make isCurrentTrack reactive by using $: 
-  $: isCurrentTrack = (trackId: string): boolean => {
-    const isCurrent = $current?.id === trackId;
+  // Check if this session item is currently playing
+  $: isCurrentTrack = (sessionItemId: string): boolean => {
+    const isCurrent = $currentSessionItemId === sessionItemId;
     const isPlayingNow = $isPlaying;
-    
     return isCurrent && isPlayingNow;
   }
   
@@ -40,10 +42,18 @@
   
   // Debug reactive updates
   $: console.log('SessionTracks - State:', { 
-    currentId: $current?.id, 
+    currentSessionItemId: $currentSessionItemId, 
     isPlaying: $isPlaying,
     sessionCount: $session.length 
   });
+  
+  // Handle remove from session with session item ID
+  function removeSessionItem(sessionItemId: string) {
+    console.log('SessionTracks.svelte - removeSessionItem', sessionItemId);
+    import('../player/store').then(({ removeFromSession }) => {
+      removeFromSession(sessionItemId);
+    });
+  }
 </script>
 
 {#if $session.length > 0}
@@ -55,15 +65,20 @@
       </span>
     </div>
     
-    <TrackList
-      tracks={$session}
-      {expandedTrackId}
-      {imageErrors}
-      onTrackClick={handleTrackClick}
-      {playNow}
-      onImageError={handleImageError}
-      {isCurrentTrack}
-      {isInSession}
-    />
+    <div class="space-y-1">
+      {#each $session as sessionItem}
+        <ListTrackCard
+          track={sessionItem.track}
+          isPlaying={isCurrentTrack(sessionItem.id)}
+          isSession={true}
+          isExpanded={expandedSessionItemId === sessionItem.id}
+          imageError={imageErrors[sessionItem.track.id] || false}
+          onToggle={() => handleTrackClick(sessionItem)}
+          onPlayNow={() => playNow(sessionItem)}
+          onImageError={() => handleImageError(sessionItem.track.id)}
+          sessionItemId={sessionItem.id}
+        />
+      {/each}
+    </div>
   </div>
 {/if}

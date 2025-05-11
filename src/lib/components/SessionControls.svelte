@@ -1,3 +1,4 @@
+<!-- src/lib/components/SessionControls.svelte -->
 <script lang="ts">
   import { current, isPlaying, session, addToSession, removeFromSession, clearSession } from '$lib/player/store';
   import type { Track } from '$lib/types/track';
@@ -5,6 +6,7 @@
   export let track: Track;
   export let onPlayNow: () => void;
   export let isInSession: boolean = false;
+  export let sessionItemId: string | undefined = undefined; // NEW PROP
   
   function handleAddToSession() {
     console.log('SessionControls.svelte - handleAddToSession', track.title);
@@ -13,7 +15,14 @@
   
   function handleRemoveFromSession() {
     console.log('SessionControls.svelte - handleRemoveFromSession', track.title);
-    removeFromSession(track.id);
+    if (sessionItemId) {
+      // Remove specific session item
+      removeFromSession(sessionItemId);
+    } else {
+      // This should not happen in session context, but keeping as fallback
+      console.warn('SessionControls.svelte - No sessionItemId provided, falling back to track.id');
+      removeFromSession(track.id);
+    }
   }
   
   function handlePlayNow() {

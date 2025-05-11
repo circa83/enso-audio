@@ -73,7 +73,7 @@
 <div class="w-full space-y-4">
   <!-- Album artwork -->
   <div class="flex justify-center w-full">
-    <div class="w-1/2 aspect-square">
+    <div class="w-2/3 aspect-square">
       <AlbumArt src={artwork} alt="{title} artwork" />
     </div>
   </div>

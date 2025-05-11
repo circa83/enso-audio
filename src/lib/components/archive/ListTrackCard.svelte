@@ -1,3 +1,4 @@
+<!-- src/lib/components/archive/ListTrackCard.svelte -->
 <script lang="ts">
   import type { Track } from '$lib/types/track';
   import TrackControls from './TrackControls.svelte';
@@ -7,10 +8,11 @@
   export let isPlaying: boolean = false;
   export let isSession: boolean = false;
   export let isExpanded: boolean = false;
-  export let imageError: boolean = false;     // Kept for backward compatibility
+  export let imageError: boolean = false;
   export let onToggle: () => void;
   export let onPlayNow: () => void;
-  export let onImageError: () => void;        // Kept for backward compatibility
+  export let onImageError: () => void;
+  export let sessionItemId: string | undefined = undefined; // NEW PROP
 </script>
 
 <div class="border border-enso-border {isPlaying ? 'border-enso-text-primary' : ''}">
@@ -42,9 +44,6 @@
       {#if isPlaying}
         <span class="text-enso-text-primary uppercase tracking-wider">Playing</span>
       {/if}
-      <!-- {#if isSession}
-        <span class="text-enso-text-secondary uppercase tracking-wider">Session</span>
-      {/if} -->
     </div>
   </button>
   
@@ -54,6 +53,7 @@
       <TrackControls 
         {track} 
         {onPlayNow}
+        {sessionItemId}
       />
     </div>
   {/if}

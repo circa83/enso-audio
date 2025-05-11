@@ -1,7 +1,8 @@
 // src/lib/player/services/SessionManager.ts
 import { get } from 'svelte/store';
-import { current, session } from '../store';
+import { current, currentSessionItemId, session } from '../store';
 import type { Track } from '$lib/types/track';
+import type { SessionItem } from '$lib/types/session';
 
 export class SessionManager {
   private currentIndex: number = -1;
@@ -10,17 +11,17 @@ export class SessionManager {
   constructor() {
     console.log('SessionManager - Initialized');
     
-    // Subscribe to current track changes to update index
-    current.subscribe(track => {
-      if (track) {
-        this.updateCurrentIndex(track);
+    // Subscribe to currentSessionItemId changes to update index
+    currentSessionItemId.subscribe(itemId => {
+      if (itemId) {
+        this.updateCurrentIndex(itemId);
       }
     });
   }
 
-  private updateCurrentIndex(track: Track): void {
+  private updateCurrentIndex(sessionItemId: string): void {
     const currentSession = get(session);
-    this.currentIndex = currentSession.findIndex(t => t.id === track.id);
+    this.currentIndex = currentSession.findIndex(item => item.id === sessionItemId);
     console.log('SessionManager - Updated current index:', this.currentIndex);
   }
 
@@ -31,7 +32,6 @@ export class SessionManager {
   getNextTrack(): Track | null {
     console.log('SessionManager - getNextTrack');
     const currentSession = get(session);
-    const currentTrack = get(current);
     
     if (currentSession.length === 0) {
       console.log('SessionManager - No tracks in session');
@@ -40,9 +40,11 @@ export class SessionManager {
 
     // If current track is in session and not the last one
     if (this.currentIndex >= 0 && this.currentIndex < currentSession.length - 1) {
-      const nextTrack = currentSession[this.currentIndex + 1];
-      console.log('SessionManager - Next track:', nextTrack.title);
-      return nextTrack;
+      const nextItem = currentSession[this.currentIndex + 1];
+      console.log('SessionManager - Next track:', nextItem.track.title);
+      // Set the session item ID when returning next track
+      currentSessionItemId.set(nextItem.id);
+      return nextItem.track;
     }
     
     // If we're at the end of the session, don't loop back

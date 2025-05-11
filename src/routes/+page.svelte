@@ -20,7 +20,12 @@
 <div class="min-h-screen bg-enso-bg-primary">
   <div class="max-w-xl mx-auto px-4 py-8">
     <header class="mb-8 text-center">
-      <h1 class="text-2xl sm:text-3xl font-thin tracking-[6px] mb-1">ENSŌ AUDIO</h1>
+      <!-- <h1 class="text-2xl sm:text-3xl font-thin tracking-[6px] mb-1">ENSŌ AUDIO</h1> -->
+      <img 
+      src="./logo/bkcp_white.png" 
+      alt="Ensō Audio" 
+      class="h-16 mx-auto mb-1"
+    />
       <!-- <p class="text-enso-text-secondary uppercase tracking-[3px] text-xs">Ambient Archive</p> -->
     </header>
     
