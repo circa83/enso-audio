@@ -1,6 +1,7 @@
 // src/lib/player/services/AudioEngine.ts
 import WaveSurfer from 'wavesurfer.js';
 import { writable, type Writable } from 'svelte/store';
+import { AudioUnlocker } from './AudioUnlocker';
 
 // Interface for tracks used by AudioEngine
 export interface AudioTrack {
@@ -23,8 +24,7 @@ export interface AudioState {
 export class AudioEngine {
   private wavesurfer: WaveSurfer | null = null;
   private audioContext: AudioContext | null = null;
-  private audioUnlocked = false;
-  private unlockFunction: ((e: Event) => void) | null = null;
+  private audioUnlocker: AudioUnlocker | null = null;
   private finishCallback: (() => void) | null = null;
   
   // State stores
@@ -66,8 +66,10 @@ export class AudioEngine {
       if (!isIOS) {
         this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
         options.audioContext = this.audioContext;
-        // Setup audio unlocking for non-iOS devices
-        this.setupAudioUnlocking();
+        
+        // Setup audio unlocking using the dedicated service
+        this.audioUnlocker = new AudioUnlocker(this.audioContext);
+        this.audioUnlocker.setupUnlocking();
       }
       
       this.wavesurfer = WaveSurfer.create(options);
@@ -162,8 +164,10 @@ export class AudioEngine {
       this.audioContext = null;
     }
     
-    this.removeUnlockListeners();
-    this.audioUnlocked = false;
+    if (this.audioUnlocker) {
+      this.audioUnlocker.destroy();
+      this.audioUnlocker = null;
+    }
     
     // Reset all stores
     this.isPlaying.set(false);
@@ -183,43 +187,6 @@ export class AudioEngine {
   
   onFinish(callback: () => void): void {
     this.finishCallback = callback;
-  }
-  
-  private setupAudioUnlocking(): void {
-    if (!this.audioContext || this.audioUnlocked) return;
-    
-    this.unlockFunction = (e: Event) => {
-      if (this.audioUnlocked || !this.audioContext) return;
-      
-      // Create and play silent buffer to unlock audio
-      const buffer = this.audioContext.createBuffer(1, 1, 22050);
-      const source = this.audioContext.createBufferSource();
-      source.buffer = buffer;
-      source.connect(this.audioContext.destination);
-      source.start(0);
-      
-      // Resume context if suspended
-      if (this.audioContext.state === 'suspended') {
-        this.audioContext.resume();
-      }
-      
-      this.audioUnlocked = true;
-      this.removeUnlockListeners();
-    };
-    
-    // Add listeners for mobile audio unlocking
-    ['touchstart', 'touchend', 'click'].forEach(event => {
-      document.addEventListener(event, this.unlockFunction!, true);
-    });
-  }
-  
-  private removeUnlockListeners(): void {
-    if (this.unlockFunction) {
-      ['touchstart', 'touchend', 'click'].forEach(event => {
-        document.removeEventListener(event, this.unlockFunction!, true);
-      });
-      this.unlockFunction = null;
-    }
   }
   
   private setupEventListeners(): void {

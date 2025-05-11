@@ -8,6 +8,7 @@
   import PlaybackControls from '$lib/components/PlaybackControls.svelte';
   import TrackInfo from '$lib/components/TrackInfo.svelte';
   import TimeDisplay from '$lib/components/TimeDisplay.svelte';
+  import AlbumArt from '$lib/components/AlbumArt.svelte';
   import type { Track } from '$lib/types/track';
 
   export let src: string;
@@ -15,7 +16,6 @@
   export let artwork = '';
 
   let container: HTMLDivElement;
-  let showArtworkError = false;
   
   // Subscribe to AudioEngine stores and sync with legacy stores
   const audioIsPlaying = audioEngine.isPlaying;
@@ -27,16 +27,6 @@
   $: isPlaying.set($audioIsPlaying);
   $: time.set($audioCurrentTime);
   $: duration.set($audioDuration);
-
-  function formatTime(seconds: number): string {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  }
-
-  function handleArtworkError() {
-    showArtworkError = true;
-  }
 
   function handleTrackFinished() {
     console.log('Player.svelte - handleTrackFinished');
@@ -89,20 +79,9 @@
 <div class="w-full space-y-4">
   <!-- Album artwork -->
   <div class="flex justify-center w-full">
-    {#if artwork && !showArtworkError}
-      <div class="w-1/2 aspect-square bg-enso-bg-secondary overflow-hidden">
-        <img 
-          src={artwork} 
-          alt="{title} artwork"
-          class="w-full h-full object-cover"
-          on:error={handleArtworkError}
-        />
-      </div>
-    {:else}
-      <div class="w-full aspect-square bg-enso-bg-secondary border border-enso-border flex items-center justify-center">
-        <span class="text-enso-text-secondary uppercase tracking-wider text-sm">No Artwork</span>
-      </div>
-    {/if}
+    <div class="w-1/2 aspect-square">
+      <AlbumArt src={artwork} alt="{title} artwork" />
+    </div>
   </div>
   
   <!-- Waveform display -->
