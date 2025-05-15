@@ -1,0 +1,58 @@
+<script lang="ts">
+    const contactLinks = [
+      { 
+        name: 'Email',
+        url: 'mailto:contact@example.com', 
+        icon: `<path d="M3 8l7.5 5.5L18 8M3 8v8l4.5-4.5M3 8V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2v-8z" stroke="currentColor" stroke-width="1" />` 
+      },
+      { 
+        name: 'Instagram',
+        url: 'https://instagram.com/yourname', 
+        icon: `<rect x="2" y="2" width="20" height="20" rx="5" stroke="currentColor" stroke-width="1" /><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1" /><circle cx="18" cy="6" r="1" fill="currentColor" />` 
+      },
+      { 
+        name: 'Bandcamp',
+        url: 'https://yourname.bandcamp.com', 
+        icon: `<path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" stroke="currentColor" stroke-width="1" /><path d="M7 14.5h10L14.5 9.5H7v5z" stroke="currentColor" stroke-width="1" />` 
+      },
+      { 
+        name: 'GitHub',
+        url: 'https://github.com/yourusername', 
+        icon: `<path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" stroke="currentColor" stroke-width="1" />` 
+      },
+    ];
+  </script>
+  
+  <section class="contact-section py-20 px-4 border-b border-enso-border">
+    <div class="max-w-4xl mx-auto">
+      <h2 class="text-2xl uppercase tracking-[4px] font-light text-center mb-12">Connect</h2>
+      
+      <div class="flex flex-wrap justify-center gap-8 md:gap-16">
+        {#each contactLinks as link}
+          <a 
+            href={link.url} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            class="group flex flex-col items-center transition-all duration-200"
+          >
+            <div class="mb-3 w-12 h-12 border border-enso-border flex items-center justify-center
+                        group-hover:bg-enso-bg-secondary transition-all duration-200">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                {@html link.icon}
+              </svg>
+            </div>
+            <span class="text-xs uppercase tracking-[2px] text-enso-text-secondary group-hover:text-enso-text-primary">
+              {link.name}
+            </span>
+          </a>
+        {/each}
+      </div>
+      
+      <div class="mt-16 text-center">
+        <p class="text-sm text-enso-text-secondary tracking-wider max-w-lg mx-auto">
+          For collaboration inquiries, performance requests, or any questions about Ensō Audio, 
+          please reach out through any of the channels above.
+        </p>
+      </div>
+    </div>
+  </section>
