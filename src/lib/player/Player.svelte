@@ -29,6 +29,27 @@
   $: time.set($audioCurrentTime);
   $: duration.set($audioDuration);
 
+  // Look for session item ID when current track changes
+  $: if ($current) {
+    // Use dynamic import to match the project style
+    import('./store').then(({ session, currentSessionItemId }) => {
+      const sessionStore = session;
+      const currentSessionItemIdStore = currentSessionItemId;
+      
+      const currentSessionItemIdValue = get(currentSessionItemIdStore);
+      const sessionValue = get(sessionStore);
+      
+      // Only try to find session item if not already set
+      if (!currentSessionItemIdValue) {
+        const sessionItem = sessionValue.find(item => item.track.id === $current.id);
+        if (sessionItem) {
+          console.log('Player.svelte - Found matching session item for current track:', sessionItem.id);
+          currentSessionItemIdStore.set(sessionItem.id);
+        }
+      }
+    });
+  }
+
   function handleTrackFinished() {
     console.log('Player.svelte - handleTrackFinished');
     sessionManager.playNext();
