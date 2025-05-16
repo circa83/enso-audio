@@ -76,15 +76,41 @@
       removeFromSession(sessionItemId);
     });
   }
+  
+  // Format time for display
+  function formatTime(seconds: number): string {
+    if (!seconds && seconds !== 0) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+  
+  // Calculate total session duration
+  $: totalDuration = $session.reduce((total, item) => {
+    // Make sure to use the duration from the track object
+    return total + (item.track.duration || 0);
+  }, 0);
+  
+  // Log the duration calculation for debugging
+  $: console.log('SessionTracks.svelte - Session duration calculation:', {
+    totalDuration,
+    tracks: $session.map(item => ({
+      title: item.track.title,
+      duration: item.track.duration
+    }))
+  });
 </script>
 
 {#if $session.length > 0}
   <div class="mb-8">
     <div class="flex items-center justify-between mb-4">
       <h2 class="text-lg font-thin tracking-wider uppercase">Session</h2>
-      <span class="text-xs text-enso-text-secondary uppercase tracking-wider">
-        {$session.length} tracks
-      </span>
+      <div class="text-right">
+        <span class="text-xs text-enso-text-secondary uppercase tracking-wider block">
+          {$session.length} tracks : {formatTime(totalDuration)}
+        </span>
+        
+      </div>
     </div>
     
     <div class="space-y-1">
