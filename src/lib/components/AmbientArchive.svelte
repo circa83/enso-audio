@@ -1,3 +1,4 @@
+<!-- src/lib/components/AmbientArchive.svelte -->
 <script lang="ts">
   import { current, session, addToSession, removeFromSession } from '$lib/player/store';
   import TrackList from './archive/TrackList.svelte';
@@ -34,8 +35,9 @@
     imageErrors[trackId] = true;
   }
   
+  // Fixed function to correctly check if a track is in the session
   function isInSession(trackId: string): boolean {
-    return $session.some(t => t.id === trackId);
+    return $session.some(item => item.track.id === trackId);
   }
   
   function isCurrentTrack(trackId: string): boolean {

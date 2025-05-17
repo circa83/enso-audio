@@ -29,32 +29,11 @@
     imageErrors[trackId] = true;
   }
   
-  // Check if this session item is currently playing
+  // Check if this session item is currently playing - FIXED VERSION
   $: isCurrentTrack = (sessionItemId: string): boolean => {
-    // First check if this session item ID matches the current session item ID
-    const isCurrent = $currentSessionItemId === sessionItemId;
-    
-    // If we have a direct ID match AND it's playing, return true immediately
-    if (isCurrent && $isPlaying) {
-      return true;
-    }
-    
-    // For the first-load case, check if the track in this session item is the same as the current playing track
-    // This handles the case where a track is playing but its session item ID isn't set yet
-    if ($isPlaying && $current && sessionItemId) {
-      const sessionItemData = $session.find(item => item.id === sessionItemId);
-      if (sessionItemData && sessionItemData.track.id === $current.id) {
-        // We found a match by track ID - this is the currently playing track
-        // We should also update the currentSessionItemId to keep things consistent
-        if (!$currentSessionItemId) {
-          console.log('SessionTracks.svelte - Updating currentSessionItemId to match playing track', sessionItemId);
-          currentSessionItemId.set(sessionItemId);
-        }
-        return true;
-      }
-    }
-    
-    return false;
+    // ONLY return true if this specific session item ID matches the current session item ID
+    // AND the player is currently playing
+    return $currentSessionItemId === sessionItemId && $isPlaying;
   };
   
   function isInSession(trackId: string): boolean {
@@ -109,7 +88,6 @@
         <span class="text-xs text-enso-text-secondary uppercase tracking-wider block">
           {$session.length} tracks : {formatTime(totalDuration)}
         </span>
-        
       </div>
     </div>
     

@@ -4,7 +4,7 @@
   import { get } from 'svelte/store';
   import { audioEngine } from '$lib/player/services/AudioEngine';
   import { sessionManager } from '$lib/player/services/SessionManager';
-  import { current, isPlaying, time, duration } from './store';
+  import { current, isPlaying, time, duration, currentSessionItemId, session } from './store';
   import WaveformDisplay from '$lib/components/WaveformDisplay.svelte';
   import PlaybackControls from '$lib/components/PlaybackControls.svelte';
   import TrackInfo from '$lib/components/TrackInfo.svelte';
@@ -31,23 +31,14 @@
 
   // Look for session item ID when current track changes
   $: if ($current) {
-    // Use dynamic import to match the project style
-    import('./store').then(({ session, currentSessionItemId }) => {
-      const sessionStore = session;
-      const currentSessionItemIdStore = currentSessionItemId;
-      
-      const currentSessionItemIdValue = get(currentSessionItemIdStore);
-      const sessionValue = get(sessionStore);
-      
-      // Only try to find session item if not already set
-      if (!currentSessionItemIdValue) {
-        const sessionItem = sessionValue.find(item => item.track.id === $current.id);
-        if (sessionItem) {
-          console.log('Player.svelte - Found matching session item for current track:', sessionItem.id);
-          currentSessionItemIdStore.set(sessionItem.id);
-        }
+    // Only try to find session item if not already set
+    if (!$currentSessionItemId) {
+      const sessionItem = $session.find(item => item.track.id === $current.id);
+      if (sessionItem) {
+        console.log('Player.svelte - Found matching session item for current track:', sessionItem.id);
+        currentSessionItemId.set(sessionItem.id);
       }
-    });
+    }
   }
 
   function handleTrackFinished() {
