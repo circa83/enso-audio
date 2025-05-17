@@ -29,14 +29,31 @@
   $: time.set($audioCurrentTime);
   $: duration.set($audioDuration);
 
-  // Look for session item ID when current track changes
+  // Look for session item ID when current track changes - REFINED VERSION
   $: if ($current) {
-    // Only try to find session item if not already set
-    if (!$currentSessionItemId) {
-      const sessionItem = $session.find(item => item.track.id === $current.id);
-      if (sessionItem) {
-        console.log('Player.svelte - Found matching session item for current track:', sessionItem.id);
-        currentSessionItemId.set(sessionItem.id);
+    // Get the current session item if one is set
+    const currentSessionItem = $currentSessionItemId 
+      ? $session.find(item => item.id === $currentSessionItemId) 
+      : null;
+    
+    // Case 1: We have a current session item
+    if (currentSessionItem) {
+      // Check if it still matches the current track
+      if (currentSessionItem.track.id !== $current.id) {
+        // Track has changed, clear session item ID
+        console.log('Player.svelte - Current session item no longer matches current track');
+        currentSessionItemId.set(null);
+        
+        // Don't automatically find a new session item - let the explicit "Play Now" handle that
+      }
+    }
+    // Case 2: No current session item, so we might need to find one (only if not from explicit Play Now)
+    else if (!$currentSessionItemId) {
+      // Find any matching session item for the current track
+      const matchingSessionItem = $session.find(item => item.track.id === $current.id);
+      if (matchingSessionItem) {
+        console.log('Player.svelte - Found matching session item for current track:', matchingSessionItem.id);
+        currentSessionItemId.set(matchingSessionItem.id);
       }
     }
   }

@@ -41,11 +41,11 @@
     {/if}
     
     <!-- Session Controls -->
-    <div class="flex items-center justify-between mb-4">
+    <!-- <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-4">
         <CrossfadeController />
       </div>
-    </div>
+    </div> -->
     
     <!-- Session Tracks (always displayed as list) -->
     <SessionTracks />
