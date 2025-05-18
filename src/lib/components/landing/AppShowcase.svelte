@@ -61,7 +61,7 @@
               class="inline-block border border-enso-border px-6 py-3 uppercase tracking-[2px] text-xs
                     transition-all duration-200 hover:bg-enso-bg-secondary"
             >
-              Launch App
+             Start Listening
             </a>
           </div>
         </div>

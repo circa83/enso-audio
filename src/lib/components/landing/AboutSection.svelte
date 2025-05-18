@@ -21,7 +21,7 @@
           </p>
           
           <p class="text-enso-text-secondary tracking-wide leading-relaxed">
-          "Somatic Listening is an exploration of presence—engaging with sound and sensation not as two separate things but as connected parts of the same experience.""
+          "Somatic Listening is an exploration of presence—engaging with sound and sensation not as two separate things but as connected parts of the same experience."
           </p>
         </div>
         

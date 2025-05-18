@@ -27,18 +27,10 @@
             class="text-xs uppercase tracking-[2px] text-enso-text-secondary hover:text-enso-text-primary
                   transition-colors duration-200"
           >
-            App
+            Ensō Audio
           </a>
         </li>
-        <li>
-          <a 
-            href="/privacy" 
-            class="text-xs uppercase tracking-[2px] text-enso-text-secondary hover:text-enso-text-primary
-                  transition-colors duration-200"
-          >
-            Privacy
-          </a>
-        </li>
+    
       </ul>
     </nav>
   </div>

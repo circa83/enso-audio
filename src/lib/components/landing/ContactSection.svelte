@@ -2,24 +2,19 @@
     const contactLinks = [
       { 
         name: 'Email',
-        url: 'mailto:contact@example.com', 
+        url: 'mailto:hello@enso-audio.com', 
         icon: `<path d="M3 8l7.5 5.5L18 8M3 8v8l4.5-4.5M3 8V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2v-8z" stroke="currentColor" stroke-width="1" />` 
       },
       { 
         name: 'Instagram',
-        url: 'https://instagram.com/yourname', 
+        url: 'https://instagram.com/bk.cp', 
         icon: `<rect x="2" y="2" width="20" height="20" rx="5" stroke="currentColor" stroke-width="1" /><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1" /><circle cx="18" cy="6" r="1" fill="currentColor" />` 
       },
       { 
-        name: 'Bandcamp',
-        url: 'https://yourname.bandcamp.com', 
-        icon: `<path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" stroke="currentColor" stroke-width="1" /><path d="M7 14.5h10L14.5 9.5H7v5z" stroke="currentColor" stroke-width="1" />` 
-      },
-      { 
-        name: 'GitHub',
-        url: 'https://github.com/yourusername', 
-        icon: `<path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" stroke="currentColor" stroke-width="1" />` 
-      },
+        name: 'YouTube',
+        url: 'https://youtube.com/@brock.cooper', 
+        icon: `<path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z" stroke="currentColor" stroke-width="1" /><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" stroke="currentColor" stroke-width="1" />` 
+      }
     ];
   </script>
   
@@ -48,11 +43,6 @@
         {/each}
       </div>
       
-      <div class="mt-16 text-center">
-        <p class="text-sm text-enso-text-secondary tracking-wider max-w-lg mx-auto">
-          For collaboration inquiries, performance requests, or any questions about Ensō Audio, 
-          please reach out through any of the channels above.
-        </p>
-      </div>
+
     </div>
   </section>
