@@ -29,18 +29,13 @@
         <div class="md:w-1/2 border border-enso-border bg-enso-bg-primary p-6">
           <!-- This could be replaced with an actual screenshot or mockup of your app -->
           <div class="aspect-[4/3] flex items-center justify-center">
-            <div class="text-center">
-              <p class="text-xs uppercase tracking-wider text-enso-text-secondary mb-4">
-                App Preview
-              </p>
-              <div class="w-full h-40 border border-enso-border mb-4"></div>
-              <div class="w-full h-6 border border-enso-border mb-4"></div>
-              <div class="flex justify-between items-center">
-                <div class="w-10 h-10 rounded-full border border-enso-border"></div>
-                <div class="w-32 h-4 border border-enso-border"></div>
-                <div class="w-16 h-4 border border-enso-border"></div>
-              </div>
-            </div>
+         <div class="md:w-3/5">
+    <img 
+      src="/images/app_Preview.jpg" 
+      alt="App Preview" 
+      class="w-full max-w-3xl mx-auto"
+    />
+  </div>
           </div>
         </div>
         

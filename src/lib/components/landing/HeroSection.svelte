@@ -4,13 +4,13 @@
 
 <section class="hero-section py-20 md:py-32 px-4 border-b border-enso-border">
   <div class="max-w-6xl mx-auto">
-  <div class="flex flex-col md:flex-row items-center justify-between gap-12"> <!-- changed justify-center to justify-between -->
-  <!-- Text content -->
-  <div class="md:w-2/5 space-y-6 text-center md:text-left">
+    <div class="flex flex-col md:flex-row items-center justify-between gap-12">
+      <!-- Text content -->
+      <div class="md:w-2/5 space-y-6 text-center">
         <img 
           src="/logo/bkcp_white.png" 
           alt="Ensō Audio" 
-          class="h-16 mx-auto md:mx-0 mb-1"
+          class="h-16 mx-auto mb-1"
         />
         <p class="text-enso-text-secondary tracking-[2px] uppercase text-sm md:text-base">
           Somatic Listening For Transformation
@@ -26,14 +26,14 @@
         </div>
       </div>
       
-   <!-- Visual element -->
-  <div class="md:w-3/5">
-    <img 
-      src="/images/hero.png" 
-      alt="Ensō Audio" 
-      class="w-full max-w-3xl mx-auto"
-    />
-  </div>
+      <!-- Visual element -->
+      <div class="md:w-3/5">
+        <img 
+          src="/images/hero.png" 
+          alt="Ensō Audio" 
+          class="w-full max-w-3xl mx-auto"
+        />
+      </div>
     </div>
   </div>
 </section>

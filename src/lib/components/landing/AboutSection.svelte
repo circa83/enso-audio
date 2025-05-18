@@ -1,18 +1,12 @@
 <script lang="ts">
     // This could be populated from a CMS or content file in the future
     const aboutText = `
-     Brock Cooper is a Malibu-based composer dedicated to empowering wellness professionals through the art of sound.
-      With a focus on Somatic Listening, he enhances practices 
-     like meditation coaching, self-development, and psychedelic-assisted therapy.
+     Brock Cooper is a Malibu-based composer creating sound designed to relax, restore, and anchor the nervous system.
+     With a focus on Somatic Listening for expanded states, his work enhances practices 
+     like meditation, breathwork, self-development, and psychedelic-assisted therapy.
     `;
     
-    const skills = [
-      'Ambient Composition',
-      'Sound Design',
-      'Audio Programming',
-      'Web Development',
-      'Music Production'
-    ];
+
   </script>
   
   <section class="about-section  py-20 px-4 border-b border-enso-border">

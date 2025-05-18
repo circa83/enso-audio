@@ -17,6 +17,17 @@
 </script>
 
 <div class="min-h-screen bg-enso-bg-primary">
+  <!-- Back arrow in upper left corner -->
+  <a 
+    href="/" 
+    class="absolute top-4 left-4 text-enso-text-secondary hover:text-enso-text-primary transition-colors"
+    aria-label="Back to home"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M15 19l-7-7 7-7" />
+    </svg>
+  </a>
+
   <div class="max-w-xl mx-auto px-4 py-8">
     <header class="mb-8 text-center flex flex-col items-center">
       <img 
@@ -24,16 +35,6 @@
         alt="Ensō Audio" 
         class="h-16 mx-auto mb-4"
       />
-      
-      <!-- Navigation back to landing page -->
-      <a 
-        href="/" 
-        class="text-xs uppercase tracking-wider text-enso-text-secondary 
-              hover:text-enso-text-primary transition-colors px-4 py-2
-              border border-enso-border mb-4"
-      >
-        Back to Home
-      </a>
     </header>
     
     <!-- Current Player -->
