@@ -13,7 +13,7 @@
           class="h-16 mx-auto mb-1"
         />
         <p class="text-enso-text-secondary tracking-[2px] uppercase text-sm md:text-base">
-         Audio + Visual + Mindfulness
+         Sound Design + mindfulness
         </p>
         <div class="pt-4">
           <a 

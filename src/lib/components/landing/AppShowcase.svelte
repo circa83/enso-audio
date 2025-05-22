@@ -2,15 +2,15 @@
     const features = [
       {
         title: 'Ambient Archive',
-        description: 'Curated collection of ambient tracks designed for mindfulness and focus'
+        description: 'A living collection of listening experiences created to anchor attention and open space for inspiration.'
       },
       {
-        title: 'Session Mode',
-        description: 'Create custom listening sessions with seamless crossfades between tracks'
+        title: 'Hand-Crafted Sound',
+        description: '100 % original recorded performances, mindfully created; zero stock loops or AI shortcuts.'
       },
       {
-        title: 'Minimal Interface',
-        description: 'Distraction-free listening experience with elegant waveform visualization'
+        title: 'Weekly New Rituals',
+        description: 'New listening experiences added every week to keeping the archive alive and your practice evolving.'
       }
     ];
   </script>
@@ -20,7 +20,7 @@
       <header class="text-center mb-16">
         <h2 class="text-2xl uppercase tracking-[4px] font-light mb-3">Ensō Audio</h2>
         <p class="text-enso-text-secondary tracking-[2px] text-sm max-w-2xl mx-auto">
-          A minimal ambient audio player designed for mindful listening experiences
+          Audio Rituals for insight and transformation
         </p>
       </header>
       
