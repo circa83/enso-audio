@@ -2,7 +2,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { get } from 'svelte/store';
-  import { audioEngine } from '$lib/player/services/AudioEngine';
+  import { webAudioEngine } from '$lib/player/services/WebAudioEngine';
   import { sessionManager } from '$lib/player/services/SessionManager';
   import { current, isPlaying, time, duration, currentSessionItemId, session } from './store';
   import WaveformDisplay from '$lib/components/WaveformDisplay.svelte';
@@ -18,13 +18,13 @@
 
   let container: HTMLDivElement;
   
-  // Subscribe to AudioEngine stores and sync with legacy stores
-  const audioIsPlaying = audioEngine.isPlaying;
-  const audioCurrentTime = audioEngine.currentTime;
-  const audioDuration = audioEngine.duration;
-  const audioError = audioEngine.error;
+  // Subscribe to WebAudioEngine stores and sync with legacy stores
+  const audioIsPlaying = webAudioEngine.isPlaying;
+  const audioCurrentTime = webAudioEngine.currentTime;
+  const audioDuration = webAudioEngine.duration;
+  const audioError = webAudioEngine.error;
   
-  // Sync AudioEngine values with legacy stores
+  // Sync WebAudioEngine values with legacy stores
   $: isPlaying.set($audioIsPlaying);
   $: time.set($audioCurrentTime);
   $: duration.set($audioDuration);
@@ -64,18 +64,16 @@
   }
 
   onMount(async () => {
-    audioEngine.initialize(container);
-    audioEngine.onFinish(handleTrackFinished);
+    webAudioEngine.initialize(container);
+    webAudioEngine.onFinish(handleTrackFinished);
     
-    // DON'T create a new track - the current track should already be set
-    // by the parent component (page.svelte) or session manager
     console.log('Player.svelte - Current track on mount:', $current);
     
     // Load track
     if (src) {
       try {
         const audioUrl = src.startsWith('/') ? src : `/${src}`;
-        await audioEngine.load({ url: audioUrl, title, artwork });
+        await webAudioEngine.load({ url: audioUrl, title, artwork });
       } catch (error) {
         console.error('Player - Error loading track:', error);
       }
@@ -83,7 +81,7 @@
   });
 
   onDestroy(() => {
-    audioEngine.destroy();
+    webAudioEngine.destroy();
   });
 
   // Handle track changes
@@ -94,7 +92,7 @@
     const shouldAutoPlay = sessionManager.shouldAutoPlay() || get(isPlaying);
     
     console.log('Player.svelte - Loading track, shouldAutoPlay:', shouldAutoPlay);
-    audioEngine.load({ url: src, title, artwork }, shouldAutoPlay)
+    webAudioEngine.load({ url: src, title, artwork }, shouldAutoPlay)
       .catch(console.error);
   }
 </script>
@@ -107,7 +105,7 @@
     </div>
   </div>
   
-  <!-- Waveform display -->
+  <!-- Waveform display - KEEP EXISTING COMPONENT -->
   <WaveformDisplay bind:container />
 
   <!-- Controls -->
