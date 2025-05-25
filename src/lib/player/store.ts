@@ -24,6 +24,22 @@ export const session = writable<SessionItem[]>([]);
 /** Crossfade duration in seconds */
 export const crossfadeDuration = writable(3);
 
+// Calculate total duration of all tracks in session
+export function getSessionTotalDuration(sessionItems: SessionItem[]): number {
+  return sessionItems.reduce((total, item) => {
+    // Use the track duration (default to 0 if undefined)
+    return total + (item.track.duration || 0);
+  }, 0);
+}
+
+// Format duration in MM:SS format
+export function formatDuration(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+
 // Updated session management functions
 export function addToSession(track: Track) {
   session.update(items => [...items, {

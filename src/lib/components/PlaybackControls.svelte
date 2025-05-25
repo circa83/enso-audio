@@ -1,23 +1,23 @@
 <script lang="ts">
-    import { audioEngine } from '$lib/player/services/AudioEngine';
+    import { webAudioEngine } from '$lib/player/services/WebAudioEngine';
     import { isPlaying } from '$lib/player/store';
     
-    // Subscribe to AudioEngine stores
-    const audioIsPlaying = audioEngine.isPlaying;
-    const audioIsLoading = audioEngine.isLoading;
+    // Subscribe to WebAudioEngine stores
+    const audioIsPlaying = webAudioEngine.isPlaying;
+    const audioIsLoading = webAudioEngine.isLoading;
   
     async function toggle() {
       console.log('PlaybackControls.svelte - toggle() called');
       
       try {
-        await audioEngine.resumeAudioContext();
+        await webAudioEngine.resumeAudioContext();
         
         if ($audioIsPlaying) {
           console.log('PlaybackControls.svelte - pausing');
-          audioEngine.pause();
+          webAudioEngine.pause();
         } else {
           console.log('PlaybackControls.svelte - playing');
-          audioEngine.play();
+          webAudioEngine.play();
         }
       } catch (err) {
         console.error('PlaybackControls.svelte - Error toggling playback:', err);

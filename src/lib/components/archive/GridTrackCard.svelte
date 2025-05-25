@@ -66,11 +66,11 @@
         <p class="text-sm font-thin tracking-wider truncate">
           {track.title}
         </p>
-        {#if track.artist}
+        <!-- {#if track.artist}
           <p class="text-xs text-enso-text-secondary truncate">
             {track.artist}
           </p>
-        {/if}
+        {/if} -->
       </div>
     </button>
     

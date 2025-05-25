@@ -1,3 +1,4 @@
+// src/lib/data/tracks.ts
 import type { Track } from '$lib/types/track';
 
 // Enhanced tracks with metadata for therapy/ambient use
@@ -8,6 +9,7 @@ export const musicLibrary: Track[] = [
     artist: 'Brock Cooper',
     src: '/audio/February2(short)_2025.mp3',
     artwork: '/images/Stillness_EnsoAudio_bkcp.png',
+    duration: 74, // 1 minute 14 seconds (74 seconds)
     metadata: {
       genre: ['ambient', 'meditation'],
       mood: ['calm', 'peaceful', 'serene'],
@@ -29,6 +31,7 @@ export const musicLibrary: Track[] = [
     artist: 'Brock Cooper',
     src: '/audio/March4(short)_2025.mp3',
     artwork: '/images/Breathe_EnsoAudio_bkcp.png',
+    duration: 137, // 2 minutes 17 seconds (137 seconds)
     metadata: {
       genre: ['ambient', 'breathwork'],
       mood: ['relaxing', 'flowing', 'gentle'],
@@ -50,6 +53,7 @@ export const musicLibrary: Track[] = [
     artist: 'Brock Cooper',
     src: '/audio/March5(short)_2025.mp3',
     artwork: '/images/Eclipse_EnsoAudio_bkcp.png',
+    duration: 137, // 2 minutes 17 seconds (137 seconds)
     metadata: {
       genre: ['ambient', 'drone'],
       mood: ['mysterious', 'contemplative', 'deep'],
@@ -71,6 +75,7 @@ export const musicLibrary: Track[] = [
     artist: 'Brock Cooper',
     src: '/audio/March9(short)_2025.mp3',
     artwork: '/images/Empower_EnsoAudio_bkcp.png',
+    duration: 138, // 2 minutes 18 seconds (138 seconds)
     metadata: {
       genre: ['ambient', 'motivational'],
       mood: ['uplifting', 'energizing', 'confident'],
@@ -92,6 +97,7 @@ export const musicLibrary: Track[] = [
     artist: 'Brock Cooper',
     src: '/audio/March9(short)a_2025.mp3',
     artwork: '/images/Elevate_EnsoAudio_bkcp.png',
+    duration: 132, // 2 minute 12 seconds (132seconds)
     metadata: {
       genre: ['ambient', 'spiritual'],
       mood: ['transcendent', 'ethereal', 'uplifting'],

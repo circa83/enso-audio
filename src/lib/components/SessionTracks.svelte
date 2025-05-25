@@ -1,4 +1,4 @@
-<!-- // src/lib/components/SessionTracks.svelte -->
+<!-- src/lib/components/SessionTracks.svelte -->
 <script lang="ts">
   import { session, current, currentSessionItemId, isPlaying } from '$lib/player/store';
   import ListTrackCard from './archive/ListTrackCard.svelte';
@@ -29,12 +29,12 @@
     imageErrors[trackId] = true;
   }
   
-  // Check if this session item is currently playing
+  // Check if this session item is currently playing - FIXED VERSION
   $: isCurrentTrack = (sessionItemId: string): boolean => {
-    const isCurrent = $currentSessionItemId === sessionItemId;
-    const isPlayingNow = $isPlaying;
-    return isCurrent && isPlayingNow;
-  }
+    // ONLY return true if this specific session item ID matches the current session item ID
+    // AND the player is currently playing
+    return $currentSessionItemId === sessionItemId && $isPlaying;
+  };
   
   function isInSession(trackId: string): boolean {
     return true; // All tracks in this component are in session
@@ -44,7 +44,8 @@
   $: console.log('SessionTracks - State:', { 
     currentSessionItemId: $currentSessionItemId, 
     isPlaying: $isPlaying,
-    sessionCount: $session.length 
+    sessionCount: $session.length,
+    currentTrackId: $current?.id 
   });
   
   // Handle remove from session with session item ID
@@ -54,15 +55,40 @@
       removeFromSession(sessionItemId);
     });
   }
+  
+  // Format time for display
+  function formatTime(seconds: number): string {
+    if (!seconds && seconds !== 0) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+  
+  // Calculate total session duration
+  $: totalDuration = $session.reduce((total, item) => {
+    // Make sure to use the duration from the track object
+    return total + (item.track.duration || 0);
+  }, 0);
+  
+  // Log the duration calculation for debugging
+  $: console.log('SessionTracks.svelte - Session duration calculation:', {
+    totalDuration,
+    tracks: $session.map(item => ({
+      title: item.track.title,
+      duration: item.track.duration
+    }))
+  });
 </script>
 
 {#if $session.length > 0}
   <div class="mb-8">
     <div class="flex items-center justify-between mb-4">
       <h2 class="text-lg font-thin tracking-wider uppercase">Session</h2>
-      <span class="text-xs text-enso-text-secondary uppercase tracking-wider">
-        {$session.length} tracks
-      </span>
+      <div class="text-right">
+        <span class="text-xs text-enso-text-secondary uppercase tracking-wider block">
+          {$session.length} tracks : {formatTime(totalDuration)}
+        </span>
+      </div>
     </div>
     
     <div class="space-y-1">
