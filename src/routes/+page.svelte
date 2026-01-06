@@ -3,6 +3,7 @@
     import AboutSection from '$lib/components/landing/AboutSection.svelte';
     import AudioRituals from '$lib/components/landing/AudioRituals.svelte';
     import AppShowcase from '$lib/components/landing/AppShowcase.svelte';
+    import WaitlistSection from '$lib/components/landing/WaitlistSection.svelte';
     import ContactSection from '$lib/components/landing/ContactSection.svelte';
     import Footer from '$lib/components/landing/Footer.svelte';
     import { onMount } from 'svelte';
@@ -13,10 +14,11 @@
   </script>
   
   <div class="landing-page bg-enso-bg-primary min-h-screen">
-    <HeroSection />
-    <AboutSection />
+    <!-- <HeroSection /> -->
+    <!-- <AboutSection /> -->
     <AppShowcase />
     <AudioRituals />
+    <WaitlistSection />
     <ContactSection />
     <Footer />
   </div>

@@ -55,7 +55,7 @@
             </div>
           {/each}
           
-          <div class="pt-6">
+          <!-- <div class="pt-6">
             <a 
               href="/app" 
               class="inline-block border border-enso-border px-6 py-3 uppercase tracking-[2px] text-xs
@@ -63,7 +63,7 @@
             >
              Start Listening
             </a>
-          </div>
+          </div> -->
         </div>
       </div>
     </div>

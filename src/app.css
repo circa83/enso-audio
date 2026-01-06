@@ -38,3 +38,15 @@
     @apply transition-opacity duration-300;
   }
 }
+@layer utilities {
+  /* Hide "Built with Kit" branding */
+  .formkit-powered-by-convertkit-container {
+    display: none !important;
+  }
+}
+@layer utilities {
+  .formkit-form[data-uid="72f01c3565"] {
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+}

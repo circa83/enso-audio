@@ -1,10 +1,10 @@
 <script lang="ts">
     const contactLinks = [
-      { 
-        name: 'Email',
-        url: 'mailto:hello@enso-audio.com', 
-        icon: `<path d="M3 8l7.5 5.5L18 8M3 8v8l4.5-4.5M3 8V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2v-8z" stroke="currentColor" stroke-width="1" />` 
-      },
+      // { 
+      //   name: 'Email',
+      //   url: 'mailto:hello@enso-audio.com', 
+      //   icon: `<path d="M3 8l7.5 5.5L18 8M3 8v8l4.5-4.5M3 8V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2v-8z" stroke="currentColor" stroke-width="1" />` 
+      // },
       { 
         name: 'Instagram',
         url: 'https://instagram.com/bk.cp', 
